@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dokumente SYSTEM "http://www.gesetze-im-internet.de/dtd/1.01/gii-norm.dtd">
+<!-- Testauszug im GII-Format, von Hand gekürzt. Nicht als Rechtsquelle verwenden. -->
+<dokumente builddate="20260901120000" doknr="BJNR001950896">
+  <norm builddate="20260901120000" doknr="BJNR001950896">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <amtabk>BGB</amtabk>
+      <ausfertigung-datum manuell="ja">1896-08-18</ausfertigung-datum>
+      <langue>Bürgerliches Gesetzbuch</langue>
+      <standangabe checked="ja"><standtyp>Neuf</standtyp><standkommentar>Neugefasst durch Bek. v. 2.1.2002 I 42, 2909; 2003, 738</standkommentar></standangabe>
+      <standangabe checked="ja"><standtyp>Stand</standtyp><standkommentar>Zuletzt geändert durch Art. 1 G v. 1.1.2026 I Nr. 1 (Testfassung)</standkommentar></standangabe>
+    </metadaten>
+    <textdaten><text format="XML"><Content><P/></Content></text></textdaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNG000102377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <gliederungseinheit><gliederungskennzahl>010</gliederungskennzahl><gliederungsbez>Buch 1</gliederungsbez><gliederungstitel>Allgemeiner Teil</gliederungstitel></gliederungseinheit>
+    </metadaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNG000202377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <gliederungseinheit><gliederungskennzahl>010010</gliederungskennzahl><gliederungsbez>Abschnitt 1</gliederungsbez><gliederungstitel>Personen</gliederungstitel></gliederungseinheit>
+    </metadaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNE000102377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <enbez>§ 1</enbez>
+      <titel format="parat">Beginn der Rechtsfähigkeit</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content><P>Die Rechtsfähigkeit des Menschen beginnt mit der Vollendung der Geburt.</P></Content></text></textdaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNG001002377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <gliederungseinheit><gliederungskennzahl>010050</gliederungskennzahl><gliederungsbez>Abschnitt 5</gliederungsbez><gliederungstitel>Verjährung</gliederungstitel></gliederungseinheit>
+    </metadaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNE018902377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <enbez>§ 195</enbez>
+      <titel format="parat">Regelmäßige Verjährungsfrist</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content><P>Die regelmäßige Verjährungsfrist beträgt drei Jahre.</P></Content></text></textdaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNE019302377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <enbez>§ 199</enbez>
+      <titel format="parat">Beginn der regelmäßigen Verjährungsfrist und Verjährungshöchstfristen</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content>
+      <P>(1) Die regelmäßige Verjährungsfrist beginnt, soweit nicht ein anderer Verjährungsbeginn bestimmt ist, mit dem Schluss des Jahres, in dem<DL Font="normal" Type="arabic"><DT>1.</DT><DD Font="normal"><LA Size="normal">der Anspruch entstanden ist und</LA></DD><DT>2.</DT><DD Font="normal"><LA Size="normal">der Gläubiger von den den Anspruch begründenden Umständen und der Person des Schuldners Kenntnis erlangt oder ohne grobe Fahrlässigkeit erlangen müsste.</LA></DD></DL></P>
+      <P>(2) Schadensersatzansprüche, die auf der Verletzung des Lebens, des Körpers, der Gesundheit oder der Freiheit beruhen, verjähren ohne Rücksicht auf ihre Entstehung und die Kenntnis oder grob fahrlässige Unkenntnis in 30 Jahren von der Begehung der Handlung, der Pflichtverletzung oder dem sonstigen, den Schaden auslösenden Ereignis an.</P>
+    </Content></text></textdaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNG003202377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <gliederungseinheit><gliederungskennzahl>020</gliederungskennzahl><gliederungsbez>Buch 2</gliederungsbez><gliederungstitel>Recht der Schuldverhältnisse</gliederungstitel></gliederungseinheit>
+    </metadaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNE027302377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <enbez>§ 280</enbez>
+      <titel format="parat">Schadensersatz wegen Pflichtverletzung</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content>
+      <P>(1) Verletzt der Schuldner eine Pflicht aus dem Schuldverhältnis, so kann der Gläubiger Ersatz des hierdurch entstehenden Schadens verlangen. Dies gilt nicht, wenn der Schuldner die Pflichtverletzung nicht zu vertreten hat.</P>
+      <P>(2) Schadensersatz wegen Verzögerung der Leistung kann der Gläubiger nur unter der zusätzlichen Voraussetzung des § 286 verlangen.</P>
+      <P>(3) Schadensersatz statt der Leistung kann der Gläubiger nur unter den zusätzlichen Voraussetzungen des § 281, des § 282 oder des § 283 verlangen.</P>
+    </Content></text></textdaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNE081602377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <enbez>§ 823</enbez>
+      <titel format="parat">Schadensersatzpflicht</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content>
+      <P>(1) Wer vorsätzlich oder fahrlässig das Leben, den Körper, die Gesundheit, die Freiheit, das Eigentum oder ein sonstiges Recht eines anderen widerrechtlich verletzt, ist dem anderen zum Ersatz des daraus entstehenden Schadens verpflichtet.</P>
+      <P>(2) Die gleiche Verpflichtung trifft denjenigen, welcher gegen ein den Schutz eines anderen bezweckendes Gesetz verstößt. Ist nach dem Inhalt des Gesetzes ein Verstoß gegen dieses auch ohne Verschulden möglich, so tritt die Ersatzpflicht nur im Falle des Verschuldens ein.</P>
+    </Content></text></textdaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR001950896BJNE129702377">
+    <metadaten>
+      <jurabk>BGB</jurabk>
+      <enbez>§ 1300</enbez>
+      <titel format="parat">(weggefallen)</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content><P>-</P></Content></text></textdaten>
+  </norm>
+</dokumente>

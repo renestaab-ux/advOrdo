@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Hauptfenster: nur die eigenen Befehle, keine Datei- oder Netzwerkrechte im Frontend.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
