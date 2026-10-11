@@ -22,24 +22,54 @@ stdin/stdout (`core/juracore/rpc.py`, `app/src-tauri/src/kern.rs`).
 
 ## Entwicklung
 
-Voraussetzungen: Python 3.11+, Node 22, Rust (stable). Unter Linux zusätzlich die
-Tauri-Systembibliotheken (`libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev
-libayatana-appindicator3-dev`).
+Voraussetzungen: Python 3.11+, Node 22, Rust (stable), Git. Windows 11 ist das
+Hauptzielsystem; macOS und Linux werden genauso unterstützt.
 
-```bash
-# Analysekern
-python3 -m venv .venv
-.venv/bin/pip install -e "core[dev]"        # Windows: .venv\Scripts\pip
-.venv/bin/pytest core
+### Windows 11 (PowerShell)
 
-# Desktop-App im Entwicklungsmodus
-cd app
-npm install
-JURACORE_PYTHON=../.venv/bin/python npm run tauri dev
+Einmalig, in einer PowerShell:
+
+```powershell
+winget install Git.Git GitHub.cli Python.Python.3.12 OpenJS.NodeJS.LTS Rustlang.Rustup
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # erlaubt npm-Skripte
 ```
 
-`JURACORE_PYTHON` zeigt auf den Interpreter mit installiertem `juracore`
-(Standard: `python3`, unter Windows `python`).
+Danach eine neue PowerShell öffnen (damit die neuen Programme gefunden werden):
+
+```powershell
+gh auth login
+gh repo clone renestaab-ux/juristischer-datenabgleich
+cd juristischer-datenabgleich
+py -3.12 -m venv .venv
+.venv\Scripts\pip install -e "core[dev]"
+.venv\Scripts\pytest core
+cd app
+npm install
+npm run tauri dev
+```
+
+WebView2 bringt Windows 11 bereits mit. Die Daten der App liegen unter
+`%APPDATA%\de.juristischer-datenabgleich.app`.
+
+### Linux (Ubuntu/Zorin)
+
+```bash
+sudo apt install git gh build-essential pkg-config python3-venv libwebkit2gtk-4.1-dev \
+  libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libssl-dev libxdo-dev
+python3 -m venv .venv
+.venv/bin/pip install -e "core[dev]"
+.venv/bin/pytest core
+cd app && npm install && npm run tauri dev
+```
+
+Node 22 kommt am einfachsten über NodeSource, Rust über rustup. Die Daten liegen
+unter `~/.local/share/de.juristischer-datenabgleich.app`.
+
+### Python-Interpreter
+
+Im Entwicklungsmodus nimmt die App den Interpreter aus `.venv` im Projektordner.
+`JURACORE_PYTHON` überschreibt das; ohne beides gilt `python` (Windows) bzw. `python3`.
 
 ## Wissensbasis: Gesetze
 
