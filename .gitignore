@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node / Frontend
+node_modules/
+app/dist/
+
+# Rust / Tauri
+app/src-tauri/target/
+app/src-tauri/gen/
+
+# Lokale Daten (Roharchiv, Datenbanken) gehören nie ins Repository
+daten/
+*.sqlite
+*.sqlite-*
