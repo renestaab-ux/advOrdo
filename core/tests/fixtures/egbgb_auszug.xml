@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dokumente SYSTEM "https://www.gesetze-im-internet.de/dtd/1.01/gii-norm.dtd">
+<!-- Testauszug im GII-Format, von Hand gekürzt. Aufbau wie beim EGBGB: Artikel sind Gliederungseinheiten
+     mit eigenem Text, in Art 229 stehen Paragraphen. Nicht als Rechtsquelle verwenden. -->
+<dokumente builddate="20260926215514" doknr="BJNR006049896">
+  <norm builddate="20260926215514" doknr="BJNR006049896">
+    <metadaten>
+      <jurabk>BGBEG</jurabk>
+      <langue>Einführungsgesetz zum Bürgerlichen Gesetzbuche</langue>
+      <standangabe checked="ja"><standtyp>Stand</standtyp><standkommentar>Testfassung</standkommentar></standangabe>
+    </metadaten>
+  </norm>
+  <norm builddate="20260926215514" doknr="BJNR006049896BJNG000103377">
+    <metadaten><jurabk>BGBEG</jurabk><gliederungseinheit><gliederungskennzahl>010</gliederungskennzahl><gliederungsbez>Erster Teil</gliederungsbez><gliederungstitel>Allgemeine Vorschriften</gliederungstitel></gliederungseinheit></metadaten>
+    <textdaten><text format="XML"><Content><P/></Content></text></textdaten>
+  </norm>
+  <norm builddate="20260926215514" doknr="BJNR006049896BJNG030900377">
+    <metadaten><jurabk>BGBEG</jurabk><gliederungseinheit><gliederungskennzahl>010010</gliederungskennzahl><gliederungsbez>Art 1</gliederungsbez><gliederungstitel/></gliederungseinheit></metadaten>
+    <textdaten><text format="XML"><Content><P>(1) Das Bürgerliche Gesetzbuch tritt am 1. Januar 1900 in Kraft.</P><P>(2) Soweit die Regelung den Landesgesetzen vorbehalten ist, bleiben die bestehenden landesgesetzlichen Vorschriften in Kraft.</P></Content></text></textdaten>
+  </norm>
+  <norm builddate="20260926215514" doknr="BJNR006049896BJNG000505377">
+    <metadaten><jurabk>BGBEG</jurabk><gliederungseinheit><gliederungskennzahl>050</gliederungskennzahl><gliederungsbez>Fünfter Teil</gliederungsbez><gliederungstitel>Übergangsvorschriften</gliederungstitel></gliederungseinheit></metadaten>
+    <textdaten><text format="XML"><Content><P/></Content></text></textdaten>
+  </norm>
+  <norm builddate="20260926215514" doknr="BJNR006049896BJNG030801377">
+    <metadaten><jurabk>BGBEG</jurabk><gliederungseinheit><gliederungskennzahl>050002290</gliederungskennzahl><gliederungsbez>Art 229</gliederungsbez><gliederungstitel>Weitere Überleitungsvorschriften</gliederungstitel></gliederungseinheit></metadaten>
+    <textdaten><text format="XML"><Content><P>(weggefallen)</P></Content></text></textdaten>
+  </norm>
+  <norm builddate="20260926215514" doknr="BJNR006049896BJNE230301377">
+    <metadaten><jurabk>BGBEG</jurabk><gliederungseinheit><gliederungskennzahl>050002290</gliederungskennzahl><gliederungsbez>Art 229</gliederungsbez><gliederungstitel/></gliederungseinheit><enbez>§ 6</enbez><titel format="XML">Überleitungsvorschrift zum Verjährungsrecht</titel></metadaten>
+    <textdaten><text format="XML"><Content><P>(1) Die Vorschriften über die Verjährung in der seit dem 1. Januar 2002 geltenden Fassung finden auf die an diesem Tag bestehenden Ansprüche Anwendung. Der Beginn der Verjährung bestimmt sich für den Zeitraum davor nach der bis dahin geltenden Fassung.</P><P>(2) Die neue Verjährung ist mit Beginn des 1. Januar 2002 gehemmt.</P></Content></text></textdaten>
+  </norm>
+</dokumente>

@@ -76,7 +76,11 @@ def test_roharchiv_unveraendert(tmp_path):
 
 def test_gesetz_unter_zitierabkuerzung(con, tmp_path):
     # Gesetze im Internet führt etwa das EGBGB als "BGBEG"; zitiert wird es als "EGBGB".
-    xml = (FIXTURES / "hgb_auszug.xml").read_text(encoding="utf-8").replace("<jurabk>HGB</jurabk>", "<jurabk>HGBEG</jurabk>")
+    xml = (
+        (FIXTURES / "hgb_auszug.xml")
+        .read_text(encoding="utf-8")
+        .replace("<jurabk>HGB</jurabk>", "<jurabk>HGBEG</jurabk>")
+    )
     alt = tmp_path / "alt.xml"
     alt.write_text(xml, encoding="utf-8")
     assert wissensbasis.importiere(con, quelle.lies_datei(alt, None))["abk"] == "HGBEG"
@@ -90,3 +94,14 @@ def test_gesetz_unter_zitierabkuerzung(con, tmp_path):
     assert "HGBEG" not in gesetze
     assert gesetze["HGB"]["fassungen"] == 2
     assert wissensbasis.loese_zitat(con, "§ 1 HGB")["status"] == "belegt"
+
+
+def test_egbgb_artikel_zitieren(con):
+    wissensbasis.importiere(con, quelle.lies_datei(FIXTURES / "egbgb_auszug.xml", None), "EGBGB")
+    assert wissensbasis.loese_zitat(con, "Art. 1 Abs. 2 EGBGB")["status"] == "belegt"
+    beleg = wissensbasis.loese_zitat(con, "Art. 229 § 6 Abs. 1 S. 2 EGBGB")
+    assert beleg["status"] == "belegt"
+    assert beleg["wortlaut"].startswith("Der Beginn der Verjährung")
+    # Ohne Artikel gibt es im EGBGB keinen § 6.
+    assert wissensbasis.loese_zitat(con, "§ 6 EGBGB")["status"] == "nicht_gefunden"
+    assert wissensbasis.loese_zitat(con, "Art. 229 EGBGB")["status"] == "nicht_gefunden"

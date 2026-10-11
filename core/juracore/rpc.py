@@ -36,8 +36,8 @@ class Kern:
             "gesetze.importieren": self.importieren,
             "gesetze.importieren_datei": self.importieren_datei,
             "gesetze.suche": lambda text, gesetz=None, limit=20: wissensbasis.suche(self.con, text, gesetz, limit),
-            "gesetze.norm": lambda gesetz, nummer, fassung_id=None: wissensbasis.norm(
-                self.con, gesetz, nummer, fassung_id
+            "gesetze.norm": lambda gesetz, nummer, fassung_id=None, typ=None: wissensbasis.norm(
+                self.con, gesetz, nummer, fassung_id, typ
             ),
             "zitat.aufloesen": lambda zitat, fassung_id=None: wissensbasis.loese_zitat(self.con, zitat, fassung_id),
         }

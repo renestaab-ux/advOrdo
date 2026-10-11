@@ -66,3 +66,18 @@ def test_html_entitaeten_und_fussnotenmarker():
 <textdaten><text><Content><P>(1) Satz&nbsp;eins<SUP class="Rec">1)</SUP>.</P></Content></text></textdaten></norm></dokumente>"""
     dok = parse_gii_xml(xml)
     assert dok.normen[0].absaetze[0].text == "Satz eins."
+
+
+def test_egbgb_artikel_als_gliederungseinheit():
+    dokument = parse_gii_xml((FIXTURES / "egbgb_auszug.xml").read_bytes())
+    assert dokument.abk == "BGBEG"
+    assert [(n.bezeichnung, n.typ, n.nummer) for n in dokument.normen] == [
+        ("Art 1", "artikel", "1"),
+        ("Art 229 § 6", "artikel", "229 § 6"),
+    ]
+    art1, par6 = dokument.normen
+    assert art1.gliederung == ["Erster Teil Allgemeine Vorschriften"]
+    assert [a.nr for a in art1.absaetze] == ["1", "2"]
+    assert par6.titel == "Überleitungsvorschrift zum Verjährungsrecht"
+    assert par6.gliederung == ["Fünfter Teil Übergangsvorschriften", "Art 229 Weitere Überleitungsvorschriften"]
+    assert len(par6.absaetze[0].saetze) == 2

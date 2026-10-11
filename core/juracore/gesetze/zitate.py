@@ -9,16 +9,19 @@ _ABS = r"(?:Abs\.|Absatz|Absatzes|Absätze)"
 _SATZ = r"(?:S\.|Satz|Satzes|Sätze)"
 _NR = r"(?:Nr\.|Nummer|Nrn\.)"
 
+# Paragraph innerhalb eines Artikels, z. B. "Art. 229 § 6 EGBGB".
+_UNTERPARAGRAPH = r"(?:\s*§\s*\d+[a-z]?)?"
+
 # Ein einzelnes Normziel: Nummer, optional Absatz, Satz, Nummer und "f."/"ff.".
 _ZIEL_ROH = (
-    r"\d+[a-z]?"
+    rf"\d+[a-z]?{_UNTERPARAGRAPH}"
     rf"(?:\s*{_ABS}\s*\d+[a-z]?)?"
     rf"(?:\s*{_SATZ}\s*\d+)?"
     rf"(?:\s*{_NR}\s*\d+[a-z]?)?"
     r"(?:\s*ff?\.)?"
 )
 _ZIEL = (
-    r"(?P<nummer>\d+[a-z]?)"
+    rf"(?P<nummer>\d+[a-z]?{_UNTERPARAGRAPH})"
     rf"(?:\s*{_ABS}\s*(?P<absatz>\d+[a-z]?))?"
     rf"(?:\s*{_SATZ}\s*(?P<satz>\d+))?"
     rf"(?:\s*{_NR}\s*(?P<nr>\d+[a-z]?))?"
@@ -68,7 +71,7 @@ def finde_zitate(text: str) -> list[Zitat]:
             zitate.append(
                 Zitat(
                     gesetz=gesetz,
-                    nummer=z.group("nummer"),
+                    nummer=re.sub(r"\s*§\s*", " § ", z.group("nummer")),
                     absatz=z.group("absatz"),
                     satz=int(z.group("satz")) if z.group("satz") else None,
                     nr=z.group("nr"),

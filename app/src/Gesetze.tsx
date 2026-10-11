@@ -84,7 +84,8 @@ export default function Gesetze() {
 
   async function oeffne(abk: string, bezeichnung: string) {
     const nummer = bezeichnung.replace(/^(§§?|Art\.?|Artikel)\s*/, "");
-    const n = await ausfuehren("Lade Norm …", () => kern<Norm | null>("gesetze.norm", { gesetz: abk, nummer }));
+    const typ = bezeichnung.startsWith("Art") ? "artikel" : "paragraph";
+    const n = await ausfuehren("Lade Norm …", () => kern<Norm | null>("gesetze.norm", { gesetz: abk, nummer, typ }));
     setNorm(n ?? null);
   }
 

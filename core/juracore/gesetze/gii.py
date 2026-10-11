@@ -21,6 +21,7 @@ from .saetze import Liste, Satz, zerlege_in_saetze
 
 _ABSATZ_NR = re.compile(r"^\((\d+[a-z]?)\)\s*")
 _ENBEZ = re.compile(r"^(§§?|Art\.?|Artikel|Anlage)\s*(.*)$")
+_ARTIKEL = re.compile(r"^Art\.?\s*\d")
 _XML_ENTITAETEN = {"amp", "lt", "gt", "quot", "apos"}
 
 
@@ -71,8 +72,9 @@ def parse_gii_xml(daten: bytes | str) -> GesetzDokument:
         builddate=wurzel.get("builddate"),
         doknr=wurzel.get("doknr"),
     )
-    # Gliederung als Stapel (Kennzahl, Bezeichnung); die Kennzahl wächst je Ebene um drei Ziffern.
-    gliederung: list[tuple[str, str]] = []
+    # Gliederung als Stapel (Kennzahl, Bezeichnung mit Titel, Bezeichnung);
+    # die Kennzahl wächst je Ebene um drei Ziffern.
+    gliederung: list[tuple[str, str, str]] = []
     reihenfolge = 0
 
     for norm_el in wurzel.findall("norm"):
@@ -87,25 +89,41 @@ def parse_gii_xml(daten: bytes | str) -> GesetzDokument:
                 _text(s.find("standkommentar")) for s in meta.findall("standangabe") if _text(s.find("standkommentar"))
             ]
 
-        einheit = meta.find("gliederungseinheit")
-        if einheit is not None:
-            kennzahl = _text(einheit.find("gliederungskennzahl")) or ""
-            bez = " ".join(
-                t for t in (_text(einheit.find("gliederungsbez")), _text(einheit.find("gliederungstitel"))) if t
-            )
-            while gliederung and not kennzahl.startswith(gliederung[-1][0]):
-                gliederung.pop()
-            gliederung.append((kennzahl, bez))
-            continue
-
         enbez = _text(meta.find("enbez"))
-        if not enbez or enbez in ("Inhaltsübersicht", "Eingangsformel", "Schlußformel", "Schlussformel"):
-            continue
-
-        typ, nummer = _klassifiziere(enbez)
         titel = _text(meta.find("titel"))
         content = norm_el.find("textdaten/text/Content")
         absaetze = _parse_absaetze(content) if content is not None else []
+        oberhalb = [b for _, b, _ in gliederung]
+
+        einheit = meta.find("gliederungseinheit")
+        if einheit is not None:
+            kennzahl = _text(einheit.find("gliederungskennzahl")) or ""
+            gbez = _text(einheit.find("gliederungsbez")) or ""
+            gtitel = _text(einheit.find("gliederungstitel"))
+            while gliederung and not kennzahl.startswith(gliederung[-1][0]):
+                gliederung.pop()
+            if gliederung and gliederung[-1][0] == kennzahl:
+                # Paragraphen eines Artikels wiederholen dessen Einheit, meist ohne Titel.
+                oberhalb = [b for _, b, _ in gliederung[:-1]]
+            else:
+                oberhalb = [b for _, b, _ in gliederung]
+                gliederung.append((kennzahl, " ".join(t for t in (gbez, gtitel) if t), gbez))
+            if not enbez:
+                # Im EGBGB sind die Artikel selbst Gliederungseinheiten mit eigenem Text.
+                if not (_ARTIKEL.match(gbez) and absaetze):
+                    continue
+                enbez, titel = gbez, gtitel
+            else:
+                oberhalb = [b for _, b, _ in gliederung]
+
+        if not enbez or enbez in ("Inhaltsübersicht", "Eingangsformel", "Schlußformel", "Schlussformel"):
+            continue
+        # Paragraphen innerhalb eines Artikels (EGBGB Art 224 ff.) tragen den Artikel im Namen.
+        artikel = next((k for _, _, k in reversed(gliederung) if _ARTIKEL.match(k)), None)
+        if artikel and enbez.startswith("§") and artikel != enbez:
+            enbez = f"{artikel} {enbez}"
+
+        typ, nummer = _klassifiziere(enbez)
         weggefallen = (titel or "").strip("() ").lower() == "weggefallen" or (
             not absaetze or all(a.text.strip() in ("", "-", "(weggefallen)") for a in absaetze)
         )
@@ -119,7 +137,7 @@ def parse_gii_xml(daten: bytes | str) -> GesetzDokument:
                 typ=typ,
                 nummer=nummer,
                 titel=titel,
-                gliederung=[b for _, b in gliederung],
+                gliederung=oberhalb,
                 absaetze=absaetze,
                 weggefallen=weggefallen,
                 fussnoten=(_leerraum(_flach(fussnoten_el)).strip() or None) if fussnoten_el is not None else None,
@@ -127,6 +145,10 @@ def parse_gii_xml(daten: bytes | str) -> GesetzDokument:
         )
     if not dokument.abk:
         raise ValueError("GII-Dokument ohne Abkürzung (jurabk)")
+    # Ein Artikel, der nur als Klammer für Paragraphen dient (EGBGB Art 229), trägt bei GII
+    # den Text "(weggefallen)". Er würde Zitate wie "Art. 229 EGBGB" fälschlich als weggefallen belegen.
+    klammern = {n.bezeichnung.split(" §")[0] for n in dokument.normen if " §" in n.bezeichnung}
+    dokument.normen = [n for n in dokument.normen if not (n.weggefallen and n.bezeichnung in klammern)]
     return dokument
 
 
