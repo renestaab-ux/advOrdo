@@ -46,10 +46,13 @@ class Kern:
         for abk in gesetze:
             try:
                 roh = quelle.lade_gesetz(abk, self.archiv)
+                ergebnisse.append(wissensbasis.importiere(self.con, roh))
             except quelle.NichtGeaendert:
                 ergebnisse.append({"abk": abk.upper(), "neu": False, "hinweis": "Unverändert seit letztem Abruf."})
-                continue
-            ergebnisse.append(wissensbasis.importiere(self.con, roh))
+            except (ValueError, OSError) as fehler:
+                # Ein fehlerhaftes Gesetz soll die übrigen nicht aufhalten.
+                log.warning("Import von %s fehlgeschlagen: %s", abk, fehler)
+                ergebnisse.append({"abk": abk.upper(), "neu": False, "fehler": str(fehler)})
         return ergebnisse
 
     def importieren_datei(self, pfad: str) -> dict:
