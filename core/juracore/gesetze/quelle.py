@@ -43,7 +43,7 @@ def lade_gesetz(abk: str, archiv: Path, timeout: float = 60) -> Rohdatei:
     kuerzel = BEKANNTE_GESETZE.get(abk, abk.lower())
     url = f"{BASIS_URL}/{kuerzel}/xml.zip"
     meta_pfad = archiv / abk / "abruf.json"
-    meta = json.loads(meta_pfad.read_text()) if meta_pfad.exists() else {}
+    meta = json.loads(meta_pfad.read_text(encoding="utf-8")) if meta_pfad.exists() else {}
 
     anfrage = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     if meta.get("etag"):
@@ -61,7 +61,8 @@ def lade_gesetz(abk: str, archiv: Path, timeout: float = 60) -> Rohdatei:
 
     roh = archiviere(abk, daten, url, archiv)
     meta_pfad.write_text(
-        json.dumps({"etag": kopf.get("ETag"), "last_modified": kopf.get("Last-Modified"), "sha256": roh.sha256})
+        json.dumps({"etag": kopf.get("ETag"), "last_modified": kopf.get("Last-Modified"), "sha256": roh.sha256}),
+        encoding="utf-8",
     )
     return roh
 

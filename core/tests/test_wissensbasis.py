@@ -51,12 +51,12 @@ def test_neue_fassung_alte_bleibt_reproduzierbar(con, tmp_path):
     alt = wissensbasis.loese_zitat(con, "§ 195 BGB")
     geaendert = (
         (FIXTURES / "bgb_auszug.xml")
-        .read_text()
+        .read_text(encoding="utf-8")
         .replace("beträgt drei Jahre.", "beträgt vier Jahre.")
         .replace('builddate="20260901120000"', 'builddate="20261001120000"', 1)
     )
     datei = tmp_path / "bgb_neu.xml"
-    datei.write_text(geaendert)
+    datei.write_text(geaendert, encoding="utf-8")
     neu = wissensbasis.importiere(con, quelle.lies_datei(datei, tmp_path / "archiv", "BGB"))
     assert neu["neu"] is True
 
