@@ -12,11 +12,23 @@ from .quelle import Rohdatei
 from .zitate import Zitat, parse_zitat
 
 
-def importiere(con: sqlite3.Connection, roh: Rohdatei) -> dict:
-    """Übernimmt eine Rohdatei als neue Fassung. Unveränderte Dateien werden übersprungen."""
+def importiere(con: sqlite3.Connection, roh: Rohdatei, abk: str | None = None) -> dict:
+    """Übernimmt eine Rohdatei als neue Fassung. Unveränderte Dateien werden übersprungen.
+
+    ``abk`` ist die Abkürzung, unter der das Gesetz zitiert wird (z. B. "EGBGB"). Ohne
+    sie gilt die juristische Abkürzung aus der Datei, die bei Gesetze im Internet
+    teils abweicht ("BGBEG", "UWG 2004").
+    """
     dokument = parse_gii_xml(roh.xml)
-    abk = dokument.abk.upper()
+    datei_abk = dokument.abk.upper()
+    abk = (abk or datei_abk).upper()
     with con:
+        if abk != datei_abk:
+            # Frühere Importe legten das Gesetz unter der Datei-Abkürzung ab; samt Fassungen übernehmen.
+            con.execute(
+                "UPDATE gesetz SET abk = ? WHERE abk = ? AND NOT EXISTS (SELECT 1 FROM gesetz WHERE abk = ?)",
+                (abk, datei_abk, abk),
+            )
         con.execute(
             """INSERT INTO gesetz (abk, langtitel) VALUES (?, ?)
                ON CONFLICT(abk) DO UPDATE SET langtitel = excluded.langtitel""",

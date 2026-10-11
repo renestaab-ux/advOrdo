@@ -8,7 +8,7 @@
     {"abk": "UKlaG", "kuerzel": "uklag", "titel": "Unterlassungsklagengesetz", "gruppe": "Materielles Zivilrecht"},
     {"abk": "BDSG", "kuerzel": "bdsg_2018", "titel": "Bundesdatenschutzgesetz", "gruppe": "Materielles Zivilrecht"},
     {"abk": "WEG", "kuerzel": "woeigg", "titel": "Wohnungseigentumsgesetz", "gruppe": "Immobilien und Miete"},
-    {"abk": "ErbbauRG", "kuerzel": "erbbaurg", "titel": "Erbbaurechtsgesetz", "gruppe": "Immobilien und Miete"},
+    {"abk": "ErbbauRG", "kuerzel": "erbbauv", "titel": "Erbbaurechtsgesetz", "gruppe": "Immobilien und Miete"},
     {"abk": "BetrKV", "kuerzel": "betrkv", "titel": "Betriebskostenverordnung", "gruppe": "Immobilien und Miete"},
     {"abk": "HeizkostenV", "kuerzel": "heizkostenv", "titel": "Heizkostenverordnung", "gruppe": "Immobilien und Miete"},
     {"abk": "GBO", "kuerzel": "gbo", "titel": "Grundbuchordnung", "gruppe": "Immobilien und Miete"},
