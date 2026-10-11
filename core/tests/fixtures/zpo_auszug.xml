@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dokumente SYSTEM "http://www.gesetze-im-internet.de/dtd/1.01/gii-norm.dtd">
+<!-- Testauszug im GII-Format, von Hand gekürzt. Nicht als Rechtsquelle verwenden. -->
+<dokumente builddate="20260901120000" doknr="BJNR005330950">
+  <norm builddate="20260901120000" doknr="BJNR005330950">
+    <metadaten>
+      <jurabk>ZPO</jurabk>
+      <amtabk>ZPO</amtabk>
+      <langue>Zivilprozessordnung</langue>
+      <standangabe checked="ja"><standtyp>Stand</standtyp><standkommentar>Zuletzt geändert durch Art. 2 G v. 1.1.2026 I Nr. 1 (Testfassung)</standkommentar></standangabe>
+    </metadaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR005330950BJNG000202377">
+    <metadaten>
+      <jurabk>ZPO</jurabk>
+      <gliederungseinheit><gliederungskennzahl>020</gliederungskennzahl><gliederungsbez>Buch 2</gliederungsbez><gliederungstitel>Verfahren im ersten Rechtszug</gliederungstitel></gliederungseinheit>
+    </metadaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR005330950BJNE025302377">
+    <metadaten>
+      <jurabk>ZPO</jurabk>
+      <enbez>§ 253</enbez>
+      <titel format="parat">Klageschrift</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content>
+      <P>(1) Die Erhebung der Klage erfolgt durch Zustellung eines Schriftsatzes (Klageschrift).</P>
+      <P>(2) Die Klageschrift muss enthalten:<DL Font="normal" Type="arabic"><DT>1.</DT><DD Font="normal"><LA Size="normal">die Bezeichnung der Parteien und des Gerichts;</LA></DD><DT>2.</DT><DD Font="normal"><LA Size="normal">die bestimmte Angabe des Gegenstandes und des Grundes des erhobenen Anspruchs, sowie einen bestimmten Antrag.</LA></DD></DL></P>
+      <P>(3) Die Klageschrift soll ferner enthalten:<DL Font="normal" Type="arabic"><DT>1.</DT><DD Font="normal"><LA Size="normal">die Angabe, ob der Klageerhebung der Versuch einer Mediation oder eines anderen Verfahrens der außergerichtlichen Konfliktbeilegung vorausgegangen ist, sowie eine Äußerung dazu, ob einem solchen Verfahren Gründe entgegenstehen;</LA></DD><DT>2.</DT><DD Font="normal"><LA Size="normal">die Angabe des Wertes des Streitgegenstandes, wenn hiervon die Zuständigkeit des Gerichts abhängt und der Streitgegenstand nicht in einer bestimmten Geldsumme besteht;</LA></DD><DT>3.</DT><DD Font="normal"><LA Size="normal">eine Äußerung dazu, ob einer Entscheidung der Sache durch den Einzelrichter Gründe entgegenstehen.</LA></DD></DL></P>
+    </Content></text></textdaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR005330950BJNE028602377">
+    <metadaten>
+      <jurabk>ZPO</jurabk>
+      <enbez>§ 286</enbez>
+      <titel format="parat">Freie Beweiswürdigung</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content>
+      <P>(1) Das Gericht hat unter Berücksichtigung des gesamten Inhalts der Verhandlungen und des Ergebnisses einer etwaigen Beweisaufnahme nach freier Überzeugung zu entscheiden, ob eine tatsächliche Behauptung für wahr oder für nicht wahr zu erachten sei. In dem Urteil sind die Gründe anzugeben, die für die richterliche Überzeugung leitend gewesen sind.</P>
+      <P>(2) An gesetzliche Beweisregeln ist das Gericht nur in den durch dieses Gesetz bezeichneten Fällen gebunden.</P>
+    </Content></text></textdaten>
+  </norm>
+</dokumente>
