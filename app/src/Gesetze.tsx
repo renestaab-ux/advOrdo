@@ -5,6 +5,7 @@ import {
   GesetzEintrag,
   ImportErgebnis,
   Norm,
+  Voreinstellung,
   Treffer,
   formatiereBuilddate,
   istDesktop,
@@ -14,7 +15,7 @@ import {
 
 export default function Gesetze() {
   const [gesetze, setGesetze] = useState<GesetzEintrag[]>([]);
-  const [verfuegbar, setVerfuegbar] = useState<string[]>([]);
+  const [verfuegbar, setVerfuegbar] = useState<Voreinstellung[]>([]);
   const [eingabe, setEingabe] = useState("");
   const [weiteres, setWeiteres] = useState("");
   const [treffer, setTreffer] = useState<Treffer[] | null>(null);
@@ -39,7 +40,7 @@ export default function Gesetze() {
   const ladeListe = useCallback(async () => {
     const [liste, verf] = await Promise.all([
       kern<GesetzEintrag[]>("gesetze.liste"),
-      kern<string[]>("gesetze.verfuegbar"),
+      kern<Voreinstellung[]>("gesetze.verfuegbar"),
     ]);
     setGesetze(liste);
     setVerfuegbar(verf);
@@ -96,7 +97,9 @@ export default function Gesetze() {
     );
   }
 
-  const fehlend = verfuegbar.filter((v) => !gesetze.some((g) => g.abk === v));
+  const geladen = new Set(gesetze.map((g) => g.abk.toUpperCase()));
+  const fehlend = verfuegbar.filter((v) => !geladen.has(v.abk.toUpperCase())).map((v) => v.abk);
+  const gruppen = [...new Set(verfuegbar.map((v) => v.gruppe))];
 
   return (
     <div className="gesetze">
@@ -105,7 +108,7 @@ export default function Gesetze() {
         <div className="aktionen">
           {fehlend.length > 0 && (
             <button onClick={() => importieren(fehlend)} disabled={!!laeuft}>
-              {fehlend.join(", ")} laden
+              {fehlend.length === verfuegbar.length ? "Voreinstellung laden" : `${fehlend.length} fehlende laden`}
             </button>
           )}
           {gesetze.length > 0 && (
@@ -115,6 +118,26 @@ export default function Gesetze() {
           )}
         </div>
       </header>
+
+      <details className="voreinstellung">
+        <summary>
+          Voreinstellung Zivilrecht: {verfuegbar.length} Gesetze, davon {verfuegbar.length - fehlend.length} geladen
+        </summary>
+        {gruppen.map((gruppe) => (
+          <div key={gruppe} className="gruppe">
+            <h3>{gruppe}</h3>
+            <ul>
+              {verfuegbar
+                .filter((v) => v.gruppe === gruppe)
+                .map((v) => (
+                  <li key={v.abk} className={geladen.has(v.abk.toUpperCase()) ? "geladen" : undefined}>
+                    <strong>{v.abk}</strong> {v.titel}
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ))}
+      </details>
 
       <form className="weiteres" onSubmit={weiteresLaden}>
         <input
@@ -139,7 +162,7 @@ export default function Gesetze() {
           ))}
         </ul>
       ) : (
-        <p className="leer">Noch keine Gesetze in der Wissensbasis. Lade BGB, ZPO und HGB, um zu beginnen.</p>
+        <p className="leer">Noch keine Gesetze in der Wissensbasis. Lade die Voreinstellung, um zu beginnen.</p>
       )}
 
       <form className="suche" onSubmit={suchen}>

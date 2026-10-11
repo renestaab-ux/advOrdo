@@ -46,9 +46,28 @@ def server(monkeypatch):
     return aufrufe
 
 
-def test_hgb_ist_standard():
+def test_voreinstellung_zivilrecht():
+    gesetze = {g["abk"]: g for g in quelle.voreinstellung()}
+    assert {"BGB", "ZPO", "HGB", "GVG", "InsO", "RVG", "GKG", "WEG"} <= set(gesetze)
+    assert all(g["titel"] and g["gruppe"] for g in gesetze.values())
+    # Abweichende Pfadkürzel werden aus der Liste genommen.
+    assert quelle.pfadkuerzel("EGBGB") == ("EGBGB", "bgbeg")
+    assert quelle.pfadkuerzel("weg") == ("WEG", "woeigg")
     assert quelle.pfadkuerzel("hgb") == ("HGB", "hgb")
-    assert "HGB" in quelle.BEKANNTE_GESETZE
+
+
+def test_eigene_liste_ersetzt_voreinstellung(tmp_path):
+    datei = tmp_path / "gesetze.json"
+    datei.write_text('{"gesetze": [{"abk": "HGB", "kuerzel": "hgb", "titel": "HGB", "gruppe": "X"}]}', encoding="utf-8")
+    assert [g["abk"] for g in quelle.voreinstellung(datei)] == ["HGB"]
+    assert len(quelle.voreinstellung(tmp_path / "fehlt.json")) > 30
+
+
+def test_eigene_liste_mit_ungueltigem_kuerzel(tmp_path):
+    datei = tmp_path / "gesetze.json"
+    datei.write_text('{"gesetze": [{"abk": "X", "kuerzel": "../x", "titel": "", "gruppe": ""}]}', encoding="utf-8")
+    with pytest.raises(ValueError):
+        quelle.voreinstellung(datei)
 
 
 @pytest.mark.parametrize("kuerzel", ["", "../etc", "bgb/xml", "a b", "x" * 41])

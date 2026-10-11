@@ -52,10 +52,11 @@ juracore suche "Verjährungsfrist"
 juracore liste
 ```
 
-- BGB, ZPO und HGB sind in der App voreingestellt. Weitere Bundesgesetze lädt man über ihre
-  Abkürzung, wie sie in der Adresse auf gesetze-im-internet.de steht (z. B. `gmbhg`).
-  Weicht das Pfadkürzel von der Abkürzung ab, wird es in `BEKANNTE_GESETZE`
-  (`core/juracore/gesetze/quelle.py`) eingetragen.
+- Voreingestellt sind 35 Bundesgesetze, die in Zivilrechtsstreitigkeiten typischerweise
+  gebraucht werden (`core/juracore/gesetze/voreinstellung.json`, gegliedert nach Gebieten).
+  Eine eigene Liste im selben Format unter `<Datenverzeichnis>/gesetze.json` ersetzt sie.
+- Weitere Bundesgesetze lädt man über ihre Abkürzung, wie sie in der Adresse auf
+  gesetze-im-internet.de steht (z. B. `gmbhg`).
 - Jede Quelldatei wird unverändert unter ihrer SHA-256-Prüfsumme im Roharchiv abgelegt.
 - Ein erneuter Import legt nur dann eine neue Fassung an, wenn sich die Datei geändert hat.
   Ältere Fassungen bleiben abrufbar, damit frühere Analysen reproduzierbar sind.
