@@ -5,7 +5,7 @@
 //! wird er beim nächsten Aufruf neu gestartet.
 
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -76,7 +76,7 @@ impl Kern {
 
 /// Entwicklung: `python -m juracore serve` im Ordner `core/`.
 /// Auslieferung: gebündeltes Kernprogramm neben der App (Sidecar, folgt mit dem Installer).
-/// `JURACORE_PYTHON` überschreibt den Python-Interpreter.
+/// Interpreter: `JURACORE_PYTHON`, sonst die `.venv` im Projektordner, sonst `python`/`python3`.
 fn kern_befehl() -> Command {
     let sidecar = std::env::current_exe()
         .ok()
@@ -86,12 +86,23 @@ fn kern_befehl() -> Command {
         c.arg("serve");
         return c;
     }
-    let python = std::env::var("JURACORE_PYTHON")
-        .unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
-    let core = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("core");
+    let projekt = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let python = std::env::var_os("JURACORE_PYTHON")
+        .map(PathBuf::from)
+        .or_else(|| Some(venv_python(&projekt)).filter(|p| p.exists()))
+        .unwrap_or_else(|| PathBuf::from(if cfg!(windows) { "python" } else { "python3" }));
     let mut c = Command::new(python);
-    c.args(["-m", "juracore", "serve"]).current_dir(core);
+    c.args(["-m", "juracore", "serve"]).current_dir(projekt.join("core"));
     c
+}
+
+/// Interpreter einer virtuellen Umgebung `.venv`; Windows legt ihn unter `Scripts` ab.
+fn venv_python(projekt: &Path) -> PathBuf {
+    if cfg!(windows) {
+        projekt.join(".venv").join("Scripts").join("python.exe")
+    } else {
+        projekt.join(".venv").join("bin").join("python")
+    }
 }
 
 fn austausch(p: &mut Prozess, anfrage: &Value, id: u64) -> Result<Value, String> {
@@ -136,6 +147,13 @@ pub async fn kern_aufruf(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn venv_interpreter_je_system() {
+        let p = venv_python(Path::new("projekt"));
+        let erwartet = if cfg!(windows) { "projekt/.venv/Scripts/python.exe" } else { "projekt/.venv/bin/python" };
+        assert_eq!(p, PathBuf::from(erwartet.replace('/', std::path::MAIN_SEPARATOR_STR)));
+    }
 
     #[test]
     fn spricht_mit_dem_python_kern() {
