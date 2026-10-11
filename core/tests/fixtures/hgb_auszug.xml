@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dokumente SYSTEM "http://www.gesetze-im-internet.de/dtd/1.01/gii-norm.dtd">
+<!-- Testauszug im GII-Format, von Hand gekürzt. Nicht als Rechtsquelle verwenden. -->
+<dokumente builddate="20260901120000" doknr="BJNR002190897">
+  <norm builddate="20260901120000" doknr="BJNR002190897">
+    <metadaten>
+      <jurabk>HGB</jurabk>
+      <amtabk>HGB</amtabk>
+      <langue>Handelsgesetzbuch</langue>
+      <standangabe checked="ja"><standtyp>Stand</standtyp><standkommentar>Zuletzt geändert durch Art. 3 G v. 1.1.2026 I Nr. 1 (Testfassung)</standkommentar></standangabe>
+    </metadaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR002190897BJNG000102377">
+    <metadaten>
+      <jurabk>HGB</jurabk>
+      <gliederungseinheit><gliederungskennzahl>010</gliederungskennzahl><gliederungsbez>Erstes Buch</gliederungsbez><gliederungstitel>Handelsstand</gliederungstitel></gliederungseinheit>
+    </metadaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR002190897BJNE000102377">
+    <metadaten>
+      <jurabk>HGB</jurabk>
+      <enbez>§ 1</enbez>
+      <titel format="parat">Istkaufmann</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content>
+      <P>(1) Kaufmann im Sinne dieses Gesetzbuchs ist, wer ein Handelsgewerbe betreibt.</P>
+      <P>(2) Handelsgewerbe ist jeder Gewerbebetrieb, es sei denn, daß das Unternehmen nach Art oder Umfang einen in kaufmännischer Weise eingerichteten Geschäftsbetrieb nicht erfordert.</P>
+    </Content></text></textdaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR002190897BJNG004002377">
+    <metadaten>
+      <jurabk>HGB</jurabk>
+      <gliederungseinheit><gliederungskennzahl>040</gliederungskennzahl><gliederungsbez>Viertes Buch</gliederungsbez><gliederungstitel>Handelsgeschäfte</gliederungstitel></gliederungseinheit>
+    </metadaten>
+  </norm>
+  <norm builddate="20260901120000" doknr="BJNR002190897BJNE034302377">
+    <metadaten>
+      <jurabk>HGB</jurabk>
+      <enbez>§ 343</enbez>
+      <titel format="parat">Begriff der Handelsgeschäfte</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content>
+      <P>Handelsgeschäfte sind alle Geschäfte eines Kaufmanns, die zum Betriebe seines Handelsgewerbes gehören.</P>
+    </Content></text></textdaten>
+  </norm>
+</dokumente>

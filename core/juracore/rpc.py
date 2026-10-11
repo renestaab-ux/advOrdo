@@ -28,10 +28,11 @@ class Kern:
     def __init__(self, db_pfad: Path, archiv: Path):
         self.con = db.oeffne(db_pfad)
         self.archiv = archiv
+        self.eigene_liste = Path(db_pfad).parent / "gesetze.json"
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
             "gesetze.liste": lambda: db.gesetze(self.con),
-            "gesetze.verfuegbar": lambda: sorted(quelle.BEKANNTE_GESETZE),
+            "gesetze.verfuegbar": lambda: quelle.voreinstellung(self.eigene_liste),
             "gesetze.importieren": self.importieren,
             "gesetze.importieren_datei": self.importieren_datei,
             "gesetze.suche": lambda text, gesetz=None, limit=20: wissensbasis.suche(self.con, text, gesetz, limit),
@@ -45,11 +46,14 @@ class Kern:
         ergebnisse = []
         for abk in gesetze:
             try:
-                roh = quelle.lade_gesetz(abk, self.archiv)
+                roh = quelle.lade_gesetz(abk, self.archiv, gesetze=quelle.voreinstellung(self.eigene_liste))
+                ergebnisse.append(wissensbasis.importiere(self.con, roh))
             except quelle.NichtGeaendert:
                 ergebnisse.append({"abk": abk.upper(), "neu": False, "hinweis": "Unverändert seit letztem Abruf."})
-                continue
-            ergebnisse.append(wissensbasis.importiere(self.con, roh))
+            except (ValueError, OSError) as fehler:
+                # Ein fehlerhaftes Gesetz soll die übrigen nicht aufhalten.
+                log.warning("Import von %s fehlgeschlagen: %s", abk, fehler)
+                ergebnisse.append({"abk": abk.upper(), "neu": False, "fehler": str(fehler)})
         return ergebnisse
 
     def importieren_datei(self, pfad: str) -> dict:

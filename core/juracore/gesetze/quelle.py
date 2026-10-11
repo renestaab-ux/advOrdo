@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import re
 import urllib.error
 import urllib.request
 import zipfile
@@ -20,8 +21,23 @@ from pathlib import Path
 BASIS_URL = "https://www.gesetze-im-internet.de"
 USER_AGENT = "JuristischerDatenabgleich/0.1 (Wissensbasis-Import)"
 
-# Pfadkürzel auf gesetze-im-internet.de; weitere Gesetze lassen sich ergänzen.
-BEKANNTE_GESETZE = {"BGB": "bgb", "ZPO": "zpo"}
+# Voreingestellte Gesetze (Zivilrecht) stehen in voreinstellung.json. Jedes andere
+# Bundesgesetz lässt sich über sein Kürzel laden (meist die kleingeschriebene
+# Abkürzung, z. B. "GmbHG" -> "gmbhg").
+_VOREINSTELLUNG = Path(__file__).with_name("voreinstellung.json")
+
+
+def voreinstellung(eigene_liste: Path | None = None) -> list[dict]:
+    """Gesetzesliste; eine eigene Datei (gleiches Format) ersetzt die mitgelieferte."""
+    pfad = eigene_liste if eigene_liste is not None and eigene_liste.exists() else _VOREINSTELLUNG
+    gesetze = json.loads(pfad.read_text(encoding="utf-8"))["gesetze"]
+    for g in gesetze:
+        if not _KUERZEL.match(g["abk"]) or not _KUERZEL.match(g["kuerzel"]):
+            raise ValueError(f"Ungültiger Eintrag in {pfad.name}: {g}")
+    return gesetze
+
+
+_KUERZEL = re.compile(r"^[A-Za-z0-9_]{1,40}$")
 
 
 @dataclass
@@ -37,10 +53,9 @@ class NichtGeaendert(Exception):
     """Der Server meldet keine Änderung seit dem letzten Abruf (HTTP 304)."""
 
 
-def lade_gesetz(abk: str, archiv: Path, timeout: float = 60) -> Rohdatei:
+def lade_gesetz(abk: str, archiv: Path, timeout: float = 60, gesetze: list[dict] | None = None) -> Rohdatei:
     """Lädt die XML-Fassung eines Gesetzes und legt das ZIP im Roharchiv ab."""
-    abk = abk.upper()
-    kuerzel = BEKANNTE_GESETZE.get(abk, abk.lower())
+    abk, kuerzel = pfadkuerzel(abk, gesetze)
     url = f"{BASIS_URL}/{kuerzel}/xml.zip"
     meta_pfad = archiv / abk / "abruf.json"
     meta = json.loads(meta_pfad.read_text(encoding="utf-8")) if meta_pfad.exists() else {}
@@ -57,6 +72,11 @@ def lade_gesetz(abk: str, archiv: Path, timeout: float = 60) -> Rohdatei:
     except urllib.error.HTTPError as fehler:
         if fehler.code == 304:
             raise NichtGeaendert(abk) from None
+        if fehler.code == 404:
+            raise ValueError(
+                f"{abk} wurde auf gesetze-im-internet.de nicht gefunden (Kürzel {kuerzel!r}). "
+                "Bitte die Abkürzung aus der Adresse des Gesetzes verwenden."
+            ) from None
         raise
 
     roh = archiviere(abk, daten, url, archiv)
@@ -65,6 +85,15 @@ def lade_gesetz(abk: str, archiv: Path, timeout: float = 60) -> Rohdatei:
         encoding="utf-8",
     )
     return roh
+
+
+def pfadkuerzel(abk: str, gesetze: list[dict] | None = None) -> tuple[str, str]:
+    """Normalisierte Abkürzung und Pfadkürzel; lehnt alles ab, was kein Kürzel sein kann."""
+    abk = abk.strip()
+    if not _KUERZEL.match(abk):
+        raise ValueError(f"Ungültige Gesetzesabkürzung: {abk!r}")
+    bekannt = {g["abk"].upper(): g["kuerzel"] for g in (gesetze if gesetze is not None else voreinstellung())}
+    return abk.upper(), bekannt.get(abk.upper(), abk.lower())
 
 
 def lies_datei(pfad: Path, archiv: Path | None, abk: str | None = None) -> Rohdatei:

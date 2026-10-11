@@ -3,7 +3,9 @@ import {
   Beleg,
   Fassung,
   GesetzEintrag,
+  ImportErgebnis,
   Norm,
+  Voreinstellung,
   Treffer,
   formatiereBuilddate,
   istDesktop,
@@ -13,8 +15,9 @@ import {
 
 export default function Gesetze() {
   const [gesetze, setGesetze] = useState<GesetzEintrag[]>([]);
-  const [verfuegbar, setVerfuegbar] = useState<string[]>([]);
+  const [verfuegbar, setVerfuegbar] = useState<Voreinstellung[]>([]);
   const [eingabe, setEingabe] = useState("");
+  const [weiteres, setWeiteres] = useState("");
   const [treffer, setTreffer] = useState<Treffer[] | null>(null);
   const [beleg, setBeleg] = useState<Beleg | null>(null);
   const [norm, setNorm] = useState<Norm | null>(null);
@@ -37,7 +40,7 @@ export default function Gesetze() {
   const ladeListe = useCallback(async () => {
     const [liste, verf] = await Promise.all([
       kern<GesetzEintrag[]>("gesetze.liste"),
-      kern<string[]>("gesetze.verfuegbar"),
+      kern<Voreinstellung[]>("gesetze.verfuegbar"),
     ]);
     setGesetze(liste);
     setVerfuegbar(verf);
@@ -49,9 +52,19 @@ export default function Gesetze() {
 
   async function importieren(abk: string[]) {
     await ausfuehren(`Lade ${abk.join(", ")} von gesetze-im-internet.de …`, async () => {
-      await kern("gesetze.importieren", { gesetze: abk });
+      const ergebnisse = await kern<ImportErgebnis[]>("gesetze.importieren", { gesetze: abk });
       await ladeListe();
+      const fehler = ergebnisse.filter((e) => e.fehler).map((e) => `${e.abk}: ${e.fehler}`);
+      if (fehler.length > 0) throw new Error(fehler.join("\n"));
     });
+  }
+
+  async function weiteresLaden(e: FormEvent) {
+    e.preventDefault();
+    const abk = weiteres.trim();
+    if (!abk) return;
+    await importieren([abk]);
+    setWeiteres("");
   }
 
   async function suchen(e: FormEvent) {
@@ -84,7 +97,9 @@ export default function Gesetze() {
     );
   }
 
-  const fehlend = verfuegbar.filter((v) => !gesetze.some((g) => g.abk === v));
+  const geladen = new Set(gesetze.map((g) => g.abk.toUpperCase()));
+  const fehlend = verfuegbar.filter((v) => !geladen.has(v.abk.toUpperCase())).map((v) => v.abk);
+  const gruppen = [...new Set(verfuegbar.map((v) => v.gruppe))];
 
   return (
     <div className="gesetze">
@@ -93,7 +108,7 @@ export default function Gesetze() {
         <div className="aktionen">
           {fehlend.length > 0 && (
             <button onClick={() => importieren(fehlend)} disabled={!!laeuft}>
-              {fehlend.join(" und ")} laden
+              {fehlend.length === verfuegbar.length ? "Voreinstellung laden" : `${fehlend.length} fehlende laden`}
             </button>
           )}
           {gesetze.length > 0 && (
@@ -103,6 +118,38 @@ export default function Gesetze() {
           )}
         </div>
       </header>
+
+      <details className="voreinstellung">
+        <summary>
+          Voreinstellung Zivilrecht: {verfuegbar.length} Gesetze, davon {verfuegbar.length - fehlend.length} geladen
+        </summary>
+        {gruppen.map((gruppe) => (
+          <div key={gruppe} className="gruppe">
+            <h3>{gruppe}</h3>
+            <ul>
+              {verfuegbar
+                .filter((v) => v.gruppe === gruppe)
+                .map((v) => (
+                  <li key={v.abk} className={geladen.has(v.abk.toUpperCase()) ? "geladen" : undefined}>
+                    <strong>{v.abk}</strong> {v.titel}
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ))}
+      </details>
+
+      <form className="weiteres" onSubmit={weiteresLaden}>
+        <input
+          value={weiteres}
+          onChange={(e) => setWeiteres(e.target.value)}
+          placeholder="Weiteres Bundesgesetz, z. B. GmbHG, InsO, AktG"
+          aria-label="Abkürzung eines weiteren Gesetzes"
+        />
+        <button type="submit" className="zweitrangig" disabled={!!laeuft || !weiteres.trim()}>
+          Laden
+        </button>
+      </form>
 
       {gesetze.length > 0 ? (
         <ul className="bestand">
@@ -115,7 +162,7 @@ export default function Gesetze() {
           ))}
         </ul>
       ) : (
-        <p className="leer">Noch keine Gesetze in der Wissensbasis. Lade BGB und ZPO, um zu beginnen.</p>
+        <p className="leer">Noch keine Gesetze in der Wissensbasis. Lade die Voreinstellung, um zu beginnen.</p>
       )}
 
       <form className="suche" onSubmit={suchen}>

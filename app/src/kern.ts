@@ -32,6 +32,21 @@ export interface GesetzEintrag {
   normen: number;
 }
 
+export interface Voreinstellung {
+  abk: string;
+  kuerzel: string;
+  titel: string;
+  gruppe: string;
+}
+
+export interface ImportErgebnis {
+  abk: string;
+  neu: boolean;
+  normen?: number | null;
+  hinweis?: string;
+  fehler?: string;
+}
+
 export interface Treffer {
   id: number;
   abk: string;
