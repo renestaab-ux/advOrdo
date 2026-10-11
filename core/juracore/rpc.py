@@ -47,7 +47,7 @@ class Kern:
         for abk in gesetze:
             try:
                 roh = quelle.lade_gesetz(abk, self.archiv, gesetze=quelle.voreinstellung(self.eigene_liste))
-                ergebnisse.append(wissensbasis.importiere(self.con, roh))
+                ergebnisse.append(wissensbasis.importiere(self.con, roh, roh.abk))
             except quelle.NichtGeaendert:
                 ergebnisse.append({"abk": abk.upper(), "neu": False, "hinweis": "Unverändert seit letztem Abruf."})
             except (ValueError, OSError) as fehler:

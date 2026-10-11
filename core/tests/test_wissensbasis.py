@@ -72,3 +72,21 @@ def test_roharchiv_unveraendert(tmp_path):
     roh = quelle.lies_datei(FIXTURES / "zpo_auszug.xml", tmp_path, "ZPO")
     assert roh.archivpfad.read_bytes() == (FIXTURES / "zpo_auszug.xml").read_bytes()
     assert roh.archivpfad.name == f"{roh.sha256}.xml"
+
+
+def test_gesetz_unter_zitierabkuerzung(con, tmp_path):
+    # Gesetze im Internet führt etwa das EGBGB als "BGBEG"; zitiert wird es als "EGBGB".
+    xml = (FIXTURES / "hgb_auszug.xml").read_text(encoding="utf-8").replace("<jurabk>HGB</jurabk>", "<jurabk>HGBEG</jurabk>")
+    alt = tmp_path / "alt.xml"
+    alt.write_text(xml, encoding="utf-8")
+    assert wissensbasis.importiere(con, quelle.lies_datei(alt, None))["abk"] == "HGBEG"
+
+    neu = tmp_path / "neu.xml"
+    neu.write_text(xml.replace('builddate="20260901120000"', 'builddate="20261001120000"'), encoding="utf-8")
+    ergebnis = wissensbasis.importiere(con, quelle.lies_datei(neu, None), "HGB")
+    assert ergebnis["abk"] == "HGB"
+
+    gesetze = {g["abk"]: g for g in db.gesetze(con)}
+    assert "HGBEG" not in gesetze
+    assert gesetze["HGB"]["fassungen"] == 2
+    assert wissensbasis.loese_zitat(con, "§ 1 HGB")["status"] == "belegt"
