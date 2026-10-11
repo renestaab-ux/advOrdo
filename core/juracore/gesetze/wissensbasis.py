@@ -112,15 +112,18 @@ def suche(con: sqlite3.Connection, suchtext: str, gesetz: str | None = None, lim
     return [dict(z) for z in zeilen]
 
 
-def norm(con: sqlite3.Connection, abk: str, nummer: str, fassung_id: int | None = None) -> dict | None:
-    """Eine Norm mit Absätzen, Sätzen und Fassungsstand."""
+def norm(
+    con: sqlite3.Connection, abk: str, nummer: str, fassung_id: int | None = None, typ: str | None = None
+) -> dict | None:
+    """Eine Norm mit Absätzen, Sätzen und Fassungsstand; ``typ`` ist "paragraph" oder "artikel"."""
     fassung = _fassung(con, abk, fassung_id)
     if fassung is None:
         return None
+    typen = (typ,) if typ else ("paragraph", "artikel")
     zeile = con.execute(
-        """SELECT * FROM norm WHERE fassung_id = ? AND nummer = ? AND typ IN ('paragraph', 'artikel')
-           ORDER BY reihenfolge LIMIT 1""",
-        (fassung["id"], nummer),
+        f"""SELECT * FROM norm WHERE fassung_id = ? AND nummer = ? AND typ IN ({", ".join("?" * len(typen))})
+            ORDER BY reihenfolge LIMIT 1""",
+        (fassung["id"], nummer, *typen),
     ).fetchone()
     if zeile is None:
         return None
@@ -157,7 +160,7 @@ def loese_zitat(con: sqlite3.Connection, zitat: str | Zitat, fassung_id: int | N
         return ergebnis
     ergebnis["fassung"] = _fassung_info(fassung)
 
-    n = norm(con, z.gesetz, z.nummer, fassung["id"])
+    n = norm(con, z.gesetz, z.nummer, fassung["id"], "artikel" if z.zeichen.startswith("Art") else "paragraph")
     if n is None:
         ergebnis["hinweis"] = f"{z.zeichen} {z.nummer} {z.gesetz} existiert in dieser Fassung nicht."
         return ergebnis
