@@ -48,9 +48,15 @@ class Kern:
             "akten.liste": lambda: akte.akten(self.akten),
             "akten.anlegen": lambda name: akte.akte_anlegen(self.akten, name),
             "akten.dokumente": lambda akte_id: akte.dokumente(self.akten, akte_id),
-            "akten.importieren": lambda akte_id, pfad: akte.importiere(
-                self.akten, self.con, akte_id, pfad, self.ablage
+            "akten.loeschen": lambda akte_id: akte.akte_loeschen(self.akten, akte_id, self.ablage),
+            "akten.importieren": lambda akte_id, pfad, tags=None, herkunft=None: akte.importiere(
+                self.akten, self.con, akte_id, pfad, self.ablage, tags=tags, herkunft=herkunft
             ),
+            "akten.ordner_pruefen": akte.ordner_pruefen,
+            "akten.dokument_loeschen": lambda dokument_id: akte.dokument_loeschen(
+                self.akten, dokument_id, self.ablage
+            ),
+            "akten.tags_setzen": lambda dokument_id, tags: akte.tags_setzen(self.akten, dokument_id, tags),
             "akten.dokument": lambda dokument_id: akte.dokument(self.akten, dokument_id),
             "akten.normen": lambda akte_id: akte.normen(self.akten, akte_id),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),

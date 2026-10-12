@@ -7,12 +7,21 @@ im Ordner der Akte abgelegt; dieselbe Datei wird pro Akte nur einmal übernommen
 Normzitate werden beim Einlesen gegen die Wissensbasis aufgelöst. Gespeichert
 wird die dabei verwendete Fassung, damit der Beleg später mit demselben
 Quellenstand nachvollziehbar bleibt.
+
+Dokumente tragen Tags, die zeigen, zu welchem Beteiligten sie gehören (Kläger,
+Beklagter, Gericht …). Beim Einlesen eines Ordners werden sie aus den Namen der
+Unterordner vorgeschlagen; übernommen werden sie nur, wenn die Oberfläche das
+nach Rückfrage so übergibt. Von Hand lassen sie sich jederzeit ändern.
+
+Gelöscht wird nur, was die App selbst angelegt hat: die Einträge in der
+Datenbank und die abgelegte Kopie. Die Datei am ursprünglichen Ort bleibt.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -25,7 +34,7 @@ from . import lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS akte (
@@ -47,7 +56,15 @@ CREATE TABLE IF NOT EXISTS dokument (
     lesart          TEXT NOT NULL,          -- textebene, ocr, gemischt, datei, leer
     ocr_konfidenz   REAL,
     hinweise        TEXT NOT NULL,          -- JSON-Liste
+    herkunft        TEXT,                   -- Unterordner beim Ordner-Import, z. B. "Kläger/Anlagen"
     UNIQUE (akte_id, sha256)
+);
+
+CREATE TABLE IF NOT EXISTS tag (
+    dokument_id INTEGER NOT NULL REFERENCES dokument(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,              -- z. B. "Kläger"
+    quelle      TEXT NOT NULL,              -- ordner (aus dem Ordnernamen übernommen) oder manuell
+    PRIMARY KEY (dokument_id, name)
 );
 
 CREATE TABLE IF NOT EXISTS seite (
@@ -97,10 +114,20 @@ def oeffne(pfad: str | Path) -> sqlite3.Connection:
     con = sqlite3.connect(pfad)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
+    # Gelöschte Akteninhalte nicht als Reste in freien Seiten der Datei stehen lassen.
+    con.execute("PRAGMA secure_delete = ON")
     con.execute("PRAGMA journal_mode = WAL")
     con.executescript(_SCHEMA)
+    _migriere(con)
     con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return con
+
+
+def _migriere(con: sqlite3.Connection) -> None:
+    """Bringt Akten aus älteren Versionen auf den aktuellen Stand, ohne Inhalte zu verändern."""
+    spalten = {z["name"] for z in con.execute("PRAGMA table_info(dokument)")}
+    if "herkunft" not in spalten:
+        con.execute("ALTER TABLE dokument ADD COLUMN herkunft TEXT")
 
 
 def _jetzt() -> str:
@@ -139,8 +166,13 @@ def importiere(
     pfad: str | Path,
     ablage: Path,
     ocr: Tesseract | None | bool = True,
+    tags: list[str] | None = None,
+    herkunft: str | None = None,
 ) -> dict:
-    """Liest eine Datei in die Akte ein. Dieselbe Datei (gleiche Prüfsumme) wird nicht doppelt übernommen."""
+    """Liest eine Datei in die Akte ein. Dieselbe Datei (gleiche Prüfsumme) wird nicht doppelt übernommen.
+
+    ``tags`` sind die bestätigten Tags aus dem Ordnernamen, ``herkunft`` der Unterordner beim Ordner-Import.
+    """
     pfad = Path(pfad)
     if con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")
@@ -150,6 +182,9 @@ def importiere(
     sha = _sha256(pfad)
     vorhanden = con.execute("SELECT id FROM dokument WHERE akte_id = ? AND sha256 = ?", (akte_id, sha)).fetchone()
     if vorhanden:
+        # Schon vorhanden: nur bestätigte Tags ergänzen, nichts überschreiben.
+        with con:
+            _tags_ergaenzen(con, vorhanden["id"], tags or [], "ordner")
         return {"dateiname": pfad.name, "dokument_id": vorhanden["id"], "neu": False}
 
     dok = lesen.lies(pfad, ocr)
@@ -162,7 +197,8 @@ def importiere(
         shutil.copyfile(pfad, original)
 
     with con:
-        dokument_id = _speichere(con, akte_id, pfad, fmt, sha, original, dok)
+        dokument_id = _speichere(con, akte_id, pfad, fmt, sha, original, dok, herkunft)
+        _tags_ergaenzen(con, dokument_id, tags or [], "ordner")
         _verknuepfe_zitate(con, wissen, dokument_id)
     zaehlung = _zitat_zaehlung(con, dokument_id)
     return {
@@ -177,13 +213,20 @@ def importiere(
 
 
 def _speichere(
-    con: sqlite3.Connection, akte_id: int, pfad: Path, fmt: str, sha: str, original: Path, dok: Dokument
+    con: sqlite3.Connection,
+    akte_id: int,
+    pfad: Path,
+    fmt: str,
+    sha: str,
+    original: Path,
+    dok: Dokument,
+    herkunft: str | None = None,
 ) -> int:
     seitenzahl = max((s.nr for s in dok.seiten if s.nr), default=None)
     dokument_id = con.execute(
         """INSERT INTO dokument (akte_id, dateiname, format, sha256, groesse, original, importiert_am,
-                                 seiten, lesart, ocr_konfidenz, hinweise)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                 seiten, lesart, ocr_konfidenz, hinweise, herkunft)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             akte_id,
             pfad.name,
@@ -196,6 +239,7 @@ def _speichere(
             dok.lesart,
             dok.ocr_konfidenz,
             json.dumps(dok.hinweise, ensure_ascii=False),
+            herkunft or None,
         ),
     ).lastrowid
     con.executemany(
@@ -278,6 +322,7 @@ def _zitat_zaehlung(con: sqlite3.Connection, dokument_id: int) -> dict:
 def _dokument_info(con: sqlite3.Connection, zeile: sqlite3.Row) -> dict:
     info = dict(zeile)
     info["hinweise"] = json.loads(info["hinweise"])
+    info["tags"] = _tags(con, zeile["id"])
     info["zitate"] = _zitat_zaehlung(con, zeile["id"])
     info["randnummern"] = con.execute(
         "SELECT COUNT(*) FROM abschnitt WHERE dokument_id = ? AND rn IS NOT NULL", (zeile["id"],)
@@ -286,7 +331,9 @@ def _dokument_info(con: sqlite3.Connection, zeile: sqlite3.Row) -> dict:
 
 
 def dokumente(con: sqlite3.Connection, akte_id: int) -> list[dict]:
-    zeilen = con.execute("SELECT * FROM dokument WHERE akte_id = ? ORDER BY dateiname", (akte_id,)).fetchall()
+    zeilen = con.execute(
+        "SELECT * FROM dokument WHERE akte_id = ? ORDER BY COALESCE(herkunft, ''), dateiname", (akte_id,)
+    ).fetchall()
     return [_dokument_info(con, z) for z in zeilen]
 
 
@@ -347,3 +394,189 @@ def normen(con: sqlite3.Connection, akte_id: int) -> list[dict]:
 def _normschluessel(g: dict) -> tuple:
     zahl = re.search(r"\d+", g["zitat"])
     return (int(zahl.group()) if zahl else 0, g["zitat"])
+
+
+# --- Löschen --------------------------------------------------------------------------------------
+
+
+def _entferne_datei(pfad: Path, ablage: Path | None) -> bool:
+    """Entfernt eine abgelegte Kopie, aber nur innerhalb der Ablage der App."""
+    if ablage is not None and not pfad.resolve().is_relative_to(Path(ablage).resolve()):
+        return False
+    try:
+        pfad.unlink()
+    except FileNotFoundError:
+        return True
+    return True
+
+
+def dokument_loeschen(con: sqlite3.Connection, dokument_id: int, ablage: Path | None = None) -> dict:
+    """Entfernt ein Dokument mit Text, Zitaten und Tags sowie die abgelegte Kopie. Das Original bleibt."""
+    zeile = con.execute("SELECT * FROM dokument WHERE id = ?", (dokument_id,)).fetchone()
+    if zeile is None:
+        raise LookupError(f"Dokument {dokument_id} gibt es nicht.")
+    with con:
+        con.execute("DELETE FROM dokument WHERE id = ?", (dokument_id,))
+    original = Path(zeile["original"])
+    hinweis = None
+    noch_genutzt = con.execute("SELECT 1 FROM dokument WHERE original = ?", (zeile["original"],)).fetchone()
+    if not noch_genutzt:
+        try:
+            if not _entferne_datei(original, ablage):
+                hinweis = f"Die Kopie liegt außerhalb der Ablage und wurde nicht entfernt: {original}"
+        except OSError as fehler:
+            # Unter Windows kann ein anderes Programm die Datei geöffnet halten.
+            hinweis = f"Die abgelegte Kopie konnte nicht entfernt werden ({fehler}): {original}"
+    return {"dokument_id": dokument_id, "dateiname": zeile["dateiname"], "hinweis": hinweis}
+
+
+def akte_loeschen(con: sqlite3.Connection, akte_id: int, ablage: Path) -> dict:
+    """Entfernt eine Akte mit allen Dokumenten und ihrem Ablageordner. Originale am Ursprungsort bleiben."""
+    zeile = con.execute("SELECT * FROM akte WHERE id = ?", (akte_id,)).fetchone()
+    if zeile is None:
+        raise LookupError(f"Akte {akte_id} gibt es nicht.")
+    anzahl = con.execute("SELECT COUNT(*) FROM dokument WHERE akte_id = ?", (akte_id,)).fetchone()[0]
+    with con:
+        con.execute("DELETE FROM akte WHERE id = ?", (akte_id,))
+    ordner = Path(ablage) / f"akte-{akte_id}"
+    hinweis = None
+    if ordner.exists():
+        try:
+            shutil.rmtree(ordner)
+        except OSError as fehler:
+            hinweis = f"Der Ablageordner konnte nicht vollständig entfernt werden ({fehler}): {ordner}"
+    return {"akte_id": akte_id, "name": zeile["name"], "dokumente": anzahl, "hinweis": hinweis}
+
+
+# --- Ordner einlesen und Tags ---------------------------------------------------------------------
+
+MAX_DATEIEN = 2000
+MAX_TAG_LAENGE = 60
+
+# Übliche Ordnernamen für Beteiligte, kleingeschrieben und ohne Umlaute -> einheitlicher Tag.
+_BETEILIGTE = {
+    "klaeger": "Kläger",
+    "klaegerin": "Kläger",
+    "klaegerseite": "Kläger",
+    "klaegervertreter": "Kläger",
+    "beklagte": "Beklagter",
+    "beklagter": "Beklagter",
+    "beklagtenseite": "Beklagter",
+    "beklagtenvertreter": "Beklagter",
+    "gericht": "Gericht",
+    "streitverkuendete": "Streitverkündeter",
+    "streitverkuendeter": "Streitverkündeter",
+    "nebenintervenient": "Nebenintervenient",
+    "nebenintervenientin": "Nebenintervenient",
+    "sachverstaendiger": "Sachverständiger",
+    "sachverstaendige": "Sachverständiger",
+    "gutachten": "Sachverständiger",
+    "mandant": "Mandant",
+    "mandantin": "Mandant",
+    "gegner": "Gegner",
+    "gegenseite": "Gegner",
+}
+_GERICHTE = re.compile(r"(amts|land|oberlandes|bundes|arbeits|sozial|verwaltungs|finanz)?gericht", re.I)
+
+
+def _schluessel(text: str) -> str:
+    text = text.lower()
+    for umlaut, ersatz in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        text = text.replace(umlaut, ersatz)
+    return re.sub(r"[^a-z]", "", text)
+
+
+def tag_vorschlag(ordnername: str) -> str | None:
+    """Schlägt zu einem Ordnernamen einen Tag vor, z. B. "02_Klägerin" -> "Kläger"."""
+    # Nummerierung und Trennzeichen am Anfang weglassen ("01 Kläger", "2_Beklagte", "A) Gericht").
+    name = re.sub(r"^\s*(?:\d+|[A-Za-z](?=[)._]))[\s._)\-]*(?=\D)", "", ordnername).strip(" _-.")
+    name = re.sub(r"[_]+", " ", name).strip() or ordnername.strip()
+    if not name:
+        return None
+    if beteiligter := _BETEILIGTE.get(_schluessel(name)):
+        return beteiligter
+    if _GERICHTE.fullmatch(_schluessel(name)):
+        return "Gericht"
+    return name[:MAX_TAG_LAENGE]
+
+
+def _versteckt(name: str) -> bool:
+    # Versteckte Dateien und Sperrdateien von Word ("~$Klage.docx") nicht einlesen.
+    return name.startswith((".", "~$"))
+
+
+def ordner_pruefen(pfad: str | Path) -> dict:
+    """Sammelt die lesbaren Dateien eines Ordners samt Unterordnern und schlägt Tags je Unterordner vor.
+
+    Es wird noch nichts eingelesen: Die Oberfläche fragt erst, ob die Tags übernommen werden sollen.
+    """
+    wurzel = Path(pfad)
+    if not wurzel.is_dir():
+        raise FileNotFoundError(f"Ordner nicht gefunden: {wurzel}")
+    dateien: list[dict] = []
+    uebersprungen: list[str] = []
+    unterordner: dict[str, dict] = {}
+    for ordner, verzeichnisse, namen in os.walk(wurzel):
+        verzeichnisse[:] = sorted(v for v in verzeichnisse if not _versteckt(v))
+        relativ = Path(ordner).relative_to(wurzel)
+        herkunft = relativ.as_posix() if relativ.parts else ""
+        for name in sorted(namen):
+            if _versteckt(name):
+                continue
+            datei = Path(ordner) / name
+            if datei.suffix.lower() not in lesen.FORMATE:
+                uebersprungen.append((relativ / name).as_posix())
+                continue
+            if len(dateien) >= MAX_DATEIEN:
+                raise ValueError(
+                    f"Der Ordner enthält mehr als {MAX_DATEIEN} lesbare Dateien. Bitte einen kleineren wählen."
+                )
+            dateien.append({"pfad": str(datei), "relativ": (relativ / name).as_posix(), "herkunft": herkunft})
+            if herkunft not in unterordner:
+                vorschlag = [t for teil in relativ.parts if (t := tag_vorschlag(teil))]
+                unterordner[herkunft] = {"herkunft": herkunft, "dateien": 0, "tags": list(dict.fromkeys(vorschlag))}
+            unterordner[herkunft]["dateien"] += 1
+    return {
+        "ordner": str(wurzel),
+        "name": wurzel.name,
+        "dateien": dateien,
+        "unterordner": sorted(unterordner.values(), key=lambda u: u["herkunft"]),
+        "uebersprungen": uebersprungen,
+    }
+
+
+def _bereinige_tags(tags: list[str]) -> list[str]:
+    ergebnis: dict[str, str] = {}
+    for tag in tags:
+        tag = re.sub(r"\s+", " ", str(tag)).strip()[:MAX_TAG_LAENGE]
+        if tag:
+            ergebnis.setdefault(tag.casefold(), tag)
+    return list(ergebnis.values())
+
+
+def _tags_ergaenzen(con: sqlite3.Connection, dokument_id: int, tags: list[str], quelle: str) -> None:
+    vorhanden = {t["name"].casefold() for t in _tags(con, dokument_id)}
+    con.executemany(
+        "INSERT INTO tag (dokument_id, name, quelle) VALUES (?, ?, ?)",
+        [(dokument_id, t, quelle) for t in _bereinige_tags(tags) if t.casefold() not in vorhanden],
+    )
+
+
+def tags_setzen(con: sqlite3.Connection, dokument_id: int, tags: list[str]) -> list[dict]:
+    """Setzt die Tags eines Dokuments von Hand. Schon vorhandene Tags behalten ihre Herkunft."""
+    if con.execute("SELECT 1 FROM dokument WHERE id = ?", (dokument_id,)).fetchone() is None:
+        raise LookupError(f"Dokument {dokument_id} gibt es nicht.")
+    neu = _bereinige_tags(tags)
+    bisher = {r["name"].casefold(): r for r in con.execute("SELECT * FROM tag WHERE dokument_id = ?", (dokument_id,))}
+    with con:
+        con.execute("DELETE FROM tag WHERE dokument_id = ?", (dokument_id,))
+        con.executemany(
+            "INSERT INTO tag (dokument_id, name, quelle) VALUES (?, ?, ?)",
+            [(dokument_id, t, bisher[t.casefold()]["quelle"] if t.casefold() in bisher else "manuell") for t in neu],
+        )
+    return _tags(con, dokument_id)
+
+
+def _tags(con: sqlite3.Connection, dokument_id: int) -> list[dict]:
+    zeilen = con.execute("SELECT name, quelle FROM tag WHERE dokument_id = ? ORDER BY name", (dokument_id,))
+    return [dict(t) for t in zeilen]

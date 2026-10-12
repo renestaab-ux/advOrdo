@@ -118,6 +118,29 @@ export interface AktenDokument {
   importiert_am: string;
   randnummern: number;
   zitate: Partial<Record<ZitatStatus, number>>;
+  /** Unterordner beim Ordner-Import, z. B. "Kläger/Anlagen". */
+  herkunft: string | null;
+  tags: Tag[];
+}
+
+export interface Tag {
+  name: string;
+  /** "ordner": aus dem Ordnernamen übernommen, "manuell": von Hand gesetzt. */
+  quelle: "ordner" | "manuell";
+}
+
+export interface OrdnerFunde {
+  ordner: string;
+  name: string;
+  dateien: { pfad: string; relativ: string; herkunft: string }[];
+  unterordner: { herkunft: string; dateien: number; tags: string[] }[];
+  uebersprungen: string[];
+}
+
+export interface Loeschergebnis {
+  name?: string;
+  dateiname?: string;
+  hinweis: string | null;
 }
 
 export interface NormZitat {
@@ -232,3 +255,32 @@ export function segmente(text: string, zitate: NormZitat[]): Segment[] {
   if (pos < text.length) ergebnis.push({ text: text.slice(pos) });
   return ergebnis;
 }
+
+/** Tags aus einer Eingabe wie "Kläger, Anlage K 1": getrennt an Komma oder Semikolon, ohne Dubletten. */
+export function tagsAusText(text: string): string[] {
+  const gesehen = new Map<string, string>();
+  for (const teil of text.split(/[,;]/)) {
+    const tag = teil.replace(/\s+/g, " ").trim();
+    if (tag && !gesehen.has(tag.toLocaleLowerCase("de"))) gesehen.set(tag.toLocaleLowerCase("de"), tag);
+  }
+  return [...gesehen.values()];
+}
+
+/** Alle Tags einer Akte mit der Zahl der Dokumente, die sie tragen; Beteiligte zuerst. */
+export function tagUebersicht(dokumente: Pick<AktenDokument, "tags">[]): { name: string; anzahl: number }[] {
+  const zaehlung = new Map<string, number>();
+  for (const d of dokumente) for (const t of d.tags) zaehlung.set(t.name, (zaehlung.get(t.name) ?? 0) + 1);
+  return sortiereTags([...zaehlung.entries()].map(([name, anzahl]) => ({ name, anzahl })));
+}
+
+/** Beteiligte in ihrer üblichen Reihenfolge zuerst, danach alle übrigen Tags alphabetisch. */
+export function sortiereTags<T extends { name: string }>(tags: T[]): T[] {
+  const rang = (name: string) => {
+    const i = BETEILIGTE.indexOf(name);
+    return i < 0 ? BETEILIGTE.length : i;
+  };
+  return [...tags].sort((a, b) => rang(a.name) - rang(b.name) || a.name.localeCompare(b.name, "de"));
+}
+
+/** Die üblichen Beteiligten, als schnelle Auswahl beim Bearbeiten und für die Reihenfolge. */
+export const BETEILIGTE = ["Kläger", "Beklagter", "Gericht", "Streitverkündeter", "Sachverständiger"];
