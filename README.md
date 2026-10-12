@@ -141,7 +141,7 @@ juracore suche "Verjährungsfrist"
 juracore liste
 ```
 
-- Voreingestellt sind 35 Bundesgesetze, die in Zivilrechtsstreitigkeiten typischerweise
+- Voreingestellt sind 36 Bundesgesetze, die in Zivilrechtsstreitigkeiten typischerweise
   gebraucht werden (`core/juracore/gesetze/voreinstellung.json`, gegliedert nach Gebieten).
   Eine eigene Liste im selben Format unter `<Datenverzeichnis>/gesetze.json` ersetzt sie.
 - Weitere Bundesgesetze lädt man über ihre Abkürzung, wie sie in der Adresse auf
