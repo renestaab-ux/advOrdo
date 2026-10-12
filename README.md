@@ -130,6 +130,21 @@ Noch nicht erkannt werden Rechtsprechungszitate (Phase 2), Zitate ohne „§“/
 Seitenzahlen, wenn sie Seitenumbrüche enthalten; sonst gilt die Randnummer bzw. der
 laufende Absatz („Abschn. 12“) als Fundstelle.
 
+### Ordner, Beteiligte und Entfernen
+
+- **Ordner hinzufügen …** liest einen ganzen Ordner samt Unterordnern ein (PDF, DOCX, TXT, MD;
+  andere Dateien werden übersprungen und genannt).
+- Aus den Namen der Unterordner schlägt die App Tags vor, die zeigen, zu welchem Beteiligten ein
+  Dokument gehört: „01_Kläger“ und „Klägerin“ werden zu **Kläger**, „Beklagte“ zu **Beklagter**,
+  „Landgericht“ zu **Gericht**, andere Namen bleiben, wie sie sind. Vor dem Einlesen fragt die App,
+  ob die Tags übernommen werden sollen; die Vorschläge lassen sich dort ändern oder leeren.
+- In der Dokumentliste lassen sich Tags jederzeit von Hand setzen und ändern („+ Tag“ bzw. „ändern“).
+  Tags aus dem Ordnernamen sind durchgezogen umrandet, von Hand gesetzte gestrichelt. Über die
+  Tag-Leiste filtert man die Liste, z. B. alle Dokumente des Gerichts.
+- **entfernen** (je Dokument) und **Akte entfernen …** löschen nach einer Rückfrage den gelesenen
+  Text, die Zitate, die Tags und die Kopie, die die App beim Einlesen abgelegt hat. Die
+  Originaldatei am ursprünglichen Ort bleibt unverändert.
+
 ## Wissensbasis: Gesetze
 
 ```bash

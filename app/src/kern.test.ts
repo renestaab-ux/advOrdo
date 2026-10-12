@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatiereBuilddate, fundstelle, istZitat, lesartText, segmente } from "./kern";
+import { formatiereBuilddate, fundstelle, istZitat, lesartText, segmente, tagsAusText, tagUebersicht } from "./kern";
 
 describe("istZitat", () => {
   it("erkennt Normzitate", () => {
@@ -46,5 +46,23 @@ describe("lesartText", () => {
   it("beschreibt die Herkunft des Textes", () => {
     expect(lesartText({ lesart: "ocr", ocr_konfidenz: 94.2, format: "pdf" })).toBe("Scan (Texterkennung, Erkennung 94 %)");
     expect(lesartText({ lesart: "datei", ocr_konfidenz: null, format: "docx" })).toBe("Word");
+  });
+});
+
+describe("tagsAusText", () => {
+  it("trennt an Komma und Semikolon und entfernt Dubletten", () => {
+    expect(tagsAusText(" Kläger,  Anlage   K 1; kläger, ")).toEqual(["Kläger", "Anlage K 1"]);
+    expect(tagsAusText("")).toEqual([]);
+  });
+});
+
+describe("tagUebersicht", () => {
+  it("zählt Tags und stellt Beteiligte voran", () => {
+    const d = (...namen: string[]) => ({ tags: namen.map((name) => ({ name, quelle: "manuell" as const })) });
+    expect(tagUebersicht([d("Anlagen", "Kläger"), d("Gericht"), d("Kläger"), d()])).toEqual([
+      { name: "Kläger", anzahl: 2 },
+      { name: "Gericht", anzahl: 1 },
+      { name: "Anlagen", anzahl: 1 },
+    ]);
   });
 });

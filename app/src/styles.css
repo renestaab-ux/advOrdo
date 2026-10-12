@@ -130,3 +130,27 @@ button.zitat.gewaehlt, button.zitat:hover { background: color-mix(in srgb, var(-
   .akte-arbeitsflaeche { grid-template-columns: 1fr; }
   .akte-seite { width: auto; position: static; }
 }
+
+/* Tags, Ordner-Import und Rückfragen */
+.tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: color-mix(in srgb, var(--akzent) 14%, transparent); color: var(--text); border: 1px solid color-mix(in srgb, var(--akzent) 35%, transparent); }
+.tag.manuell { border-style: dashed; }
+.tag-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+button.tag-wahl { background: none; color: var(--text); border: 1px solid var(--linie); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 400; }
+button.tag-wahl.aktiv { background: var(--akzent); border-color: var(--akzent); color: #fff; }
+.tag-eingabe { font: inherit; width: 100%; min-width: 180px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.tag-editor { display: grid; gap: 6px; min-width: 240px; }
+.tag-editor .aktionen button { padding: 4px 10px; }
+.herkunft { color: var(--text-leise); font-size: 12px; }
+button.link.klein { font-size: 12px; font-weight: 400; }
+button.gefahr, button.link.gefahr { color: #b3261e; }
+button.gefahr-voll { background: #b3261e; border-color: #b3261e; color: #fff; }
+.rueckfrage { margin: 12px 0; padding: 12px 16px; border: 1px solid var(--linie); border-left: 4px solid var(--akzent); border-radius: 8px; background: var(--flaeche); }
+.rueckfrage p { margin: 6px 0 10px; }
+.rueckfrage .dokumente { margin: 8px 0; }
+.meldung { color: var(--text-leise); }
+.unsichtbar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (prefers-color-scheme: dark) {
+  button.gefahr, button.link.gefahr { color: #f2b8b5; }
+}
+.dokumente button.link { text-align: left; }

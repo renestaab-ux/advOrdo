@@ -71,3 +71,35 @@ def test_akten_ueber_rpc(tmp_path):
 
     fehler = kern.bearbeite(json.dumps({"id": 2, "method": "akten.importieren", "params": {"akte_id": akte["id"], "pfad": "x.xlsx"}}))
     assert "error" in fehler
+
+
+def test_ordner_tags_und_loeschen_ueber_rpc(tmp_path):
+    from juracore.rpc import Kern
+
+    from .conftest import schreibe_pdf
+
+    kern = Kern(tmp_path / "wissensbasis.sqlite", tmp_path / "archiv")
+
+    def rufe(methode, **params):
+        antwort = kern.bearbeite(json.dumps({"id": 1, "method": methode, "params": params}))
+        assert "error" not in antwort, antwort
+        return antwort["result"]
+
+    quelle = tmp_path / "eingang" / "Klägerin"
+    quelle.mkdir(parents=True)
+    pdf = schreibe_pdf(quelle / "klage.pdf", [["(1) Klage nach § 433 BGB."]])
+    akte = rufe("akten.anlegen", name="Testakte")
+    funde = rufe("akten.ordner_pruefen", pfad=str(tmp_path / "eingang"))
+    assert funde["unterordner"] == [{"herkunft": "Klägerin", "dateien": 1, "tags": ["Kläger"]}]
+    datei = funde["dateien"][0]
+    ergebnis = rufe("akten.importieren", akte_id=akte["id"], pfad=datei["pfad"], tags=["Kläger"], herkunft="Klägerin")
+    assert rufe("akten.dokumente", akte_id=akte["id"])[0]["tags"] == [{"name": "Kläger", "quelle": "ordner"}]
+    tags = rufe("akten.tags_setzen", dokument_id=ergebnis["dokument_id"], tags=["Kläger", "Anlage K 1"])
+    assert tags == [{"name": "Anlage K 1", "quelle": "manuell"}, {"name": "Kläger", "quelle": "ordner"}]
+
+    rufe("akten.dokument_loeschen", dokument_id=ergebnis["dokument_id"])
+    assert rufe("akten.dokumente", akte_id=akte["id"]) == []
+    assert pdf.exists()  # Das Original am Ursprungsort bleibt.
+    assert rufe("akten.loeschen", akte_id=akte["id"])["name"] == "Testakte"
+    assert rufe("akten.liste") == []
+    assert not (tmp_path / "akten" / f"akte-{akte['id']}").exists()

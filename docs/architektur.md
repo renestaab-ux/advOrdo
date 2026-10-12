@@ -38,7 +38,19 @@ Seitenwechsel fortsetzen, Randnummern erkennen, typische OCR-Fehler bei „§“
 → `abschnitt` (Text, Seite, Randnummer, Seitenwechsel) → `normzitat` (Position im Abschnitt,
 Prüfstatus, verwendete Fassung). Originale liegen unter `<Datenverzeichnis>/akten/akte-<id>/`.
 
-Die Oberfläche wählt Dateien über den Tauri-Dialog; gelesen wird ausschließlich im Kern.
+Die Oberfläche wählt Dateien und Ordner über den Tauri-Dialog; gelesen wird ausschließlich im Kern.
+
+Ordner-Import in zwei Schritten: `akten.ordner_pruefen` sammelt die lesbaren Dateien samt
+Unterordnern (versteckte Dateien und Word-Sperrdateien `~$…` ausgenommen) und schlägt je
+Unterordner Tags vor (`tag_vorschlag`: übliche Beteiligte vereinheitlicht, Nummerierung entfernt).
+Erst nach der Rückfrage in der Oberfläche liest `akten.importieren` jede Datei mit den bestätigten
+Tags (`tag.quelle = 'ordner'`) und dem Unterordner (`dokument.herkunft`). `akten.tags_setzen`
+ersetzt die Tags eines Dokuments; neue erhalten `quelle = 'manuell'`, vorhandene behalten ihre Herkunft.
+
+Löschen (`akten.dokument_loeschen`, `akten.loeschen`) entfernt die Datenbankeinträge per
+Kaskade und danach die abgelegte Kopie bzw. den Ordner `akte-<id>`, nur innerhalb der Ablage.
+`secure_delete` ist eingeschaltet, damit gelöschte Inhalte nicht in freien Seiten der Datenbank
+zurückbleiben. Ältere `akten.sqlite` (Schema 1) werden beim Öffnen um die neuen Spalten ergänzt.
 
 ## Offene Punkte
 
