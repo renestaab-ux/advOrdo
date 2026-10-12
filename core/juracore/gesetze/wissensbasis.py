@@ -169,19 +169,30 @@ def loese_zitat(con: sqlite3.Connection, zitat: str | Zitat, fassung_id: int | N
         ergebnis.update(hinweis="Die Norm ist weggefallen.", wortlaut="(weggefallen)")
         return ergebnis
 
-    if z.absatz is None:
+    if z.absatz is None and z.satz is None and z.nr is None:
         teil_text = "\n".join(a["text"] for a in n["absaetze"])
     else:
-        absatz = next((a for a in n["absaetze"] if a["nr"] == z.absatz), None)
-        if absatz is None:
-            ergebnis["hinweis"] = f"{n['bezeichnung']} hat keinen Absatz {z.absatz}."
+        if z.absatz is not None:
+            absatz = next((a for a in n["absaetze"] if a["nr"] == z.absatz), None)
+            if absatz is None:
+                ergebnis["hinweis"] = f"{n['bezeichnung']} hat keinen Absatz {z.absatz}."
+                return ergebnis
+        elif len(n["absaetze"]) == 1:
+            # "§ 437 Nr. 4 BGB": Norm ohne Absätze, Satz oder Nummer beziehen sich auf den ganzen Text.
+            absatz = n["absaetze"][0]
+        elif z.satz is None:
+            # Nummer ohne Absatzangabe: in allen Absätzen suchen.
+            absatz = {"text": "", "saetze": [s for a in n["absaetze"] for s in a["saetze"]]}
+        else:
+            ergebnis["hinweis"] = f"{n['bezeichnung']} hat mehrere Absätze; die Satzangabe ist ohne Absatz mehrdeutig."
             return ergebnis
         teil_text = absatz["text"]
         saetze = absatz["saetze"]
         if z.satz is not None:
             satz = next((s for s in saetze if s["nr"] == z.satz), None)
             if satz is None:
-                ergebnis["hinweis"] = f"Abs. {z.absatz} hat nur {len(saetze)} Satz/Sätze."
+                ort = f"Abs. {z.absatz}" if z.absatz else n["bezeichnung"]
+                ergebnis["hinweis"] = f"{ort} hat nur {len(saetze)} Satz/Sätze."
                 return ergebnis
             teil_text = satz["text"]
             saetze = [satz]

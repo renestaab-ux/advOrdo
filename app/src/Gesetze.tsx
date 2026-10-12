@@ -205,7 +205,7 @@ export default function Gesetze() {
   );
 }
 
-function BelegAnsicht({ beleg }: { beleg: Beleg }) {
+export function BelegAnsicht({ beleg }: { beleg: Beleg }) {
   const belegt = beleg.status === "belegt";
   return (
     <article className={belegt ? "beleg belegt" : "beleg offen"}>

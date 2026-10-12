@@ -1,16 +1,17 @@
 import { useState } from "react";
+import Akte from "./Akte";
 import Gesetze from "./Gesetze";
 
 type Bereich = "akte" | "vergleich" | "gesetze";
 
 const BEREICHE: { id: Bereich; titel: string; bald?: boolean }[] = [
-  { id: "akte", titel: "Akte", bald: true },
+  { id: "akte", titel: "Akte" },
   { id: "vergleich", titel: "Vergleich", bald: true },
   { id: "gesetze", titel: "Gesetze" },
 ];
 
 export default function App() {
-  const [bereich, setBereich] = useState<Bereich>("gesetze");
+  const [bereich, setBereich] = useState<Bereich>("akte");
 
   return (
     <div className="rahmen">
@@ -32,7 +33,10 @@ export default function App() {
           Modus: nur lokal
         </div>
       </nav>
-      <main className="inhalt">{bereich === "gesetze" && <Gesetze />}</main>
+      <main className="inhalt">
+        {bereich === "akte" && <Akte />}
+        {bereich === "gesetze" && <Gesetze />}
+      </main>
     </div>
   );
 }

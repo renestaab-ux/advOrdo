@@ -31,3 +31,40 @@ def test_position_im_text():
     text = "vgl. § 286 ZPO"
     z = finde_zitate(text)[0]
     assert text[z.fundstelle_im_text[0] : z.fundstelle_im_text[1]] == "286"
+
+
+def test_weitere_absaetze_derselben_norm():
+    zitate = finde_zitate("Nutzungsentschädigung nach § 346 Abs. 1, Abs. 2 Satz 1 Nr. 1 BGB")
+    assert [str(z) for z in zitate] == ["§ 346 Abs. 1 BGB", "§ 346 Abs. 2 S. 1 Nr. 1 BGB"]
+
+
+def test_abgekuerzte_folgen():
+    assert [str(z) for z in finde_zitate("nach §§ 280 Abs. 1, 2, 286 BGB")] == [
+        "§ 280 Abs. 1 BGB",
+        "§ 280 Abs. 2 BGB",
+        "§ 286 BGB",
+    ]
+    assert [str(z) for z in finde_zitate("aus § 709 Satz 1 und 2 ZPO")] == ["§ 709 S. 1 ZPO", "§ 709 S. 2 ZPO"]
+    # Eine größere Zahl ist ein eigener Paragraph.
+    assert [str(z) for z in finde_zitate("§§ 437 Nr. 2, 440, 323 Abs. 1, 346 Abs. 1 BGB")] == [
+        "§ 437 Nr. 2 BGB",
+        "§ 440 BGB",
+        "§ 323 Abs. 1 BGB",
+        "§ 346 Abs. 1 BGB",
+    ]
+
+
+def test_verkettung_teilt_das_gesetz():
+    zitate = finde_zitate("Anspruch aus § 280 Abs. 1 i.V.m. § 241 Abs. 2 BGB und § 3 des Vertrags.")
+    assert [str(z) for z in zitate] == ["§ 280 Abs. 1 BGB", "§ 241 Abs. 2 BGB"]
+
+
+def test_kein_gesetz_kein_zitat():
+    assert finde_zitate("gemäß § 5 des Kaufvertrags und § 4 GmbH-Vertrag") == []
+
+
+def test_treffer_umfasst_das_ganze_zitat():
+    text = "aus §§ 280 Abs. 1, 281 BGB folgt"
+    z = finde_zitate(text)
+    assert text[z[0].treffer[0] : z[0].treffer[1]] == "§§ 280 Abs. 1, 281 BGB"
+    assert text[z[1].fundstelle_im_text[0] : z[1].fundstelle_im_text[1]] == "281"

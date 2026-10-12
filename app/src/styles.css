@@ -88,3 +88,45 @@ blockquote { margin: 12px 0; padding-left: 12px; border-left: 3px solid var(--ak
 .fassung { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--linie); font-size: 12px; color: var(--text-leise); }
 .hinweis-box { padding: 16px; border: 1px dashed var(--linie); border-radius: 8px; }
 code { font-family: ui-monospace, monospace; }
+
+/* Akte */
+.akten-wahl { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
+.akten-wahl select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.akten-wahl .weiteres { margin: 0; flex: 1; min-width: 280px; }
+.dokumente { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; }
+.dokumente th, .dokumente td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--linie); vertical-align: top; }
+.dokumente th { color: var(--text-leise); font-weight: 500; }
+.dokumente tr.aktiv { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+.zitat-zahl { margin-right: 10px; white-space: nowrap; }
+.zitat-zahl.belegt, .marke-status.belegt { color: var(--gut); }
+.zitat-zahl.nicht_gefunden, .marke-status.nicht_gefunden { color: var(--fehler); }
+.zitat-zahl.unbekanntes_gesetz, .marke-status.unbekanntes_gesetz { color: var(--warnung); }
+.marke-status.belegt { background: color-mix(in srgb, var(--gut) 18%, transparent); }
+.marke-status.nicht_gefunden { background: color-mix(in srgb, var(--fehler) 18%, transparent); }
+.marke-status.unbekanntes_gesetz { background: color-mix(in srgb, var(--warnung) 18%, transparent); }
+.reiter { display: flex; gap: 8px; margin: 8px 0 4px; }
+.reiter-aktiv { cursor: default; }
+.akte-arbeitsflaeche { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: start; }
+.akte-seite { width: 360px; position: sticky; top: 0; }
+.akte-seite .beleg { margin-top: 0; }
+.fundort { font-size: 12px; color: var(--text-leise); margin: 0 0 6px; }
+.dokument { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 16px 20px; margin: 12px 0; }
+.dokument-info { font-size: 12px; color: var(--text-leise); margin: -6px 0 10px; }
+.abschnitt { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 4px 0; line-height: 1.55; }
+.abschnitt p { margin: 0; }
+.abschnitt-ort { font-size: 11px; color: var(--text-leise); padding-top: 3px; text-align: right; }
+.abschnitt.fussnote p { font-size: 13px; color: var(--text-leise); }
+.abschnitt.tabelle p { font-size: 13px; }
+button.zitat { font: inherit; padding: 0 2px; border: none; border-radius: 3px; background: none; color: inherit; cursor: pointer; border-bottom: 2px solid; }
+button.zitat.belegt { border-color: var(--gut); }
+button.zitat.nicht_gefunden { border-color: var(--fehler); background: color-mix(in srgb, var(--fehler) 10%, transparent); }
+button.zitat.unbekanntes_gesetz { border-color: var(--warnung); border-bottom-style: dashed; }
+button.zitat.gewaehlt, button.zitat:hover { background: color-mix(in srgb, var(--akzent) 15%, transparent); }
+.normen { list-style: none; padding: 0; }
+.normen li { padding: 10px 0; border-bottom: 1px solid var(--linie); }
+.fundstellen { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12px; }
+.fundstellen .link { font-weight: 400; }
+@media (max-width: 1100px) {
+  .akte-arbeitsflaeche { grid-template-columns: 1fr; }
+  .akte-seite { width: auto; position: static; }
+}
