@@ -9,7 +9,9 @@ import sys
 from pathlib import Path
 
 from . import db, einstellungen, rpc
+from .dokumente import lesen, ocr
 from .gesetze import quelle, wissensbasis
+from .gesetze.zitate import finde_zitate
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,6 +32,10 @@ def main(argv: list[str] | None = None) -> int:
     zi = sub.add_parser("zitat", help='Zitat auflösen, z. B. "§ 280 Abs. 1 S. 2 BGB"')
     zi.add_argument("zitat")
     sub.add_parser("liste", help="Importierte Gesetze und Fassungen")
+    le = sub.add_parser("lesen", help="Dokument (PDF, DOCX, TXT, MD) lesen und Normzitate prüfen, ohne es zu speichern")
+    le.add_argument("pfad", type=Path)
+    le.add_argument("--ohne-ocr", action="store_true", help="Bildseiten nicht per Texterkennung lesen")
+    sub.add_parser("ocr", help="Prüfen, ob die Texterkennung (Tesseract, Deutsch) verfügbar ist")
 
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO if a.verbose else logging.WARNING, stream=sys.stderr)
@@ -38,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if a.befehl == "serve":
         rpc.serve(db_pfad, archiv)
+        return 0
+    if a.befehl == "ocr":
+        print(json.dumps(ocr.status(), ensure_ascii=False, indent=2))
         return 0
 
     con = db.oeffne(db_pfad)
@@ -49,10 +58,25 @@ def main(argv: list[str] | None = None) -> int:
         ergebnis = wissensbasis.suche(con, a.text, a.gesetz)
     elif a.befehl == "zitat":
         ergebnis = wissensbasis.loese_zitat(con, a.zitat)
+    elif a.befehl == "lesen":
+        ergebnis = _lesen(con, a.pfad, not a.ohne_ocr)
     else:
         ergebnis = db.gesetze(con)
     print(json.dumps(ergebnis, ensure_ascii=False, indent=2))
     return 0
+
+
+def _lesen(con, pfad: Path, mit_ocr: bool) -> dict:
+    dok = lesen.lies(pfad, mit_ocr)
+    abschnitte = []
+    for a in dok.abschnitte:
+        zitate = []
+        for z in finde_zitate(a.text):
+            beleg = wissensbasis.loese_zitat(con, z)
+            zitate.append({"zitat": str(z), "status": beleg["status"], "hinweis": beleg["hinweis"]})
+        abschnitte.append({"nr": a.nr, "seite": a.seite, "rn": a.rn, "text": a.text, "zitate": zitate})
+    return {"format": dok.format, "lesart": dok.lesart, "ocr_konfidenz": dok.ocr_konfidenz,
+            "hinweise": dok.hinweise, "abschnitte": abschnitte}
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ from .conftest import FIXTURES
 def test_liste(con):
     gesetze = {g["abk"]: g for g in db.gesetze(con)}
     assert set(gesetze) == {"BGB", "ZPO"}
-    assert gesetze["BGB"]["normen"] == 6
+    assert gesetze["BGB"]["normen"] == 7
     assert gesetze["BGB"]["fassungen"] == 1
 
 
@@ -105,3 +105,11 @@ def test_egbgb_artikel_zitieren(con):
     # Ohne Artikel gibt es im EGBGB keinen § 6.
     assert wissensbasis.loese_zitat(con, "§ 6 EGBGB")["status"] == "nicht_gefunden"
     assert wissensbasis.loese_zitat(con, "Art. 229 EGBGB")["status"] == "nicht_gefunden"
+
+
+def test_nummer_ohne_absatz(con):
+    # § 437 BGB hat keine Absätze, aber die Nummern 1 bis 3.
+    assert wissensbasis.loese_zitat(con, "§ 437 Nr. 2 BGB")["wortlaut"].startswith("2. nach den §§ 440, 323")
+    falsch = wissensbasis.loese_zitat(con, "§ 437 Nr. 4 BGB")
+    assert falsch["status"] == "nicht_gefunden"
+    assert falsch["hinweis"] == "Nr. 4 wurde in der Fundstelle nicht gefunden."

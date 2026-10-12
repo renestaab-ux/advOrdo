@@ -35,6 +35,7 @@
     {"abk": "GKG", "kuerzel": "gkg_2004", "titel": "Gerichtskostengesetz", "gruppe": "Kosten"},
     {"abk": "FamGKG", "kuerzel": "famgkg", "titel": "Gesetz über Gerichtskosten in Familiensachen", "gruppe": "Kosten"},
     {"abk": "RVG", "kuerzel": "rvg", "titel": "Rechtsanwaltsvergütungsgesetz", "gruppe": "Kosten"},
-    {"abk": "JVEG", "kuerzel": "jveg", "titel": "Justizvergütungs- und -entschädigungsgesetz", "gruppe": "Kosten"}
+    {"abk": "JVEG", "kuerzel": "jveg", "titel": "Justizvergütungs- und -entschädigungsgesetz", "gruppe": "Kosten"},
+    {"abk": "UStG", "kuerzel": "ustg_1980", "titel": "Umsatzsteuergesetz (Vorsteuer bei Schadensersatz und Miete)", "gruppe": "Steuern"}
   ]
 }

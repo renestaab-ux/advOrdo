@@ -12,7 +12,7 @@ Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzu
 
 | Ordner | Inhalt |
 | --- | --- |
-| `core/` | Analysekern in Python (`juracore`): Gesetzes-Import, Wissensbasis, später Ingestion, OCR, RAG |
+| `core/` | Analysekern in Python (`juracore`): Gesetzes-Import, Wissensbasis, Einlesen von Akten (PDF, DOCX, OCR), Normzitate; später RAG |
 | `app/` | Oberfläche (React + TypeScript, Vite) |
 | `app/src-tauri/` | Desktop-Hülle (Tauri 2, Rust); startet den Kern als Kindprozess |
 | `docs/` | Architektur und Entscheidungen |
@@ -71,6 +71,65 @@ unter `~/.local/share/de.juristischer-datenabgleich.app`.
 Im Entwicklungsmodus nimmt die App den Interpreter aus `.venv` im Projektordner.
 `JURACORE_PYTHON` überschreibt das; ohne beides gilt `python` (Windows) bzw. `python3`.
 
+## Texterkennung für Scans (Tesseract)
+
+PDFs mit Textebene, Word-, Text- und Markdown-Dateien liest die App ohne weitere
+Programme. Für eingescannte Seiten (Bild-PDF) braucht sie Tesseract mit den deutschen
+Sprachdaten. Tesseract läuft lokal; es wird nichts übertragen.
+
+Windows 11 (PowerShell):
+
+```powershell
+winget install --id UB-Mannheim.TesseractOCR
+```
+
+Danach die deutschen Sprachdaten in den Programmordner legen. Dafür eine PowerShell
+**als Administrator** öffnen (Startmenü, „Terminal“ mit Rechtsklick, „Als Administrator ausführen“):
+
+```powershell
+Invoke-WebRequest https://github.com/tesseract-ocr/tessdata/raw/main/deu.traineddata -OutFile "C:\Program Files\Tesseract-OCR\tessdata\deu.traineddata"
+```
+
+Prüfen (wieder in einer normalen PowerShell im Projektordner):
+
+```powershell
+.venv\Scripts\juracore ocr
+```
+
+`"verfuegbar": true` heißt: Scans werden gelesen. Die App findet Tesseract im
+Programmordner auch dann, wenn es nicht im Suchpfad steht; ein anderer Ort lässt sich mit
+`JURACORE_TESSERACT` angeben.
+
+Linux: `sudo apt install tesseract-ocr tesseract-ocr-deu`. macOS: `brew install tesseract tesseract-lang`.
+
+## Akte: Dokumente einlesen
+
+Im Bereich **Akte** legt man eine Akte an und fügt Schriftsätze, Schreiben und Urteile hinzu
+(PDF, DOCX, TXT, MD). Beim Einlesen
+
+- wird die Originaldatei unverändert unter ihrer SHA-256-Prüfsumme im Ordner der Akte abgelegt,
+- werden Seitenköpfe („- 2 -“) entfernt, Silbentrennungen aufgelöst und Absätze über Seitenwechsel fortgesetzt,
+- werden Randnummern („(4)“) und Seiten als Fundstellen erkannt,
+- werden Seiten ohne Text per Texterkennung gelesen (Hinweis und Erkennungsgüte stehen beim Dokument),
+- werden Normzitate erkannt („§§ 437 Nr. 2, 440, 323 Abs. 1 BGB“, „§ 280 Abs. 1 i.V.m. § 241 Abs. 2 BGB“,
+  „§ 346 Abs. 1, Abs. 2 Satz 1 Nr. 1 BGB“) und gegen die Wissensbasis geprüft:
+  - **belegt**: Norm, Absatz, Satz und Nummer gibt es in der geladenen Fassung; ein Klick zeigt den Wortlaut,
+  - **existiert nicht**: z. B. „§ 437 Nr. 4 BGB“ (§ 437 hat nur Nr. 1 bis 3),
+  - **nicht in Wissensbasis**: das Gesetz ist nicht geladen (z. B. UStG).
+
+Die Prüfung merkt sich die verwendete Fassung. Nach dem Laden weiterer Gesetze prüft
+„Zitate neu prüfen“ die ganze Akte erneut. Ohne App:
+
+```bash
+juracore lesen pfad/zur/klage.pdf      # Absätze, Fundstellen und geprüfte Zitate als JSON
+```
+
+Noch nicht erkannt werden Rechtsprechungszitate (Phase 2), Zitate ohne „§“/„Art.“
+(z. B. „Nr. 2300 VV RVG“) und inhaltlich veraltete Zitate einer noch existierenden Norm
+(z. B. § 476 BGB als Beweislastumkehr, seit 2022 § 477 BGB). Word-Dateien haben nur dann
+Seitenzahlen, wenn sie Seitenumbrüche enthalten; sonst gilt die Randnummer bzw. der
+laufende Absatz („Abschn. 12“) als Fundstelle.
+
 ## Wissensbasis: Gesetze
 
 ```bash
@@ -82,7 +141,7 @@ juracore suche "Verjährungsfrist"
 juracore liste
 ```
 
-- Voreingestellt sind 35 Bundesgesetze, die in Zivilrechtsstreitigkeiten typischerweise
+- Voreingestellt sind 36 Bundesgesetze, die in Zivilrechtsstreitigkeiten typischerweise
   gebraucht werden (`core/juracore/gesetze/voreinstellung.json`, gegliedert nach Gebieten).
   Eine eigene Liste im selben Format unter `<Datenverzeichnis>/gesetze.json` ersetzt sie.
 - Weitere Bundesgesetze lädt man über ihre Abkürzung, wie sie in der Adresse auf

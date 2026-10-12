@@ -167,6 +167,9 @@ mod tests {
         let beleg = kern.aufruf("zitat.aufloesen", json!({ "zitat": "§ 286 Abs. 2 ZPO" })).expect("zitat");
         assert_eq!(beleg["status"], "belegt");
 
+        let akte = kern.aufruf("akten.anlegen", json!({ "name": "Testakte" })).expect("akte");
+        assert_eq!(kern.aufruf("akten.dokumente", json!({ "akte_id": akte["id"] })).expect("dokumente"), json!([]));
+
         let fehler = kern.aufruf("gibt.es.nicht", json!({})).unwrap_err();
         assert!(fehler.contains("Unbekannte Methode"));
         let _ = std::fs::remove_dir_all(daten);

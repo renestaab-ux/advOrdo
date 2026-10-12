@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__, db, einstellungen
+from .dokumente import akte, ocr
 from .gesetze import quelle, wissensbasis
 
 log = logging.getLogger("juracore.rpc")
@@ -29,6 +30,9 @@ class Kern:
         self.con = db.oeffne(db_pfad)
         self.archiv = archiv
         self.eigene_liste = Path(db_pfad).parent / "gesetze.json"
+        # Akten getrennt von der Wissensbasis: eigene Datenbank, Originale je Akte in einem eigenen Ordner.
+        self.akten = akte.oeffne(Path(db_pfad).parent / "akten.sqlite")
+        self.ablage = Path(db_pfad).parent / "akten"
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
             "gesetze.liste": lambda: db.gesetze(self.con),
@@ -40,6 +44,16 @@ class Kern:
                 self.con, gesetz, nummer, fassung_id, typ
             ),
             "zitat.aufloesen": lambda zitat, fassung_id=None: wissensbasis.loese_zitat(self.con, zitat, fassung_id),
+            "ocr.status": ocr.status,
+            "akten.liste": lambda: akte.akten(self.akten),
+            "akten.anlegen": lambda name: akte.akte_anlegen(self.akten, name),
+            "akten.dokumente": lambda akte_id: akte.dokumente(self.akten, akte_id),
+            "akten.importieren": lambda akte_id, pfad: akte.importiere(
+                self.akten, self.con, akte_id, pfad, self.ablage
+            ),
+            "akten.dokument": lambda dokument_id: akte.dokument(self.akten, dokument_id),
+            "akten.normen": lambda akte_id: akte.normen(self.akten, akte_id),
+            "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
         }
 
     def importieren(self, gesetze: list[str]) -> list[dict]:
@@ -71,7 +85,7 @@ class Kern:
             params = anfrage.get("params") or {}
             ergebnis = methode(**params) if isinstance(params, dict) else methode(*params)
             return {"id": anfrage_id, "result": ergebnis}
-        except (ValueError, LookupError, TypeError, OSError, sqlite3.Error) as fehler:
+        except (ValueError, LookupError, TypeError, OSError, RuntimeError, sqlite3.Error) as fehler:
             log.warning("Fehler bei Anfrage %s: %s", anfrage_id, fehler)
             return {"id": anfrage_id, "error": {"message": str(fehler), "typ": type(fehler).__name__}}
 

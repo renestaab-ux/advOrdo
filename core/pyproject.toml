@@ -3,7 +3,8 @@ name = "juracore"
 version = "0.1.0"
 description = "Analysekern des Juristischen Datenabgleichs"
 requires-python = ">=3.11"
-dependencies = []
+# pypdfium2: PDF-Text und Seitenbilder für die Texterkennung; fertige Pakete für Windows, macOS und Linux.
+dependencies = ["pypdfium2>=4.30,<6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]

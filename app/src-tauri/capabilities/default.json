@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Hauptfenster: nur die eigenen Befehle, keine Datei- oder Netzwerkrechte im Frontend.",
+  "description": "Hauptfenster: eigene Befehle und der Dialog zum Öffnen von Dateien; keine Datei- oder Netzwerkrechte im Frontend. Gelesen wird ausschließlich im Kern, und nur Dateien, die der Nutzer im Dialog gewählt hat.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:allow-open"]
 }
