@@ -52,10 +52,27 @@ Kaskade und danach die abgelegte Kopie bzw. den Ordner `akte-<id>`, nur innerhal
 `secure_delete` ist eingeschaltet, damit gelöschte Inhalte nicht in freien Seiten der Datenbank
 zurückbleiben. Ältere `akten.sqlite` (Schema 1) werden beim Öffnen um die neuen Spalten ergänzt.
 
+## Abgleich
+
+`juracore.abgleich`: `angaben` erkennt regelbasiert Werte (Datum, Monat, Betrag, Kilometer,
+Fehlercode) und ordnet sie einem Merkmal zu (`MERKMALE`: Kaufpreis, Übergabe/Gefahrübergang,
+Kilometerstand bei Übergabe, erste Mängelanzeige, Fristen …; dazu „<Name>vertrag vom <Datum>“).
+Ein Wert zählt nur mit Merkmalswort in der Nähe und ohne anderen Wert gleicher Art dazwischen;
+verneinte („nicht 64.800 km“) und bestrittene Werte bleiben außen vor. `abgleich` setzt die
+gespeicherten Abschnitte eines Dokuments zu einem Text zusammen (ein Satz darf über eine
+Absatzgrenze laufen), sammelt die Angaben aller Dokumente und stellt je Merkmal die Werte mit
+Fundstelle (Dokument, Seite, Randnummer, Satz) gegenüber. Unvereinbare Werte gelten als
+*mögliche Abweichung*, eingeordnet nach Ort (selbes Dokument, innerhalb einer Partei, zwischen
+den Beteiligten; aus den Tags). Verträge gleichen Namens unter verschiedenen Anlagen werden
+getrennt. Der Abgleich wird je Anfrage neu berechnet (`akten.abgleich`, optional
+`dokument_ids` für zwei Dokumente) und ändert die Akte nicht. Inhaltliche Aussagen ohne Zahl
+oder Datum bleiben dem späteren Abgleich mit dem Sprachmodell vorbehalten.
+
 ## Offene Punkte
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
 - Kern als Sidecar bündeln, Installer je System
-- Rechtsprechungszitate erkennen; Volltextsuche über Akten; Vergleich, Chronologie
+- Rechtsprechungszitate erkennen; Volltextsuche über Akten; Chronologie
+- Abgleich inhaltlicher Aussagen (ohne Zahl oder Datum) mit dem lokalen Sprachmodell
 - Tesseract für den Installer mitliefern (Windows), damit keine eigene Installation nötig ist
 - Provider-Adapter für lokale und externe Modelle mit Warnhinweis

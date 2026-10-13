@@ -284,3 +284,59 @@ export function sortiereTags<T extends { name: string }>(tags: T[]): T[] {
 
 /** Die üblichen Beteiligten, als schnelle Auswahl beim Bearbeiten und für die Reihenfolge. */
 export const BETEILIGTE = ["Kläger", "Beklagter", "Gericht", "Streitverkündeter", "Sachverständiger"];
+
+// --- Abgleich ------------------------------------------------------------------------------------
+
+export type AbgleichStatus = "abweichend" | "uebereinstimmend" | "einzeln";
+export type Einordnung = "im_dokument" | "innerhalb_partei" | "zwischen_parteien" | "partei_unbekannt";
+
+export interface AbgleichFundstelle {
+  dokument_id: number;
+  dateiname: string;
+  abschnitt: number;
+  seite: number | null;
+  rn: number | null;
+  /** Beteiligten-Tags des Dokuments, z. B. ["Kläger"]. */
+  parteien: string[];
+  /** Der Satz um den Wert, zum Hervorheben getrennt. */
+  ausschnitt: { davor: string; wert: string; danach: string };
+}
+
+export interface AbgleichWert {
+  wert: string;
+  art: "datum" | "monat" | "betrag" | "km" | "code";
+  anzeige: string;
+  fundstellen: AbgleichFundstelle[];
+}
+
+export interface AbgleichMerkmal {
+  merkmal: string;
+  titel: string;
+  status: AbgleichStatus;
+  einordnung: Einordnung[];
+  dokumente: number;
+  werte: AbgleichWert[];
+}
+
+export interface Abgleich {
+  dokumente: number;
+  merkmale: AbgleichMerkmal[];
+  zaehlung: Record<AbgleichStatus, number>;
+}
+
+export const EINORDNUNG_TEXT: Record<Einordnung, string> = {
+  im_dokument: "im selben Dokument",
+  innerhalb_partei: "innerhalb einer Partei",
+  zwischen_parteien: "zwischen den Beteiligten",
+  partei_unbekannt: "Beteiligte unbekannt (Dokumente ohne Tag)",
+};
+
+/** Kurzfassung des Ergebnisses, z. B. "7 mögliche Abweichungen, 4 Übereinstimmungen in 9 Dokumenten". */
+export function abgleichZusammenfassung(a: Pick<Abgleich, "dokumente" | "zaehlung">): string {
+  const n = (zahl: number, eins: string, mehr: string) => `${zahl} ${zahl === 1 ? eins : mehr}`;
+  return (
+    `${n(a.zaehlung.abweichend, "mögliche Abweichung", "mögliche Abweichungen")}, ` +
+    `${n(a.zaehlung.uebereinstimmend, "Übereinstimmung", "Übereinstimmungen")} ` +
+    `in ${n(a.dokumente, "Dokument", "Dokumenten")}`
+  );
+}

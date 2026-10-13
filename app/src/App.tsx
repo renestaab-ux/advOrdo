@@ -1,17 +1,20 @@
 import { useState } from "react";
 import Akte from "./Akte";
 import Gesetze from "./Gesetze";
+import Vergleich from "./Vergleich";
 
 type Bereich = "akte" | "vergleich" | "gesetze";
 
 const BEREICHE: { id: Bereich; titel: string; bald?: boolean }[] = [
   { id: "akte", titel: "Akte" },
-  { id: "vergleich", titel: "Vergleich", bald: true },
+  { id: "vergleich", titel: "Vergleich" },
   { id: "gesetze", titel: "Gesetze" },
 ];
 
 export default function App() {
   const [bereich, setBereich] = useState<Bereich>("akte");
+  // Die gewählte Akte gilt für Akte und Vergleich gemeinsam.
+  const [akteId, setAkteId] = useState<number | null>(null);
 
   return (
     <div className="rahmen">
@@ -34,7 +37,8 @@ export default function App() {
         </div>
       </nav>
       <main className="inhalt">
-        {bereich === "akte" && <Akte />}
+        {bereich === "akte" && <Akte akteId={akteId} setAkteId={setAkteId} onVergleich={() => setBereich("vergleich")} />}
+        {bereich === "vergleich" && <Vergleich akteId={akteId} setAkteId={setAkteId} />}
         {bereich === "gesetze" && <Gesetze />}
       </main>
     </div>

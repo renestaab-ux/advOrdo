@@ -12,7 +12,7 @@ Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzu
 
 | Ordner | Inhalt |
 | --- | --- |
-| `core/` | Analysekern in Python (`juracore`): Gesetzes-Import, Wissensbasis, Einlesen von Akten (PDF, DOCX, OCR), Normzitate; später RAG |
+| `core/` | Analysekern in Python (`juracore`): Gesetzes-Import, Wissensbasis, Einlesen von Akten (PDF, DOCX, OCR), Normzitate, Abgleich von Angaben; später RAG |
 | `app/` | Oberfläche (React + TypeScript, Vite) |
 | `app/src-tauri/` | Desktop-Hülle (Tauri 2, Rust); startet den Kern als Kindprozess |
 | `docs/` | Architektur und Entscheidungen |
@@ -144,6 +144,27 @@ laufende Absatz („Abschn. 12“) als Fundstelle.
 - **entfernen** (je Dokument) und **Akte entfernen …** löschen nach einer Rückfrage den gelesenen
   Text, die Zitate, die Tags und die Kopie, die die App beim Einlesen abgelegt hat. Die
   Originaldatei am ursprünglichen Ort bleibt unverändert.
+
+## Vergleich: Angaben abgleichen
+
+Der Bereich **Vergleich** (oder **Abgleichen** in der Akte) stellt dieselben Angaben aus den
+Dokumenten einer Akte nebeneinander, entweder aus allen Dokumenten oder aus zwei gewählten:
+
+- erkannt werden Daten, Beträge, Kilometerstände und Fehlercodes mit ihrem Bezug, z. B.
+  Kaufpreis, Übergabe/Gefahrübergang, Kilometerstand bei Übergabe, erste Mängelanzeige,
+  Frist zur Nacherfüllung, Zahlungsfrist, Reparaturkosten, Streitwert, Fehlerspeicher und
+  das Datum eines Vertrags („Kaufvertrag vom 14.03.2025“),
+- jede Angabe steht mit Fundstelle (Dokument, Seite, Randnummer) und dem Satz, aus dem sie stammt;
+  ein Klick öffnet das Dokument an dieser Stelle,
+- **mögliche Abweichungen** stehen oben, eingeordnet nach Ort: im selben Dokument, innerhalb einer
+  Partei oder zwischen den Beteiligten (nach den Tags der Dokumente),
+- übereinstimmende Angaben und Angaben aus nur einem Dokument lassen sich aufklappen.
+
+Erkannt wird bewusst zurückhaltend: Werte, die im Text verneint („betrug nicht 64.800 km“) oder
+bestritten werden, zählen nicht als eigene Angabe. „Mitte Juni 2025“ passt zu jedem Datum im
+Juni. Eine Abweichung ist ein Hinweis, keine Bewertung. Noch nicht erkannt werden Aussagen ohne
+Zahl oder Datum (etwa ob eine Nachbesserung angeboten oder abgelehnt wurde); das folgt mit dem
+lokalen Sprachmodell.
 
 ## Wissensbasis: Gesetze
 

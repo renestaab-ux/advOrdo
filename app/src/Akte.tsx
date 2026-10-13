@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { BelegAnsicht } from "./Gesetze";
 import {
@@ -50,9 +50,16 @@ interface Auswahl {
   beleg: Beleg | null;
 }
 
-export default function Akte() {
+export default function Akte({
+  akteId,
+  setAkteId,
+  onVergleich,
+}: {
+  akteId: number | null;
+  setAkteId: Dispatch<SetStateAction<number | null>>;
+  onVergleich: () => void;
+}) {
   const [akten, setAkten] = useState<AkteTyp[]>([]);
-  const [akteId, setAkteId] = useState<number | null>(null);
   const [neuerName, setNeuerName] = useState("");
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [inhalt, setInhalt] = useState<DokumentInhalt | null>(null);
@@ -87,7 +94,7 @@ export default function Akte() {
     const liste = await kern<AkteTyp[]>("akten.liste");
     setAkten(liste);
     setAkteId((aktuell) => (aktuell != null && liste.some((a) => a.id === aktuell) ? aktuell : (liste[0]?.id ?? null)));
-  }, []);
+  }, [setAkteId]);
 
   const ladeDokumente = useCallback(async (id: number) => {
     setDokumente(await kern<AktenDokument[]>("akten.dokumente", { akte_id: id }));
@@ -307,6 +314,11 @@ export default function Akte() {
               <button onClick={ordnerHinzufuegen} disabled={!!laeuft} title="Liest auch alle Unterordner ein">
                 Ordner hinzufügen …
               </button>
+              {dokumente.length > 1 && (
+                <button className="zweitrangig" onClick={onVergleich} disabled={!!laeuft} title="Angaben der Dokumente gegenüberstellen">
+                  Abgleichen
+                </button>
+              )}
               {dokumente.length > 0 && (
                 <button className="zweitrangig" onClick={neuPruefen} disabled={!!laeuft} title="Nach dem Laden weiterer Gesetze sinnvoll">
                   Zitate neu prüfen
@@ -673,14 +685,18 @@ function ZitatZaehlung({ zitate }: { zitate: Partial<Record<ZitatStatus, number>
   );
 }
 
-function DokumentAnsicht({
+export function DokumentAnsicht({
   inhalt,
-  auswahl,
+  auswahl = null,
   onZitat,
+  markiert,
 }: {
   inhalt: DokumentInhalt;
-  auswahl: Auswahl | null;
-  onZitat: (z: NormZitat, a: Abschnitt) => void;
+  auswahl?: Auswahl | null;
+  /** Ohne Handler werden Normzitate nur markiert, nicht anklickbar. */
+  onZitat?: (z: NormZitat, a: Abschnitt) => void;
+  /** Abschnitt, der hervorgehoben wird (Fundstelle aus dem Vergleich). */
+  markiert?: number;
 }) {
   const d = inhalt.dokument;
   return (
@@ -706,7 +722,7 @@ function DokumentAnsicht({
         </p>
       ))}
       {inhalt.abschnitte.map((a) => (
-        <section key={a.nr} id={`abschnitt-${a.nr}`} className={`abschnitt ${a.art}`}>
+        <section key={a.nr} id={`abschnitt-${a.nr}`} className={`abschnitt ${a.art}${a.nr === markiert ? " markiert" : ""}`}>
           <span className="abschnitt-ort">{fundstelle(a)}</span>
           <p>
             {segmente(a.text, a.zitate).map((s, i) =>
@@ -715,7 +731,8 @@ function DokumentAnsicht({
                   key={i}
                   className={`zitat ${s.zitat.status}${auswahl?.zitat === s.zitat ? " gewaehlt" : ""}`}
                   title={`${s.zitat.zitat}: ${STATUS_TEXT[s.zitat.status]}${s.zitat.hinweis ? ` – ${s.zitat.hinweis}` : ""}`}
-                  onClick={() => onZitat(s.zitat!, a)}
+                  onClick={() => onZitat?.(s.zitat!, a)}
+                  disabled={!onZitat}
                 >
                   {s.text}
                 </button>
