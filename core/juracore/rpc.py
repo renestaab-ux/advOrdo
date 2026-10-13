@@ -22,6 +22,10 @@ from . import __version__, db, einstellungen
 from .abgleich import abgleich
 from .dokumente import akte, ocr
 from .gesetze import quelle, wissensbasis
+from .ki import anbieter as ki_anbieter
+from .ki import speicher as ki_speicher
+from .ki.analyse import Analyse
+from .ki.auftraege import Auftraege
 
 log = logging.getLogger("juracore.rpc")
 
@@ -32,8 +36,14 @@ class Kern:
         self.archiv = archiv
         self.eigene_liste = Path(db_pfad).parent / "gesetze.json"
         # Akten getrennt von der Wissensbasis: eigene Datenbank, Originale je Akte in einem eigenen Ordner.
-        self.akten = akte.oeffne(Path(db_pfad).parent / "akten.sqlite")
+        self.akten_pfad = Path(db_pfad).parent / "akten.sqlite"
+        self.akten = akte.oeffne(self.akten_pfad)
         self.ablage = Path(db_pfad).parent / "akten"
+        # Sprachmodell: Einstellungen in ki.json, Analysen als Hintergrundaufträge, Ergebnisse in akten.sqlite.
+        ki_speicher.einrichten(self.akten)
+        self.ki_datei = Path(db_pfad).parent / "ki.json"
+        self.ki_fabrik = ki_anbieter.erzeuge
+        self.auftraege = Auftraege()
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
             "gesetze.liste": lambda: db.gesetze(self.con),
@@ -62,6 +72,15 @@ class Kern:
             "akten.normen": lambda akte_id: akte.normen(self.akten, akte_id),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
             "akten.abgleich": lambda akte_id, dokument_ids=None: abgleich.abgleich(self.akten, akte_id, dokument_ids),
+            "ki.status": lambda: ki_anbieter.status(ki_anbieter.lade_einstellungen(self.ki_datei)),
+            "ki.einstellungen_setzen": self.ki_einstellungen_setzen,
+            "ki.starten": self.ki_starten,
+            "ki.auftrag": self.auftraege.status,
+            "ki.laufend": lambda: (a.als_dict() if (a := self.auftraege.laufend()) else None),
+            "ki.abbrechen": self.auftraege.abbrechen,
+            "ki.ergebnisse": lambda akte_id: ki_speicher.ergebnisse(
+                self.akten, akte_id, ki_anbieter.lade_einstellungen(self.ki_datei).modell
+            ),
         }
 
     def importieren(self, gesetze: list[str]) -> list[dict]:
@@ -77,6 +96,42 @@ class Kern:
                 log.warning("Import von %s fehlgeschlagen: %s", abk, fehler)
                 ergebnisse.append({"abk": abk.upper(), "neu": False, "fehler": str(fehler)})
         return ergebnisse
+
+    def ki_einstellungen_setzen(self, anbieter: str, endpunkt: str, modell: str = "", kontext: int = 16384) -> dict:
+        e = ki_anbieter.KiEinstellungen(anbieter, endpunkt, modell, kontext)
+        ki_anbieter.speichere_einstellungen(self.ki_datei, e)
+        return ki_anbieter.status(e)
+
+    KI_AUFGABEN = ("zusammenfassung_dokument", "zusammenfassung_akte", "widersprueche")
+
+    def ki_starten(
+        self, aufgabe: str, akte_id: int | None = None, dokument_id: int | None = None,
+        dokument_ids: list[int] | None = None, neu: bool = False,
+    ) -> dict:
+        """Startet eine Analyse im Hintergrund; Fortschritt und Ergebnis liefert ``ki.auftrag``."""
+        if aufgabe not in self.KI_AUFGABEN:
+            raise ValueError(f"Unbekannte Aufgabe: {aufgabe!r}")
+        if (dokument_id if aufgabe == "zusammenfassung_dokument" else akte_id) is None:
+            raise ValueError("Für diese Aufgabe fehlt die Akte bzw. das Dokument.")
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        if not e.modell:
+            raise ValueError("Kein Sprachmodell gewählt. Bitte unter „Einstellungen“ ein Modell auswählen.")
+        modell = self.ki_fabrik(e)
+
+        def arbeit(auftrag) -> dict:
+            # Eigene Verbindung: SQLite-Verbindungen gehören zu dem Thread, der sie geöffnet hat.
+            con = akte.oeffne(self.akten_pfad)
+            try:
+                analyse = Analyse(con, modell, e.kontext, auftrag, neu=bool(neu))
+                if aufgabe == "zusammenfassung_dokument":
+                    return analyse.zusammenfassung_dokument(int(dokument_id))
+                if aufgabe == "zusammenfassung_akte":
+                    return analyse.zusammenfassung_akte(int(akte_id))
+                return analyse.widersprueche(int(akte_id), dokument_ids)
+            finally:
+                con.close()
+
+        return self.auftraege.starte(aufgabe, arbeit)
 
     def importieren_datei(self, pfad: str) -> dict:
         roh = quelle.lies_datei(Path(pfad), self.archiv)

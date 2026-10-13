@@ -12,6 +12,7 @@ from . import db, einstellungen, rpc
 from .dokumente import lesen, ocr
 from .gesetze import quelle, wissensbasis
 from .gesetze.zitate import finde_zitate
+from .ki import anbieter as ki_anbieter
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -36,6 +37,12 @@ def main(argv: list[str] | None = None) -> int:
     le.add_argument("pfad", type=Path)
     le.add_argument("--ohne-ocr", action="store_true", help="Bildseiten nicht per Texterkennung lesen")
     sub.add_parser("ocr", help="Prüfen, ob die Texterkennung (Tesseract, Deutsch) verfügbar ist")
+    sub.add_parser("ki-status", help="Prüfen, ob das lokale Sprachmodell (Ollama, LM Studio) erreichbar ist")
+    kp = sub.add_parser("ki-pruefen", help="Testakte einlesen und Widersprüche mit dem Sprachmodell suchen")
+    kp.add_argument("ordner", type=Path, help="Ordner mit den Dokumenten (Unterordner werden mitgelesen)")
+    kp.add_argument("--erwartungen", type=Path, help="erwartungen.json der Testakte zum Abgleich")
+    kp.add_argument("--modell", help="Modell statt des in der App gewählten, z. B. qwen3:14b")
+    kp.add_argument("--zusammenfassung", action="store_true", help="auch die Akte zusammenfassen")
 
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO if a.verbose else logging.WARNING, stream=sys.stderr)
@@ -48,6 +55,17 @@ def main(argv: list[str] | None = None) -> int:
     if a.befehl == "ocr":
         print(json.dumps(ocr.status(), ensure_ascii=False, indent=2))
         return 0
+    if a.befehl == "ki-status":
+        e = ki_anbieter.lade_einstellungen(db_pfad.parent / "ki.json")
+        print(json.dumps(ki_anbieter.status(e), ensure_ascii=False, indent=2))
+        return 0
+    if a.befehl == "ki-pruefen":
+        from .ki import pruefen
+
+        e = ki_anbieter.lade_einstellungen(db_pfad.parent / "ki.json")
+        if a.modell:
+            e.modell = a.modell
+        return pruefen.main(a.ordner, e, a.erwartungen, a.zusammenfassung)
 
     con = db.oeffne(db_pfad)
     if a.befehl == "import":
