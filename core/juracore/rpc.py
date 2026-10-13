@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__, db, einstellungen
+from .abgleich import abgleich
 from .dokumente import akte, ocr
 from .gesetze import quelle, wissensbasis
 
@@ -60,6 +61,7 @@ class Kern:
             "akten.dokument": lambda dokument_id: akte.dokument(self.akten, dokument_id),
             "akten.normen": lambda akte_id: akte.normen(self.akten, akte_id),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
+            "akten.abgleich": lambda akte_id, dokument_ids=None: abgleich.abgleich(self.akten, akte_id, dokument_ids),
         }
 
     def importieren(self, gesetze: list[str]) -> list[dict]:

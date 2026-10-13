@@ -154,3 +154,42 @@ button.gefahr-voll { background: #b3261e; border-color: #b3261e; color: #fff; }
   button.gefahr, button.link.gefahr { color: #f2b8b5; }
 }
 .dokumente button.link { text-align: left; }
+
+/* Vergleich */
+.erklaerung { color: var(--text-leise); max-width: 760px; margin: 8px 0 0; }
+.umfang { display: flex; gap: 14px; }
+.umfang label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.paar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.paar select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); max-width: 420px; }
+.zusammenfassung { font-weight: 600; margin: 8px 0; }
+.merkmal { background: var(--flaeche); border: 1px solid var(--linie); border-left: 4px solid var(--linie); border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+.merkmal.abweichend { border-left-color: var(--warnung); }
+.merkmal.uebereinstimmend { border-left-color: var(--gut); }
+.merkmal header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.merkmal header strong { margin-right: 6px; }
+.einordnung { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--warnung) 15%, transparent); color: var(--warnung); }
+.einordnung.partei_unbekannt { background: none; color: var(--text-leise); border: 1px dashed var(--linie); }
+.werte { display: grid; gap: 10px; }
+.wert { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 12px; }
+.wert + .wert { border-top: 1px solid var(--linie); padding-top: 10px; }
+.wert-anzeige { font-weight: 600; font-variant-numeric: tabular-nums; }
+.belege { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 13px; }
+.belege li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.belege .link { font-weight: 400; text-align: left; }
+.belege li.gewaehlt .link { font-weight: 600; }
+.belege .ausschnitt { flex-basis: 100%; margin: 0; }
+.weitere-merkmale { margin: 16px 0; }
+.weitere-merkmale summary { cursor: pointer; color: var(--text-leise); }
+.grenze { font-size: 12px; color: var(--text-leise); margin-top: 20px; }
+.vergleich-dokument { width: 460px; }
+.vergleich-dokument-kopf { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.vergleich-dokument-text { max-height: calc(100vh - 100px); overflow: auto; }
+.vergleich-dokument .dokument { margin-top: 8px; }
+.vergleich-dokument .abschnitt { grid-template-columns: 52px 1fr; gap: 8px; }
+.abschnitt.markiert { background: color-mix(in srgb, var(--warnung) 14%, transparent); border-radius: 4px; }
+button.zitat:disabled { opacity: 1; cursor: default; }
+@media (max-width: 1100px) {
+  .vergleich-dokument { width: auto; }
+  .vergleich-dokument-text { max-height: 70vh; }
+  .wert { grid-template-columns: 1fr; gap: 4px; }
+}

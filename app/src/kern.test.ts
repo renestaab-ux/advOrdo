@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { formatiereBuilddate, fundstelle, istZitat, lesartText, segmente, tagsAusText, tagUebersicht } from "./kern";
+import {
+  abgleichZusammenfassung,
+  formatiereBuilddate,
+  fundstelle,
+  istZitat,
+  lesartText,
+  segmente,
+  tagsAusText,
+  tagUebersicht,
+} from "./kern";
 
 describe("istZitat", () => {
   it("erkennt Normzitate", () => {
@@ -64,5 +73,16 @@ describe("tagUebersicht", () => {
       { name: "Gericht", anzahl: 1 },
       { name: "Anlagen", anzahl: 1 },
     ]);
+  });
+});
+
+describe("abgleichZusammenfassung", () => {
+  it("zählt Abweichungen und Übereinstimmungen", () => {
+    expect(abgleichZusammenfassung({ dokumente: 9, zaehlung: { abweichend: 7, uebereinstimmend: 4, einzeln: 0 } })).toBe(
+      "7 mögliche Abweichungen, 4 Übereinstimmungen in 9 Dokumenten",
+    );
+    expect(abgleichZusammenfassung({ dokumente: 1, zaehlung: { abweichend: 1, uebereinstimmend: 1, einzeln: 2 } })).toBe(
+      "1 mögliche Abweichung, 1 Übereinstimmung in 1 Dokument",
+    );
   });
 });

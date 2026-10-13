@@ -65,6 +65,8 @@ def test_akten_ueber_rpc(tmp_path):
     inhalt = rufe("akten.dokument", dokument_id=ergebnis["dokument_id"])
     assert inhalt["abschnitte"][0]["rn"] == 1
     assert rufe("akten.normen", akte_id=akte["id"])[0]["zitat"] == "§ 286 Abs. 2 ZPO"
+    abgleich = rufe("akten.abgleich", akte_id=akte["id"], dokument_ids=[ergebnis["dokument_id"]])
+    assert abgleich["dokumente"] == 1 and abgleich["merkmale"] == []
     assert "verfuegbar" in rufe("ocr.status")
     # Originale liegen neben der Datenbank, getrennt je Akte.
     assert (tmp_path / "akten" / f"akte-{akte['id']}").is_dir()
