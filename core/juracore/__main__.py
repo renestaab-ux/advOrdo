@@ -37,12 +37,16 @@ def main(argv: list[str] | None = None) -> int:
     le.add_argument("pfad", type=Path)
     le.add_argument("--ohne-ocr", action="store_true", help="Bildseiten nicht per Texterkennung lesen")
     sub.add_parser("ocr", help="Prüfen, ob die Texterkennung (Tesseract, Deutsch) verfügbar ist")
-    sub.add_parser("ki-status", help="Prüfen, ob das lokale Sprachmodell (Ollama, LM Studio) erreichbar ist")
+    ks = sub.add_parser("ki-status", help="Prüfen, ob das lokale Sprachmodell (Ollama, LM Studio) erreichbar ist")
     kp = sub.add_parser("ki-pruefen", help="Testakte einlesen und Widersprüche mit dem Sprachmodell suchen")
     kp.add_argument("ordner", type=Path, help="Ordner mit den Dokumenten (Unterordner werden mitgelesen)")
     kp.add_argument("--erwartungen", type=Path, help="erwartungen.json der Testakte zum Abgleich")
-    kp.add_argument("--modell", help="Modell statt des in der App gewählten, z. B. qwen3:14b")
     kp.add_argument("--zusammenfassung", action="store_true", help="auch die Akte zusammenfassen")
+    for k in (ks, kp):
+        k.add_argument("--anbieter", choices=["ollama", "lmstudio"], help="Programm statt des gespeicherten")
+        k.add_argument("--endpunkt", help="Adresse, Voreinstellung je Programm (Ollama :11434, LM Studio :1234)")
+        k.add_argument("--modell", help="Modell statt des gespeicherten, z. B. qwen3:14b")
+        k.add_argument("--kontext", type=int, help="Kontext in Token (Voreinstellung 16384)")
 
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO if a.verbose else logging.WARNING, stream=sys.stderr)
@@ -56,15 +60,13 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(ocr.status(), ensure_ascii=False, indent=2))
         return 0
     if a.befehl == "ki-status":
-        e = ki_anbieter.lade_einstellungen(db_pfad.parent / "ki.json")
+        e = _ki_einstellungen(a, db_pfad)
         print(json.dumps(ki_anbieter.status(e), ensure_ascii=False, indent=2))
         return 0
     if a.befehl == "ki-pruefen":
         from .ki import pruefen
 
-        e = ki_anbieter.lade_einstellungen(db_pfad.parent / "ki.json")
-        if a.modell:
-            e.modell = a.modell
+        e = _ki_einstellungen(a, db_pfad)
         return pruefen.main(a.ordner, e, a.erwartungen, a.zusammenfassung)
 
     con = db.oeffne(db_pfad)
@@ -82,6 +84,28 @@ def main(argv: list[str] | None = None) -> int:
         ergebnis = db.gesetze(con)
     print(json.dumps(ergebnis, ensure_ascii=False, indent=2))
     return 0
+
+
+def _ki_einstellungen(a: argparse.Namespace, db_pfad: Path) -> ki_anbieter.KiEinstellungen:
+    """Gespeicherte Einstellungen, überschrieben durch die Optionen der Kommandozeile."""
+    e = ki_anbieter.lade_einstellungen(db_pfad.parent / "ki.json")
+    if a.anbieter:
+        e.anbieter = ki_anbieter.OPENAI if a.anbieter == "lmstudio" else ki_anbieter.OLLAMA
+        e.endpunkt = ki_anbieter.ANBIETER[e.anbieter]["endpunkt"]
+        if not a.modell:
+            e.modell = ""
+    if a.endpunkt:
+        e.endpunkt = a.endpunkt
+    if a.modell:
+        e.modell = a.modell
+    if a.kontext:
+        e.kontext = a.kontext
+    if not e.modell:
+        # Kein Modell angegeben: das einzige bzw. erste installierte nehmen.
+        modelle = ki_anbieter.status(e)["modelle"]
+        if modelle:
+            e.modell = modelle[0]["name"]
+    return e.pruefen()
 
 
 def _lesen(con, pfad: Path, mit_ocr: bool) -> dict:

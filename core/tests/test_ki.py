@@ -467,3 +467,13 @@ def test_viele_angaben_werden_blockweise_verglichen(akten, con, tmp_path):
     # Jede Angabe trifft in mindestens einer Anfrage auf jede andere.
     for a, b in [("[A1]", "[A36]"), ("[A2]", "[A20]")]:
         assert any(a in p and b in p for p in vergleiche)
+
+
+def test_kommandozeile_waehlt_lm_studio(server, tmp_path, capsys):
+    from juracore.__main__ import main
+
+    port = server.rsplit(":", 1)[1]
+    assert main(["--db", str(tmp_path / "w.sqlite"), "ki-status", "--anbieter", "lmstudio",
+                 "--endpunkt", f"http://127.0.0.1:{port}"]) == 0
+    stand = json.loads(capsys.readouterr().out)
+    assert stand["anbieter"] == "openai" and stand["modell"] == "qwen3-14b" and stand["bereit"] is True

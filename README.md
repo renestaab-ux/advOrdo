@@ -217,7 +217,9 @@ geht genauso: dort den lokalen Server starten und in den Einstellungen „LM Stu
 
 liest den Ordner in eine vorübergehende Akte (die Akten der App bleiben unberührt), sucht
 Widersprüche, gibt sie mit Fundstellen aus und zählt, welche der erwarteten (W1 bis W8) gefunden
-wurden. Mit `--modell gemma3:12b` lässt sich ein anderes Modell vergleichen.
+wurden. Mit `--modell gemma3:12b` lässt sich ein anderes Modell vergleichen, mit
+`--anbieter lmstudio` nimmt der Probelauf LM Studio statt Ollama (ohne `--modell` das erste
+geladene Modell). `juracore ki-status` kennt dieselben Optionen.
 
 ## Wissensbasis: Gesetze
 
