@@ -37,7 +37,12 @@ from .anbieter import Anbieter, KiFehler
 log = logging.getLogger("juracore.ki")
 
 # Fassung der Anweisungen je Aufgabe; eine Änderung macht gespeicherte Ergebnisse ungültig.
-FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 1, "widersprueche": 1}
+FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 1, "widersprueche": 2}
+
+# Zeichen Angaben je Vergleichsanfrage. Mittelgroße Modelle (12–14 B) übersehen in langen Listen viel; kleinere
+# Blöcke, je zwei gemeinsam geprüft, kosten mehr Anfragen, finden aber mehr.
+VERGLEICH_EINZELN = 9000
+VERGLEICH_BLOCK = 4500
 
 ARTEN = ["tatsache", "vortrag", "bestreiten", "rechtsansicht", "antrag", "entscheidung", "sonstiges"]
 THEMEN = ["gegenstand", "verlauf", "vortrag", "streitig", "entscheidung", "offen"]
@@ -430,15 +435,16 @@ class Analyse:
             return f"[A{i}] {herkunft}: {a['text']}"
 
         zeilen = [zeile(i, a) for i, a in enumerate(alle, 1)]
-        # Passt alles in eine Anfrage, sieht das Modell die ganze Akte. Sonst kommen die Angaben in Blöcke von
-        # höchstens halbem Budget, und je zwei Blöcke werden gemeinsam geprüft: So trifft jede Angabe auf jede.
-        if sum(len(z) + 1 for z in zeilen) <= self.budget:
+        # Wenige Angaben prüft das Modell in einer Anfrage. Sonst kommen sie in Blöcke, und je zwei Blöcke werden
+        # gemeinsam geprüft: So trifft jede Angabe auf jede.
+        block = min(VERGLEICH_BLOCK, self.budget // 2)
+        if sum(len(z) + 1 for z in zeilen) <= min(VERGLEICH_EINZELN, self.budget):
             gruppen = [list(range(len(alle)))]
         else:
             bloecke: list[list[int]] = [[]]
             groesse = 0
             for i, z in enumerate(zeilen):
-                if bloecke[-1] and groesse + len(z) + 1 > self.budget // 2:
+                if bloecke[-1] and groesse + len(z) + 1 > block:
                     bloecke.append([])
                     groesse = 0
                 bloecke[-1].append(i)
@@ -457,8 +463,9 @@ class Analyse:
                 "besonders auf Widersprüche, die sich nicht in Zahlen oder Daten zeigen, etwa: etwas wurde "
                 "abgelehnt, laut anderer Angabe aber angeboten; eine Ausstattung fehlt, wird anderswo aber "
                 "vorausgesetzt. Widersprüche innerhalb desselben Dokuments oder derselben Partei zählen auch.\n"
-                "Kein Widerspruch sind Angaben zu verschiedenen Zeitpunkten oder Gegenständen, die beide zutreffen "
-                "können, und bloß unterschiedlich ausführliche Darstellungen.\n"
+                "Nicht aufführen: Abweichungen, die nur in einer Zahl, einem Betrag oder einem Datum bestehen (die "
+                "gleicht die App bereits selbst ab); Angaben zu verschiedenen Zeitpunkten oder Gegenständen, die "
+                "beide zutreffen können; bloß unterschiedlich ausführliche Darstellungen.\n"
                 "- art: widerspruch (können nicht beide zutreffen) oder spannung (passen schlecht zusammen, "
                 "schließen sich aber nicht zwingend aus)\n"
                 "- thema: wenige Wörter, worum es geht\n"

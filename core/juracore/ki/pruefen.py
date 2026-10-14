@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from .. import db
+from ..abgleich import abgleich
 from ..dokumente import akte
 from . import anbieter, belege
 from .analyse import Analyse
@@ -39,10 +40,9 @@ def _ort(f: dict) -> str:
     return ", ".join(teile)
 
 
-def _getroffen(erwartet: dict, ergebnis: dict, texte: dict[tuple[int, int], str]) -> bool:
+def _getroffen(erwartet: dict, treffer_listen: list[list[dict]], texte: dict[tuple[int, int], str]) -> bool:
     """Ein erwarteter Widerspruch gilt als gefunden, wenn ein Ergebnis mindestens zwei seiner Aussagen belegt."""
-    for w in ergebnis["widersprueche"]:
-        stellen = [a["fundstelle"] for a in w["angaben"]]
+    for stellen in treffer_listen:
         treffer = 0
         for aussage in erwartet["aussagen"]:
             gesucht = belege.normalisiere(aussage["text"])[0]
@@ -55,6 +55,14 @@ def _getroffen(erwartet: dict, ergebnis: dict, texte: dict[tuple[int, int], str]
 
 
 def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zusammenfassung: bool) -> int:
+    # Pfade vor dem langen Lauf prüfen, nicht erst danach.
+    if not Path(ordner).is_dir():
+        print(f"Ordner nicht gefunden: {ordner}", file=sys.stderr)
+        return 1
+    if erwartungen and not Path(erwartungen).is_file():
+        print(f"Datei nicht gefunden: {erwartungen} (bitte den vollständigen Pfad angeben)", file=sys.stderr)
+        return 1
+    beginn = time.monotonic()
     stand = anbieter.status(e)
     if not stand["bereit"]:
         print(f"Sprachmodell nicht bereit: {stand['hinweis']}", file=sys.stderr)
@@ -74,6 +82,13 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
                                 tags=tags[datei["herkunft"]], herkunft=datei["herkunft"] or None)
             analyse = Analyse(akten, anbieter.erzeuge(e), e.kontext, _Ausgabe())
             ergebnis = analyse.widersprueche(akte_id)
+            # Protokoll mit allen Tatsachenangaben je Dokument (gespeichert, keine neue Anfrage) zum Auswerten.
+            ids = [z[0] for z in akten.execute("SELECT id FROM dokument WHERE akte_id = ? ORDER BY id", (akte_id,))]
+            protokoll = Path.cwd() / "ki-pruefen-protokoll.json"
+            protokoll.write_text(json.dumps(
+                {"modell": e.modell, "anbieter": e.anbieter, "kontext": e.kontext,
+                 "angaben": [analyse.angaben(i, ziel=False) for i in ids], "ergebnis": ergebnis},
+                ensure_ascii=False, indent=1), encoding="utf-8")
             print(f"\n{ergebnis['angaben']} Tatsachenangaben mit Beleg, {ergebnis['verworfen']} ohne auffindbares "
                   f"Zitat verworfen.\n{len(ergebnis['widersprueche'])} mögliche Widersprüche:\n")
             for i, w in enumerate(ergebnis["widersprueche"], 1):
@@ -92,10 +107,18 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
                 soll = json.loads(Path(erwartungen).read_text(encoding="utf-8"))
                 texte = {(z["dokument_id"], z["nr"]): z["text"] for z in akten.execute(
                     "SELECT dokument_id, nr, text FROM abschnitt")}
-                gefunden = [w["id"] for w in soll.get("widersprueche", []) if _getroffen(w, ergebnis, texte)]
-                fehlend = [w["id"] for w in soll.get("widersprueche", []) if w["id"] not in gefunden]
-                print(f"Erwartete Widersprüche gefunden: {', '.join(gefunden) or 'keiner'}")
-                print(f"Nicht gefunden: {', '.join(fehlend) or 'keiner'}")
+                modell = [[a["fundstelle"] for a in w["angaben"]] for w in ergebnis["widersprueche"]]
+                # Zum Vergleich der regelbasierte Abgleich (Zahlen, Beträge, Daten) aus dem Bereich „Vergleich“.
+                regeln = [[f for wert in m["werte"] for f in wert["fundstellen"]]
+                          for m in abgleich.abgleich(akten, akte_id)["merkmale"] if m["status"] == "abweichend"]
+                soll_w = soll.get("widersprueche", [])
+                vom_modell = [w["id"] for w in soll_w if _getroffen(w, modell, texte)]
+                vom_abgleich = [w["id"] for w in soll_w if _getroffen(w, regeln, texte)]
+                fehlend = [w["id"] for w in soll_w if w["id"] not in vom_modell + vom_abgleich]
+                print(f"Erwartete Widersprüche vom Sprachmodell gefunden: {', '.join(vom_modell) or 'keiner'}")
+                print(f"Vom regelbasierten Abgleich gefunden: {', '.join(vom_abgleich) or 'keiner'}")
+                print(f"Von keinem gefunden: {', '.join(fehlend) or 'keiner'}")
+            print(f"\nDauer: {(time.monotonic() - beginn) / 60:.1f} min. Protokoll: {protokoll}")
         finally:
             akten.close()
             wissen.close()
