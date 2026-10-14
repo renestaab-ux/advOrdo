@@ -23,6 +23,7 @@ Lange Dokumente werden in Stücke geteilt, die in den Kontext des Modells passen
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -37,7 +38,7 @@ from .anbieter import Anbieter, KiFehler
 log = logging.getLogger("juracore.ki")
 
 # Fassung der Anweisungen je Aufgabe; eine Änderung macht gespeicherte Ergebnisse ungültig.
-FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 1, "widersprueche": 2}
+FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 1, "widersprueche": 3}
 
 # Zeichen Angaben je Vergleichsanfrage. Mittelgroße Modelle (12–14 B) übersehen in langen Listen viel; kleinere
 # Blöcke, je zwei gemeinsam geprüft, kosten mehr Anfragen, finden aber mehr.
@@ -462,7 +463,9 @@ class Analyse:
                 "Aufgabe: Finde Angaben, die einander widersprechen, also nicht zugleich zutreffen können. Achte "
                 "besonders auf Widersprüche, die sich nicht in Zahlen oder Daten zeigen, etwa: etwas wurde "
                 "abgelehnt, laut anderer Angabe aber angeboten; eine Ausstattung fehlt, wird anderswo aber "
-                "vorausgesetzt. Widersprüche innerhalb desselben Dokuments oder derselben Partei zählen auch.\n"
+                "vorausgesetzt. Prüfe bei jeder Angabe über eine Absicht, Nutzung oder Fähigkeit, ob eine andere "
+                "Angabe etwas ausschließt, das dafür nötig wäre (das ist mindestens eine spannung). Widersprüche "
+                "innerhalb desselben Dokuments oder derselben Partei zählen auch.\n"
                 "Nicht aufführen: Abweichungen, die nur in einer Zahl, einem Betrag oder einem Datum bestehen (die "
                 "gleicht die App bereits selbst ab); Angaben zu verschiedenen Zeitpunkten oder Gegenständen, die "
                 "beide zutreffen können; bloß unterschiedlich ausführliche Darstellungen.\n"
@@ -486,15 +489,21 @@ class Analyse:
                 schluessel = frozenset(nummern)
                 if len(nummern) < 2 or schluessel in gefunden:
                     continue
-                beteiligt = [alle[n] for n in sorted(nummern)]
                 gefunden[schluessel] = {
-                    "thema": str(w.get("thema") or "").strip() or "Widerspruch",
+                    "nummern": nummern,
+                    "thema": _ohne_kennungen(w.get("thema"), alle) or "Widerspruch",
                     "art": w.get("art") if w.get("art") in ("widerspruch", "spannung") else "widerspruch",
-                    "erklaerung": str(w.get("erklaerung") or "").strip(),
-                    "einordnung": _einordnung([a["fundstelle"] for a in beteiligt]),
-                    "angaben": beteiligt,
+                    "erklaerung": _ohne_kennungen(w.get("erklaerung"), alle),
                 }
-        widersprueche = sorted(gefunden.values(), key=lambda w: (w["art"] != "widerspruch",))
+        widersprueche = []
+        for g in _fasse_zusammen(list(gefunden.values())):
+            beteiligt = [alle[n] for n in sorted(g["nummern"])]
+            widersprueche.append({
+                "thema": g["thema"], "art": g["art"], "erklaerung": g["erklaerung"],
+                "einordnung": _einordnung([a["fundstelle"] for a in beteiligt]),
+                "angaben": beteiligt,
+            })
+        widersprueche.sort(key=lambda w: (w["art"] != "widerspruch",))
         return {
             "dokumente": [{"dokument_id": e["dokument_id"], "dateiname": e["dateiname"],
                            "angaben": len(e["angaben"]), "verworfen": e["verworfen"]} for e in je_dokument],
@@ -502,6 +511,37 @@ class Analyse:
             "verworfen": sum(e["verworfen"] for e in je_dokument),
             "widersprueche": widersprueche,
         }
+
+
+def _fasse_zusammen(treffer: list[dict]) -> list[dict]:
+    """Treffer, die dieselbe Angabe enthalten, betreffen denselben Streitpunkt und werden ein Eintrag.
+
+    Das Modell meldet einen Streitpunkt oft mehrfach (je Paar von Dokumenten, je Vergleichsblock). Thema bleibt
+    das des ersten Treffers; die Erklärungen werden aneinandergehängt, „widerspruch“ geht vor „spannung“.
+    """
+    gruppen: list[dict] = []
+    for t in treffer:
+        neu = {"nummern": set(t["nummern"]), "thema": t["thema"], "art": t["art"], "erklaerungen": [t["erklaerung"]]}
+        for g in [g for g in gruppen if g["nummern"] & neu["nummern"]]:
+            gruppen.remove(g)
+            neu = {"nummern": g["nummern"] | neu["nummern"], "thema": g["thema"],
+                   "art": "widerspruch" if "widerspruch" in (g["art"], neu["art"]) else "spannung",
+                   "erklaerungen": g["erklaerungen"] + neu["erklaerungen"]}
+        gruppen.append(neu)
+    return [{"nummern": g["nummern"], "thema": g["thema"], "art": g["art"],
+             "erklaerung": " ".join(dict.fromkeys(e for e in g["erklaerungen"] if e))} for g in gruppen]
+
+
+def _ohne_kennungen(text: object, alle: list[dict]) -> str:
+    """Ersetzt Kennungen wie „A66“ oder „[A66]“, die das Modell in seine Erklärung schreibt, durch den Dateinamen."""
+
+    def ersetze(m: re.Match) -> str:
+        n = int(m.group(1))
+        if 1 <= n <= len(alle):
+            return alle[n - 1]["fundstelle"]["dateiname"].rsplit(".", 1)[0]
+        return m.group(0)
+
+    return re.sub(r"\[?\bA(\d+)\b\]?", ersetze, str(text or "")).strip()
 
 
 def _aussage(text: object, art: object, fundstellen: list[dict]) -> dict:

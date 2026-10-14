@@ -40,18 +40,24 @@ def _ort(f: dict) -> str:
     return ", ".join(teile)
 
 
-def _getroffen(erwartet: dict, treffer_listen: list[list[dict]], texte: dict[tuple[int, int], str]) -> bool:
-    """Ein erwarteter Widerspruch gilt als gefunden, wenn ein Ergebnis mindestens zwei seiner Aussagen belegt."""
+def _abdeckung(erwartet: dict, treffer_listen: list[list[dict]], texte: dict[tuple[int, int], str]) -> list[str]:
+    """Die erwarteten Aussagen (Dokumentkürzel), die das beste einzelne Ergebnis belegt."""
+    beste: list[str] = []
     for stellen in treffer_listen:
-        treffer = 0
+        belegt = []
         for aussage in erwartet["aussagen"]:
             gesucht = belege.normalisiere(aussage["text"])[0]
             if any(f["dateiname"].startswith(aussage["dok"])
                    and gesucht in belege.normalisiere(texte[(f["dokument_id"], f["abschnitt"])])[0] for f in stellen):
-                treffer += 1
-        if treffer >= 2:
-            return True
-    return False
+                belegt.append(aussage["dok"])
+        if len(belegt) > len(beste):
+            beste = belegt
+    return beste
+
+
+def _getroffen(erwartet: dict, treffer_listen: list[list[dict]], texte: dict[tuple[int, int], str]) -> bool:
+    """Ein erwarteter Widerspruch gilt als gefunden, wenn ein Ergebnis mindestens zwei seiner Aussagen belegt."""
+    return len(_abdeckung(erwartet, treffer_listen, texte)) >= 2
 
 
 def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zusammenfassung: bool) -> int:
@@ -118,6 +124,13 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
                 print(f"Erwartete Widersprüche vom Sprachmodell gefunden: {', '.join(vom_modell) or 'keiner'}")
                 print(f"Vom regelbasierten Abgleich gefunden: {', '.join(vom_abgleich) or 'keiner'}")
                 print(f"Von keinem gefunden: {', '.join(fehlend) or 'keiner'}")
+                for w in soll_w:
+                    if w["id"] in fehlend:
+                        teil = _abdeckung(w, modell, texte)
+                        fehlt = [a["dok"] for a in w["aussagen"] if a["dok"] not in teil]
+                        if teil:
+                            print(f"  {w['id']} teilweise: Fundstelle aus {', '.join(teil)} genannt, "
+                                  f"aus {', '.join(fehlt)} nicht")
             print(f"\nDauer: {(time.monotonic() - beginn) / 60:.1f} min. Protokoll: {protokoll}")
         finally:
             akten.close()

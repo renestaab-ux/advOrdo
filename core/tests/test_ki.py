@@ -477,3 +477,22 @@ def test_kommandozeile_waehlt_lm_studio(server, tmp_path, capsys):
                  "--endpunkt", f"http://127.0.0.1:{port}"]) == 0
     stand = json.loads(capsys.readouterr().out)
     assert stand["anbieter"] == "openai" and stand["modell"] == "qwen3-14b" and stand["bereit"] is True
+
+
+def test_gleicher_streitpunkt_wird_ein_eintrag():
+    from juracore.ki.analyse import _fasse_zusammen, _ohne_kennungen
+
+    treffer = [
+        {"nummern": {1, 2}, "thema": "Telefonat", "art": "spannung", "erklaerung": "Eins."},
+        {"nummern": {5, 6}, "thema": "Wohnwagen", "art": "spannung", "erklaerung": "Zwei."},
+        {"nummern": {2, 3}, "thema": "Angebot", "art": "widerspruch", "erklaerung": "Drei."},
+        {"nummern": {3, 4}, "thema": "Ablehnung", "art": "spannung", "erklaerung": "Eins."},
+    ]
+    gruppen = _fasse_zusammen(treffer)
+    assert [(g["thema"], g["nummern"], g["art"]) for g in gruppen] == [
+        ("Wohnwagen", {5, 6}, "spannung"), ("Telefonat", {1, 2, 3, 4}, "widerspruch")]
+    assert gruppen[1]["erklaerung"] == "Eins. Drei."
+
+    alle = [{"fundstelle": {"dateiname": "03_Antwort.pdf"}}, {"fundstelle": {"dateiname": "06_Erwiderung.pdf"}}]
+    assert _ohne_kennungen("68.400 km in A1 gegenüber [A2], nicht A9", alle) == (
+        "68.400 km in 03_Antwort gegenüber 06_Erwiderung, nicht A9")
