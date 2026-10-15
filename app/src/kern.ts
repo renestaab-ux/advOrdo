@@ -214,6 +214,45 @@ export const STATUS_TEXT: Record<ZitatStatus, string> = {
   unbekanntes_gesetz: "nicht in Wissensbasis",
 };
 
+export type UrteilStatus = "abweichend" | "nicht_gefunden" | "kein_verzeichnis" | "belegt" | "ausserhalb" | "nicht_pruefbar";
+
+export const URTEIL_STATUS_TEXT: Record<UrteilStatus, string> = {
+  abweichend: "Angaben weichen ab",
+  nicht_gefunden: "nicht auffindbar",
+  kein_verzeichnis: "noch nicht geprüft",
+  belegt: "belegt",
+  ausserhalb: "nicht im Verzeichnis",
+  nicht_pruefbar: "nicht prüfbar",
+};
+
+/** Eine in der Akte zitierte Entscheidung mit Prüfergebnis gegen das Verzeichnis der Bundesgerichte. */
+export interface UrteilEintrag {
+  zitat: string;
+  gericht: string;
+  aktenzeichen: string | null;
+  datum: string | null;
+  status: UrteilStatus;
+  hinweis: string | null;
+  entscheidung: { gericht: string; spruchkoerper: string | null; datum: string | null; aktenzeichen: string; link: string | null } | null;
+  fundstellen: Fundstelle[];
+}
+
+export interface RechtsprechungStand {
+  id: number;
+  abgerufen_am: string;
+  eintraege: number;
+  gerichte: Record<string, { anzahl: number; von: string | null; bis: string | null }>;
+  neu?: boolean;
+}
+
+/** „BGH ab 2010, BVerfG ab 1998 …“ aus dem Stand des Verzeichnisses. */
+export function rechtsprechungUmfang(stand: Pick<RechtsprechungStand, "gerichte">): string {
+  return Object.entries(stand.gerichte)
+    .sort(([, a], [, b]) => b.anzahl - a.anzahl)
+    .map(([g, z]) => (z.von ? `${g} ab ${z.von.slice(0, 4)}` : g))
+    .join(", ");
+}
+
 /** Fundstelle im Dokument lesbar: "S. 2–3, Rn. 5" oder "Abschn. 12" (laufender Absatz), wenn weder Seite noch Randnummer bekannt sind. */
 export function fundstelle(a: { seite: number | null; seite_bis?: number | null; rn: number | null; nr?: number; abschnitt?: number }): string {
   const teile: string[] = [];

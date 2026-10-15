@@ -8,6 +8,7 @@ import {
   fundstelle,
   istZitat,
   lesartText,
+  rechtsprechungUmfang,
   segmente,
   tagsAusText,
   tagUebersicht,
@@ -103,5 +104,15 @@ describe("Sprachmodell", () => {
     expect(veraltet(ergebnis, [1, 2, 3])).toBe(true);
     expect(veraltet(ergebnis, [1])).toBe(true);
     expect(veraltet(null, [1])).toBe(false);
+  });
+});
+
+describe("Rechtsprechung", () => {
+  it("beschreibt den Umfang des Verzeichnisses, größtes Gericht zuerst", () => {
+    expect(
+      rechtsprechungUmfang({
+        gerichte: { BVerfG: { anzahl: 5, von: "1998-01-02", bis: null }, BGH: { anzahl: 40, von: "2010-01-04", bis: null } },
+      }),
+    ).toBe("BGH ab 2010, BVerfG ab 1998");
   });
 });

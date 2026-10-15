@@ -13,6 +13,8 @@ from .dokumente import lesen, ocr
 from .gesetze import quelle, wissensbasis
 from .gesetze.zitate import finde_zitate
 from .ki import anbieter as ki_anbieter
+from .rechtsprechung import verzeichnis
+from .rechtsprechung.zitate import finde_urteilszitate
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -33,6 +35,11 @@ def main(argv: list[str] | None = None) -> int:
     zi = sub.add_parser("zitat", help='Zitat auflösen, z. B. "§ 280 Abs. 1 S. 2 BGB"')
     zi.add_argument("zitat")
     sub.add_parser("liste", help="Importierte Gesetze und Fassungen")
+    rl = sub.add_parser("rechtsprechung-laden",
+                        help="Verzeichnis der Bundesrechtsprechung von rechtsprechung-im-internet.de laden")
+    rl.add_argument("--datei", type=Path, help="lokal gespeicherte rii-toc.xml statt des Abrufs")
+    ur = sub.add_parser("urteil", help='Rechtsprechungszitat prüfen, z. B. "BGH, Urt. v. 12.10.2016 - VIII ZR 103/15"')
+    ur.add_argument("zitat")
     le = sub.add_parser("lesen", help="Dokument (PDF, DOCX, TXT, MD) lesen und Normzitate prüfen, ohne es zu speichern")
     le.add_argument("pfad", type=Path)
     le.add_argument("--ohne-ocr", action="store_true", help="Bildseiten nicht per Texterkennung lesen")
@@ -79,6 +86,15 @@ def main(argv: list[str] | None = None) -> int:
         ergebnis = wissensbasis.suche(con, a.text, a.gesetz)
     elif a.befehl == "zitat":
         ergebnis = wissensbasis.loese_zitat(con, a.zitat)
+    elif a.befehl == "rechtsprechung-laden":
+        kern = rpc.Kern(db_pfad, archiv)
+        ergebnis = kern.rechtsprechung_laden_datei(str(a.datei)) if a.datei else kern.rechtsprechung_laden()
+    elif a.befehl == "urteil":
+        gefunden = finde_urteilszitate(a.zitat)
+        if not gefunden:
+            print(f"Kein Rechtsprechungszitat erkannt: {a.zitat!r}", file=sys.stderr)
+            return 1
+        ergebnis = [{"zitat": str(z)} | verzeichnis.pruefe(con, z) for z in gefunden]
     elif a.befehl == "lesen":
         ergebnis = _lesen(con, a.pfad, not a.ohne_ocr)
     else:
@@ -117,6 +133,9 @@ def _lesen(con, pfad: Path, mit_ocr: bool) -> dict:
         for z in finde_zitate(a.text):
             beleg = wissensbasis.loese_zitat(con, z)
             zitate.append({"zitat": str(z), "status": beleg["status"], "hinweis": beleg["hinweis"]})
+        for u in finde_urteilszitate(a.text):
+            beleg = verzeichnis.pruefe(con, u)
+            zitate.append({"zitat": str(u), "status": beleg["status"], "hinweis": beleg["hinweis"]})
         abschnitte.append({"nr": a.nr, "seite": a.seite, "rn": a.rn, "text": a.text, "zitate": zitate})
     return {"format": dok.format, "lesart": dok.lesart, "ocr_konfidenz": dok.ocr_konfidenz,
             "hinweise": dok.hinweise, "abschnitte": abschnitte}

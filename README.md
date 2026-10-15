@@ -124,7 +124,7 @@ Die Prüfung merkt sich die verwendete Fassung. Nach dem Laden weiterer Gesetze 
 juracore lesen pfad/zur/klage.pdf      # Absätze, Fundstellen und geprüfte Zitate als JSON
 ```
 
-Noch nicht erkannt werden Rechtsprechungszitate (Phase 2), Zitate ohne „§“/„Art.“
+Noch nicht erkannt werden Zitate ohne „§“/„Art.“
 (z. B. „Nr. 2300 VV RVG“) und inhaltlich veraltete Zitate einer noch existierenden Norm
 (z. B. § 476 BGB als Beweislastumkehr, seit 2022 § 477 BGB). Word-Dateien haben nur dann
 Seitenzahlen, wenn sie Seitenumbrüche enthalten; sonst gilt die Randnummer bzw. der
@@ -235,6 +235,29 @@ Chronologie und vergleicht sie mit den erwarteten Ereignissen aus `erwartungen.j
 Die Antworten des Modells bleiben in `ki-pruefen-daten` gespeichert, solange sich die Testakte nicht
 ändert und Modell und Kontext gleich bleiben. Ein abgebrochener Lauf setzt dadurch beim nächsten Mal
 dort fort, wo er stehen geblieben ist. Für einen Neuanfang den Ordner löschen.
+
+## Rechtsprechung: Urteilszitate prüfen
+
+Beim Einlesen erkennt die App auch Rechtsprechungszitate („BGH, Urteil vom 12.10.2016 – VIII ZR 103/15“,
+„BAG, Urt. v. 20.2.2019 – 2 AZR 746/14“, „OLG Hamm, Beschl. v. …“, „EuGH, C-497/13“) und prüft sie gegen
+das Verzeichnis der Bundesgerichte von rechtsprechung-im-internet.de (BVerfG, BGH, BVerwG, BFH, BAG, BSG,
+BPatG). Das Verzeichnis lädt man einmal unter **Gesetze → Rechtsprechung** („Verzeichnis laden“); es ist
+eine öffentliche Liste und wird wie die Gesetze unverändert unter seiner SHA-256-Prüfsumme archiviert.
+Danach zeigt die Akte im Reiter **Rechtsprechung der Akte**:
+
+- **belegt**: Gericht, Aktenzeichen und Datum stimmen mit einer Entscheidung im Verzeichnis überein;
+  der Link führt zum Volltext beim Bund,
+- **Angaben weichen ab**: das Aktenzeichen gibt es, aber mit anderem Datum oder bei einem anderen Gericht,
+- **nicht auffindbar**: keine Entscheidung dieses Bundesgerichts mit dem Aktenzeichen, Zitat prüfen,
+- **nicht im Verzeichnis**: Instanzgerichte, EuGH, ältere Entscheidungen vor Beginn des Verzeichnisses,
+- **nicht prüfbar**: Zitat nur mit Zeitschriftenfundstelle (z. B. „BGH NJW 2017, 1093“).
+
+Geprüft wird nur, ob es die Entscheidung gibt, nicht, ob sie die zitierte Aussage trägt. Ohne App:
+
+```bash
+juracore rechtsprechung-laden                       # Verzeichnis abrufen (oder --datei rii-toc.xml)
+juracore urteil "BGH, Urteil vom 12.10.2016 – VIII ZR 103/15"
+```
 
 ## Wissensbasis: Gesetze
 

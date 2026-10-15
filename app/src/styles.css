@@ -104,6 +104,14 @@ code { font-family: ui-monospace, monospace; }
 .marke-status.belegt { background: color-mix(in srgb, var(--gut) 18%, transparent); }
 .marke-status.nicht_gefunden { background: color-mix(in srgb, var(--fehler) 18%, transparent); }
 .marke-status.unbekanntes_gesetz { background: color-mix(in srgb, var(--warnung) 18%, transparent); }
+.marke-status.urteil-belegt { color: var(--gut); background: color-mix(in srgb, var(--gut) 18%, transparent); }
+.marke-status.urteil-abweichend, .marke-status.urteil-nicht_gefunden {
+  color: var(--fehler); background: color-mix(in srgb, var(--fehler) 18%, transparent);
+}
+.marke-status.urteil-kein_verzeichnis, .marke-status.urteil-ausserhalb, .marke-status.urteil-nicht_pruefbar {
+  color: var(--warnung); background: color-mix(in srgb, var(--warnung) 18%, transparent);
+}
+.link-zeile { font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
 .reiter { display: flex; gap: 8px; margin: 8px 0 4px; }
 .reiter-aktiv { cursor: default; }
 .akte-arbeitsflaeche { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: start; }
