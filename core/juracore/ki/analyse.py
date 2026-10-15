@@ -38,12 +38,15 @@ from .anbieter import Anbieter, KiFehler
 log = logging.getLogger("juracore.ki")
 
 # Fassung der Anweisungen je Aufgabe; eine Änderung macht gespeicherte Ergebnisse ungültig.
-FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 1, "widersprueche": 3}
+FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 2, "widersprueche": 3}
 
 # Zeichen Angaben je Vergleichsanfrage. Mittelgroße Modelle (12–14 B) übersehen in langen Listen viel; kleinere
 # Blöcke, je zwei gemeinsam geprüft, kosten mehr Anfragen, finden aber mehr.
 VERGLEICH_EINZELN = 9000
 VERGLEICH_BLOCK = 4500
+# Zeichen Text je Anfrage beim Sammeln der Tatsachenangaben, unabhängig vom Kontext. Die Antwort hat höchstens
+# 25 Angaben; ein größerer Kontext soll bei langen Dokumenten nicht zu weniger Angaben führen.
+ANGABEN_STUECK = 12000
 
 ARTEN = ["tatsache", "vortrag", "bestreiten", "rechtsansicht", "antrag", "entscheidung", "sonstiges"]
 THEMEN = ["gegenstand", "verlauf", "vortrag", "streitig", "entscheidung", "offen"]
@@ -381,7 +384,7 @@ class Analyse:
         )
 
     def _sammle_angaben(self, t: belege.Text) -> dict:
-        stuecke = belege.teile_auf(t.abschnitte, self.budget)
+        stuecke = belege.teile_auf(t.abschnitte, min(self.budget, ANGABEN_STUECK))
         angaben: list[dict] = []
         verworfen = 0
         for i, stueck in enumerate(stuecke, 1):

@@ -496,3 +496,16 @@ def test_gleicher_streitpunkt_wird_ein_eintrag():
     alle = [{"fundstelle": {"dateiname": "03_Antwort.pdf"}}, {"fundstelle": {"dateiname": "06_Erwiderung.pdf"}}]
     assert _ohne_kennungen("68.400 km in A1 gegenüber [A2], nicht A9", alle) == (
         "68.400 km in 03_Antwort gegenüber 06_Erwiderung, nicht A9")
+
+
+def test_angaben_auch_bei_grossem_kontext_in_stuecken(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Lang")
+    pfad = tmp_path / "lang.md"
+    pfad.write_text("\n\n".join(f"({i}) Absatz {i}: " + "Die Klägerin trägt ausführlich vor. " * 25
+                                for i in range(1, 41)), encoding="utf-8")
+    d = akte.importiere(akten, con, a["id"], pfad, tmp_path / "ablage", ocr=False)["dokument_id"]
+    modell = Attrappe(lambda prompt, schema: {"angaben": []})
+    Analyse(akten, modell, kontext=32768).angaben(d)
+    # Rund 37.000 Zeichen: bei 32.768 Token passten sie in eine Anfrage, für die Angaben werden es aber Stücke.
+    assert len(modell.anfragen) == 4
+    assert all(len(p) < 13500 for p in modell.anfragen)
