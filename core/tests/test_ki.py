@@ -662,6 +662,19 @@ def test_chronologie_mit_belegtem_datum(akten, con, tmp_path):
     assert speicher.ergebnisse(akten, akte_id, modell.modell)["chronologie"]["ereignisse"][0]["datum"] == "2025-06-27"
 
 
+def test_kopf_reicht_bis_ort_und_datum_vor_den_unterschriften(akten, con, tmp_path):
+    from juracore.ki import chronologie
+
+    a = akte.akte_anlegen(akten, "Kopf")
+    pfad = tmp_path / "vertrag.md"
+    pfad.write_text("\n\n".join(["Kaufvertrag"] + [f"§ {i} " + "Regelung. " * 40 for i in range(1, 6)] + [
+        "Denzlingen, den 14.03.2025", "gez. Markus Rehnfeld, Autohaus Rehnfeld GmbH", "gez. Dr. Lena Brückner",
+        "(Anlage K1 zur Klageschrift vom 20.10.2025)", "Fiktives Testdokument."]), encoding="utf-8")
+    d = akte.importiere(akten, con, a["id"], pfad, tmp_path / "ablage", ocr=False)["dokument_id"]
+    texte = [x["text"] for x in chronologie.kopf(belege.lade_text(akten, d, ()))]
+    assert "Denzlingen, den 14.03.2025" in texte and not any(t.startswith("§ 4") for t in texte)
+
+
 def test_chronologie_monat_wie_im_dokument():
     from juracore.ki.chronologie import _anzeige, im_text, lies_datum
 

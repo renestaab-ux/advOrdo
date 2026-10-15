@@ -19,7 +19,8 @@ from . import belege
 ARTEN = ("ereignis", "frist", "dokument")
 BELEGT = "belegt"
 OHNE_BELEG = "ohne_beleg"
-KOPF_ZEICHEN = 700  # so viel Text vom Anfang eines Dokuments, dazu die letzten beiden Absätze
+KOPF_ZEICHEN = 700  # so viel Text vom Anfang eines Dokuments
+SCHLUSS_ZEICHEN = 400  # und so viel vom Schluss
 
 SCHEMA = {
     "type": "object",
@@ -105,9 +106,16 @@ def kopf(t: belege.Text) -> list:
             break
         auswahl.append(a)
         zeichen += len(a["text"])
+    # Vom Schluss so viele Absätze, bis SCHLUSS_ZEICHEN erreicht sind: Nach Ort und Datum folgen oft noch
+    # Unterschriften, Anlagenvermerke und Fußzeilen.
+    schluss, zeichen = [], 0
+    for a in reversed(t.abschnitte):
+        if zeichen >= SCHLUSS_ZEICHEN:
+            break
+        schluss.insert(0, a)
+        zeichen += len(a["text"])
     schon = {a["nr"] for a in auswahl}
-    auswahl += [a for a in t.abschnitte[-2:] if a["nr"] not in schon]
-    return auswahl
+    return auswahl + [a for a in schluss if a["nr"] not in schon]
 
 
 def _herkunft(a: dict) -> str:

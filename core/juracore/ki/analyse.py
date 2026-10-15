@@ -38,8 +38,8 @@ from .anbieter import ANTWORT_TOKEN, Anbieter, KiFehler
 log = logging.getLogger("juracore.ki")
 
 # Fassung der Anweisungen je Aufgabe; eine Änderung macht gespeicherte Ergebnisse ungültig.
-FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 3, "widersprueche": 3,
-           "chronologie": 1}
+FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 4, "widersprueche": 3,
+           "chronologie": 2}
 
 # Zeichen Angaben je Vergleichsanfrage. Mittelgroße Modelle (12–14 B) übersehen in langen Listen viel; kleinere
 # Blöcke, je zwei gemeinsam geprüft, kosten mehr Anfragen, finden aber mehr.
@@ -409,7 +409,8 @@ class Analyse:
             f"{_kopf(t)}{teil}\n\n"
             "Aufgabe: Liste die Tatsachenangaben dieses Textes, damit sie mit anderen Dokumenten der Akte "
             "verglichen werden können. Gemeint ist, wer wann was getan, gesagt, angeboten, abgelehnt, "
-            "erklärt oder erhalten hat, sowie Eigenschaften, Ausstattung und Zustand von Sachen. Nicht gemeint "
+            "erklärt oder erhalten hat, sowie Eigenschaften, Ausstattung und Zustand von Sachen. Dazu gehören auch "
+            "datierte Verfahrensschritte (Zustellung, Gutachten, mündliche Verhandlung). Nicht gemeint "
             "sind Rechtsansichten, Anträge, Beweisangebote, Anschriften und Grußformeln.\n"
             "- Formuliere jede Angabe als vollständigen Satz, der ohne das Dokument verständlich ist "
             "(Namen statt Pronomen, Datum, wenn genannt).\n"
