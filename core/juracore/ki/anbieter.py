@@ -146,15 +146,32 @@ class _Http:
             raise KiFehler(f"{self.titel} hat keine gültige JSON-Antwort geliefert.") from fehler
 
 
-def lies_json(text: str) -> dict:
-    """Die Antwort als JSON-Objekt; Denkabschnitte (<think>…</think>) und Code-Zäune werden entfernt."""
+# Höchstlänge einer Antwort in Token. Reicht für jede Aufgabe der Analyse, auch wenn das Programm eine Denkphase
+# mitzählt; ein Modell, das sich in einer Wiederholung verfängt, bricht so nach wenigen Minuten ab.
+ANTWORT_TOKEN = 8192
+
+
+def lies_json(text: str, abgeschnitten: bool = False, denken: int = 0) -> dict:
+    """Die Antwort als JSON-Objekt; Denkabschnitte (<think>…</think>) und Code-Zäune werden entfernt.
+
+    ``abgeschnitten``: Das Programm meldet, dass die Antwort an der Längengrenze endete.
+    ``denken``: Zeichen der Denkphase, soweit das Programm sie getrennt liefert (nur für die Meldung).
+    """
+    if abgeschnitten:
+        anteil = f"; Denkphase {denken} Zeichen, Antwort {len(text)} Zeichen" if denken else f"; {len(text)} Zeichen"
+        raise KiFehler(f"Die Antwort des Modells ist abgeschnitten (Längengrenze erreicht{anteil}), kein vollständiges "
+                       "JSON.")
+    if not text.strip():
+        raise KiFehler("Die Antwort des Modells ist leer, kein JSON.")
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text).strip()
     try:
         wert = json.loads(text)
     except ValueError:
         start, ende = text.find("{"), text.rfind("}")
-        if start < 0 or ende <= start:
+        if start >= 0 and ende <= start:
+            raise KiFehler("Die Antwort des Modells bricht mitten im JSON ab.") from None
+        if start < 0:
             raise KiFehler("Die Antwort des Modells ist kein JSON.") from None
         try:
             wert = json.loads(text[start : ende + 1])
@@ -171,6 +188,7 @@ class Ollama:
         self.modell = modell
         self.kontext = kontext
         self._denkt: bool | None = None
+        self.denkphase = 0  # Zeichen der Denkphase in der letzten Antwort
 
     def modelle(self) -> list[dict]:
         antwort = self.http.anfrage("/api/tags", timeout=5)
@@ -202,13 +220,15 @@ class Ollama:
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
             "stream": False,
             "format": schema,
-            "options": {"temperature": 0, "seed": 42, "num_ctx": self.kontext},
+            "options": {"temperature": 0, "seed": 42, "num_ctx": self.kontext, "num_predict": ANTWORT_TOKEN},
             "keep_alive": "15m",
         }
         if self._kann_denken():
             daten["think"] = False
         antwort = self.http.anfrage("/api/chat", daten)
-        return lies_json((antwort.get("message") or {}).get("content", ""))
+        nachricht = antwort.get("message") or {}
+        self.denkphase = len(nachricht.get("thinking") or "")
+        return lies_json(nachricht.get("content", ""), antwort.get("done_reason") == "length", self.denkphase)
 
 
 class OpenAIKompatibel:
@@ -218,6 +238,7 @@ class OpenAIKompatibel:
         self.http = _Http(endpunkt, "LM Studio")
         self.modell = modell
         self.kontext = kontext
+        self.denkphase = 0  # Zeichen der Denkphase in der letzten Antwort
 
     def modelle(self) -> list[dict]:
         antwort = self.http.anfrage("/v1/models", timeout=5)
@@ -234,12 +255,29 @@ class OpenAIKompatibel:
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
                 "temperature": 0,
                 "seed": 42,
+                "max_tokens": ANTWORT_TOKEN,
+                # Denkphase aus, wo das Programm die Vorlagenoption kennt (llama.cpp-Server, vLLM). LM Studio
+                # schaltet sie nur über den Schalter „Reasoning“ in den Modelleinstellungen ab.
+                "chat_template_kwargs": {"enable_thinking": False},
                 "stream": False,
                 "response_format": {"type": "json_schema", "json_schema": {"name": "antwort", "schema": schema}},
             },
         )
         auswahl = antwort.get("choices") or [{}]
-        return lies_json((auswahl[0].get("message") or {}).get("content") or "")
+        nachricht = auswahl[0].get("message") or {}
+        self.denkphase = len(nachricht.get("reasoning_content") or nachricht.get("reasoning") or "")
+        return lies_json(nachricht.get("content") or "", auswahl[0].get("finish_reason") == "length",
+                         self.denkphase)
+
+
+def denkt(modell: Anbieter) -> int:
+    """Zeichen der Denkphase bei einer kleinen Probeanfrage; 0, wenn das Modell ohne Denkphase antwortet.
+
+    Eine Denkphase kostet bei jeder Anfrage Minuten und kann die Antwort an der Längengrenze abschneiden.
+    """
+    modell.chat("Antworte nur mit JSON.", 'Gib {"ok": true} zurück.',
+                {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]})
+    return getattr(modell, "denkphase", 0)
 
 
 def erzeuge(e: KiEinstellungen) -> Anbieter:

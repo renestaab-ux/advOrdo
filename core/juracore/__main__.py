@@ -38,10 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     le.add_argument("--ohne-ocr", action="store_true", help="Bildseiten nicht per Texterkennung lesen")
     sub.add_parser("ocr", help="Prüfen, ob die Texterkennung (Tesseract, Deutsch) verfügbar ist")
     ks = sub.add_parser("ki-status", help="Prüfen, ob das lokale Sprachmodell (Ollama, LM Studio) erreichbar ist")
-    kp = sub.add_parser("ki-pruefen", help="Testakte einlesen und Widersprüche mit dem Sprachmodell suchen")
+    kp = sub.add_parser("ki-pruefen", help="Testakte mit dem Sprachmodell prüfen (Widersprüche, Chronologie)")
     kp.add_argument("ordner", type=Path, help="Ordner mit den Dokumenten (Unterordner werden mitgelesen)")
     kp.add_argument("--erwartungen", type=Path, help="erwartungen.json der Testakte zum Abgleich")
     kp.add_argument("--zusammenfassung", action="store_true", help="auch die Akte zusammenfassen")
+    kp.add_argument("--chronologie", action="store_true", help="auch die Chronologie der Akte erstellen")
     for k in (ks, kp):
         k.add_argument("--anbieter", choices=["ollama", "lmstudio"], help="Programm statt des gespeicherten")
         k.add_argument("--endpunkt", help="Adresse, Voreinstellung je Programm (Ollama :11434, LM Studio :1234)")
@@ -67,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         from .ki import pruefen
 
         e = _ki_einstellungen(a, db_pfad)
-        return pruefen.main(a.ordner, e, a.erwartungen, a.zusammenfassung)
+        return pruefen.main(a.ordner, e, a.erwartungen, a.zusammenfassung, a.chronologie)
 
     con = db.oeffne(db_pfad)
     if a.befehl == "import":

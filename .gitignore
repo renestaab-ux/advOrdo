@@ -18,3 +18,7 @@ app/src-tauri/gen/
 daten/
 *.sqlite
 *.sqlite-*
+
+# Probelauf mit dem Sprachmodell (juracore ki-pruefen)
+ki-pruefen-daten/
+ki-pruefen-protokoll.json

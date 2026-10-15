@@ -102,7 +102,7 @@ class Kern:
         ki_anbieter.speichere_einstellungen(self.ki_datei, e)
         return ki_anbieter.status(e)
 
-    KI_AUFGABEN = ("zusammenfassung_dokument", "zusammenfassung_akte", "widersprueche")
+    KI_AUFGABEN = ("zusammenfassung_dokument", "zusammenfassung_akte", "widersprueche", "chronologie")
 
     def ki_starten(
         self, aufgabe: str, akte_id: int | None = None, dokument_id: int | None = None,
@@ -127,6 +127,8 @@ class Kern:
                     return analyse.zusammenfassung_dokument(int(dokument_id))
                 if aufgabe == "zusammenfassung_akte":
                     return analyse.zusammenfassung_akte(int(akte_id))
+                if aufgabe == "chronologie":
+                    return analyse.chronologie(int(akte_id))
                 return analyse.widersprueche(int(akte_id), dokument_ids)
             finally:
                 con.close()

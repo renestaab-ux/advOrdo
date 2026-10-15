@@ -180,6 +180,13 @@ Widerspruchssuche gar nicht erst auf. Ein Widerspruch zählt nur, wenn er auf mi
 belegte Angaben verweist. Die Erklärung dazu ist eine Einschätzung des Modells; maßgeblich sind die
 Fundstellen.
 
+**Chronologie:** „Chronologie erstellen“ ordnet die datierten Tatsachenangaben (dieselben wie bei
+der Widerspruchssuche, sie werden nicht neu erhoben) und das Datum jedes Dokuments zu einer
+Zeitleiste: Ereignisse, Fristen und Dokumente, jeweils mit Fundstellen. Ein Ereignis heißt
+„streitig“, wenn eine Seite es bestreitet. Die App prüft, ob das Datum in einem der zitierten
+Absätze steht; sonst heißt der Eintrag „Datum ohne Beleg“. Das Datum eines Dokuments übernimmt sie
+nur, wenn es am Anfang oder Schluss des Dokuments steht.
+
 Ergebnisse werden in der Akte gespeichert und beim nächsten Öffnen gezeigt; die Analyse läuft im
 Hintergrund und lässt sich abbrechen.
 
@@ -215,11 +222,19 @@ geht genauso: dort den lokalen Server starten und in den Einstellungen „LM Stu
 .venv\Scripts\juracore ki-pruefen "Pfad\zu\Brückner_gegen_Autohaus" --erwartungen "Pfad\zu\erwartungen.json" --zusammenfassung
 ```
 
-liest den Ordner in eine vorübergehende Akte (die Akten der App bleiben unberührt), sucht
+liest den Ordner in eine eigene Akte im Unterordner `ki-pruefen-daten` des aktuellen Verzeichnisses
+(die Akten der App bleiben unberührt), sucht
 Widersprüche, gibt sie mit Fundstellen aus und zählt, welche der erwarteten (W1 bis W8) gefunden
 wurden. Mit `--modell gemma3:12b` lässt sich ein anderes Modell vergleichen, mit
 `--anbieter lmstudio` nimmt der Probelauf LM Studio statt Ollama (ohne `--modell` das erste
-geladene Modell). `juracore ki-status` kennt dieselben Optionen.
+geladene Modell), mit `--kontext 32768` einen größeren Kontext (bei LM Studio denselben Wert dort
+beim Laden des Modells einstellen). Mit `--chronologie` erstellt der Probelauf zusätzlich die
+Chronologie und vergleicht sie mit den erwarteten Ereignissen aus `erwartungen.json`.
+`juracore ki-status` kennt dieselben Optionen.
+
+Die Antworten des Modells bleiben in `ki-pruefen-daten` gespeichert, solange sich die Testakte nicht
+ändert und Modell und Kontext gleich bleiben. Ein abgebrochener Lauf setzt dadurch beim nächsten Mal
+dort fort, wo er stehen geblieben ist. Für einen Neuanfang den Ordner löschen.
 
 ## Wissensbasis: Gesetze
 

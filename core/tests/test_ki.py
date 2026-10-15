@@ -177,6 +177,10 @@ def test_einstellungen_speichern_und_laden(tmp_path):
 def test_antwort_mit_denkabschnitt_und_codezaun():
     assert anbieter.lies_json('<think>hm</think>\n```json\n{"a": 1}\n```') == {"a": 1}
     assert anbieter.lies_json('Hier: {"a": [1]} fertig') == {"a": [1]}
+    for text, abgeschnitten, meldung in (("", False, "leer"), ('{"angaben": [{"text": "x', False, "mitten im JSON"),
+                                         ('{"a": 1}', True, "abgeschnitten")):
+        with pytest.raises(anbieter.KiFehler, match=meldung):
+            anbieter.lies_json(text, abgeschnitten)
     with pytest.raises(anbieter.KiFehler):
         anbieter.lies_json("keine Ahnung")
 
@@ -246,6 +250,68 @@ def test_widersprueche_ohne_zahl_oder_datum(akten, con, tmp_path):
     # Neu berechnen auf Wunsch: nur der Vergleich, die Angaben je Dokument bleiben gespeichert.
     Analyse(akten, modell, neu=True).widersprueche(akte_id)
     assert len(modell.anfragen) == anzahl + 1
+
+
+def test_unbrauchbarer_teil_bricht_nicht_ab(akten, con, tmp_path):
+    akte_id, _ = _akte(akten, con, tmp_path)
+
+    def antwort(prompt, schema):
+        if "widersprueche" in schema["properties"] or "ereignisse" in schema["properties"]:
+            raise anbieter.KiFehler("Die Antwort des Modells ist kein JSON.")
+        return modell_antwort(prompt, schema)
+
+    modell = Attrappe(antwort)
+    ergebnis = Analyse(akten, modell).widersprueche(akte_id)
+    # Beide Versuche unbrauchbar: Der Teil fehlt, der Lauf geht weiter, das Ergebnis wird nicht gespeichert.
+    assert ergebnis["luecken"] == [1] and ergebnis["teile"] == 1 and ergebnis["widersprueche"] == []
+    assert ergebnis["gespeichert"] is False
+    chrono = Analyse(akten, modell).chronologie(akte_id)
+    assert chrono["luecken"] == [1] and chrono["gespeichert"] is False
+
+    modell.antwort = modell_antwort
+    zweiter = Analyse(akten, modell).widersprueche(akte_id)
+    assert zweiter["luecken"] == [] and len(zweiter["widersprueche"]) == 2 and zweiter["gespeichert"] is False
+    assert Analyse(akten, modell).widersprueche(akte_id)["gespeichert"] is True
+
+
+def test_abgeschnittene_angaben_werden_in_kleineren_stuecken_erfragt(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Lang")
+    pfad = tmp_path / "lang.md"
+    pfad.write_text("\n\n".join(f"({i}) Absatz {i}: Die Klägerin trägt vor." for i in range(1, 5)), encoding="utf-8")
+    d = akte.importiere(akten, con, a["id"], pfad, tmp_path / "ablage", ocr=False)["dokument_id"]
+
+    def antwort(prompt, schema):
+        # Mehr als zwei Absätze auf einmal sind dem Modell zu lang, Absatz 4 gelingt nie.
+        absaetze = re.findall(r"^\[(\d+)\] ", prompt, re.M)
+        if len(absaetze) > 2 or "4" in absaetze:
+            raise anbieter.KiFehler("Die Antwort des Modells ist abgeschnitten (Längengrenze erreicht), kein JSON.")
+        return {"angaben": [{"text": f"Angabe {n}.", "haltung": "behauptet", "absatz": int(n),
+                             "zitat": f"Absatz {n}: Die Klägerin trägt vor."} for n in absaetze]}
+
+    modell = Attrappe(antwort)
+    ergebnis = Analyse(akten, modell).angaben(d)
+    # Abgeschnitten wird nicht wörtlich wiederholt, sondern halbiert: 1–4, 1–2, 3–4, 3, 4.
+    assert len(modell.anfragen) == 5
+    assert [x["text"] for x in ergebnis["angaben"]] == ["Angabe 1.", "Angabe 2.", "Angabe 3."]
+    assert ergebnis["luecken"] == ["4"] and ergebnis["gespeichert"] is False
+    assert "(Absätze 3 bis 4)" in modell.anfragen[2]
+
+
+def test_abgeschnitten_nennt_denkphase():
+    with pytest.raises(anbieter.KiFehler, match="Denkphase 5000 Zeichen, Antwort 8 Zeichen"):
+        anbieter.lies_json('{"a": [1', True, 5000)
+
+
+def test_nicht_erreichbar_bricht_weiter_ab(akten, con, tmp_path):
+    akte_id, _ = _akte(akten, con, tmp_path)
+
+    def antwort(prompt, schema):
+        if "widersprueche" in schema["properties"]:
+            raise anbieter.KiFehler("Das Sprachmodell ist nicht erreichbar.")
+        return modell_antwort(prompt, schema)
+
+    with pytest.raises(anbieter.KiFehler):
+        Analyse(akten, Attrappe(antwort)).widersprueche(akte_id)
 
 
 def test_zusammenfassung_prueft_jeden_beleg(akten, con, tmp_path):
@@ -401,7 +467,8 @@ class _Server(BaseHTTPRequestHandler):
             else:
                 self._antworte(200, {"message": {"role": "assistant", "content": '{"aussagen": []}'}})
         elif self.path == "/v1/chat/completions":
-            self._antworte(200, {"choices": [{"message": {"content": '{"aussagen": [{"text": "x"}]}'}}]})
+            self._antworte(200, {"choices": [{"message": {"content": '{"aussagen": [{"text": "x"}]}',
+                                                          "reasoning_content": "Hm, ich überlege."}}]})
 
 
 @pytest.fixture
@@ -427,7 +494,7 @@ def test_ollama_ueber_http(server):
     assert pfad == "/api/chat"
     assert gesendet["format"] == {"type": "object"} and gesendet["stream"] is False
     assert gesendet["think"] is False  # Denkendes Modell: Denkphase aus
-    assert gesendet["options"] == {"temperature": 0, "seed": 42, "num_ctx": 8192}
+    assert gesendet["options"] == {"temperature": 0, "seed": 42, "num_ctx": 8192, "num_predict": 8192}
 
     with pytest.raises(anbieter.KiFehler, match="not found"):
         anbieter.erzeuge(anbieter.KiEinstellungen("ollama", server, "gibtsnicht")).chat("s", "n", {})
@@ -441,6 +508,10 @@ def test_lm_studio_ueber_http(server):
     pfad, gesendet = _Server.anfragen[-1]
     assert pfad == "/v1/chat/completions"
     assert gesendet["response_format"]["json_schema"]["schema"] == {"type": "object"}
+    assert gesendet["max_tokens"] == 8192
+    assert gesendet["chat_template_kwargs"] == {"enable_thinking": False}
+    # Die Denkphase wird erkannt, damit der Probelauf davor warnen kann.
+    assert anbieter.denkt(anbieter.erzeuge(e)) == len("Hm, ich überlege.")
 
 
 def test_nicht_erreichbar():
@@ -509,3 +580,146 @@ def test_angaben_auch_bei_grossem_kontext_in_stuecken(akten, con, tmp_path):
     # Rund 37.000 Zeichen: bei 32.768 Token passten sie in eine Anfrage, für die Angaben werden es aber Stücke.
     assert len(modell.anfragen) == 4
     assert all(len(p) < 13500 for p in modell.anfragen)
+
+
+# --- Chronologie ----------------------------------------------------------------------------------
+
+REPLIK = """Replik
+
+Freiburg, den 15.01.2026
+
+(25) Ein Telefonat am 02.07.2025 hat nicht stattgefunden.
+"""
+
+
+def chronologie_antwort(prompt: str, schema: dict) -> dict:
+    if "widersprueche" in schema["properties"]:
+        return {"widersprueche": []}
+    if "ereignisse" in schema["properties"]:
+        untersuchung, angebot = kennung(prompt, "am 27.06.2025"), kennung(prompt, "bot am 02.07.2025")
+        replik = re.search(r"^\[(D\d+)\] 07_Replik", prompt, re.M).group(1)
+        kauf = re.search(r"^\[(D\d+)\] 01_Kaufvertrag", prompt, re.M).group(1)
+        return {
+            "ereignisse": [
+                {"datum": "27.06.2025", "art": "ereignis", "ereignis": "Untersuchung beim Autohaus",
+                 "streitig": False, "angaben": [untersuchung]},
+                # Bestritten wird es in der Replik; streitig ergibt sich aus der Haltung, auch wenn das Modell es übersieht.
+                {"datum": "02.07.2025", "art": "ereignis", "ereignis": "Telefonisches Nachbesserungsangebot",
+                 "streitig": False, "angaben": [angebot, kennung(prompt, "nicht stattgefunden")]},
+                {"datum": "05.07.2025", "art": "frist", "ereignis": "Erfundenes Datum", "streitig": False,
+                 "angaben": [angebot]},
+                {"datum": "irgendwann", "art": "ereignis", "ereignis": "Ohne Datum", "streitig": False,
+                 "angaben": [angebot]},
+                {"datum": "01.01.2025", "art": "ereignis", "ereignis": "Erfundene Kennung", "streitig": False,
+                 "angaben": ["A99"]},
+                {"datum": "27.06.2025", "art": "ereignis", "ereignis": "Doppelt", "streitig": False,
+                 "angaben": [f"[{untersuchung}]"]},
+            ],
+            "dokumente": [
+                {"kennung": replik, "bezeichnung": "Replik", "datum": "15.01.2026"},
+                {"kennung": kauf, "bezeichnung": "Kaufvertrag", "datum": "14.03.2025"},  # steht nicht im Kopf
+            ],
+        }
+    kopfzeile = prompt.split("\n", 1)[0]
+    if "07_Replik" in kopfzeile:
+        return {"angaben": [{"text": "Ein Telefonat am 02.07.2025 hat nicht stattgefunden.", "haltung": "bestritten",
+                             "absatz": absatz(prompt, "nicht stattgefunden"),
+                             "zitat": "Ein Telefonat am 02.07.2025 hat nicht stattgefunden."}]}
+    antwort = angaben_antwort(prompt)
+    if "Antwortschreiben" in kopfzeile:
+        antwort["angaben"].append({"text": "Das Autohaus untersuchte das Fahrzeug am 27.06.2025.",
+                                   "haltung": "behauptet", "absatz": absatz(prompt, "Augenschein"),
+                                   "zitat": "wir haben das Fahrzeug am 27.06.2025 kurz in Augenschein genommen"})
+    return antwort
+
+
+def test_chronologie_mit_belegtem_datum(akten, con, tmp_path):
+    akte_id, ids = _akte(akten, con, tmp_path)
+    pfad = tmp_path / "07_Replik.md"
+    pfad.write_text(REPLIK, encoding="utf-8")
+    ids["07"] = akte.importiere(akten, con, akte_id, pfad, tmp_path / "ablage", ocr=False, tags=["Kläger"])["dokument_id"]
+    modell = Attrappe(chronologie_antwort)
+    ergebnis = Analyse(akten, modell).chronologie(akte_id)
+
+    zeilen = [(e["anzeige"], e["art"], e["ereignis"], e["status"], e["streitig"]) for e in ergebnis["ereignisse"]]
+    assert zeilen == [
+        ("27.06.2025", "ereignis", "Untersuchung beim Autohaus", "belegt", False),
+        ("02.07.2025", "ereignis", "Telefonisches Nachbesserungsangebot", "belegt", True),
+        ("05.07.2025", "frist", "Erfundenes Datum", "ohne_beleg", False),
+        ("15.01.2026", "dokument", "Replik", "belegt", False),
+    ]
+    assert ergebnis["verworfen"] == 3  # ohne Datum, erfundene Kennung, Datum nicht im Kopf des Kaufvertrags
+    assert ergebnis["angaben"] == 3  # nur datierte Angaben
+    angebot = ergebnis["ereignisse"][1]
+    assert [q["fundstelle"]["dokument_id"] for q in angebot["quellen"]] == [ids["06"], ids["07"]]
+    replik = ergebnis["ereignisse"][3]["quellen"][0]["fundstelle"]
+    assert replik["ausschnitt"]["wert"] == "15.01.2026" and replik["dokument_id"] == ids["07"]
+
+    # Die Tatsachenangaben teilt die Chronologie mit der Widerspruchssuche: keine neuen Anfragen dafür.
+    anzahl = len(modell.anfragen)
+    Analyse(akten, modell).widersprueche(akte_id)
+    assert len(modell.anfragen) == anzahl + 1
+    assert speicher.ergebnisse(akten, akte_id, modell.modell)["chronologie"]["ereignisse"][0]["datum"] == "2025-06-27"
+
+
+def test_kopf_reicht_bis_ort_und_datum_vor_den_unterschriften(akten, con, tmp_path):
+    from juracore.ki import chronologie
+
+    a = akte.akte_anlegen(akten, "Kopf")
+    pfad = tmp_path / "vertrag.md"
+    pfad.write_text("\n\n".join(["Kaufvertrag"] + [f"§ {i} " + "Regelung. " * 40 for i in range(1, 6)] + [
+        "Denzlingen, den 14.03.2025", "gez. Markus Rehnfeld, Autohaus Rehnfeld GmbH", "gez. Dr. Lena Brückner",
+        "(Anlage K1 zur Klageschrift vom 20.10.2025)", "Fiktives Testdokument."]), encoding="utf-8")
+    d = akte.importiere(akten, con, a["id"], pfad, tmp_path / "ablage", ocr=False)["dokument_id"]
+    texte = [x["text"] for x in chronologie.kopf(belege.lade_text(akten, d, ()))]
+    assert "Denzlingen, den 14.03.2025" in texte and not any(t.startswith("§ 4") for t in texte)
+
+
+def test_chronologie_monat_wie_im_dokument():
+    from juracore.ki.chronologie import _anzeige, im_text, lies_datum
+
+    monat = lies_datum("Juni 2025")
+    treffer = im_text(monat, "Sie beschwerte sich erstmals Mitte Juni 2025.")
+    text = "Sie beschwerte sich erstmals Mitte Juni 2025."
+    assert _anzeige(monat, text[treffer.start:treffer.ende]) == "Mitte Juni 2025"
+    assert im_text(monat, "am 12.06.2025") is not None and im_text(monat, "am 12.07.2025") is None
+    assert im_text(lies_datum("12.05.2025"), "Mai 2025") is None
+
+
+def test_probelauf_mit_chronologie(tmp_path, monkeypatch, capsys):
+    from juracore.ki import pruefen
+
+    ordner = tmp_path / "Akte"
+    (ordner / "Kläger").mkdir(parents=True)
+    (ordner / "Beklagter").mkdir()
+    (ordner / "Kläger" / "01_Kaufvertrag.md").write_text(KAUFVERTRAG, encoding="utf-8")
+    (ordner / "Beklagter" / "03_Antwortschreiben.md").write_text(ANTWORTSCHREIBEN, encoding="utf-8")
+    (ordner / "Beklagter" / "06_Klageerwiderung.md").write_text(KLAGEERWIDERUNG, encoding="utf-8")
+    (ordner / "Kläger" / "07_Replik.md").write_text(REPLIK, encoding="utf-8")
+    erwartungen = tmp_path / "erwartungen.json"
+    erwartungen.write_text(json.dumps({"widersprueche": [], "chronologie": [
+        {"datum": "2025-06-27", "ereignis": "Untersuchung", "dok": ["03"]},
+        {"datum": "2026-01-15", "ereignis": "Replik", "dok": ["07"]},
+        {"datum": "2025-07-15", "ereignis": "Rücktritt", "dok": ["04"]},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(anbieter, "status", lambda e: {"bereit": True, "anbieter_titel": "Attrappe"})
+    monkeypatch.setattr(anbieter, "erzeuge", lambda e: Attrappe(chronologie_antwort))
+    monkeypatch.setattr(anbieter, "denkt", lambda modell: 0)
+    monkeypatch.chdir(tmp_path)
+
+    e = anbieter.KiEinstellungen("ollama", "http://127.0.0.1:11434", "attrappe:1b")
+    assert pruefen.main(ordner, e, erwartungen, False, chronologie=True) == 0
+    aus = capsys.readouterr().out
+    assert "Telefonisches Nachbesserungsangebot (streitig)" in aus
+    assert "Erfundenes Datum (Datum ohne Beleg)" in aus
+    assert "Chronologie: 2 von 3 erwarteten Ereignissen gefunden" in aus
+
+    # Zweiter Lauf auf unveränderter Testakte: nichts wird neu eingelesen oder neu gefragt.
+    modell = Attrappe(chronologie_antwort)
+    monkeypatch.setattr(anbieter, "erzeuge", lambda e: modell)
+    assert pruefen.main(ordner, e, erwartungen, False, chronologie=True) == 0
+    assert modell.anfragen == []
+    assert "Lese " not in capsys.readouterr().err
+    assert "fehlt: 2025-07-15 Rücktritt (04)" in aus
+    protokoll = json.loads((tmp_path / "ki-pruefen-protokoll.json").read_text(encoding="utf-8"))
+    assert len(protokoll["chronologie"]["ereignisse"]) == 4

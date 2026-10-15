@@ -93,6 +93,13 @@ oder Datum prüft die Analyse mit dem Sprachmodell.
   Angaben in einer Anfrage oder, wenn sie nicht passen, in Blöcken, von denen je zwei gemeinsam
   geprüft werden. Einordnung (im Dokument, innerhalb einer Partei, zwischen den Beteiligten) wie
   beim Abgleich aus den Tags.
+- `chronologie`: datierte Tatsachenangaben (aus `analyse`, gespeichert) und die Köpfe der Dokumente
+  (Anfang bis 700 Zeichen und die letzten beiden Absätze) gehen in eine Anfrage, bei vielen Angaben
+  in Blöcke nach Datum. Das Modell ordnet sie zu Ereignissen und Fristen mit Datum und nennt das
+  Datum jedes Dokuments. Übernommen wird ein Ereignis nur mit gültiger Kennung; das Datum wird mit
+  denselben Regeln wie beim Abgleich in den zitierten Absätzen gesucht (Monatsangaben passen auch zu
+  einem Tag im Monat), sonst „Datum ohne Beleg“. Ein Dokumentdatum gilt nur, wenn es im Kopf steht,
+  und verweist genau dorthin. „Streitig“ setzt das Modell oder eine bestrittene Angabe.
 - `speicher`: Tabelle `ki_ergebnis` in `akten.sqlite`, Schlüssel aus Aufgabe, Anweisungsfassung
   (`FASSUNG`), Modell, Kontext und vorgelegtem Text; Kaskade mit Akte und Dokument.
 - `auftraege`: Analysen laufen in einem Hintergrund-Thread mit eigener Datenbankverbindung,
@@ -101,8 +108,8 @@ oder Datum prüft die Analyse mit dem Sprachmodell.
   Auftrag nach einem Wechsel des Bereichs wieder. So bleibt der zeilenweise RPC-Kanal frei.
 
 RPC: `ki.status`, `ki.einstellungen_setzen`, `ki.starten` (`zusammenfassung_dokument`,
-`zusammenfassung_akte`, `widersprueche`), `ki.auftrag`, `ki.abbrechen`, `ki.laufend`,
-`ki.ergebnisse`. Kommandozeile: `juracore ki-status`, `juracore ki-pruefen <ordner>`.
+`zusammenfassung_akte`, `widersprueche`, `chronologie`), `ki.auftrag`, `ki.abbrechen`, `ki.laufend`,
+`ki.ergebnisse`. Kommandozeile: `juracore ki-status`, `juracore ki-pruefen <ordner> [--chronologie]`.
 Getestet wird ohne echtes Modell: mit einer Attrappe für die Analyse und einem nachgebauten
 Ollama-/LM-Studio-Server auf 127.0.0.1 für die HTTP-Anbindung.
 
@@ -110,7 +117,8 @@ Ollama-/LM-Studio-Server auf 127.0.0.1 für die HTTP-Anbindung.
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
 - Kern als Sidecar bündeln, Installer je System
-- Rechtsprechungszitate erkennen; Volltextsuche über Akten; Chronologie
+- Rechtsprechungszitate erkennen; Volltextsuche über Akten
+- Chronologie exportieren (Word, PDF, Markdown)
 - Tesseract für den Installer mitliefern (Windows), damit keine eigene Installation nötig ist
 - Externe Anbieter (Modus „Externer Anbieter“) mit Warnhinweis und Schlüsselspeicher
 - Modellvergleich auf den Testakten (`juracore ki-pruefen`) auf der RTX-Workstation

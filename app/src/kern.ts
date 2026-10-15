@@ -365,7 +365,7 @@ export interface KiStatus {
   hinweis: string | null;
 }
 
-export type KiAufgabe = "zusammenfassung_dokument" | "zusammenfassung_akte" | "widersprueche";
+export type KiAufgabe = "zusammenfassung_dokument" | "zusammenfassung_akte" | "widersprueche" | "chronologie";
 
 export interface KiFundstelle extends AbgleichFundstelle {
   /** Ob das Zitat des Modells wörtlich oder nur angenähert im Dokument steht. */
@@ -383,6 +383,12 @@ interface KiErgebnisKopf {
   modell: string;
   erstellt_am: string;
   gespeichert: boolean;
+  /** Anzahl der Anfragen bei Widersprüchen und Chronologie. */
+  teile?: number;
+  /** Teile, die das Modell auch beim zweiten Versuch unbrauchbar beantwortet hat; dann nicht gespeichert. */
+  luecken?: number[];
+  /** Dokumente, aus denen Absätze fehlen, weil das Modell dort unbrauchbar antwortete. */
+  luecken_dokumente?: { dateiname: string; absaetze: string[] }[];
 }
 
 export interface KiZusammenfassung extends KiErgebnisKopf {
@@ -416,6 +422,32 @@ export interface KiWidersprueche extends KiErgebnisKopf {
   widersprueche: KiWiderspruch[];
 }
 
+export interface KiEreignis {
+  /** ISO-Datum („2025-06-27“) oder Monat („2025-06“), zum Sortieren. */
+  datum: string;
+  /** Wie angezeigt: „27.06.2025“ oder „Mitte Juni 2025“. */
+  anzeige: string;
+  art: "ereignis" | "frist" | "dokument";
+  ereignis: string;
+  streitig: boolean;
+  /** belegt: Das Datum steht in einem der zitierten Absätze. */
+  status: "belegt" | "ohne_beleg";
+  quellen: KiAngabe[];
+}
+
+export interface KiChronologie extends KiErgebnisKopf {
+  dokumente: { dokument_id: number; dateiname: string }[];
+  angaben: number;
+  verworfen: number;
+  ereignisse: KiEreignis[];
+}
+
+export const EREIGNIS_ART_TEXT: Record<KiEreignis["art"], string> = {
+  ereignis: "Ereignis",
+  frist: "Frist",
+  dokument: "Dokument",
+};
+
 export interface KiAuftrag {
   auftrag_id: number;
   aufgabe: KiAufgabe;
@@ -431,6 +463,7 @@ export interface KiAuftrag {
 export interface KiErgebnisse {
   zusammenfassung_akte: KiZusammenfassung | null;
   widersprueche: KiWidersprueche | null;
+  chronologie: KiChronologie | null;
   /** Zusammenfassungen je Dokument, Schlüssel ist die Dokumentnummer. */
   dokumente: Record<string, KiZusammenfassung>;
 }
