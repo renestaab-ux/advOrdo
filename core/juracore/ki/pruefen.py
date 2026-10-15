@@ -106,6 +106,10 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
         print(f"Sprachmodell nicht bereit: {stand['hinweis']}", file=sys.stderr)
         return 1
     print(f"Modell: {e.modell} ({stand['anbieter_titel']}, Kontext {e.kontext})", file=sys.stderr)
+    if zeichen := anbieter.denkt(anbieter.erzeuge(e)):
+        print(f"ACHTUNG: Das Modell denkt vor jeder Antwort ({zeichen} Zeichen schon bei einer Probeanfrage). Das "
+              "kostet viel Zeit und schneidet Antworten ab. In LM Studio beim Modell den Schalter „Reasoning“ "
+              "(Denken) ausschalten.", file=sys.stderr)
     daten = Path.cwd() / DATEN
     funde = akte.ordner_pruefen(ordner)
     abdruck = _fingerabdruck(ordner, funde)

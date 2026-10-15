@@ -467,7 +467,8 @@ class _Server(BaseHTTPRequestHandler):
             else:
                 self._antworte(200, {"message": {"role": "assistant", "content": '{"aussagen": []}'}})
         elif self.path == "/v1/chat/completions":
-            self._antworte(200, {"choices": [{"message": {"content": '{"aussagen": [{"text": "x"}]}'}}]})
+            self._antworte(200, {"choices": [{"message": {"content": '{"aussagen": [{"text": "x"}]}',
+                                                          "reasoning_content": "Hm, ich überlege."}}]})
 
 
 @pytest.fixture
@@ -508,6 +509,9 @@ def test_lm_studio_ueber_http(server):
     assert pfad == "/v1/chat/completions"
     assert gesendet["response_format"]["json_schema"]["schema"] == {"type": "object"}
     assert gesendet["max_tokens"] == 8192
+    assert gesendet["chat_template_kwargs"] == {"enable_thinking": False}
+    # Die Denkphase wird erkannt, damit der Probelauf davor warnen kann.
+    assert anbieter.denkt(anbieter.erzeuge(e)) == len("Hm, ich überlege.")
 
 
 def test_nicht_erreichbar():
@@ -687,6 +691,7 @@ def test_probelauf_mit_chronologie(tmp_path, monkeypatch, capsys):
     ]}), encoding="utf-8")
     monkeypatch.setattr(anbieter, "status", lambda e: {"bereit": True, "anbieter_titel": "Attrappe"})
     monkeypatch.setattr(anbieter, "erzeuge", lambda e: Attrappe(chronologie_antwort))
+    monkeypatch.setattr(anbieter, "denkt", lambda modell: 0)
     monkeypatch.chdir(tmp_path)
 
     e = anbieter.KiEinstellungen("ollama", "http://127.0.0.1:11434", "attrappe:1b")

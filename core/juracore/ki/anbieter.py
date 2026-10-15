@@ -188,6 +188,7 @@ class Ollama:
         self.modell = modell
         self.kontext = kontext
         self._denkt: bool | None = None
+        self.denkphase = 0  # Zeichen der Denkphase in der letzten Antwort
 
     def modelle(self) -> list[dict]:
         antwort = self.http.anfrage("/api/tags", timeout=5)
@@ -226,8 +227,8 @@ class Ollama:
             daten["think"] = False
         antwort = self.http.anfrage("/api/chat", daten)
         nachricht = antwort.get("message") or {}
-        return lies_json(nachricht.get("content", ""), antwort.get("done_reason") == "length",
-                         len(nachricht.get("thinking") or ""))
+        self.denkphase = len(nachricht.get("thinking") or "")
+        return lies_json(nachricht.get("content", ""), antwort.get("done_reason") == "length", self.denkphase)
 
 
 class OpenAIKompatibel:
@@ -237,6 +238,7 @@ class OpenAIKompatibel:
         self.http = _Http(endpunkt, "LM Studio")
         self.modell = modell
         self.kontext = kontext
+        self.denkphase = 0  # Zeichen der Denkphase in der letzten Antwort
 
     def modelle(self) -> list[dict]:
         antwort = self.http.anfrage("/v1/models", timeout=5)
@@ -254,14 +256,28 @@ class OpenAIKompatibel:
                 "temperature": 0,
                 "seed": 42,
                 "max_tokens": ANTWORT_TOKEN,
+                # Denkphase aus, wo das Programm die Vorlagenoption kennt (llama.cpp-Server, vLLM). LM Studio
+                # schaltet sie nur über den Schalter „Reasoning“ in den Modelleinstellungen ab.
+                "chat_template_kwargs": {"enable_thinking": False},
                 "stream": False,
                 "response_format": {"type": "json_schema", "json_schema": {"name": "antwort", "schema": schema}},
             },
         )
         auswahl = antwort.get("choices") or [{}]
         nachricht = auswahl[0].get("message") or {}
-        denken = len(nachricht.get("reasoning_content") or nachricht.get("reasoning") or "")
-        return lies_json(nachricht.get("content") or "", auswahl[0].get("finish_reason") == "length", denken)
+        self.denkphase = len(nachricht.get("reasoning_content") or nachricht.get("reasoning") or "")
+        return lies_json(nachricht.get("content") or "", auswahl[0].get("finish_reason") == "length",
+                         self.denkphase)
+
+
+def denkt(modell: Anbieter) -> int:
+    """Zeichen der Denkphase bei einer kleinen Probeanfrage; 0, wenn das Modell ohne Denkphase antwortet.
+
+    Eine Denkphase kostet bei jeder Anfrage Minuten und kann die Antwort an der Längengrenze abschneiden.
+    """
+    modell.chat("Antworte nur mit JSON.", 'Gib {"ok": true} zurück.',
+                {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]})
+    return getattr(modell, "denkphase", 0)
 
 
 def erzeuge(e: KiEinstellungen) -> Anbieter:
