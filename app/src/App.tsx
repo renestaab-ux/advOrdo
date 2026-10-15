@@ -1,19 +1,23 @@
 import { useState } from "react";
 import Akte from "./Akte";
+import Analyse from "./Analyse";
+import Einstellungen from "./Einstellungen";
 import Gesetze from "./Gesetze";
 import Vergleich from "./Vergleich";
 
-type Bereich = "akte" | "vergleich" | "gesetze";
+type Bereich = "akte" | "vergleich" | "analyse" | "gesetze" | "einstellungen";
 
 const BEREICHE: { id: Bereich; titel: string; bald?: boolean }[] = [
   { id: "akte", titel: "Akte" },
   { id: "vergleich", titel: "Vergleich" },
+  { id: "analyse", titel: "Analyse" },
   { id: "gesetze", titel: "Gesetze" },
+  { id: "einstellungen", titel: "Einstellungen" },
 ];
 
 export default function App() {
   const [bereich, setBereich] = useState<Bereich>("akte");
-  // Die gewählte Akte gilt für Akte und Vergleich gemeinsam.
+  // Die gewählte Akte gilt für Akte, Vergleich und Analyse gemeinsam.
   const [akteId, setAkteId] = useState<number | null>(null);
 
   return (
@@ -39,7 +43,11 @@ export default function App() {
       <main className="inhalt">
         {bereich === "akte" && <Akte akteId={akteId} setAkteId={setAkteId} onVergleich={() => setBereich("vergleich")} />}
         {bereich === "vergleich" && <Vergleich akteId={akteId} setAkteId={setAkteId} />}
+        {bereich === "analyse" && (
+          <Analyse akteId={akteId} setAkteId={setAkteId} onEinstellungen={() => setBereich("einstellungen")} />
+        )}
         {bereich === "gesetze" && <Gesetze />}
+        {bereich === "einstellungen" && <Einstellungen />}
       </main>
     </div>
   );

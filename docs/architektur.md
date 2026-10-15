@@ -8,7 +8,7 @@
 | Oberfläche | React + TypeScript (Vite) | Verbreitet, gut testbar, läuft identisch in allen System-Webviews |
 | Analysekern | Python (`juracore`) | Beste Bibliotheken für PDF/DOCX-Parsing, OCR, Embeddings und lokale LLMs |
 | Speicher | SQLite mit FTS5 | Eine Datei pro Datenverzeichnis, keine Serverinstallation; Vektorspeicher folgt (sqlite-vec oder LanceDB) |
-| Lokale Modelle | Ollama / LM Studio (folgt) | Über Provider-Adapter, lokal als Voreinstellung |
+| Lokale Modelle | Ollama / LM Studio | Über Provider-Adapter, lokal als Voreinstellung |
 
 ## Kommunikation App ↔ Kern
 
@@ -66,13 +66,51 @@ Fundstelle (Dokument, Seite, Randnummer, Satz) gegenüber. Unvereinbare Werte ge
 den Beteiligten; aus den Tags). Verträge gleichen Namens unter verschiedenen Anlagen werden
 getrennt. Der Abgleich wird je Anfrage neu berechnet (`akten.abgleich`, optional
 `dokument_ids` für zwei Dokumente) und ändert die Akte nicht. Inhaltliche Aussagen ohne Zahl
-oder Datum bleiben dem späteren Abgleich mit dem Sprachmodell vorbehalten.
+oder Datum prüft die Analyse mit dem Sprachmodell.
+
+## Analyse mit lokalem Sprachmodell
+
+`juracore.ki`:
+
+- `anbieter`: Provider-Adapter für Ollama (`/api/chat`) und OpenAI-kompatible lokale Server wie
+  LM Studio (`/v1/chat/completions`), nur mit der Standardbibliothek (`urllib`). Im Modus „Nur lokal“
+  sind nur Loopback-Adressen erlaubt (`pruefe_lokal`), geprüft beim Speichern, Laden und vor jeder
+  Verbindung; Proxy-Variablen des Systems werden umgangen. Der Kern ist dabei nur Client und öffnet
+  keinen Port. Antworten kommen als JSON nach Schema (strukturierte Ausgabe), Temperatur 0, fester
+  Startwert; bei denkenden Modellen (Ollama meldet `thinking`) wird die Denkphase abgeschaltet.
+  Einstellungen in `<Datenverzeichnis>/ki.json`.
+- `belege`: legt Dokumente als nummerierte Absätze vor („[12] Text“), teilt lange Dokumente nach
+  Zeichenbudget (rund 3 Zeichen je Token, abzüglich Anweisung und Antwort) und prüft Zitate des
+  Modells am gespeicherten Abschnittstext: erst im genannten Absatz, dann in den übrigen;
+  wörtlich nach Vereinheitlichung (Groß-/Kleinschreibung, Leerraum, Anführungszeichen, Striche,
+  weiche Trennstriche; Auslassungen „…“ als Teile in Reihenfolge), sonst angenähert ab 90 %
+  übereinstimmender Zeichen. Die Fundstelle (Seite, Randnummer, Ausschnitt) hat denselben Aufbau
+  wie beim Abgleich.
+- `analyse`: Zusammenfassung je Dokument (Aussagen mit Art: Inhalt, Vortrag, Bestreiten,
+  Rechtsansicht, Antrag, Gericht), Verdichtung langer Dokumente und der Akte über Kennungen geprüfter
+  Aussagen (bei großen Akten stufenweise), Widersprüche in zwei Schritten: Tatsachenangaben je
+  Dokument (mit Haltung: behauptet, bestritten, unstreitig, festgestellt), dann Vergleich aller
+  Angaben in einer Anfrage oder, wenn sie nicht passen, in Blöcken, von denen je zwei gemeinsam
+  geprüft werden. Einordnung (im Dokument, innerhalb einer Partei, zwischen den Beteiligten) wie
+  beim Abgleich aus den Tags.
+- `speicher`: Tabelle `ki_ergebnis` in `akten.sqlite`, Schlüssel aus Aufgabe, Anweisungsfassung
+  (`FASSUNG`), Modell, Kontext und vorgelegtem Text; Kaskade mit Akte und Dokument.
+- `auftraege`: Analysen laufen in einem Hintergrund-Thread mit eigener Datenbankverbindung,
+  höchstens einer zugleich; `ki.starten` liefert die Auftragsnummer, `ki.auftrag` Fortschritt und
+  Ergebnis, `ki.abbrechen` bricht nach dem laufenden Schritt ab, `ki.laufend` findet einen laufenden
+  Auftrag nach einem Wechsel des Bereichs wieder. So bleibt der zeilenweise RPC-Kanal frei.
+
+RPC: `ki.status`, `ki.einstellungen_setzen`, `ki.starten` (`zusammenfassung_dokument`,
+`zusammenfassung_akte`, `widersprueche`), `ki.auftrag`, `ki.abbrechen`, `ki.laufend`,
+`ki.ergebnisse`. Kommandozeile: `juracore ki-status`, `juracore ki-pruefen <ordner>`.
+Getestet wird ohne echtes Modell: mit einer Attrappe für die Analyse und einem nachgebauten
+Ollama-/LM-Studio-Server auf 127.0.0.1 für die HTTP-Anbindung.
 
 ## Offene Punkte
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
 - Kern als Sidecar bündeln, Installer je System
 - Rechtsprechungszitate erkennen; Volltextsuche über Akten; Chronologie
-- Abgleich inhaltlicher Aussagen (ohne Zahl oder Datum) mit dem lokalen Sprachmodell
 - Tesseract für den Installer mitliefern (Windows), damit keine eigene Installation nötig ist
-- Provider-Adapter für lokale und externe Modelle mit Warnhinweis
+- Externe Anbieter (Modus „Externer Anbieter“) mit Warnhinweis und Schlüsselspeicher
+- Modellvergleich auf den Testakten (`juracore ki-pruefen`) auf der RTX-Workstation

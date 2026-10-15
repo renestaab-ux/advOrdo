@@ -12,7 +12,7 @@ Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzu
 
 | Ordner | Inhalt |
 | --- | --- |
-| `core/` | Analysekern in Python (`juracore`): Gesetzes-Import, Wissensbasis, Einlesen von Akten (PDF, DOCX, OCR), Normzitate, Abgleich von Angaben; später RAG |
+| `core/` | Analysekern in Python (`juracore`): Gesetzes-Import, Wissensbasis, Einlesen von Akten (PDF, DOCX, OCR), Normzitate, Abgleich von Angaben, Analyse mit lokalem Sprachmodell; später RAG |
 | `app/` | Oberfläche (React + TypeScript, Vite) |
 | `app/src-tauri/` | Desktop-Hülle (Tauri 2, Rust); startet den Kern als Kindprozess |
 | `docs/` | Architektur und Entscheidungen |
@@ -162,9 +162,64 @@ Dokumenten einer Akte nebeneinander, entweder aus allen Dokumenten oder aus zwei
 
 Erkannt wird bewusst zurückhaltend: Werte, die im Text verneint („betrug nicht 64.800 km“) oder
 bestritten werden, zählen nicht als eigene Angabe. „Mitte Juni 2025“ passt zu jedem Datum im
-Juni. Eine Abweichung ist ein Hinweis, keine Bewertung. Noch nicht erkannt werden Aussagen ohne
-Zahl oder Datum (etwa ob eine Nachbesserung angeboten oder abgelehnt wurde); das folgt mit dem
-lokalen Sprachmodell.
+Juni. Eine Abweichung ist ein Hinweis, keine Bewertung. Aussagen ohne Zahl oder Datum (etwa ob
+eine Nachbesserung angeboten oder abgelehnt wurde) prüft der Bereich **Analyse**.
+
+## Analyse: lokales Sprachmodell
+
+Der Bereich **Analyse** fasst Dokumente und die ganze Akte zusammen und sucht inhaltliche
+Widersprüche, auch solche ohne Zahl oder Datum („Nachbesserung abgelehnt“ gegenüber „Nachbesserung
+angeboten“). Dafür läuft ein Sprachmodell auf diesem Gerät, über Ollama oder LM Studio. Die App
+spricht nur mit Adressen auf diesem Gerät (`localhost`, `127.0.0.1`); andere lehnt sie ab.
+
+**Beleg vor Behauptung:** Das Modell muss zu jeder Aussage den Absatz und ein wörtliches Zitat
+nennen. Die App sucht das Zitat im gespeicherten Originaltext und zeigt die Fundstelle (Seite,
+Randnummer, Ausschnitt) aus dem Dokument, nicht die Wiedergabe des Modells. Steht das Zitat nicht
+im Dokument, heißt die Aussage „ohne Beleg“; Tatsachenangaben ohne Beleg nimmt die
+Widerspruchssuche gar nicht erst auf. Ein Widerspruch zählt nur, wenn er auf mindestens zwei
+belegte Angaben verweist. Die Erklärung dazu ist eine Einschätzung des Modells; maßgeblich sind die
+Fundstellen.
+
+Ergebnisse werden in der Akte gespeichert und beim nächsten Öffnen gezeigt; die Analyse läuft im
+Hintergrund und lässt sich abbrechen.
+
+### Ollama unter Windows 11 einrichten
+
+In einer PowerShell:
+
+```powershell
+winget install Ollama.Ollama
+```
+
+Ollama startet danach im Hintergrund (Symbol unten rechts in der Taskleiste). Dann ein Modell laden,
+einmalig, rund 9 GB:
+
+```powershell
+ollama pull qwen3:14b
+```
+
+Qwen3 14B passt mit 16.384 Token Kontext in 16 GB Grafikspeicher (RTX 5070 Ti) und schreibt gut
+Deutsch. Danach in der App unter **Einstellungen** „Erneut prüfen“, das Modell wählen und speichern.
+Prüfen ohne App, im Projektordner:
+
+```powershell
+.venv\Scripts\juracore ki-status
+```
+
+Linux: `curl -fsSL https://ollama.com/install.sh | sh`, macOS: `brew install ollama`. LM Studio
+geht genauso: dort den lokalen Server starten und in den Einstellungen „LM Studio“ wählen.
+
+### Probelauf mit der Testakte
+
+```powershell
+.venv\Scripts\juracore ki-pruefen "Pfad\zu\Brückner_gegen_Autohaus" --erwartungen "Pfad\zu\erwartungen.json" --zusammenfassung
+```
+
+liest den Ordner in eine vorübergehende Akte (die Akten der App bleiben unberührt), sucht
+Widersprüche, gibt sie mit Fundstellen aus und zählt, welche der erwarteten (W1 bis W8) gefunden
+wurden. Mit `--modell gemma3:12b` lässt sich ein anderes Modell vergleichen, mit
+`--anbieter lmstudio` nimmt der Probelauf LM Studio statt Ollama (ohne `--modell` das erste
+geladene Modell). `juracore ki-status` kennt dieselben Optionen.
 
 ## Wissensbasis: Gesetze
 

@@ -200,8 +200,8 @@ export default function Vergleich({
               </details>
             )}
             <p className="grenze">
-              Noch nicht erkannt werden Aussagen ohne Zahl oder Datum, etwa ob eine Nachbesserung angeboten oder abgelehnt
-              wurde. Das folgt mit dem lokalen Sprachmodell.
+              Aussagen ohne Zahl oder Datum, etwa ob eine Nachbesserung angeboten oder abgelehnt wurde, prüft der Bereich
+              „Analyse“ mit dem lokalen Sprachmodell.
             </p>
           </div>
           {offen && (

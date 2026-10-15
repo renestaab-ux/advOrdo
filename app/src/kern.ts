@@ -340,3 +340,145 @@ export function abgleichZusammenfassung(a: Pick<Abgleich, "dokumente" | "zaehlun
     `in ${n(a.dokumente, "Dokument", "Dokumenten")}`
   );
 }
+
+// --- Sprachmodell ---------------------------------------------------------------------------------
+
+export interface KiModell {
+  name: string;
+  groesse: number | null;
+  parameter: string | null;
+  quantisierung: string | null;
+}
+
+export interface KiStatus {
+  anbieter: string;
+  endpunkt: string;
+  modell: string;
+  kontext: number;
+  anbieter_titel: string;
+  anbieter_liste: { id: string; titel: string; endpunkt: string }[];
+  empfohlen: string;
+  erreichbar: boolean;
+  modelle: KiModell[];
+  /** Programm erreichbar und gewähltes Modell installiert. */
+  bereit: boolean;
+  hinweis: string | null;
+}
+
+export type KiAufgabe = "zusammenfassung_dokument" | "zusammenfassung_akte" | "widersprueche";
+
+export interface KiFundstelle extends AbgleichFundstelle {
+  /** Ob das Zitat des Modells wörtlich oder nur angenähert im Dokument steht. */
+  treffer: "woertlich" | "angenaehert";
+}
+
+export interface KiAussage {
+  text: string;
+  art: string;
+  status: "belegt" | "ohne_beleg";
+  fundstellen: KiFundstelle[];
+}
+
+interface KiErgebnisKopf {
+  modell: string;
+  erstellt_am: string;
+  gespeichert: boolean;
+}
+
+export interface KiZusammenfassung extends KiErgebnisKopf {
+  dokument_id?: number;
+  dateiname?: string;
+  teile?: number;
+  aussagen: KiAussage[];
+  zaehlung: { belegt: number; ohne_beleg: number };
+  /** Nur bei der Akte: die zusammengefassten Dokumente. */
+  dokumente?: { dokument_id: number; dateiname: string }[];
+}
+
+export interface KiAngabe {
+  text: string;
+  haltung: string;
+  fundstelle: KiFundstelle;
+}
+
+export interface KiWiderspruch {
+  thema: string;
+  art: "widerspruch" | "spannung";
+  erklaerung: string;
+  einordnung: Einordnung[];
+  angaben: KiAngabe[];
+}
+
+export interface KiWidersprueche extends KiErgebnisKopf {
+  dokumente: { dokument_id: number; dateiname: string; angaben: number; verworfen: number }[];
+  angaben: number;
+  verworfen: number;
+  widersprueche: KiWiderspruch[];
+}
+
+export interface KiAuftrag {
+  auftrag_id: number;
+  aufgabe: KiAufgabe;
+  status: "laeuft" | "fertig" | "fehler" | "abgebrochen";
+  text: string;
+  schritt: number | null;
+  von: number | null;
+  sekunden: number;
+  ergebnis: unknown;
+  fehler: string | null;
+}
+
+export interface KiErgebnisse {
+  zusammenfassung_akte: KiZusammenfassung | null;
+  widersprueche: KiWidersprueche | null;
+  /** Zusammenfassungen je Dokument, Schlüssel ist die Dokumentnummer. */
+  dokumente: Record<string, KiZusammenfassung>;
+}
+
+export const ART_TEXT: Record<string, string> = {
+  tatsache: "Inhalt",
+  vortrag: "Vortrag",
+  bestreiten: "Bestreiten",
+  rechtsansicht: "Rechtsansicht",
+  antrag: "Antrag",
+  entscheidung: "Gericht",
+  sonstiges: "Sonstiges",
+  gegenstand: "Gegenstand",
+  verlauf: "Verlauf",
+  streitig: "Streitig",
+  offen: "Offen",
+};
+
+export const HALTUNG_TEXT: Record<string, string> = {
+  behauptet: "behauptet",
+  bestritten: "bestreitet",
+  unstreitig: "unstreitig",
+  festgestellt: "festgestellt",
+};
+
+/** Laufzeit lesbar: „45 s“, „3:05 min“. */
+export function dauerText(sekunden: number): string {
+  if (sekunden < 60) return `${sekunden} s`;
+  return `${Math.floor(sekunden / 60)}:${String(sekunden % 60).padStart(2, "0")} min`;
+}
+
+/** Modellgröße auf der Festplatte, z. B. „9,3 GB“. */
+export function groesseText(bytes: number | null): string {
+  if (!bytes || bytes < 1e8) return "";
+  return `${(bytes / 1e9).toLocaleString("de-DE", { maximumFractionDigits: 1 })} GB`;
+}
+
+/** Ob ein gespeichertes Ergebnis zur Akte noch passt: dieselben Dokumente wie jetzt. */
+export function veraltet(ergebnis: { dokumente?: { dokument_id: number }[] } | null, dokumentIds: number[]): boolean {
+  if (!ergebnis?.dokumente) return false;
+  const damals = ergebnis.dokumente.map((d) => d.dokument_id).sort((a, b) => a - b);
+  const jetzt = [...dokumentIds].sort((a, b) => a - b);
+  return damals.length !== jetzt.length || damals.some((id, i) => id !== jetzt[i]);
+}
+
+/** Erstellzeitpunkt eines Ergebnisses in Ortszeit, z. B. „13.10.2026, 18:05“. */
+export function zeitpunkt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}

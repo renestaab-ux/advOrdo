@@ -193,3 +193,33 @@ button.zitat:disabled { opacity: 1; cursor: default; }
   .vergleich-dokument-text { max-height: 70vh; }
   .wert { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* Analyse und Einstellungen (Sprachmodell) */
+.ki-zeile { font-size: 13px; color: var(--warnung); margin: 10px 0 0; }
+.ki-zeile.bereit { color: var(--gut); }
+.ki-fortschritt { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center; margin: 12px 0; padding: 10px 14px; border: 1px solid var(--linie); border-left: 4px solid var(--akzent); border-radius: 8px; background: var(--flaeche); max-width: 760px; }
+.ki-fortschritt button { grid-row: 1 / span 2; grid-column: 2; }
+.balken { height: 6px; border-radius: 3px; background: var(--linie); overflow: hidden; }
+.balken div { height: 100%; background: var(--akzent); transition: width 0.4s; }
+.leise { color: var(--text-leise); font-size: 12px; font-weight: 400; }
+.ki-herkunft { font-size: 12px; color: var(--text-leise); margin: -4px 0 8px; }
+.ki-aussagen { padding-left: 22px; display: grid; gap: 12px; margin: 8px 0; }
+.ki-aussagen > li { line-height: 1.5; }
+.ki-aussagen .belege { margin-top: 6px; }
+.art { display: inline-block; font-size: 11px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--linie); color: var(--text-leise); margin-right: 4px; vertical-align: 1px; }
+.ohne-beleg { font-size: 12px; margin-left: 8px; padding: 1px 8px; border-radius: 999px; color: var(--fehler); background: color-mix(in srgb, var(--fehler) 12%, transparent); }
+.ki-aussagen > li.ohne_beleg { color: var(--text-leise); }
+.merkmal.spannung { border-left-color: color-mix(in srgb, var(--warnung) 50%, var(--linie)); }
+.ki-erklaerung { font-size: 13px; color: var(--text-leise); margin: 0 0 10px; font-style: italic; }
+.ki-angabe { font-weight: 400; font-variant-numeric: normal; font-size: 13px; }
+.analyse .wert { grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.2fr); }
+.ki-dokument { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; margin: 8px 0; }
+.ki-dokument summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+.karte { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 16px 20px; margin: 16px 0; max-width: 760px; }
+.ki-formular { display: grid; grid-template-columns: 120px minmax(0, 420px); gap: 10px 14px; align-items: center; margin: 14px 0 8px; }
+.ki-formular label { display: contents; }
+.ki-formular input, .ki-formular select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--hintergrund); color: var(--text); }
+.ki-formular .aktionen { grid-column: 2; }
+.ki-anleitung { margin-top: 14px; font-size: 13px; }
+.ki-anleitung summary { cursor: pointer; color: var(--akzent); }
+.ki-anleitung li { margin: 6px 0; }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   abgleichZusammenfassung,
+  dauerText,
+  groesseText,
+  veraltet,
   formatiereBuilddate,
   fundstelle,
   istZitat,
@@ -84,5 +87,21 @@ describe("abgleichZusammenfassung", () => {
     expect(abgleichZusammenfassung({ dokumente: 1, zaehlung: { abweichend: 1, uebereinstimmend: 1, einzeln: 2 } })).toBe(
       "1 mögliche Abweichung, 1 Übereinstimmung in 1 Dokument",
     );
+  });
+});
+
+describe("Sprachmodell", () => {
+  it("zeigt Laufzeiten und Größen lesbar", () => {
+    expect(dauerText(45)).toBe("45 s");
+    expect(dauerText(185)).toBe("3:05 min");
+    expect(groesseText(9_300_000_000)).toBe("9,3 GB");
+    expect(groesseText(null)).toBe("");
+  });
+  it("erkennt, ob sich die Akte seit dem Ergebnis geändert hat", () => {
+    const ergebnis = { dokumente: [{ dokument_id: 2 }, { dokument_id: 1 }] };
+    expect(veraltet(ergebnis, [1, 2])).toBe(false);
+    expect(veraltet(ergebnis, [1, 2, 3])).toBe(true);
+    expect(veraltet(ergebnis, [1])).toBe(true);
+    expect(veraltet(null, [1])).toBe(false);
   });
 });
