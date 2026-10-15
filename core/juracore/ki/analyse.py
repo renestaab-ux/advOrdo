@@ -32,13 +32,14 @@ from itertools import combinations
 from typing import Protocol
 
 from ..abgleich.abgleich import PARTEIEN
-from . import belege, speicher
+from . import belege, chronologie, speicher
 from .anbieter import Anbieter, KiFehler
 
 log = logging.getLogger("juracore.ki")
 
 # Fassung der Anweisungen je Aufgabe; eine Änderung macht gespeicherte Ergebnisse ungültig.
-FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 2, "widersprueche": 3}
+FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 2, "widersprueche": 3,
+           "chronologie": 1}
 
 # Zeichen Angaben je Vergleichsanfrage. Mittelgroße Modelle (12–14 B) übersehen in langen Listen viel; kleinere
 # Blöcke, je zwei gemeinsam geprüft, kosten mehr Anfragen, finden aber mehr.
@@ -418,16 +419,38 @@ class Analyse:
         ids = self._dokument_ids(akte_id, dokument_ids)
         if not ids:
             raise ValueError("Die Akte enthält noch keine Dokumente.")
-        je_dokument = []
-        for i, d in enumerate(ids, 1):
-            name = self.con.execute("SELECT dateiname FROM dokument WHERE id = ?", (d,)).fetchone()[0]
-            self.fortschritt.melde(f"Sammle Tatsachenangaben: {name}", i - 1, len(ids) + 1)
-            je_dokument.append(self.angaben(d, ziel=False))
+        je_dokument = self._sammle(ids)
         self.fortschritt.melde("Vergleiche die Angaben", len(ids), len(ids) + 1)
         bezug = ",".join(map(str, ids)) if dokument_ids else ""
         return self._gespeichert(
             "widersprueche", [[a["text"] for a in e["angaben"]] for e in je_dokument],
             lambda: self._vergleiche(je_dokument), akte_id, bezug=bezug,
+        )
+
+    def _sammle(self, ids: list[int]) -> list[dict]:
+        """Tatsachenangaben aller Dokumente (gespeichert oder neu), mit Fortschritt."""
+        je_dokument = []
+        for i, d in enumerate(ids, 1):
+            name = self.con.execute("SELECT dateiname FROM dokument WHERE id = ?", (d,)).fetchone()[0]
+            self.fortschritt.melde(f"Sammle Tatsachenangaben: {name}", i - 1, len(ids) + 1)
+            je_dokument.append(self.angaben(d, ziel=False))
+        return je_dokument
+
+    # --- Chronologie -------------------------------------------------------------------------------
+
+    def chronologie(self, akte_id: int) -> dict:
+        ids = self._dokument_ids(akte_id, None)
+        if not ids:
+            raise ValueError("Die Akte enthält noch keine Dokumente.")
+        je_dokument = self._sammle(ids)
+        self.fortschritt.melde("Ordne die Ereignisse", len(ids), len(ids) + 1)
+        texte = {d: self._text(d) for d in ids}
+        eingabe = ([[a["text"] for a in e["angaben"]] for e in je_dokument]
+                   + [belege.zeilen(chronologie.kopf(t)) for t in texte.values()])
+        return self._gespeichert(
+            "chronologie", eingabe,
+            lambda: chronologie.erstelle(self._frage, self.budget, je_dokument, texte, self.fortschritt.melde),
+            akte_id,
         )
 
     def _vergleiche(self, je_dokument: list[dict]) -> dict:

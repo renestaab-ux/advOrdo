@@ -213,6 +213,17 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .ki-erklaerung { font-size: 13px; color: var(--text-leise); margin: 0 0 10px; font-style: italic; }
 .ki-angabe { font-weight: 400; font-variant-numeric: normal; font-size: 13px; }
 .analyse .wert { grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.2fr); }
+.chronologie { list-style: none; padding: 0; margin: 8px 0; max-width: 900px; border-left: 2px solid var(--linie); }
+.chronologie > li { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 4px 14px; padding: 8px 0 8px 14px; position: relative; line-height: 1.5; }
+.chronologie > li::before { content: ""; position: absolute; left: -6px; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: var(--akzent); }
+.chronologie > li.ereignis-frist::before { background: var(--warnung); }
+.chronologie > li.ereignis-dokument::before { background: var(--hintergrund); border: 2px solid var(--text-leise); width: 6px; height: 6px; }
+.chronologie > li.streitig::before { background: var(--fehler); }
+.chrono-datum { font-variant-numeric: tabular-nums; font-weight: 600; }
+.chronologie .einordnung { margin-left: 8px; }
+.chronologie details summary { cursor: pointer; margin-top: 2px; }
+.chrono-quelle { margin-top: 6px; }
+@media (max-width: 640px) { .chronologie > li { grid-template-columns: 1fr; } }
 .ki-dokument { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; margin: 8px 0; }
 .ki-dokument summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
 .karte { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 16px 20px; margin: 16px 0; max-width: 760px; }

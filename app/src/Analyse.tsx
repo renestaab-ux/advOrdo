@@ -3,6 +3,7 @@ import { DokumentAnsicht } from "./Akte";
 import {
   ART_TEXT,
   Akte as AkteTyp,
+  EREIGNIS_ART_TEXT,
   AktenDokument,
   DokumentInhalt,
   EINORDNUNG_TEXT,
@@ -10,6 +11,7 @@ import {
   KiAufgabe,
   KiAuftrag,
   KiAussage,
+  KiChronologie,
   KiErgebnisse,
   KiFundstelle,
   KiStatus,
@@ -23,10 +25,10 @@ import {
   zeitpunkt,
 } from "./kern";
 
-type Ansicht = "widersprueche" | "akte" | "dokumente";
+type Ansicht = "widersprueche" | "chronologie" | "akte" | "dokumente";
 type Offen = { inhalt: DokumentInhalt; abschnitt: number } | null;
 
-const LEER: KiErgebnisse = { zusammenfassung_akte: null, widersprueche: null, dokumente: {} };
+const LEER: KiErgebnisse = { zusammenfassung_akte: null, widersprueche: null, chronologie: null, dokumente: {} };
 
 /** Zusammenfassungen und inhaltliche Widersprüche mit dem lokalen Sprachmodell, jede Aussage mit Fundstelle. */
 export default function Analyse({
@@ -107,6 +109,7 @@ export default function Analyse({
       setAuftrag(await kern<KiAuftrag>("ki.starten", { aufgabe, ...params }));
       if (aufgabe === "widersprueche") setAnsicht("widersprueche");
       if (aufgabe === "zusammenfassung_akte") setAnsicht("akte");
+      if (aufgabe === "chronologie") setAnsicht("chronologie");
     } catch (e) {
       setFehler(String(e));
     }
@@ -145,6 +148,7 @@ export default function Analyse({
   const ids = dokumente.map((d) => d.id);
   const w = ergebnisse.widersprueche;
   const z = ergebnisse.zusammenfassung_akte;
+  const c = ergebnisse.chronologie;
 
   return (
     <div className="analyse">
@@ -152,7 +156,8 @@ export default function Analyse({
         <h1>Analyse</h1>
       </header>
       <p className="erklaerung">
-        Fasst Dokumente und die Akte zusammen und sucht inhaltliche Widersprüche mit dem lokalen Sprachmodell. Jede
+        Fasst Dokumente und die Akte zusammen, sucht inhaltliche Widersprüche und erstellt eine Chronologie mit dem
+        lokalen Sprachmodell. Jede
         Aussage verweist auf ihre Fundstelle; ob das Zitat dort wirklich steht, prüft die App am Originaltext. Aussagen
         ohne auffindbares Zitat sind als „ohne Beleg“ markiert. Die Einschätzungen des Modells sind Hinweise, keine
         Bewertung.
@@ -186,6 +191,13 @@ export default function Analyse({
         </button>
         <button
           className="zweitrangig"
+          onClick={() => starte("chronologie", { akte_id: akteId, neu: c != null })}
+          disabled={!kannStarten}
+        >
+          {c ? "Chronologie neu erstellen" : "Chronologie erstellen"}
+        </button>
+        <button
+          className="zweitrangig"
           onClick={() => starte("zusammenfassung_akte", { akte_id: akteId, neu: z != null })}
           disabled={!kannStarten}
         >
@@ -201,6 +213,7 @@ export default function Analyse({
         {(
           [
             ["widersprueche", `Widersprüche${w ? ` (${w.widersprueche.length})` : ""}`],
+            ["chronologie", `Chronologie${c ? ` (${c.ereignisse.length})` : ""}`],
             ["akte", "Zusammenfassung der Akte"],
             ["dokumente", "Dokumente"],
           ] as [Ansicht, string][]
@@ -240,6 +253,21 @@ export default function Analyse({
               </>
             ) : (
               <p className="leer">Noch keine Suche für diese Akte mit diesem Modell. „Widersprüche suchen“ startet sie.</p>
+            ))}
+
+          {ansicht === "chronologie" &&
+            (c ? (
+              <>
+                <ErgebnisKopf ergebnis={c} veraltet={veraltet(c, ids)} text={chronologieText(c)} />
+                <ChronologieTabelle c={c} offen={offen} onFundstelle={oeffne} />
+                <p className="grenze">
+                  Die Daten stammen aus den belegten Tatsachenangaben und den Köpfen der Dokumente. „Datum ohne Beleg“
+                  heißt: Das Modell nennt ein Datum, das in keinem der zitierten Absätze steht. Ereignisse ohne Datum
+                  fehlen; maßgeblich sind die Fundstellen.
+                </p>
+              </>
+            ) : (
+              <p className="leer">Noch keine Chronologie dieser Akte. „Chronologie erstellen“ startet sie.</p>
             ))}
 
           {ansicht === "akte" &&
@@ -298,6 +326,66 @@ export default function Analyse({
         )}
       </div>
     </div>
+  );
+}
+
+function chronologieText(c: KiChronologie): string {
+  const streitig = c.ereignisse.filter((e) => e.streitig).length;
+  const ohne = c.ereignisse.filter((e) => e.status === "ohne_beleg").length;
+  return [
+    `${c.ereignisse.length} ${c.ereignisse.length === 1 ? "Eintrag" : "Einträge"} aus ${c.angaben} datierten Angaben`,
+    streitig ? `${streitig} streitig` : "",
+    ohne ? `${ohne} mit Datum ohne Beleg` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function ChronologieTabelle({
+  c,
+  offen,
+  onFundstelle,
+}: {
+  c: KiChronologie;
+  offen: Offen;
+  onFundstelle: (f: KiFundstelle) => void;
+}) {
+  if (c.ereignisse.length === 0) return <p className="leer">Das Modell hat keine datierten Ereignisse geliefert.</p>;
+  return (
+    <ol className="chronologie">
+      {c.ereignisse.map((e, i) => (
+        <li key={i} className={`ereignis-${e.art}${e.streitig ? " streitig" : ""}`}>
+          {/* Mehrere Einträge am selben Tag: Datum nur beim ersten. */}
+          <div className="chrono-datum">{i > 0 && c.ereignisse[i - 1].anzeige === e.anzeige ? "" : e.anzeige}</div>
+          <div className="chrono-inhalt">
+            <div>
+              {e.art !== "ereignis" && <span className="art">{EREIGNIS_ART_TEXT[e.art]}</span>} {e.ereignis}
+              {e.streitig && <span className="einordnung zwischen_parteien">streitig</span>}
+              {e.status === "ohne_beleg" && <span className="ohne-beleg">Datum ohne Beleg</span>}
+            </div>
+            <details>
+              <summary className="leise">
+                {e.quellen.length} {e.quellen.length === 1 ? "Fundstelle" : "Fundstellen"}
+              </summary>
+              <ul className="belege">
+                {e.quellen.map((q, j) => (
+                  <li key={j} className="chrono-quelle">
+                    {q.haltung && (
+                      <div className="leise">
+                        {q.text} ({HALTUNG_TEXT[q.haltung] ?? q.haltung})
+                      </div>
+                    )}
+                    <ul className="belege">
+                      <FundstelleZeile f={q.fundstelle} offen={offen} onFundstelle={onFundstelle} />
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 

@@ -509,3 +509,125 @@ def test_angaben_auch_bei_grossem_kontext_in_stuecken(akten, con, tmp_path):
     # Rund 37.000 Zeichen: bei 32.768 Token passten sie in eine Anfrage, für die Angaben werden es aber Stücke.
     assert len(modell.anfragen) == 4
     assert all(len(p) < 13500 for p in modell.anfragen)
+
+
+# --- Chronologie ----------------------------------------------------------------------------------
+
+REPLIK = """Replik
+
+Freiburg, den 15.01.2026
+
+(25) Ein Telefonat am 02.07.2025 hat nicht stattgefunden.
+"""
+
+
+def chronologie_antwort(prompt: str, schema: dict) -> dict:
+    if "widersprueche" in schema["properties"]:
+        return {"widersprueche": []}
+    if "ereignisse" in schema["properties"]:
+        untersuchung, angebot = kennung(prompt, "am 27.06.2025"), kennung(prompt, "bot am 02.07.2025")
+        replik = re.search(r"^\[(D\d+)\] 07_Replik", prompt, re.M).group(1)
+        kauf = re.search(r"^\[(D\d+)\] 01_Kaufvertrag", prompt, re.M).group(1)
+        return {
+            "ereignisse": [
+                {"datum": "27.06.2025", "art": "ereignis", "ereignis": "Untersuchung beim Autohaus",
+                 "streitig": False, "angaben": [untersuchung]},
+                # Bestritten wird es in der Replik; streitig ergibt sich aus der Haltung, auch wenn das Modell es übersieht.
+                {"datum": "02.07.2025", "art": "ereignis", "ereignis": "Telefonisches Nachbesserungsangebot",
+                 "streitig": False, "angaben": [angebot, kennung(prompt, "nicht stattgefunden")]},
+                {"datum": "05.07.2025", "art": "frist", "ereignis": "Erfundenes Datum", "streitig": False,
+                 "angaben": [angebot]},
+                {"datum": "irgendwann", "art": "ereignis", "ereignis": "Ohne Datum", "streitig": False,
+                 "angaben": [angebot]},
+                {"datum": "01.01.2025", "art": "ereignis", "ereignis": "Erfundene Kennung", "streitig": False,
+                 "angaben": ["A99"]},
+                {"datum": "27.06.2025", "art": "ereignis", "ereignis": "Doppelt", "streitig": False,
+                 "angaben": [f"[{untersuchung}]"]},
+            ],
+            "dokumente": [
+                {"kennung": replik, "bezeichnung": "Replik", "datum": "15.01.2026"},
+                {"kennung": kauf, "bezeichnung": "Kaufvertrag", "datum": "14.03.2025"},  # steht nicht im Kopf
+            ],
+        }
+    kopfzeile = prompt.split("\n", 1)[0]
+    if "07_Replik" in kopfzeile:
+        return {"angaben": [{"text": "Ein Telefonat am 02.07.2025 hat nicht stattgefunden.", "haltung": "bestritten",
+                             "absatz": absatz(prompt, "nicht stattgefunden"),
+                             "zitat": "Ein Telefonat am 02.07.2025 hat nicht stattgefunden."}]}
+    antwort = angaben_antwort(prompt)
+    if "Antwortschreiben" in kopfzeile:
+        antwort["angaben"].append({"text": "Das Autohaus untersuchte das Fahrzeug am 27.06.2025.",
+                                   "haltung": "behauptet", "absatz": absatz(prompt, "Augenschein"),
+                                   "zitat": "wir haben das Fahrzeug am 27.06.2025 kurz in Augenschein genommen"})
+    return antwort
+
+
+def test_chronologie_mit_belegtem_datum(akten, con, tmp_path):
+    akte_id, ids = _akte(akten, con, tmp_path)
+    pfad = tmp_path / "07_Replik.md"
+    pfad.write_text(REPLIK, encoding="utf-8")
+    ids["07"] = akte.importiere(akten, con, akte_id, pfad, tmp_path / "ablage", ocr=False, tags=["Kläger"])["dokument_id"]
+    modell = Attrappe(chronologie_antwort)
+    ergebnis = Analyse(akten, modell).chronologie(akte_id)
+
+    zeilen = [(e["anzeige"], e["art"], e["ereignis"], e["status"], e["streitig"]) for e in ergebnis["ereignisse"]]
+    assert zeilen == [
+        ("27.06.2025", "ereignis", "Untersuchung beim Autohaus", "belegt", False),
+        ("02.07.2025", "ereignis", "Telefonisches Nachbesserungsangebot", "belegt", True),
+        ("05.07.2025", "frist", "Erfundenes Datum", "ohne_beleg", False),
+        ("15.01.2026", "dokument", "Replik", "belegt", False),
+    ]
+    assert ergebnis["verworfen"] == 3  # ohne Datum, erfundene Kennung, Datum nicht im Kopf des Kaufvertrags
+    assert ergebnis["angaben"] == 3  # nur datierte Angaben
+    angebot = ergebnis["ereignisse"][1]
+    assert [q["fundstelle"]["dokument_id"] for q in angebot["quellen"]] == [ids["06"], ids["07"]]
+    replik = ergebnis["ereignisse"][3]["quellen"][0]["fundstelle"]
+    assert replik["ausschnitt"]["wert"] == "15.01.2026" and replik["dokument_id"] == ids["07"]
+
+    # Die Tatsachenangaben teilt die Chronologie mit der Widerspruchssuche: keine neuen Anfragen dafür.
+    anzahl = len(modell.anfragen)
+    Analyse(akten, modell).widersprueche(akte_id)
+    assert len(modell.anfragen) == anzahl + 1
+    assert speicher.ergebnisse(akten, akte_id, modell.modell)["chronologie"]["ereignisse"][0]["datum"] == "2025-06-27"
+
+
+def test_chronologie_monat_wie_im_dokument():
+    from juracore.ki.chronologie import _anzeige, im_text, lies_datum
+
+    monat = lies_datum("Juni 2025")
+    treffer = im_text(monat, "Sie beschwerte sich erstmals Mitte Juni 2025.")
+    text = "Sie beschwerte sich erstmals Mitte Juni 2025."
+    assert _anzeige(monat, text[treffer.start:treffer.ende]) == "Mitte Juni 2025"
+    assert im_text(monat, "am 12.06.2025") is not None and im_text(monat, "am 12.07.2025") is None
+    assert im_text(lies_datum("12.05.2025"), "Mai 2025") is None
+
+
+def test_probelauf_mit_chronologie(tmp_path, monkeypatch, capsys):
+    from juracore.ki import pruefen
+
+    ordner = tmp_path / "Akte"
+    (ordner / "Kläger").mkdir(parents=True)
+    (ordner / "Beklagter").mkdir()
+    (ordner / "Kläger" / "01_Kaufvertrag.md").write_text(KAUFVERTRAG, encoding="utf-8")
+    (ordner / "Beklagter" / "03_Antwortschreiben.md").write_text(ANTWORTSCHREIBEN, encoding="utf-8")
+    (ordner / "Beklagter" / "06_Klageerwiderung.md").write_text(KLAGEERWIDERUNG, encoding="utf-8")
+    (ordner / "Kläger" / "07_Replik.md").write_text(REPLIK, encoding="utf-8")
+    erwartungen = tmp_path / "erwartungen.json"
+    erwartungen.write_text(json.dumps({"widersprueche": [], "chronologie": [
+        {"datum": "2025-06-27", "ereignis": "Untersuchung", "dok": ["03"]},
+        {"datum": "2026-01-15", "ereignis": "Replik", "dok": ["07"]},
+        {"datum": "2025-07-15", "ereignis": "Rücktritt", "dok": ["04"]},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(anbieter, "status", lambda e: {"bereit": True, "anbieter_titel": "Attrappe"})
+    monkeypatch.setattr(anbieter, "erzeuge", lambda e: Attrappe(chronologie_antwort))
+    monkeypatch.chdir(tmp_path)
+
+    e = anbieter.KiEinstellungen("ollama", "http://127.0.0.1:11434", "attrappe:1b")
+    assert pruefen.main(ordner, e, erwartungen, False, chronologie=True) == 0
+    aus = capsys.readouterr().out
+    assert "Telefonisches Nachbesserungsangebot (streitig)" in aus
+    assert "Erfundenes Datum (Datum ohne Beleg)" in aus
+    assert "Chronologie: 2 von 3 erwarteten Ereignissen gefunden" in aus
+    assert "fehlt: 2025-07-15 Rücktritt (04)" in aus
+    protokoll = json.loads((tmp_path / "ki-pruefen-protokoll.json").read_text(encoding="utf-8"))
+    assert len(protokoll["chronologie"]["ereignisse"]) == 4

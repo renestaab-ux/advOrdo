@@ -69,8 +69,8 @@ def schreibe(
 
 
 def ergebnisse(con: sqlite3.Connection, akte_id: int, modell: str) -> dict:
-    """Die gespeicherten Ergebnisse einer Akte für ein Modell: Akte, Widersprüche (ganze Akte), je Dokument."""
-    aus: dict = {"zusammenfassung_akte": None, "widersprueche": None, "dokumente": {}}
+    """Gespeicherte Ergebnisse einer Akte für ein Modell: Akte, Widersprüche, Chronologie, je Dokument."""
+    aus: dict = {"zusammenfassung_akte": None, "widersprueche": None, "chronologie": None, "dokumente": {}}
     for z in con.execute(
         """SELECT aufgabe, dokument_id, ergebnis FROM ki_ergebnis
            WHERE akte_id = ? AND modell = ? AND bezug = '' ORDER BY erstellt_am""",

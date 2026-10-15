@@ -60,7 +60,14 @@ def _getroffen(erwartet: dict, treffer_listen: list[list[dict]], texte: dict[tup
     return len(_abdeckung(erwartet, treffer_listen, texte)) >= 2
 
 
-def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zusammenfassung: bool) -> int:
+def _chronologie_getroffen(soll: dict, ereignisse: list[dict]) -> bool:
+    """Ein erwartetes Ereignis gilt als gefunden, wenn ein Eintrag dasselbe Datum hat und eines der Dokumente nennt."""
+    return any(e["datum"] == soll["datum"] and any(q["fundstelle"]["dateiname"].startswith(tuple(soll["dok"]))
+                                                   for q in e["quellen"]) for e in ereignisse)
+
+
+def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zusammenfassung: bool,
+         chronologie: bool = False) -> int:
     # Pfade vor dem langen Lauf prüfen, nicht erst danach.
     if not Path(ordner).is_dir():
         print(f"Ordner nicht gefunden: {ordner}", file=sys.stderr)
@@ -93,7 +100,8 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
             protokoll = Path.cwd() / "ki-pruefen-protokoll.json"
             protokoll.write_text(json.dumps(
                 {"modell": e.modell, "anbieter": e.anbieter, "kontext": e.kontext,
-                 "angaben": [analyse.angaben(i, ziel=False) for i in ids], "ergebnis": ergebnis},
+                 "angaben": [analyse.angaben(i, ziel=False) for i in ids], "ergebnis": ergebnis,
+                 "chronologie": analyse.chronologie(akte_id) if chronologie else None},
                 ensure_ascii=False, indent=1), encoding="utf-8")
             print(f"\n{ergebnis['angaben']} Tatsachenangaben mit Beleg, {ergebnis['verworfen']} ohne auffindbares "
                   f"Zitat verworfen.\n{len(ergebnis['widersprueche'])} mögliche Widersprüche:\n")
@@ -108,6 +116,17 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
                 for a in z["aussagen"]:
                     orte = "; ".join(_ort(f) for f in a["fundstellen"]) or "OHNE BELEG"
                     print(f"- [{a['art']}] {a['text']} ({orte})")
+                print()
+            chrono = None
+            if chronologie:
+                chrono = analyse.chronologie(akte_id)
+                print(f"Chronologie ({len(chrono['ereignisse'])} Einträge, {chrono['verworfen']} verworfen):")
+                for c in chrono["ereignisse"]:
+                    merk = [m for m, an in (("streitig", c["streitig"]), ("Datum ohne Beleg", c["status"] != "belegt"))
+                            if an]
+                    orte = "; ".join(_ort(q["fundstelle"]) for q in c["quellen"])
+                    print(f"- {c['anzeige']:>16}  [{c['art']}] {c['ereignis']}"
+                          f"{' (' + ', '.join(merk) + ')' if merk else ''}  – {orte}")
                 print()
             if erwartungen:
                 soll = json.loads(Path(erwartungen).read_text(encoding="utf-8"))
@@ -131,6 +150,12 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
                         if teil:
                             print(f"  {w['id']} teilweise: Fundstelle aus {', '.join(teil)} genannt, "
                                   f"aus {', '.join(fehlt)} nicht")
+                if chrono is not None and soll.get("chronologie"):
+                    liste = soll["chronologie"]
+                    fehlt = [c for c in liste if not _chronologie_getroffen(c, chrono["ereignisse"])]
+                    print(f"Chronologie: {len(liste) - len(fehlt)} von {len(liste)} erwarteten Ereignissen gefunden")
+                    for c in fehlt:
+                        print(f"  fehlt: {c['datum']} {c['ereignis']} ({', '.join(c['dok'])})")
             print(f"\nDauer: {(time.monotonic() - beginn) / 60:.1f} min. Protokoll: {protokoll}")
         finally:
             akten.close()
