@@ -177,6 +177,10 @@ def test_einstellungen_speichern_und_laden(tmp_path):
 def test_antwort_mit_denkabschnitt_und_codezaun():
     assert anbieter.lies_json('<think>hm</think>\n```json\n{"a": 1}\n```') == {"a": 1}
     assert anbieter.lies_json('Hier: {"a": [1]} fertig') == {"a": [1]}
+    for text, abgeschnitten, meldung in (("", False, "leer"), ('{"angaben": [{"text": "x', False, "mitten im JSON"),
+                                         ('{"a": 1}', True, "abgeschnitten")):
+        with pytest.raises(anbieter.KiFehler, match=meldung):
+            anbieter.lies_json(text, abgeschnitten)
     with pytest.raises(anbieter.KiFehler):
         anbieter.lies_json("keine Ahnung")
 

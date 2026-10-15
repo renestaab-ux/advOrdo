@@ -146,15 +146,24 @@ class _Http:
             raise KiFehler(f"{self.titel} hat keine gültige JSON-Antwort geliefert.") from fehler
 
 
-def lies_json(text: str) -> dict:
-    """Die Antwort als JSON-Objekt; Denkabschnitte (<think>…</think>) und Code-Zäune werden entfernt."""
+def lies_json(text: str, abgeschnitten: bool = False) -> dict:
+    """Die Antwort als JSON-Objekt; Denkabschnitte (<think>…</think>) und Code-Zäune werden entfernt.
+
+    ``abgeschnitten``: Das Programm meldet, dass die Antwort an der Längengrenze endete.
+    """
+    if abgeschnitten:
+        raise KiFehler("Die Antwort des Modells ist abgeschnitten (Längengrenze erreicht), kein vollständiges JSON.")
+    if not text.strip():
+        raise KiFehler("Die Antwort des Modells ist leer, kein JSON.")
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text).strip()
     try:
         wert = json.loads(text)
     except ValueError:
         start, ende = text.find("{"), text.rfind("}")
-        if start < 0 or ende <= start:
+        if start >= 0 and ende <= start:
+            raise KiFehler("Die Antwort des Modells bricht mitten im JSON ab.") from None
+        if start < 0:
             raise KiFehler("Die Antwort des Modells ist kein JSON.") from None
         try:
             wert = json.loads(text[start : ende + 1])
@@ -208,7 +217,7 @@ class Ollama:
         if self._kann_denken():
             daten["think"] = False
         antwort = self.http.anfrage("/api/chat", daten)
-        return lies_json((antwort.get("message") or {}).get("content", ""))
+        return lies_json((antwort.get("message") or {}).get("content", ""), antwort.get("done_reason") == "length")
 
 
 class OpenAIKompatibel:
@@ -239,7 +248,8 @@ class OpenAIKompatibel:
             },
         )
         auswahl = antwort.get("choices") or [{}]
-        return lies_json((auswahl[0].get("message") or {}).get("content") or "")
+        inhalt = (auswahl[0].get("message") or {}).get("content") or ""
+        return lies_json(inhalt, auswahl[0].get("finish_reason") == "length")
 
 
 def erzeuge(e: KiEinstellungen) -> Anbieter:
