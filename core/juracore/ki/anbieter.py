@@ -146,6 +146,11 @@ class _Http:
             raise KiFehler(f"{self.titel} hat keine gültige JSON-Antwort geliefert.") from fehler
 
 
+# Höchstlänge einer Antwort in Token. Reicht für jede Aufgabe der Analyse; ein Modell, das sich in einer
+# Wiederholung verfängt, bricht so nach Sekunden statt nach Minuten ab und wird erneut gefragt.
+ANTWORT_TOKEN = 4096
+
+
 def lies_json(text: str, abgeschnitten: bool = False) -> dict:
     """Die Antwort als JSON-Objekt; Denkabschnitte (<think>…</think>) und Code-Zäune werden entfernt.
 
@@ -211,7 +216,7 @@ class Ollama:
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
             "stream": False,
             "format": schema,
-            "options": {"temperature": 0, "seed": 42, "num_ctx": self.kontext},
+            "options": {"temperature": 0, "seed": 42, "num_ctx": self.kontext, "num_predict": ANTWORT_TOKEN},
             "keep_alive": "15m",
         }
         if self._kann_denken():
@@ -243,6 +248,7 @@ class OpenAIKompatibel:
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
                 "temperature": 0,
                 "seed": 42,
+                "max_tokens": ANTWORT_TOKEN,
                 "stream": False,
                 "response_format": {"type": "json_schema", "json_schema": {"name": "antwort", "schema": schema}},
             },

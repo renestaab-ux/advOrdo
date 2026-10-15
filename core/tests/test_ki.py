@@ -431,7 +431,7 @@ def test_ollama_ueber_http(server):
     assert pfad == "/api/chat"
     assert gesendet["format"] == {"type": "object"} and gesendet["stream"] is False
     assert gesendet["think"] is False  # Denkendes Modell: Denkphase aus
-    assert gesendet["options"] == {"temperature": 0, "seed": 42, "num_ctx": 8192}
+    assert gesendet["options"] == {"temperature": 0, "seed": 42, "num_ctx": 8192, "num_predict": 4096}
 
     with pytest.raises(anbieter.KiFehler, match="not found"):
         anbieter.erzeuge(anbieter.KiEinstellungen("ollama", server, "gibtsnicht")).chat("s", "n", {})
@@ -445,6 +445,7 @@ def test_lm_studio_ueber_http(server):
     pfad, gesendet = _Server.anfragen[-1]
     assert pfad == "/v1/chat/completions"
     assert gesendet["response_format"]["json_schema"]["schema"] == {"type": "object"}
+    assert gesendet["max_tokens"] == 4096
 
 
 def test_nicht_erreichbar():
