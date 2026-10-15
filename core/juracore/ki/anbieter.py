@@ -146,18 +146,21 @@ class _Http:
             raise KiFehler(f"{self.titel} hat keine gültige JSON-Antwort geliefert.") from fehler
 
 
-# Höchstlänge einer Antwort in Token. Reicht für jede Aufgabe der Analyse; ein Modell, das sich in einer
-# Wiederholung verfängt, bricht so nach Sekunden statt nach Minuten ab und wird erneut gefragt.
-ANTWORT_TOKEN = 4096
+# Höchstlänge einer Antwort in Token. Reicht für jede Aufgabe der Analyse, auch wenn das Programm eine Denkphase
+# mitzählt; ein Modell, das sich in einer Wiederholung verfängt, bricht so nach wenigen Minuten ab.
+ANTWORT_TOKEN = 8192
 
 
-def lies_json(text: str, abgeschnitten: bool = False) -> dict:
+def lies_json(text: str, abgeschnitten: bool = False, denken: int = 0) -> dict:
     """Die Antwort als JSON-Objekt; Denkabschnitte (<think>…</think>) und Code-Zäune werden entfernt.
 
     ``abgeschnitten``: Das Programm meldet, dass die Antwort an der Längengrenze endete.
+    ``denken``: Zeichen der Denkphase, soweit das Programm sie getrennt liefert (nur für die Meldung).
     """
     if abgeschnitten:
-        raise KiFehler("Die Antwort des Modells ist abgeschnitten (Längengrenze erreicht), kein vollständiges JSON.")
+        anteil = f"; Denkphase {denken} Zeichen, Antwort {len(text)} Zeichen" if denken else f"; {len(text)} Zeichen"
+        raise KiFehler(f"Die Antwort des Modells ist abgeschnitten (Längengrenze erreicht{anteil}), kein vollständiges "
+                       "JSON.")
     if not text.strip():
         raise KiFehler("Die Antwort des Modells ist leer, kein JSON.")
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
@@ -222,7 +225,9 @@ class Ollama:
         if self._kann_denken():
             daten["think"] = False
         antwort = self.http.anfrage("/api/chat", daten)
-        return lies_json((antwort.get("message") or {}).get("content", ""), antwort.get("done_reason") == "length")
+        nachricht = antwort.get("message") or {}
+        return lies_json(nachricht.get("content", ""), antwort.get("done_reason") == "length",
+                         len(nachricht.get("thinking") or ""))
 
 
 class OpenAIKompatibel:
@@ -254,8 +259,9 @@ class OpenAIKompatibel:
             },
         )
         auswahl = antwort.get("choices") or [{}]
-        inhalt = (auswahl[0].get("message") or {}).get("content") or ""
-        return lies_json(inhalt, auswahl[0].get("finish_reason") == "length")
+        nachricht = auswahl[0].get("message") or {}
+        denken = len(nachricht.get("reasoning_content") or nachricht.get("reasoning") or "")
+        return lies_json(nachricht.get("content") or "", auswahl[0].get("finish_reason") == "length", denken)
 
 
 def erzeuge(e: KiEinstellungen) -> Anbieter:

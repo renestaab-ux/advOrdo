@@ -274,6 +274,34 @@ def test_unbrauchbarer_teil_bricht_nicht_ab(akten, con, tmp_path):
     assert Analyse(akten, modell).widersprueche(akte_id)["gespeichert"] is True
 
 
+def test_abgeschnittene_angaben_werden_in_kleineren_stuecken_erfragt(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Lang")
+    pfad = tmp_path / "lang.md"
+    pfad.write_text("\n\n".join(f"({i}) Absatz {i}: Die Klägerin trägt vor." for i in range(1, 5)), encoding="utf-8")
+    d = akte.importiere(akten, con, a["id"], pfad, tmp_path / "ablage", ocr=False)["dokument_id"]
+
+    def antwort(prompt, schema):
+        # Mehr als zwei Absätze auf einmal sind dem Modell zu lang, Absatz 4 gelingt nie.
+        absaetze = re.findall(r"^\[(\d+)\] ", prompt, re.M)
+        if len(absaetze) > 2 or "4" in absaetze:
+            raise anbieter.KiFehler("Die Antwort des Modells ist abgeschnitten (Längengrenze erreicht), kein JSON.")
+        return {"angaben": [{"text": f"Angabe {n}.", "haltung": "behauptet", "absatz": int(n),
+                             "zitat": f"Absatz {n}: Die Klägerin trägt vor."} for n in absaetze]}
+
+    modell = Attrappe(antwort)
+    ergebnis = Analyse(akten, modell).angaben(d)
+    # Abgeschnitten wird nicht wörtlich wiederholt, sondern halbiert: 1–4, 1–2, 3–4, 3, 4.
+    assert len(modell.anfragen) == 5
+    assert [x["text"] for x in ergebnis["angaben"]] == ["Angabe 1.", "Angabe 2.", "Angabe 3."]
+    assert ergebnis["luecken"] == ["4"] and ergebnis["gespeichert"] is False
+    assert "(Absätze 3 bis 4)" in modell.anfragen[2]
+
+
+def test_abgeschnitten_nennt_denkphase():
+    with pytest.raises(anbieter.KiFehler, match="Denkphase 5000 Zeichen, Antwort 8 Zeichen"):
+        anbieter.lies_json('{"a": [1', True, 5000)
+
+
 def test_nicht_erreichbar_bricht_weiter_ab(akten, con, tmp_path):
     akte_id, _ = _akte(akten, con, tmp_path)
 
@@ -465,7 +493,7 @@ def test_ollama_ueber_http(server):
     assert pfad == "/api/chat"
     assert gesendet["format"] == {"type": "object"} and gesendet["stream"] is False
     assert gesendet["think"] is False  # Denkendes Modell: Denkphase aus
-    assert gesendet["options"] == {"temperature": 0, "seed": 42, "num_ctx": 8192, "num_predict": 4096}
+    assert gesendet["options"] == {"temperature": 0, "seed": 42, "num_ctx": 8192, "num_predict": 8192}
 
     with pytest.raises(anbieter.KiFehler, match="not found"):
         anbieter.erzeuge(anbieter.KiEinstellungen("ollama", server, "gibtsnicht")).chat("s", "n", {})
@@ -479,7 +507,7 @@ def test_lm_studio_ueber_http(server):
     pfad, gesendet = _Server.anfragen[-1]
     assert pfad == "/v1/chat/completions"
     assert gesendet["response_format"]["json_schema"]["schema"] == {"type": "object"}
-    assert gesendet["max_tokens"] == 4096
+    assert gesendet["max_tokens"] == 8192
 
 
 def test_nicht_erreichbar():
@@ -667,6 +695,13 @@ def test_probelauf_mit_chronologie(tmp_path, monkeypatch, capsys):
     assert "Telefonisches Nachbesserungsangebot (streitig)" in aus
     assert "Erfundenes Datum (Datum ohne Beleg)" in aus
     assert "Chronologie: 2 von 3 erwarteten Ereignissen gefunden" in aus
+
+    # Zweiter Lauf auf unveränderter Testakte: nichts wird neu eingelesen oder neu gefragt.
+    modell = Attrappe(chronologie_antwort)
+    monkeypatch.setattr(anbieter, "erzeuge", lambda e: modell)
+    assert pruefen.main(ordner, e, erwartungen, False, chronologie=True) == 0
+    assert modell.anfragen == []
+    assert "Lese " not in capsys.readouterr().err
     assert "fehlt: 2025-07-15 Rücktritt (04)" in aus
     protokoll = json.loads((tmp_path / "ki-pruefen-protokoll.json").read_text(encoding="utf-8"))
     assert len(protokoll["chronologie"]["ereignisse"]) == 4

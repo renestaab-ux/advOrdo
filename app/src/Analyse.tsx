@@ -418,7 +418,13 @@ function ErgebnisKopf({
   veraltet,
   text,
 }: {
-  ergebnis: { modell: string; erstellt_am: string; teile?: number; luecken?: number[] };
+  ergebnis: {
+    modell: string;
+    erstellt_am: string;
+    teile?: number;
+    luecken?: number[];
+    luecken_dokumente?: { dateiname: string; absaetze: string[] }[];
+  };
   veraltet: boolean;
   text: string;
 }) {
@@ -437,6 +443,12 @@ function ErgebnisKopf({
           versucht es erneut.
         </p>
       )}
+      {(ergebnis.luecken_dokumente ?? []).map((d) => (
+        <p className="hinweis" key={d.dateiname}>
+          Unvollständig: Aus {d.dateiname} fehlen die Angaben von Absatz {d.absaetze.join(", ")}, weil das Modell dort
+          unbrauchbar geantwortet hat. Das Ergebnis wurde nicht gespeichert.
+        </p>
+      ))}
     </>
   );
 }

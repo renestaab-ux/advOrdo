@@ -38,7 +38,7 @@ from .anbieter import ANTWORT_TOKEN, Anbieter, KiFehler
 log = logging.getLogger("juracore.ki")
 
 # Fassung der Anweisungen je Aufgabe; eine Änderung macht gespeicherte Ergebnisse ungültig.
-FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 2, "widersprueche": 3,
+FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 3, "widersprueche": 3,
            "chronologie": 1}
 
 # Zeichen Angaben je Vergleichsanfrage. Mittelgroße Modelle (12–14 B) übersehen in langen Listen viel; kleinere
@@ -214,7 +214,9 @@ class Analyse:
         try:
             return self.anbieter.chat(SYSTEM, nutzer, schema)
         except KiFehler as fehler:
-            if "JSON" not in str(fehler):
+            # Abgeschnitten ist eine Antwort auch beim zweiten Mal (gleiche Anfrage, Temperatur 0); das löst der
+            # Aufrufer, etwa durch kleinere Stücke.
+            if "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
                 raise
             log.warning("Unbrauchbare Antwort, frage erneut: %s", fehler)
             self.fortschritt.pruefe()
@@ -245,7 +247,7 @@ class Analyse:
             return alt
         ergebnis = berechne()
         ergebnis.update(modell=self.modell, erstellt_am=_jetzt())
-        if ergebnis.get("luecken"):
+        if ergebnis.get("luecken") or ergebnis.get("unvollstaendig"):
             ergebnis["gespeichert"] = False
             return ergebnis  # unvollständig: nicht speichern, der nächste Lauf fragt erneut
         speicher.schreibe(self.con, key, aufgabe, self.modell, ergebnis, akte_id, dokument_id, bezug)
@@ -401,26 +403,44 @@ class Analyse:
             lambda: self._sammle_angaben(t), self._akte(dokument_id), dokument_id, ziel=ziel,
         )
 
+    def _angaben_anweisung(self, t: belege.Text, stueck: list) -> str:
+        teil = "" if len(stueck) == len(t.abschnitte) else f" (Absätze {stueck[0]['nr']} bis {stueck[-1]['nr']})"
+        return (
+            f"{_kopf(t)}{teil}\n\n"
+            "Aufgabe: Liste die Tatsachenangaben dieses Textes, damit sie mit anderen Dokumenten der Akte "
+            "verglichen werden können. Gemeint ist, wer wann was getan, gesagt, angeboten, abgelehnt, "
+            "erklärt oder erhalten hat, sowie Eigenschaften, Ausstattung und Zustand von Sachen. Nicht gemeint "
+            "sind Rechtsansichten, Anträge, Beweisangebote, Anschriften und Grußformeln.\n"
+            "- Formuliere jede Angabe als vollständigen Satz, der ohne das Dokument verständlich ist "
+            "(Namen statt Pronomen, Datum, wenn genannt).\n"
+            "- haltung: behauptet (der Verfasser stellt es als wahr dar), bestritten (der Verfasser bestreitet "
+            "es), unstreitig (ausdrücklich unstreitig), festgestellt (vom Gericht festgestellt).\n"
+            f"- Höchstens 25 Angaben.\n\n{BELEGREGEL}\n\n"
+            f"Text (jede Zeile ein Absatz, vorn seine Nummer):\n{belege.zeilen(stueck)}"
+        )
+
     def _sammle_angaben(self, t: belege.Text) -> dict:
         stuecke = belege.teile_auf(t.abschnitte, min(self.budget, ANGABEN_STUECK))
         angaben: list[dict] = []
         verworfen = 0
-        for i, stueck in enumerate(stuecke, 1):
-            teil = f" (Teil {i} von {len(stuecke)})" if len(stuecke) > 1 else ""
-            antwort = self._frage(
-                f"{_kopf(t)}{teil}\n\n"
-                "Aufgabe: Liste die Tatsachenangaben dieses Textes, damit sie mit anderen Dokumenten der Akte "
-                "verglichen werden können. Gemeint ist, wer wann was getan, gesagt, angeboten, abgelehnt, "
-                "erklärt oder erhalten hat, sowie Eigenschaften, Ausstattung und Zustand von Sachen. Nicht gemeint "
-                "sind Rechtsansichten, Anträge, Beweisangebote, Anschriften und Grußformeln.\n"
-                "- Formuliere jede Angabe als vollständigen Satz, der ohne das Dokument verständlich ist "
-                "(Namen statt Pronomen, Datum, wenn genannt).\n"
-                "- haltung: behauptet (der Verfasser stellt es als wahr dar), bestritten (der Verfasser bestreitet "
-                "es), unstreitig (ausdrücklich unstreitig), festgestellt (vom Gericht festgestellt).\n"
-                f"- Höchstens 25 Angaben.\n\n{BELEGREGEL}\n\n"
-                f"Text (jede Zeile ein Absatz, vorn seine Nummer):\n{belege.zeilen(stueck)}",
-                SCHEMA_ANGABEN,
-            )
+        luecken: list[str] = []  # Absätze, deren Angaben fehlen, weil das Modell unbrauchbar antwortete
+        offen = list(reversed(stuecke))
+        while offen:
+            stueck = offen.pop()
+            try:
+                antwort = self._frage(self._angaben_anweisung(t, stueck), SCHEMA_ANGABEN)
+            except KiFehler as fehler:
+                if "JSON" not in str(fehler):
+                    raise
+                if len(stueck) > 1:
+                    # Kürzerer Text, kürzere Antwort: das Stück halbieren und beide Hälften einzeln fragen.
+                    log.warning("Teile das Stück und frage erneut: %s", fehler)
+                    mitte = len(stueck) // 2
+                    offen += [stueck[mitte:], stueck[:mitte]]
+                    continue
+                log.warning("Absatz %s übersprungen: %s", stueck[0]["nr"], fehler)
+                luecken.append(str(stueck[0]["nr"]))
+                continue
             for a in antwort.get("angaben") or []:
                 if not isinstance(a, dict) or not str(a.get("text", "")).strip():
                     continue
@@ -430,7 +450,8 @@ class Analyse:
                     continue
                 haltung = a.get("haltung") if a.get("haltung") in HALTUNGEN else "behauptet"
                 angaben.append({"text": str(a["text"]).strip(), "haltung": haltung, "fundstelle": fundstelle})
-        return {"dokument_id": t.dokument_id, "dateiname": t.dateiname, "angaben": angaben, "verworfen": verworfen}
+        return {"dokument_id": t.dokument_id, "dateiname": t.dateiname, "angaben": angaben, "verworfen": verworfen,
+                "luecken": luecken}
 
     def widersprueche(self, akte_id: int, dokument_ids: list[int] | None = None) -> dict:
         ids = self._dokument_ids(akte_id, dokument_ids)
@@ -553,12 +574,19 @@ class Analyse:
         return {
             "dokumente": [{"dokument_id": e["dokument_id"], "dateiname": e["dateiname"],
                            "angaben": len(e["angaben"]), "verworfen": e["verworfen"]} for e in je_dokument],
+            "unvollstaendig": bool(luecken) or any(e.get("luecken") for e in je_dokument),
+            "luecken_dokumente": _luecken_dokumente(je_dokument),
             "angaben": len(alle),
             "verworfen": sum(e["verworfen"] for e in je_dokument),
             "teile": len(gruppen),
             "luecken": luecken,
             "widersprueche": widersprueche,
         }
+
+
+def _luecken_dokumente(je_dokument: list[dict]) -> list[dict]:
+    """Dokumente, aus denen Absätze fehlen, weil das Modell dort unbrauchbar antwortete."""
+    return [{"dateiname": e["dateiname"], "absaetze": e["luecken"]} for e in je_dokument if e.get("luecken")]
 
 
 def _fasse_zusammen(treffer: list[dict]) -> list[dict]:

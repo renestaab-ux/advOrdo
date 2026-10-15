@@ -178,6 +178,9 @@ def erstelle(
         del e["nummern"]
     return {
         "dokumente": [{"dokument_id": t.dokument_id, "dateiname": t.dateiname} for t in koepfe],
+        "unvollstaendig": bool(luecken) or any(e.get("luecken") for e in je_dokument),
+        "luecken_dokumente": [{"dateiname": e["dateiname"], "absaetze": e["luecken"]}
+                              for e in je_dokument if e.get("luecken")],  # wie analyse._luecken_dokumente
         "angaben": len(alle),
         "verworfen": verworfen,
         "teile": len(bloecke),

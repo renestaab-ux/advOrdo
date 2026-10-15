@@ -387,6 +387,8 @@ interface KiErgebnisKopf {
   teile?: number;
   /** Teile, die das Modell auch beim zweiten Versuch unbrauchbar beantwortet hat; dann nicht gespeichert. */
   luecken?: number[];
+  /** Dokumente, aus denen Absätze fehlen, weil das Modell dort unbrauchbar antwortete. */
+  luecken_dokumente?: { dateiname: string; absaetze: string[] }[];
 }
 
 export interface KiZusammenfassung extends KiErgebnisKopf {

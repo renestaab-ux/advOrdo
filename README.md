@@ -222,7 +222,8 @@ geht genauso: dort den lokalen Server starten und in den Einstellungen „LM Stu
 .venv\Scripts\juracore ki-pruefen "Pfad\zu\Brückner_gegen_Autohaus" --erwartungen "Pfad\zu\erwartungen.json" --zusammenfassung
 ```
 
-liest den Ordner in eine vorübergehende Akte (die Akten der App bleiben unberührt), sucht
+liest den Ordner in eine eigene Akte im Unterordner `ki-pruefen-daten` des aktuellen Verzeichnisses
+(die Akten der App bleiben unberührt), sucht
 Widersprüche, gibt sie mit Fundstellen aus und zählt, welche der erwarteten (W1 bis W8) gefunden
 wurden. Mit `--modell gemma3:12b` lässt sich ein anderes Modell vergleichen, mit
 `--anbieter lmstudio` nimmt der Probelauf LM Studio statt Ollama (ohne `--modell` das erste
@@ -230,6 +231,10 @@ geladene Modell), mit `--kontext 32768` einen größeren Kontext (bei LM Studio 
 beim Laden des Modells einstellen). Mit `--chronologie` erstellt der Probelauf zusätzlich die
 Chronologie und vergleicht sie mit den erwarteten Ereignissen aus `erwartungen.json`.
 `juracore ki-status` kennt dieselben Optionen.
+
+Die Antworten des Modells bleiben in `ki-pruefen-daten` gespeichert, solange sich die Testakte nicht
+ändert und Modell und Kontext gleich bleiben. Ein abgebrochener Lauf setzt dadurch beim nächsten Mal
+dort fort, wo er stehen geblieben ist. Für einen Neuanfang den Ordner löschen.
 
 ## Wissensbasis: Gesetze
 
