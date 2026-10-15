@@ -383,6 +383,10 @@ interface KiErgebnisKopf {
   modell: string;
   erstellt_am: string;
   gespeichert: boolean;
+  /** Anzahl der Anfragen bei Widersprüchen und Chronologie. */
+  teile?: number;
+  /** Teile, die das Modell auch beim zweiten Versuch unbrauchbar beantwortet hat; dann nicht gespeichert. */
+  luecken?: number[];
 }
 
 export interface KiZusammenfassung extends KiErgebnisKopf {

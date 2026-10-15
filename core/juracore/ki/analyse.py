@@ -220,6 +220,20 @@ class Analyse:
             self.fortschritt.pruefe()
             return self.anbieter.chat(SYSTEM, nutzer, schema)
 
+    def _frage_oder_luecke(self, teil: int, luecken: list[int], nutzer: str, schema: dict) -> dict | None:
+        """Wie _frage, aber eine auch beim zweiten Versuch unbrauchbare Antwort bricht den Lauf nicht ab.
+
+        Der Teil wird in luecken vermerkt; das Ergebnis gilt dann als unvollständig und wird nicht gespeichert.
+        """
+        try:
+            return self._frage(nutzer, schema)
+        except KiFehler as fehler:
+            if "JSON" not in str(fehler):
+                raise
+            log.warning("Teil %d übersprungen, Antwort auch beim zweiten Versuch unbrauchbar: %s", teil, fehler)
+            luecken.append(teil)
+            return None
+
     def _gespeichert(
         self, aufgabe: str, eingabe: object, berechne: Callable[[], dict], akte_id: int | None,
         dokument_id: int | None = None, bezug: str = "", ziel: bool = True,
@@ -231,6 +245,9 @@ class Analyse:
             return alt
         ergebnis = berechne()
         ergebnis.update(modell=self.modell, erstellt_am=_jetzt())
+        if ergebnis.get("luecken"):
+            ergebnis["gespeichert"] = False
+            return ergebnis  # unvollständig: nicht speichern, der nächste Lauf fragt erneut
         speicher.schreibe(self.con, key, aufgabe, self.modell, ergebnis, akte_id, dokument_id, bezug)
         ergebnis["gespeichert"] = False
         return ergebnis
@@ -449,7 +466,8 @@ class Analyse:
                    + [belege.zeilen(chronologie.kopf(t)) for t in texte.values()])
         return self._gespeichert(
             "chronologie", eingabe,
-            lambda: chronologie.erstelle(self._frage, self.budget, je_dokument, texte, self.fortschritt.melde),
+            lambda: chronologie.erstelle(self._frage_oder_luecke, self.budget, je_dokument, texte,
+                                         self.fortschritt.melde),
             akte_id,
         )
 
@@ -478,12 +496,14 @@ class Analyse:
                 groesse += len(z) + 1
             gruppen = [a + b for a, b in combinations(bloecke, 2)]
         gefunden: dict[frozenset[int], dict] = {}
+        luecken: list[int] = []
         for g, gruppe in enumerate(gruppen, 1):
             if len(gruppe) < 2:
                 continue
             if len(gruppen) > 1:
                 self.fortschritt.melde(f"Vergleiche die Angaben (Teil {g} von {len(gruppen)})")
-            antwort = self._frage(
+            antwort = self._frage_oder_luecke(
+                g, luecken,
                 "Unten stehen Tatsachenangaben aus Dokumenten einer Akte. Jede hat eine Kennung, das Dokument, den "
                 "Beteiligten (falls bekannt) und die Haltung des Verfassers.\n\n"
                 "Aufgabe: Finde Angaben, die einander widersprechen, also nicht zugleich zutreffen können. Achte "
@@ -504,7 +524,7 @@ class Analyse:
                 "Angaben:\n" + "\n".join(zeilen[i] for i in gruppe),
                 SCHEMA_WIDERSPRUECHE,
             )
-            for w in antwort.get("widersprueche") or []:
+            for w in (antwort or {}).get("widersprueche") or []:
                 if not isinstance(w, dict):
                     continue
                 nummern = set()
@@ -535,6 +555,8 @@ class Analyse:
                            "angaben": len(e["angaben"]), "verworfen": e["verworfen"]} for e in je_dokument],
             "angaben": len(alle),
             "verworfen": sum(e["verworfen"] for e in je_dokument),
+            "teile": len(gruppen),
+            "luecken": luecken,
             "widersprueche": widersprueche,
         }
 

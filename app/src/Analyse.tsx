@@ -418,10 +418,11 @@ function ErgebnisKopf({
   veraltet,
   text,
 }: {
-  ergebnis: { modell: string; erstellt_am: string };
+  ergebnis: { modell: string; erstellt_am: string; teile?: number; luecken?: number[] };
   veraltet: boolean;
   text: string;
 }) {
+  const luecken = ergebnis.luecken ?? [];
   return (
     <>
       <p className="zusammenfassung">{text}</p>
@@ -429,6 +430,13 @@ function ErgebnisKopf({
         Erstellt {zeitpunkt(ergebnis.erstellt_am)} mit {ergebnis.modell}
         {veraltet && <span className="hinweis"> · Die Akte hat sich seitdem geändert, bitte neu berechnen.</span>}
       </p>
+      {luecken.length > 0 && (
+        <p className="hinweis">
+          Unvollständig: Teil {luecken.join(", ")} von {ergebnis.teile} hat das Modell auch beim zweiten Versuch
+          unbrauchbar beantwortet. Was dort steht, fehlt hier. Das Ergebnis wurde nicht gespeichert; neu berechnen
+          versucht es erneut.
+        </p>
+      )}
     </>
   );
 }

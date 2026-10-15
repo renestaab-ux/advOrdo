@@ -66,6 +66,13 @@ def _chronologie_getroffen(soll: dict, ereignisse: list[dict]) -> bool:
                                                    for q in e["quellen"]) for e in ereignisse)
 
 
+def _luecken(was: str, ergebnis: dict) -> None:
+    if ergebnis.get("luecken"):
+        teile = ", ".join(map(str, ergebnis["luecken"]))
+        print(f"\nACHTUNG {was} unvollständig: Teil {teile} von {ergebnis['teile']} hat das Modell auch beim zweiten "
+              "Versuch unbrauchbar beantwortet. Dort fehlende Treffer sind kein Befund.")
+
+
 def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zusammenfassung: bool,
          chronologie: bool = False) -> int:
     # Pfade vor dem langen Lauf prüfen, nicht erst danach.
@@ -95,14 +102,16 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
                                 tags=tags[datei["herkunft"]], herkunft=datei["herkunft"] or None)
             analyse = Analyse(akten, anbieter.erzeuge(e), e.kontext, _Ausgabe())
             ergebnis = analyse.widersprueche(akte_id)
+            chrono = analyse.chronologie(akte_id) if chronologie else None
             # Protokoll mit allen Tatsachenangaben je Dokument (gespeichert, keine neue Anfrage) zum Auswerten.
             ids = [z[0] for z in akten.execute("SELECT id FROM dokument WHERE akte_id = ? ORDER BY id", (akte_id,))]
             protokoll = Path.cwd() / "ki-pruefen-protokoll.json"
             protokoll.write_text(json.dumps(
                 {"modell": e.modell, "anbieter": e.anbieter, "kontext": e.kontext,
                  "angaben": [analyse.angaben(i, ziel=False) for i in ids], "ergebnis": ergebnis,
-                 "chronologie": analyse.chronologie(akte_id) if chronologie else None},
+                 "chronologie": chrono},
                 ensure_ascii=False, indent=1), encoding="utf-8")
+            _luecken("Widerspruchssuche", ergebnis)
             print(f"\n{ergebnis['angaben']} Tatsachenangaben mit Beleg, {ergebnis['verworfen']} ohne auffindbares "
                   f"Zitat verworfen.\n{len(ergebnis['widersprueche'])} mögliche Widersprüche:\n")
             for i, w in enumerate(ergebnis["widersprueche"], 1):
@@ -117,9 +126,8 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
                     orte = "; ".join(_ort(f) for f in a["fundstellen"]) or "OHNE BELEG"
                     print(f"- [{a['art']}] {a['text']} ({orte})")
                 print()
-            chrono = None
-            if chronologie:
-                chrono = analyse.chronologie(akte_id)
+            if chrono:
+                _luecken("Chronologie", chrono)
                 print(f"Chronologie ({len(chrono['ereignisse'])} Einträge, {chrono['verworfen']} verworfen):")
                 for c in chrono["ereignisse"]:
                     merk = [m for m, an in (("streitig", c["streitig"]), ("Datum ohne Beleg", c["status"] != "belegt"))

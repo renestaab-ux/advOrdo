@@ -116,7 +116,7 @@ def _herkunft(a: dict) -> str:
 
 
 def erstelle(
-    frage: Callable[[str, dict], dict],
+    frage: Callable[[int, list[int], str, dict], dict | None],
     budget: int,
     je_dokument: list[dict],
     texte: dict[int, belege.Text],
@@ -142,11 +142,13 @@ def erstelle(
 
     ereignisse: list[dict] = []
     verworfen = 0
+    luecken: list[int] = []  # Teile, für die das Modell auch beim zweiten Versuch unbrauchbar antwortete
     for b, block in enumerate(bloecke):
         if len(bloecke) > 1:
             melde(f"Ordne die Ereignisse (Teil {b + 1} von {len(bloecke)})")
         mit_koepfen = b == 0
         antwort = frage(
+            b + 1, luecken,
             ANWEISUNG.format(
                 koepfe=(" Danach folgen Anfang und Schluss jedes Dokuments (Kennung D…)." if mit_koepfen else ""),
                 dokumente=ANWEISUNG_DOKUMENTE if mit_koepfen else "- dokumente: leere Liste.\n",
@@ -154,7 +156,7 @@ def erstelle(
                 + (f"\n\nDokumentköpfe:\n{kopf_text}" if mit_koepfen else ""),
             ),
             SCHEMA,
-        )
+        ) or {}
         for e in antwort.get("ereignisse") or []:
             neu = _ereignis(e, block, alle, texte)
             if neu is None:
@@ -178,6 +180,8 @@ def erstelle(
         "dokumente": [{"dokument_id": t.dokument_id, "dateiname": t.dateiname} for t in koepfe],
         "angaben": len(alle),
         "verworfen": verworfen,
+        "teile": len(bloecke),
+        "luecken": luecken,
         "ereignisse": ergebnis,
     }
 

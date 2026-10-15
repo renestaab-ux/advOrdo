@@ -252,6 +252,40 @@ def test_widersprueche_ohne_zahl_oder_datum(akten, con, tmp_path):
     assert len(modell.anfragen) == anzahl + 1
 
 
+def test_unbrauchbarer_teil_bricht_nicht_ab(akten, con, tmp_path):
+    akte_id, _ = _akte(akten, con, tmp_path)
+
+    def antwort(prompt, schema):
+        if "widersprueche" in schema["properties"] or "ereignisse" in schema["properties"]:
+            raise anbieter.KiFehler("Die Antwort des Modells ist kein JSON.")
+        return modell_antwort(prompt, schema)
+
+    modell = Attrappe(antwort)
+    ergebnis = Analyse(akten, modell).widersprueche(akte_id)
+    # Beide Versuche unbrauchbar: Der Teil fehlt, der Lauf geht weiter, das Ergebnis wird nicht gespeichert.
+    assert ergebnis["luecken"] == [1] and ergebnis["teile"] == 1 and ergebnis["widersprueche"] == []
+    assert ergebnis["gespeichert"] is False
+    chrono = Analyse(akten, modell).chronologie(akte_id)
+    assert chrono["luecken"] == [1] and chrono["gespeichert"] is False
+
+    modell.antwort = modell_antwort
+    zweiter = Analyse(akten, modell).widersprueche(akte_id)
+    assert zweiter["luecken"] == [] and len(zweiter["widersprueche"]) == 2 and zweiter["gespeichert"] is False
+    assert Analyse(akten, modell).widersprueche(akte_id)["gespeichert"] is True
+
+
+def test_nicht_erreichbar_bricht_weiter_ab(akten, con, tmp_path):
+    akte_id, _ = _akte(akten, con, tmp_path)
+
+    def antwort(prompt, schema):
+        if "widersprueche" in schema["properties"]:
+            raise anbieter.KiFehler("Das Sprachmodell ist nicht erreichbar.")
+        return modell_antwort(prompt, schema)
+
+    with pytest.raises(anbieter.KiFehler):
+        Analyse(akten, Attrappe(antwort)).widersprueche(akte_id)
+
+
 def test_zusammenfassung_prueft_jeden_beleg(akten, con, tmp_path):
     _, ids = _akte(akten, con, tmp_path)
     ergebnis = Analyse(akten, Attrappe(modell_antwort)).zusammenfassung_dokument(ids["03"])
