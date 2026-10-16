@@ -130,6 +130,17 @@ Noch nicht erkannt werden Zitate ohne „§“/„Art.“
 Seitenzahlen, wenn sie Seitenumbrüche enthalten; sonst gilt die Randnummer bzw. der
 laufende Absatz („Abschn. 12“) als Fundstelle.
 
+### Dokumentansicht
+
+Ein geöffnetes Dokument lässt sich auf vier Arten zeigen:
+
+- **Text**: der gelesene Text mit Fundstellen und markierten Zitaten; ein Klick auf ein Normzitat zeigt den Wortlaut.
+- **Original** (nur PDF): die Seiten der abgelegten Originaldatei, wie sie gedruckt aussehen. Der Kern rendert sie
+  auf dem Gerät mit PDFium; nichts verlässt den Rechner. Wurde vorher ein Zitat gewählt, springt die Ansicht auf
+  dessen Seite, und der Wortlaut bleibt daneben stehen.
+- **Normen** und **Rechtsprechung**: wie die Reiter „Normen der Akte“ und „Rechtsprechung der Akte“, aber nur mit den
+  Zitaten aus diesem Dokument. Volltexte laden und Urteile ergänzen geht auch hier.
+
 ### Ordner, Beteiligte und Entfernen
 
 - **Ordner hinzufügen …** liest einen ganzen Ordner samt Unterordnern ein (PDF, DOCX, TXT, MD;

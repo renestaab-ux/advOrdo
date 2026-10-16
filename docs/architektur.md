@@ -129,6 +129,11 @@ verwendeten Stand; „Zitate neu prüfen“ prüft auch diese erneut. RPC: `akte
 `rechtsprechung.stand`, `rechtsprechung.laden`, `rechtsprechung.laden_datei`. Kommandozeile:
 `juracore rechtsprechung-laden [--datei]`, `juracore urteil "<zitat>"`.
 
+Dokumentansicht (`juracore.dokumente.ansicht`): `akten.seitenbild(dokument_id, seite, breite)` rendert eine Seite der
+abgelegten PDF-Kopie mit PDFium und gibt sie als PNG-Data-URL zurück (eigener PNG-Kodierer über `zlib`, kein Pillow;
+Breite 200 bis 2400 Pixel). Die Oberfläche hat keine Dateirechte; sie fordert nur die Seiten an, die sichtbar werden.
+`akten.normen` und `akten.rechtsprechung` nehmen optional `dokument_id`, um nur die Zitate eines Dokuments zu liefern.
+
 Volltexte zur Akte (`juracore.dokumente.urteile`, Schema 4): `urteil` (Gericht, Aktenzeichen, Datum, Quelle
 `manuell` oder `rii`, Herkunft wie „juris“, SHA-256, Pfad der unverändert abgelegten Datei) → `urteil_abschnitt`
 (Text mit Seite und Randnummer). `akten.rechtsprechung` ordnet jedem Zitat das vorliegende Urteil zu: gleiches Zitat

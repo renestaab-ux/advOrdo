@@ -399,8 +399,11 @@ def zitate_neu_pruefen(con: sqlite3.Connection, wissen: sqlite3.Connection, akte
     return {"dokumente": len(dokumente)}
 
 
-def rechtsprechung(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int) -> list[dict]:
-    """Alle in einer Akte zitierten Entscheidungen, mit Prüfergebnis und jeder Fundstelle."""
+def rechtsprechung(
+    con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int, dokument_id: int | None = None
+) -> list[dict]:
+    """Alle in einer Akte (oder nur in einem ihrer Dokumente) zitierten Entscheidungen, mit Prüfergebnis und
+    jeder Fundstelle."""
     with con:
         for r in con.execute(
             "SELECT id FROM dokument WHERE akte_id = ? AND urteile_erkannt IS NULL", (akte_id,)
@@ -409,8 +412,8 @@ def rechtsprechung(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id:
     zeilen = con.execute(
         """SELECT z.*, a.nr AS abschnitt, a.rn, d.id AS dokument_id, d.dateiname
            FROM urteilszitat z JOIN abschnitt a ON a.id = z.abschnitt_id JOIN dokument d ON d.id = a.dokument_id
-           WHERE d.akte_id = ? ORDER BY z.datum, z.zitat, d.dateiname, a.nr""",
-        (akte_id,),
+           WHERE d.akte_id = ? AND (? IS NULL OR d.id = ?) ORDER BY z.datum, z.zitat, d.dateiname, a.nr""",
+        (akte_id, dokument_id, dokument_id),
     ).fetchall()
     gruppen: dict[str, dict] = {}
     for z in zeilen:
@@ -500,13 +503,13 @@ def _zitat_info(z: sqlite3.Row) -> dict:
     return {k: z[k] for k in z.keys() if k not in ("id", "abschnitt_id")}
 
 
-def normen(con: sqlite3.Connection, akte_id: int) -> list[dict]:
-    """Alle in einer Akte zitierten Normen, mit Prüfergebnis und jeder Fundstelle."""
+def normen(con: sqlite3.Connection, akte_id: int, dokument_id: int | None = None) -> list[dict]:
+    """Alle in einer Akte (oder nur in einem ihrer Dokumente) zitierten Normen, mit Prüfergebnis und Fundstellen."""
     zeilen = con.execute(
         """SELECT z.*, a.nr AS abschnitt, a.rn, d.id AS dokument_id, d.dateiname
            FROM normzitat z JOIN abschnitt a ON a.id = z.abschnitt_id JOIN dokument d ON d.id = a.dokument_id
-           WHERE d.akte_id = ? ORDER BY z.gesetz, z.zitat, d.dateiname, a.nr""",
-        (akte_id,),
+           WHERE d.akte_id = ? AND (? IS NULL OR d.id = ?) ORDER BY z.gesetz, z.zitat, d.dateiname, a.nr""",
+        (akte_id, dokument_id, dokument_id),
     ).fetchall()
     gruppen: dict[str, dict] = {}
     for z in zeilen:
