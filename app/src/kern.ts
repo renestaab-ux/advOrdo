@@ -173,6 +173,20 @@ export interface DokumentInhalt {
   abschnitte: Abschnitt[];
 }
 
+/** Eine Seite des Original-PDFs, vom Kern als PNG gerendert. */
+export interface Seitenbild {
+  seite: number;
+  seiten: number;
+  breite: number;
+  hoehe: number;
+  bild: string;
+}
+
+/** Breite in Pixeln, in der der Kern Seiten rendert: auf 200 gerundet, damit gleiche Fenstergrößen gleiche Bilder liefern. */
+export function renderBreite(anzeigeBreite: number, pixelVerhaeltnis: number): number {
+  return Math.min(2400, Math.max(400, Math.ceil((anzeigeBreite * pixelVerhaeltnis) / 200) * 200));
+}
+
 export interface Fundstelle {
   dokument_id: number;
   dateiname: string;

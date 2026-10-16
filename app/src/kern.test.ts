@@ -9,6 +9,7 @@ import {
   istZitat,
   lesartText,
   rechtsprechungUmfang,
+  renderBreite,
   rnHinweis,
   segmente,
   tagsAusText,
@@ -131,5 +132,14 @@ describe("Ergänzte Urteile", () => {
   it("nennt Quelle und Datei", () => {
     expect(urteilHerkunft({ herkunft: "juris", dateiname: "BGH VIII ZR 999-20.pdf" })).toBe("juris, BGH VIII ZR 999-20.pdf");
     expect(urteilHerkunft({ herkunft: null, dateiname: "urteil.pdf" })).toBe("urteil.pdf");
+  });
+});
+
+describe("Original-Ansicht", () => {
+  it("rendert in gerundeter Breite, scharf auch bei hoher Pixeldichte", () => {
+    expect(renderBreite(700, 1)).toBe(800);
+    expect(renderBreite(700, 2)).toBe(1400);
+    expect(renderBreite(100, 1)).toBe(400);
+    expect(renderBreite(3000, 2)).toBe(2400);
   });
 });

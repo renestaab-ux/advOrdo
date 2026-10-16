@@ -132,6 +132,14 @@ code { font-family: ui-monospace, monospace; }
 .formular input { font: inherit; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--linie); background: var(--hintergrund); color: var(--text); }
 .reiter { display: flex; gap: 8px; margin: 8px 0 4px; }
 .reiter-aktiv { cursor: default; }
+.dok-modi { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--linie); }
+.dok-modi-name { font-weight: 600; margin-right: auto; overflow-wrap: anywhere; }
+.dok-modi button { padding: 4px 10px; font-size: 13px; }
+.original { display: flex; flex-direction: column; gap: 14px; }
+.original-seite { margin: 0; }
+.original-seite img { display: block; width: 100%; height: auto; border: 1px solid var(--linie); background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 12%); }
+.original-platzhalter { aspect-ratio: 1 / 1.414; display: grid; place-items: center; border: 1px dashed var(--linie); color: var(--text-leise); font-size: 13px; }
+.original-seite figcaption { font-size: 12px; color: var(--text-leise); text-align: center; margin-top: 4px; }
 .akte-arbeitsflaeche { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0 10px; align-items: start; }
 .akte-seite { width: var(--seite-breite, 360px); position: sticky; top: 0; }
 .trenner { align-self: stretch; width: 6px; min-height: 120px; cursor: col-resize; border-radius: 3px; background: var(--linie); opacity: 0.5; touch-action: none; }

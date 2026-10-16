@@ -24,6 +24,7 @@ import {
   NormZitat,
   OcrStatus,
   OrdnerFunde,
+  Seitenbild,
   STATUS_TEXT,
   URTEIL_QUELLEN,
   URTEIL_STATUS_TEXT,
@@ -36,6 +37,7 @@ import {
   istDesktop,
   kern,
   lesartText,
+  renderBreite,
   segmente,
   sortiereTags,
   tagUebersicht,
@@ -45,6 +47,8 @@ import {
 } from "./kern";
 
 type Ansicht = "dokument" | "normen" | "rechtsprechung";
+/** Was zum geöffneten Dokument gezeigt wird. */
+type DokModus = "text" | "original" | "normen" | "rechtsprechung";
 
 /** Breite der Seitenleiste (Wortlaut, Volltext), je Gerät gemerkt. */
 const SEITE_STANDARD = 360;
@@ -109,6 +113,7 @@ export default function Akte({
   const [normen, setNormen] = useState<NormEintrag[] | null>(null);
   const [urteile, setUrteile] = useState<UrteilEintrag[] | null>(null);
   const [ansicht, setAnsicht] = useState<Ansicht>("dokument");
+  const [dokModus, setDokModus] = useState<DokModus>("text");
   const [auswahl, setAuswahl] = useState<Auswahl | null>(null);
   const [ziel, setZiel] = useState<number | null>(null);
   const [ocr, setOcr] = useState<OcrStatus | null>(null);
@@ -310,7 +315,7 @@ export default function Akte({
       const weg = await ausfuehren("Entferne …", () => kern<Loeschergebnis>("akten.urteil_entfernen", { urteil_id: frage.id }));
       if (!weg) return;
       if (volltext?.id === frage.id) setVolltext(null);
-      await zeigeRechtsprechung();
+      await aktualisiereUrteile();
       setMeldung(`„${frage.name}“ wurde aus der Akte entfernt.${weg.hinweis ? ` ${weg.hinweis}` : ""}`);
       return;
     }
@@ -343,23 +348,55 @@ export default function Akte({
     setInhalt(d);
     setAnsicht("dokument");
     setAuswahl(null);
+    // Eine Fundstelle zeigt immer den Text; sonst bleibt die gewählte Darstellung, soweit es sie für das Dokument gibt.
+    const modus: DokModus = abschnitt != null || (dokModus === "original" && d.dokument.format !== "pdf") ? "text" : dokModus;
+    setDokModus(modus);
+    if (modus === "normen") await ladeNormen(id);
+    if (modus === "rechtsprechung") await ladeUrteile(id);
     if (abschnitt != null) setZiel(abschnitt);
   }
 
-  async function zeigeNormen() {
+  async function ladeNormen(dokumentId: number | null) {
     if (akteId == null) return;
-    setAnsicht("normen");
-    const n = await ausfuehren("Sammle Normen …", () => kern<NormEintrag[]>("akten.normen", { akte_id: akteId }));
+    const n = await ausfuehren("Sammle Normen …", () =>
+      kern<NormEintrag[]>("akten.normen", { akte_id: akteId, dokument_id: dokumentId }),
+    );
     setNormen(n ?? null);
   }
 
-  async function zeigeRechtsprechung() {
+  async function ladeUrteile(dokumentId: number | null) {
     if (akteId == null) return;
-    setAnsicht("rechtsprechung");
     const u = await ausfuehren("Sammle Rechtsprechung …", () =>
-      kern<UrteilEintrag[]>("akten.rechtsprechung", { akte_id: akteId }),
+      kern<UrteilEintrag[]>("akten.rechtsprechung", { akte_id: akteId, dokument_id: dokumentId }),
     );
     setUrteile(u ?? null);
+  }
+
+  /** Lädt die gerade sichtbare Rechtsprechungsliste neu: die der Akte oder die des geöffneten Dokuments. */
+  async function aktualisiereUrteile() {
+    await ladeUrteile(ansicht === "dokument" && inhalt ? inhalt.dokument.id : null);
+  }
+
+  async function zeigeNormen() {
+    setAnsicht("normen");
+    await ladeNormen(null);
+  }
+
+  async function zeigeRechtsprechung() {
+    setAnsicht("rechtsprechung");
+    await ladeUrteile(null);
+  }
+
+  async function zeigeDokument() {
+    setAnsicht("dokument");
+    await waehleDokModus(dokModus);
+  }
+
+  async function waehleDokModus(modus: DokModus) {
+    setDokModus(modus);
+    if (!inhalt) return;
+    if (modus === "normen") await ladeNormen(inhalt.dokument.id);
+    if (modus === "rechtsprechung") await ladeUrteile(inhalt.dokument.id);
   }
 
   async function urteilWaehlen(u: UrteilEintrag) {
@@ -399,7 +436,7 @@ export default function Akte({
     if (!ergebnis) return;
     setErgaenzung(null);
     setMeldung(ergebnis.neu ? `${e.name} zur Akte abgelegt.` : `${e.name} liegt schon bei dieser Akte.`);
-    await zeigeRechtsprechung();
+    await aktualisiereUrteile();
     await zeigeVolltext(ergebnis.urteil_id);
   }
 
@@ -419,7 +456,7 @@ export default function Akte({
       }),
     );
     if (!e) return;
-    await zeigeRechtsprechung();
+    await aktualisiereUrteile();
     setMeldung(
       `${e.geladen.length} ${e.geladen.length === 1 ? "Volltext" : "Volltexte"} geladen.` +
         (e.fehler.length ? ` Nicht geladen: ${e.fehler.map((f) => `${f.zitat} (${f.fehler})`).join("; ")}` : ""),
@@ -433,6 +470,7 @@ export default function Akte({
     if (inhalt) await oeffneDokument(inhalt.dokument.id);
     if (ansicht === "normen") await zeigeNormen();
     if (ansicht === "rechtsprechung") await zeigeRechtsprechung();
+    if (ansicht === "dokument" && inhalt) await waehleDokModus(dokModus);
   }
 
   async function waehleZitat(zitat: NormZitat, abschnitt: Abschnitt) {
@@ -462,6 +500,10 @@ export default function Akte({
       ? dokumente
       : dokumente.filter((d) => (tagFilter === "" ? d.tags.length === 0 : d.tags.some((t) => t.name === tagFilter)));
 
+
+  const zeigeVolltextSeite =
+    !!volltext && (ansicht === "rechtsprechung" || (ansicht === "dokument" && dokModus === "rechtsprechung"));
+  const zeigeBelegSeite = !!auswahl && ansicht === "dokument" && (dokModus === "text" || dokModus === "original");
   return (
     <div className="akte">
       <header className="kopf">
@@ -675,7 +717,7 @@ export default function Akte({
 
       {dokumente.length > 0 && (
         <nav className="reiter" aria-label="Ansicht">
-          <button className={ansicht === "dokument" ? "reiter-aktiv" : "zweitrangig"} onClick={() => setAnsicht("dokument")}>
+          <button className={ansicht === "dokument" ? "reiter-aktiv" : "zweitrangig"} onClick={zeigeDokument}>
             Dokument
           </button>
           <button className={ansicht === "normen" ? "reiter-aktiv" : "zweitrangig"} onClick={zeigeNormen}>
@@ -693,7 +735,31 @@ export default function Akte({
         style={{ "--seite-breite": `${seitenbreite}px` } as CSSProperties}
       >
         <div className="akte-haupt">
-          {ansicht === "dokument" && inhalt && <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} />}
+          {ansicht === "dokument" && inhalt && (
+            <DokModusLeiste dokument={inhalt.dokument} modus={dokModus} onModus={waehleDokModus} />
+          )}
+          {ansicht === "dokument" && inhalt && dokModus === "text" && (
+            <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} />
+          )}
+          {ansicht === "dokument" && inhalt && dokModus === "original" && (
+            <OriginalAnsicht key={inhalt.dokument.id} dokument={inhalt.dokument} startSeite={auswahl?.zitat.seite ?? null} />
+          )}
+          {ansicht === "dokument" && inhalt && dokModus === "normen" && normen && (
+            <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} leer="In diesem Dokument wurden keine Normzitate erkannt." />
+          )}
+          {ansicht === "dokument" && inhalt && dokModus === "rechtsprechung" && urteile && (
+            <RechtsprechungAnsicht
+              urteile={urteile}
+              offen={volltext?.id ?? null}
+              laeuft={!!laeuft}
+              leer="In diesem Dokument wurden keine Rechtsprechungszitate erkannt."
+              onFundstelle={oeffneDokument}
+              onErgaenzen={urteilWaehlen}
+              onVolltexteLaden={volltexteLaden}
+              onVolltext={(id, rn) => (volltext?.id === id && rn == null ? setVolltext(null) : zeigeVolltext(id, rn))}
+              onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
+            />
+          )}
           {ansicht === "dokument" && !inhalt && dokumente.length > 0 && (
             <p className="leer">Wähle oben ein Dokument, um Text und Normzitate zu sehen.</p>
           )}
@@ -711,7 +777,7 @@ export default function Akte({
             />
           )}
         </div>
-        {((ansicht === "rechtsprechung" && volltext) || (ansicht === "dokument" && auswahl)) && (
+        {(zeigeVolltextSeite || zeigeBelegSeite) && (
           <div
             className="trenner"
             role="separator"
@@ -722,10 +788,10 @@ export default function Akte({
             onDoubleClick={() => setzeSeitenbreite(SEITE_STANDARD)}
           />
         )}
-        {ansicht === "rechtsprechung" && volltext && (
+        {zeigeVolltextSeite && volltext && (
           <VolltextAnsicht volltext={volltext} rn={volltextRn} onSchliessen={() => setVolltext(null)} />
         )}
-        {ansicht === "dokument" && auswahl && (
+        {zeigeBelegSeite && auswahl && (
           <aside className="akte-seite">
             <p className="fundort">Zitiert in {auswahl.ort}</p>
             {auswahl.beleg ? <BelegAnsicht beleg={auswahl.beleg} /> : <p className="status">Lade Wortlaut …</p>}
@@ -955,14 +1021,111 @@ export function DokumentAnsicht({
   );
 }
 
+const DOK_MODI: { modus: DokModus; text: string }[] = [
+  { modus: "text", text: "Text" },
+  { modus: "original", text: "Original" },
+  { modus: "normen", text: "Normen" },
+  { modus: "rechtsprechung", text: "Rechtsprechung" },
+];
+
+function DokModusLeiste({
+  dokument,
+  modus,
+  onModus,
+}: {
+  dokument: AktenDokument;
+  modus: DokModus;
+  onModus: (m: DokModus) => void;
+}) {
+  const pdf = dokument.format === "pdf";
+  return (
+    <div className="dok-modi" role="tablist" aria-label={`Darstellung von ${dokument.dateiname}`}>
+      <span className="dok-modi-name">{dokument.dateiname}</span>
+      {DOK_MODI.map((m) => (
+        <button
+          key={m.modus}
+          role="tab"
+          aria-selected={modus === m.modus}
+          className={modus === m.modus ? "reiter-aktiv" : "zweitrangig"}
+          disabled={m.modus === "original" && !pdf}
+          title={m.modus === "original" && !pdf ? "Die Originalansicht gibt es nur für PDF-Dateien." : undefined}
+          onClick={() => onModus(m.modus)}
+        >
+          {m.text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Seiten des Original-PDFs; der Kern rendert sie, sobald sie in Sichtweite kommen. */
+function OriginalAnsicht({ dokument, startSeite }: { dokument: AktenDokument; startSeite: number | null }) {
+  const seiten = dokument.seiten ?? 1;
+  const rahmen = useRef<HTMLDivElement>(null);
+  const [bilder, setBilder] = useState<Record<number, Seitenbild | string>>({});
+  const angefragt = useRef(new Set<number>());
+
+  useEffect(() => {
+    const el = rahmen.current;
+    if (!el) return;
+    const breite = renderBreite(el.clientWidth, window.devicePixelRatio || 1);
+    const beobachter = new IntersectionObserver(
+      (eintraege) => {
+        for (const e of eintraege) {
+          if (!e.isIntersecting) continue;
+          const seite = Number((e.target as HTMLElement).dataset.seite);
+          if (angefragt.current.has(seite)) continue;
+          angefragt.current.add(seite);
+          kern<Seitenbild>("akten.seitenbild", { dokument_id: dokument.id, seite, breite })
+            .then((b) => setBilder((v) => ({ ...v, [seite]: b })))
+            .catch((f) => setBilder((v) => ({ ...v, [seite]: String(f) })));
+        }
+      },
+      { root: null, rootMargin: "600px 0px" },
+    );
+    el.querySelectorAll<HTMLElement>("[data-seite]").forEach((s) => beobachter.observe(s));
+    return () => beobachter.disconnect();
+  }, [dokument.id]);
+
+  useEffect(() => {
+    if (startSeite != null) document.getElementById(`seite-${startSeite}`)?.scrollIntoView({ block: "start" });
+  }, [startSeite]);
+
+  return (
+    <div className="original" ref={rahmen}>
+      <p className="dokument-info">
+        Originaldatei aus der Ablage der Akte, {seiten} {seiten === 1 ? "Seite" : "Seiten"}. Zitate und Belege zeigt die
+        Textansicht.
+      </p>
+      {Array.from({ length: seiten }, (_, i) => i + 1).map((s) => {
+        const b = bilder[s];
+        return (
+          <figure key={s} id={`seite-${s}`} data-seite={s} className="original-seite">
+            {typeof b === "object" ? (
+              <img src={b.bild} width={b.breite} height={b.hoehe} alt={`Seite ${s} von ${dokument.dateiname}`} />
+            ) : typeof b === "string" ? (
+              <p className="fehler">Seite {s} lässt sich nicht anzeigen: {b}</p>
+            ) : (
+              <div className="original-platzhalter">Seite {s} wird geladen …</div>
+            )}
+            <figcaption>Seite {s}</figcaption>
+          </figure>
+        );
+      })}
+    </div>
+  );
+}
+
 function NormenAnsicht({
   normen,
   onFundstelle,
+  leer = "In dieser Akte wurden keine Normzitate erkannt.",
 }: {
   normen: NormEintrag[];
   onFundstelle: (dokumentId: number, abschnitt: number) => void;
+  leer?: string;
 }) {
-  if (normen.length === 0) return <p className="leer">In dieser Akte wurden keine Normzitate erkannt.</p>;
+  if (normen.length === 0) return <p className="leer">{leer}</p>;
   return (
     <ul className="normen">
       {normen.map((n) => (
@@ -994,10 +1157,12 @@ function RechtsprechungAnsicht({
   onVolltexteLaden,
   onVolltext,
   onEntfernen,
+  leer = "In dieser Akte wurden keine Rechtsprechungszitate erkannt.",
 }: {
   urteile: UrteilEintrag[];
   offen: number | null;
   laeuft: boolean;
+  leer?: string;
   onFundstelle: (dokumentId: number, abschnitt: number) => void;
   onErgaenzen: (u: UrteilEintrag) => void;
   onVolltexteLaden: (zitat?: string) => void;
@@ -1005,7 +1170,7 @@ function RechtsprechungAnsicht({
   onEntfernen: (u: UrteilInfo) => void;
 }) {
   const [kopiert, setKopiert] = useState<string | null>(null);
-  if (urteile.length === 0) return <p className="leer">In dieser Akte wurden keine Rechtsprechungszitate erkannt.</p>;
+  if (urteile.length === 0) return <p className="leer">{leer}</p>;
   const ohneVerzeichnis = urteile.some((u) => u.status === "kein_verzeichnis");
   const ladbar = urteile.filter((u) => u.status === "belegt" && !u.urteil && u.entscheidung).length;
   async function kopiere(link: string) {
