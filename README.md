@@ -261,11 +261,20 @@ unverändert bei der Akte abgelegt (`akten/akte-<id>/urteile/`) und gelesen; Ran
 Urteil gilt auch für andere Zitate der Akte mit demselben Gericht und Aktenzeichen. Der Bereich **Rechtsprechung**
 zeigt alle Quellen und wie viele Entscheidungen selbst ergänzt wurden.
 
+**Volltexte laden und Randnummern prüfen:** „Volltexte laden“ im Reiter „Rechtsprechung der Akte“ holt die belegten
+Entscheidungen der Bundesgerichte von rechtsprechung-im-internet.de (Leitsatz, Tenor, Tatbestand, Gründe mit
+Randnummern). Gesendet wird nur die Nummer der Entscheidung; die Datei wird unverändert unter ihrer SHA-256-Prüfsumme
+im Roharchiv abgelegt (`RECHTSPRECHUNG/volltexte/`) und bleibt dort, auch wenn man das Urteil aus der Akte entfernt.
+Zitiert ein Schriftsatz „…, Rn. 36“, zeigt die App, ob es diese Randnummer gibt, und springt per Klick dorthin;
+„Rn. 84“ bei einer Entscheidung mit 67 Randnummern wird als Fehler markiert. Das gilt auch für selbst ergänzte Urteile,
+sofern ihre Randnummern erkannt werden.
+
 Ohne App:
 
 ```bash
 juracore rechtsprechung-laden                       # Verzeichnis abrufen (oder --datei rii-toc.xml)
 juracore urteil "BGH, Urteil vom 12.10.2016 – VIII ZR 103/15"
+juracore urteil "BGH, VIII ZR 103/15" --volltext  # lädt den Volltext und zeigt Leitsatz und Randnummern
 ```
 
 ## Wissensbasis: Gesetze

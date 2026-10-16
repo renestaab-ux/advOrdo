@@ -121,7 +121,8 @@ CREATE TABLE IF NOT EXISTS urteilszitat (
     status          TEXT NOT NULL,          -- belegt, abweichend, nicht_gefunden, ausserhalb, …
     hinweis         TEXT,
     stand_id        INTEGER,                -- Stand des Rechtsprechungsverzeichnisses bei der Prüfung
-    entscheidung    TEXT                    -- JSON: Gericht, Spruchkörper, Datum, Aktenzeichen, Link
+    entscheidung    TEXT,                   -- JSON: Gericht, Spruchkörper, Datum, Aktenzeichen, Link
+    rn_zitiert      INTEGER                 -- zitierte Randnummer, z. B. 22 bei „…, Rn. 22“
 );
 CREATE INDEX IF NOT EXISTS urteilszitat_abschnitt ON urteilszitat (abschnitt_id);
 
@@ -143,6 +144,8 @@ CREATE TABLE IF NOT EXISTS urteil (
     lesart          TEXT NOT NULL,
     hinweise        TEXT NOT NULL,          -- JSON-Liste
     hinzugefuegt_am TEXT NOT NULL,
+    doknr           TEXT,                   -- Dokumentnummer bei rechtsprechung-im-internet.de
+    kopf            TEXT,                   -- JSON: Spruchkörper, Art, Normen, Vorinstanzen, Titel
     UNIQUE (akte_id, sha256)
 );
 
@@ -151,7 +154,8 @@ CREATE TABLE IF NOT EXISTS urteil_abschnitt (
     nr              INTEGER NOT NULL,
     seite           INTEGER,
     rn              INTEGER,
-    text            TEXT NOT NULL
+    text            TEXT NOT NULL,
+    teil            TEXT                    -- leitsatz, tenor, gruende …; NULL bei eigenen Dateien
 );
 CREATE INDEX IF NOT EXISTS urteil_abschnitt_urteil ON urteil_abschnitt (urteil_id, nr);
 """
@@ -180,6 +184,11 @@ def _migriere(con: sqlite3.Connection) -> None:
     if "urteile_erkannt" not in spalten:
         # Dokumente aus älteren Versionen: Rechtsprechungszitate werden beim nächsten Abruf nachgetragen.
         con.execute("ALTER TABLE dokument ADD COLUMN urteile_erkannt INTEGER")
+    # Zwischenstände von Schema 4 (Entwicklungsversion) um die späteren Spalten ergänzen.
+    for tabelle, spalte, typ in (("urteilszitat", "rn_zitiert", "INTEGER"), ("urteil", "doknr", "TEXT"),
+                                 ("urteil", "kopf", "TEXT"), ("urteil_abschnitt", "teil", "TEXT")):
+        if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
+            con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
 
 
 def _jetzt() -> str:
@@ -367,11 +376,11 @@ def _verknuepfe_urteile(con: sqlite3.Connection, wissen: sqlite3.Connection, dok
             beleg = cache[schluessel]
             con.execute(
                 """INSERT INTO urteilszitat (abschnitt_id, start, ende, seite, zitat, gericht, aktenzeichen, datum,
-                                             status, hinweis, stand_id, entscheidung)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                             status, hinweis, stand_id, entscheidung, rn_zitiert)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (a["id"], *z.treffer, _seite_an(a["seite"], wechsel, z.treffer[0]), schluessel, z.gericht,
                  z.aktenzeichen, z.datum, beleg["status"], beleg["hinweis"], beleg["stand_id"],
-                 json.dumps(beleg["entscheidung"], ensure_ascii=False) if beleg["entscheidung"] else None),
+                 json.dumps(beleg["entscheidung"], ensure_ascii=False) if beleg["entscheidung"] else None, z.rn),
             )
     con.execute("UPDATE dokument SET urteile_erkannt = 1 WHERE id = ?", (dokument_id,))
 
@@ -412,7 +421,8 @@ def rechtsprechung(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id:
         )
         g["fundstellen"].append(
             {"dokument_id": z["dokument_id"], "dateiname": z["dateiname"], "abschnitt": z["abschnitt"],
-             "seite": z["seite"], "rn": z["rn"], "start": z["start"], "ende": z["ende"]}
+             "seite": z["seite"], "rn": z["rn"], "start": z["start"], "ende": z["ende"],
+             "rn_zitiert": z["rn_zitiert"]}
         )
     reihenfolge = {s: i for i, s in enumerate((verzeichnis.ABWEICHEND, verzeichnis.NICHT_GEFUNDEN,
                                                verzeichnis.KEIN_VERZEICHNIS, verzeichnis.BELEGT,
@@ -422,6 +432,11 @@ def rechtsprechung(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id:
     vorliegend = urteile.liste(con, akte_id)
     for g in gruppen.values():
         g["urteil"] = urteile.zu_zitat(vorliegend, g["zitat"], g["gericht"], g["aktenzeichen"])
+        # Zitierte Randnummern gegen den vorliegenden Volltext prüfen.
+        rns = urteile.randnummern(con, g["urteil"]["id"]) if g["urteil"] else set()
+        for f in g["fundstellen"]:
+            f["rn_vorhanden"] = (f["rn_zitiert"] in rns) if rns and f["rn_zitiert"] is not None else None
+        g["rn_hoechste"] = max(rns) if rns else None
     # Offene Fragen zuerst: innerhalb eines Status stehen Zitate ohne vorliegenden Volltext oben.
     return sorted(gruppen.values(), key=lambda g: (reihenfolge.get(g["status"], 9), g["urteil"] is not None,
                                                    g["datum"] or "", g["zitat"]))

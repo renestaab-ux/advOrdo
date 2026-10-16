@@ -1,10 +1,15 @@
+import io
 import json
+import sqlite3
+import zipfile
 
 import pytest
 
 from juracore import rpc
 from juracore.dokumente import akte, urteile
+from juracore.rechtsprechung import verzeichnis, volltext
 
+from .conftest import FIXTURES
 from .test_rechtsprechung import KLAGE, REPLIK
 
 # Fiktiver Ausdruck einer Entscheidung, wie man ihn aus einer Datenbank speichert.
@@ -120,3 +125,103 @@ def test_rpc(tmp_path):
     weg = kern.bearbeite(json.dumps({"id": 5, "method": "akten.urteil_entfernen",
                                      "params": {"urteil_id": u["urteil_id"]}}))
     assert weg["result"]["hinweis"] is None
+
+
+# --- Volltexte von rechtsprechung-im-internet.de -------------------------------------------------
+
+def _zip_auszug() -> bytes:
+    puffer = io.BytesIO()
+    with zipfile.ZipFile(puffer, "w") as z:
+        z.writestr("jb-KORE301892016.xml", (FIXTURES / "rii_volltext_auszug.xml").read_bytes())
+    return puffer.getvalue()
+
+
+def test_volltext_lesen():
+    v = volltext.lies(_zip_auszug())
+    assert (v.gericht, v.spruchkoerper, v.datum, v.aktenzeichen, v.doktyp) == (
+        "BGH", "8. Zivilsenat", "2016-10-12", "VIII ZR 103/15", "Urteil")
+    assert v.vorinstanz[0] == "vorgehend OLG Frankfurt, 14. April 2015, Az: 10 U 133/13"
+    assert v.randnummern == [1, 5, 6, 22]
+    assert [a.teil for a in v.absaetze][:3] == ["leitsatz", "tenor", "tatbestand"]
+    assert v.absaetze[0].text.startswith("1. § 476 BGB ist richtlinienkonform")
+    with pytest.raises(ValueError, match="kein lesbares XML"):
+        volltext.lies(b"<html>Wartung")
+    with pytest.raises(ValueError, match="Dokumentnummer"):
+        volltext.adresse("../x")
+
+
+def test_volltexte_der_akte_laden(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Brückner")
+    text = (f"(13) {KLAGE}\n\n(14) Ebenso BGH, Urteil vom 12.10.2016 – VIII ZR 103/15, Rn. 22.\n\n"
+            "(15) Vgl. BGH, Urteil vom 12.10.2016 – VIII ZR 103/15, Rn. 99.")
+    (tmp_path / "05_Klage.md").write_text(text, encoding="utf-8")
+    akte.importiere(akten, con, a["id"], tmp_path / "05_Klage.md", tmp_path / "ablage", ocr=False)
+    daten = (FIXTURES / "rii_toc_auszug.xml").read_bytes()
+    verzeichnis.importiere(con, daten, "test", *verzeichnis.archiviere(daten, tmp_path / "archiv"))
+    akte.zitate_neu_pruefen(akten, con, a["id"])
+
+    angefragt = []
+
+    def lader(doknr):
+        angefragt.append(doknr)
+        return _zip_auszug()
+
+    ergebnis = urteile.volltexte_laden(akten, con, a["id"], tmp_path / "archiv", lader)
+    # Nur die belegte BGH-Entscheidung; der EuGH steht nicht im Verzeichnis.
+    assert angefragt == ["JURE160018467"] and ergebnis["fehler"] == []
+    archiviert = list((tmp_path / "archiv" / "RECHTSPRECHUNG" / "volltexte").iterdir())
+    assert [p.read_bytes() for p in archiviert] == [_zip_auszug()]
+
+    bgh = next(e for e in akte.rechtsprechung(akten, con, a["id"]) if e["status"] == "belegt")
+    assert bgh["urteil"]["quelle"] == urteile.RII and bgh["urteil"]["kopf"]["spruchkoerper"] == "8. Zivilsenat"
+    assert [(f["rn"], f["rn_zitiert"], f["rn_vorhanden"]) for f in bgh["fundstellen"]] == [
+        (13, None, None), (14, 22, True), (15, 99, False)]
+    assert bgh["rn_hoechste"] == 22
+
+    # Noch einmal laden: nichts mehr zu tun.
+    assert urteile.volltexte_laden(akten, con, a["id"], tmp_path / "archiv", lader)["geladen"] == []
+    # Aus der Akte entfernen: Die archivierte Rechtsquelle bleibt.
+    assert urteile.entfernen(akten, bgh["urteil"]["id"], tmp_path / "ablage")["hinweis"] is None
+    assert all(p.exists() for p in archiviert)
+
+
+def test_volltext_fehler_halten_die_uebrigen_nicht_auf(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Fehler")
+    (tmp_path / "k.md").write_text(KLAGE, encoding="utf-8")
+    akte.importiere(akten, con, a["id"], tmp_path / "k.md", tmp_path / "ablage", ocr=False)
+    daten = (FIXTURES / "rii_toc_auszug.xml").read_bytes()
+    verzeichnis.importiere(con, daten, "test", *verzeichnis.archiviere(daten, tmp_path / "archiv"))
+    akte.zitate_neu_pruefen(akten, con, a["id"])
+
+    def lader(doknr):
+        raise OSError("Netz nicht erreichbar")
+
+    ergebnis = urteile.volltexte_laden(akten, con, a["id"], tmp_path / "archiv", lader)
+    assert ergebnis["geladen"] == [] and "Netz nicht erreichbar" in ergebnis["fehler"][0]["fehler"]
+
+
+# Tabellen aus der ersten Fassung von Schema 4 (ohne Randnummern, Teile und Kopfdaten).
+_SCHEMA_4_ALT = """
+CREATE TABLE akte (id INTEGER PRIMARY KEY, name TEXT NOT NULL, angelegt_am TEXT NOT NULL);
+CREATE TABLE urteil (
+    id INTEGER PRIMARY KEY, akte_id INTEGER NOT NULL REFERENCES akte(id) ON DELETE CASCADE, zitat TEXT,
+    gericht TEXT NOT NULL, aktenzeichen TEXT, az_norm TEXT, datum TEXT, quelle TEXT NOT NULL, herkunft TEXT,
+    dateiname TEXT NOT NULL, format TEXT NOT NULL, sha256 TEXT NOT NULL, original TEXT NOT NULL,
+    lesart TEXT NOT NULL, hinweise TEXT NOT NULL, hinzugefuegt_am TEXT NOT NULL, UNIQUE (akte_id, sha256));
+CREATE TABLE urteil_abschnitt (urteil_id INTEGER NOT NULL REFERENCES urteil(id) ON DELETE CASCADE,
+    nr INTEGER NOT NULL, seite INTEGER, rn INTEGER, text TEXT NOT NULL);
+INSERT INTO akte VALUES (1, 'Alt', '2026-10-16');
+INSERT INTO urteil (akte_id, gericht, quelle, dateiname, format, sha256, original, lesart, hinweise, hinzugefuegt_am)
+    VALUES (1, 'EuGH', 'manuell', 'eugh.txt', 'txt', 'abc', 'x', 'datei', '[]', '2026-10-16');
+"""
+
+
+def test_zwischenstand_schema_4_wird_ergaenzt(tmp_path):
+    pfad = tmp_path / "akten.sqlite"
+    alt = sqlite3.connect(pfad)
+    alt.executescript(_SCHEMA_4_ALT)
+    alt.close()
+    con = akte.oeffne(pfad)
+    assert [u["gericht"] for u in urteile.liste(con, 1)] == ["EuGH"]
+    assert "teil" in {z["name"] for z in con.execute("PRAGMA table_info(urteil_abschnitt)")}
+    con.close()

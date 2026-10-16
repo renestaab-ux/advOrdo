@@ -193,8 +193,9 @@ def stand(con: sqlite3.Connection) -> dict | None:
 def dokument_link(doknr: str | None, link: str | None) -> str | None:
     """Adresse der Entscheidung zum Lesen im Browser."""
     if doknr:
+        # Form wie im Feld <identifier> der Entscheidung selbst: docid mit Präfix „jb-“.
         return ("https://www.rechtsprechung-im-internet.de/jportal/?quelle=jlink&docid="
-                f"{doknr}&psml=bsjrsprod.psml&max=true")
+                f"jb-{doknr}&psml=bsjrsprod.psml&max=true")
     return link
 
 
@@ -254,6 +255,6 @@ def _beschreibung(t: sqlite3.Row) -> str:
 
 def _info(t: sqlite3.Row) -> dict:
     return {"gericht": t["gericht"], "spruchkoerper": t["spruchkoerper"], "datum": t["datum"],
-            "aktenzeichen": t["aktenzeichen"], "link": dokument_link(t["doknr"], t["link"])}
+            "aktenzeichen": t["aktenzeichen"], "doknr": t["doknr"], "link": dokument_link(t["doknr"], t["link"])}
 
 

@@ -36,6 +36,8 @@ export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
   }
 
   const manuell = eigene?.quellen.filter((q) => q.quelle === "manuell") ?? [];
+  const selbst = manuell.reduce((n, q) => n + q.anzahl, 0);
+  const geladen = (eigene?.quellen ?? []).filter((q) => q.quelle === "rii").reduce((n, q) => n + q.anzahl, 0);
 
   return (
     <div className="rechtsprechung">
@@ -66,18 +68,23 @@ export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
         <button className={stand ? "zweitrangig" : undefined} onClick={laden} disabled={!!laeuft}>
           {stand ? "Verzeichnis aktualisieren" : "Verzeichnis laden"}
         </button>
+        {geladen > 0 && (
+          <p>
+            {geladen} {geladen === 1 ? "Volltext" : "Volltexte"} zu Akten geladen.
+          </p>
+        )}
         <p className="grenze">
-          Das Verzeichnis enthält keine Texte. Volltexte der zitierten Entscheidungen lädt die App in einem nächsten Schritt
-          je Akte.
+          Das Verzeichnis enthält keine Texte. Die Volltexte der zitierten Entscheidungen lädt man je Akte unter
+          „Rechtsprechung der Akte“ („Volltexte laden“).
         </p>
       </section>
 
       <section className="karte">
         <h2>Eigene Dateien</h2>
         <p className="fundort">z. B. PDF-Ausdrucke aus juris, beck-online oder openJur</p>
-        {eigene && eigene.gesamt > 0 ? (
+        {selbst > 0 ? (
           <p>
-            {eigene.gesamt} {eigene.gesamt === 1 ? "Entscheidung" : "Entscheidungen"} selbst ergänzt
+            {selbst} {selbst === 1 ? "Entscheidung" : "Entscheidungen"} selbst ergänzt
             {manuell.length > 0 && <> ({manuell.map((q) => `${q.herkunft ?? "ohne Angabe"}: ${q.anzahl}`).join(", ")})</>}.
           </p>
         ) : (

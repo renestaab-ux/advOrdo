@@ -17,6 +17,7 @@ import {
   STATUS_TEXT,
   URTEIL_QUELLEN,
   URTEIL_STATUS_TEXT,
+  URTEIL_TEILE,
   UrteilEintrag,
   UrteilInfo,
   UrteilVolltext,
@@ -29,6 +30,7 @@ import {
   sortiereTags,
   tagUebersicht,
   tagsAusText,
+  rnHinweis,
   urteilHerkunft,
 } from "./kern";
 
@@ -96,6 +98,7 @@ export default function Akte({
   const [tagEdit, setTagEdit] = useState<{ id: number; text: string } | null>(null);
   const [ergaenzung, setErgaenzung] = useState<Ergaenzung | null>(null);
   const [volltext, setVolltext] = useState<UrteilVolltext | null>(null);
+  const [volltextRn, setVolltextRn] = useState<number | null>(null);
 
   const ausfuehren = useCallback(async <T,>(was: string, f: () => Promise<T>) => {
     setLaeuft(was);
@@ -347,9 +350,24 @@ export default function Akte({
     await zeigeVolltext(ergebnis.urteil_id);
   }
 
-  async function zeigeVolltext(urteilId: number) {
+  async function zeigeVolltext(urteilId: number, rn?: number) {
+    setVolltextRn(rn ?? null);
+    if (volltext?.id === urteilId) return;
     const v = await ausfuehren("Lade Volltext …", () => kern<UrteilVolltext>("akten.urteil", { urteil_id: urteilId }));
     setVolltext(v ?? null);
+  }
+
+  async function volltexteLaden() {
+    if (akteId == null) return;
+    const e = await ausfuehren("Lade Volltexte von rechtsprechung-im-internet.de …", () =>
+      kern<{ geladen: string[]; fehler: { zitat: string; fehler: string }[] }>("akten.volltexte_laden", { akte_id: akteId }),
+    );
+    if (!e) return;
+    await zeigeRechtsprechung();
+    setMeldung(
+      `${e.geladen.length} ${e.geladen.length === 1 ? "Volltext" : "Volltexte"} geladen.` +
+        (e.fehler.length ? ` Nicht geladen: ${e.fehler.map((f) => `${f.zitat} (${f.fehler})`).join("; ")}` : ""),
+    );
   }
 
   async function neuPruefen() {
@@ -627,12 +645,15 @@ export default function Akte({
               laeuft={!!laeuft}
               onFundstelle={oeffneDokument}
               onErgaenzen={urteilWaehlen}
-              onVolltext={(id) => (volltext?.id === id ? setVolltext(null) : zeigeVolltext(id))}
+              onVolltexteLaden={volltexteLaden}
+              onVolltext={(id, rn) => (volltext?.id === id && rn == null ? setVolltext(null) : zeigeVolltext(id, rn))}
               onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
             />
           )}
         </div>
-        {ansicht === "rechtsprechung" && volltext && <VolltextAnsicht volltext={volltext} onSchliessen={() => setVolltext(null)} />}
+        {ansicht === "rechtsprechung" && volltext && (
+          <VolltextAnsicht volltext={volltext} rn={volltextRn} onSchliessen={() => setVolltext(null)} />
+        )}
         {ansicht === "dokument" && auswahl && (
           <aside className="akte-seite">
             <p className="fundort">Zitiert in {auswahl.ort}</p>
@@ -899,6 +920,7 @@ function RechtsprechungAnsicht({
   laeuft,
   onFundstelle,
   onErgaenzen,
+  onVolltexteLaden,
   onVolltext,
   onEntfernen,
 }: {
@@ -907,12 +929,14 @@ function RechtsprechungAnsicht({
   laeuft: boolean;
   onFundstelle: (dokumentId: number, abschnitt: number) => void;
   onErgaenzen: (u: UrteilEintrag) => void;
-  onVolltext: (urteilId: number) => void;
+  onVolltexteLaden: () => void;
+  onVolltext: (urteilId: number, rn?: number) => void;
   onEntfernen: (u: UrteilInfo) => void;
 }) {
   const [kopiert, setKopiert] = useState<string | null>(null);
   if (urteile.length === 0) return <p className="leer">In dieser Akte wurden keine Rechtsprechungszitate erkannt.</p>;
   const ohneVerzeichnis = urteile.some((u) => u.status === "kein_verzeichnis");
+  const ladbar = urteile.filter((u) => u.status === "belegt" && !u.urteil && u.entscheidung).length;
   async function kopiere(link: string) {
     await navigator.clipboard.writeText(link);
     setKopiert(link);
@@ -924,6 +948,17 @@ function RechtsprechungAnsicht({
           Das Verzeichnis der Bundesrechtsprechung ist noch nicht geladen. Lade es unter „Rechtsprechung“ und wähle danach
           hier „Zitate neu prüfen“.
         </p>
+      )}
+      {ladbar > 0 && (
+        <div className="volltexte-laden">
+          <button className="zweitrangig" onClick={onVolltexteLaden} disabled={laeuft}>
+            {ladbar === 1 ? "Volltext laden" : `${ladbar} Volltexte laden`}
+          </button>
+          <span className="fundort">
+            Belegte Entscheidungen der Bundesgerichte von rechtsprechung-im-internet.de; danach prüft die App zitierte
+            Randnummern. Gesendet wird nur die Nummer der Entscheidung.
+          </span>
+        </div>
       )}
       <ul className="normen">
         {urteile.map((u) => (
@@ -943,11 +978,25 @@ function RechtsprechungAnsicht({
               </div>
             )}
             <div className="fundstellen">
-              {u.fundstellen.map((f, i) => (
-                <button key={i} className="link" onClick={() => onFundstelle(f.dokument_id, f.abschnitt)}>
-                  {f.dateiname}, {fundstelle(f)}
-                </button>
-              ))}
+              {u.fundstellen.map((f, i) => {
+                const rn = rnHinweis(f, u.rn_hoechste);
+                return (
+                  <span key={i} className="fundstelle">
+                    <button className="link" onClick={() => onFundstelle(f.dokument_id, f.abschnitt)}>
+                      {f.dateiname}, {fundstelle(f)}
+                    </button>
+                    {rn && (
+                      <button
+                        className={`link rn-hinweis ${f.rn_vorhanden ? "rn-ok" : "rn-fehlt"}`}
+                        onClick={() => f.rn_vorhanden && onVolltext(u.urteil!.id, f.rn_zitiert!)}
+                        title={f.rn_vorhanden ? "Randnummer im Volltext zeigen" : undefined}
+                      >
+                        {rn}
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
             </div>
             <div className="urteil-aktionen">
               {u.urteil ? (
@@ -1045,14 +1094,27 @@ function ErgaenzungsFrage({
   );
 }
 
-function VolltextAnsicht({ volltext, onSchliessen }: { volltext: UrteilVolltext; onSchliessen: () => void }) {
+function VolltextAnsicht({
+  volltext,
+  rn,
+  onSchliessen,
+}: {
+  volltext: UrteilVolltext;
+  rn: number | null;
+  onSchliessen: () => void;
+}) {
   const v = volltext;
+  useEffect(() => {
+    if (rn != null) document.getElementById(`vt-rn-${rn}`)?.scrollIntoView({ block: "center" });
+  }, [rn, v.id]);
+  let teil: string | null = null;
   return (
     <aside className="akte-seite volltext">
       <div className="volltext-kopf">
         <strong>
-          {[v.gericht, v.aktenzeichen].filter(Boolean).join(" – ")}
-          {v.datum && `, ${v.datum.split("-").reverse().join(".")}`}
+          {[v.gericht, v.kopf?.spruchkoerper].filter(Boolean).join(" ")}
+          {v.datum && `, ${v.kopf?.doktyp ?? "Entscheidung"} vom ${v.datum.split("-").reverse().join(".")}`}
+          {v.aktenzeichen && ` – ${v.aktenzeichen}`}
         </strong>
         <button className="link" onClick={onSchliessen}>
           schließen
@@ -1061,18 +1123,32 @@ function VolltextAnsicht({ volltext, onSchliessen }: { volltext: UrteilVolltext;
       <p className="fundort">
         {v.quelle === "manuell" ? "Selbst ergänzt" : "Geladen"}: {urteilHerkunft(v)}
       </p>
+      {v.kopf?.titel && <p className="volltext-titel">{v.kopf.titel}</p>}
+      {v.kopf?.normen && <p className="fundort">Normen: {v.kopf.normen}</p>}
+      {v.kopf?.vorinstanz.map((z, i) => (
+        <p key={i} className="fundort">
+          {z}
+        </p>
+      ))}
       {v.hinweise.map((h, i) => (
         <p key={i} className="hinweis">
           {h}
         </p>
       ))}
-      {v.abschnitte.map((a) => (
-        <p key={a.nr} className="volltext-abschnitt">
-          {/* Steht die Randnummer schon im Text („(2) …“), nicht doppelt zeigen. */}
-          {a.rn != null && !a.text.startsWith(`(${a.rn})`) && <span className="rn">{a.rn}</span>}
-          {a.text}
-        </p>
-      ))}
+      {v.abschnitte.map((a) => {
+        const kopf = a.teil && a.teil !== teil ? URTEIL_TEILE[a.teil] ?? a.teil : null;
+        teil = a.teil;
+        return (
+          <div key={a.nr}>
+            {kopf && <h3 className="volltext-teil">{kopf}</h3>}
+            <p id={a.rn != null ? `vt-rn-${a.rn}` : undefined} className={`volltext-abschnitt${a.rn != null && a.rn === rn ? " ziel" : ""}`}>
+              {/* Steht die Randnummer schon im Text („(2) …“), nicht doppelt zeigen. */}
+              {a.rn != null && !a.text.startsWith(`(${a.rn})`) && <span className="rn">{a.rn}</span>}
+              {a.text}
+            </p>
+          </div>
+        );
+      })}
     </aside>
   );
 }

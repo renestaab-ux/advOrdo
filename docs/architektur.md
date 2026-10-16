@@ -135,12 +135,22 @@ Volltexte zur Akte (`juracore.dokumente.urteile`, Schema 4): `urteil` (Gericht, 
 oder gleiches Gericht und Aktenzeichen. RPC: `akten.urteil_ergaenzen`, `akten.urteile`, `akten.urteil`,
 `akten.urteil_entfernen`, `rechtsprechung.eigene`.
 
+`juracore.rechtsprechung.volltext` liest die Entscheidungen von rechtsprechung-im-internet.de (ZIP mit einer XML-Datei
+nach `rii-dok.dtd`): Kopf (`gertyp`, `spruchkoerper`, `entsch-datum`, `aktenzeichen`, `doktyp`, `norm`, `vorinstanz`,
+`titelzeile`) und die Teile `leitsatz`, `tenor`, `tatbestand`, `entscheidungsgruende`, `gruende` …; jeder Absatz ist ein
+`<dl>`, die Randnummer steht im `<dt>` (`<a name="rd_5">5</a>`). Abruf über
+`https://www.rechtsprechung-im-internet.de/jportal/docs/bsjrs/jb-<doknr>.zip`, Archiv unter
+`RECHTSPRECHUNG/volltexte/<sha256>.zip` (schreibgeschützt). `akten.volltexte_laden` lädt alle belegten, noch nicht
+vorliegenden Entscheidungen einer Akte; ein Fehler hält die übrigen nicht auf. Die zitierte Randnummer
+(`urteilszitat.rn_zitiert`, erkannt bis Semikolon, Klammer oder Satzende hinter dem Aktenzeichen) wird gegen die
+Randnummern des Volltexts geprüft (`rn_vorhanden`).
+
 ## Offene Punkte
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
 - Kern als Sidecar bündeln, Installer je System
 - Volltextsuche über Akten
-- Rechtsprechung: Volltexte der Bundesgerichte laden und zitierte Randnummern prüfen; Instanzgerichte (Landesportale)
+- Rechtsprechung: Instanzgerichte (Landesportale), EuGH (EUR-Lex); prüfen, ob die zitierte Rn. die Aussage trägt
 - Chronologie exportieren (Word, PDF, Markdown)
 - Tesseract für den Installer mitliefern (Windows), damit keine eigene Installation nötig ist
 - Externe Anbieter (Modus „Externer Anbieter“) mit Warnhinweis und Schlüsselspeicher

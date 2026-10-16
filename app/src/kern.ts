@@ -234,9 +234,11 @@ export interface UrteilEintrag {
   status: UrteilStatus;
   hinweis: string | null;
   entscheidung: { gericht: string; spruchkoerper: string | null; datum: string | null; aktenzeichen: string; link: string | null } | null;
-  fundstellen: Fundstelle[];
+  fundstellen: (Fundstelle & { rn_zitiert: number | null; rn_vorhanden: boolean | null })[];
   /** Volltext, der zur Akte vorliegt (selbst ergänzt oder geladen). */
   urteil: UrteilInfo | null;
+  /** Höchste Randnummer im Volltext, wenn einer vorliegt. */
+  rn_hoechste: number | null;
 }
 
 /** Eine Entscheidung im Volltext zur Akte, z. B. ein PDF-Ausdruck aus juris. */
@@ -253,10 +255,33 @@ export interface UrteilInfo {
   lesart: string;
   hinzugefuegt_am: string;
   hinweise: string[];
+  doknr: string | null;
+  kopf: { spruchkoerper: string | null; doktyp: string | null; normen: string | null; vorinstanz: string[]; titel: string | null } | null;
 }
 
 export interface UrteilVolltext extends UrteilInfo {
-  abschnitte: { nr: number; seite: number | null; rn: number | null; text: string }[];
+  abschnitte: { nr: number; seite: number | null; rn: number | null; text: string; teil: string | null }[];
+}
+
+/** Überschriften der Teile eines Volltexts von rechtsprechung-im-internet.de. */
+export const URTEIL_TEILE: Record<string, string> = {
+  leitsatz: "Leitsatz",
+  sonstosatz: "Orientierungssatz",
+  tenor: "Tenor",
+  tatbestand: "Tatbestand",
+  entscheidungsgruende: "Entscheidungsgründe",
+  gruende: "Gründe",
+  abwmeinung: "Abweichende Meinung",
+  sonstlt: "Sonstiger Langtext",
+};
+
+/** Hinweis zur zitierten Randnummer: vorhanden, fehlt im Volltext oder nicht prüfbar. */
+export function rnHinweis(f: { rn_zitiert: number | null; rn_vorhanden: boolean | null }, hoechste: number | null): string | null {
+  if (f.rn_zitiert == null || f.rn_vorhanden == null) return null;
+  if (f.rn_vorhanden) return `Rn. ${f.rn_zitiert} zitiert`;
+  return hoechste != null && f.rn_zitiert > hoechste
+    ? `Rn. ${f.rn_zitiert} zitiert, die Entscheidung hat nur Rn. 1–${hoechste}`
+    : `Rn. ${f.rn_zitiert} zitiert, im Volltext nicht gefunden`;
 }
 
 /** Übliche Quellen für selbst ergänzte Entscheidungen (Vorschläge, frei änderbar). */

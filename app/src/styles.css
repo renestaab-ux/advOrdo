@@ -118,6 +118,14 @@ code { font-family: ui-monospace, monospace; }
 .volltext-kopf { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 4px; }
 .volltext-abschnitt { margin: 8px 0; line-height: 1.5; white-space: pre-line; font-size: 14px; }
 .volltext-abschnitt .rn { font-weight: 600; margin-right: 6px; }
+.volltext-abschnitt.ziel { background: color-mix(in srgb, var(--akzent) 12%, transparent); border-radius: 4px; padding: 2px 4px; }
+.volltext-teil { font-size: 14px; margin: 14px 0 4px; }
+.volltext-titel { font-style: italic; margin: 4px 0; }
+.volltexte-laden { display: flex; gap: 12px; align-items: center; margin: 4px 0 8px; }
+.fundstelle { display: inline-flex; gap: 6px; align-items: baseline; margin-right: 12px; }
+.rn-hinweis { font-size: 12px; }
+.rn-hinweis.rn-ok { color: var(--gut); }
+.rn-hinweis.rn-fehlt { color: var(--fehler); cursor: default; text-decoration: none; }
 .formular { display: grid; grid-template-columns: 110px minmax(0, 360px); gap: 8px 12px; align-items: center; margin: 8px 0 12px; }
 .formular label { display: contents; }
 .formular input { font: inherit; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--linie); background: var(--hintergrund); color: var(--text); }
