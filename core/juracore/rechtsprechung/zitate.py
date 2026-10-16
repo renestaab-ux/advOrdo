@@ -51,6 +51,11 @@ _NUR_FUNDSTELLE = re.compile(
 
 ARTEN = {"Urt.": "Urteil", "Beschl.": "Beschluss", "VU": "Versäumnisurteil"}
 
+# Zitierte Randnummer hinter dem Aktenzeichen: „…, Rn. 22“, „…, NJW 2017, 1093 Rn. 22“, „juris Rz. 7“.
+_RN = re.compile(r"\b(?:Rn|Rdnr|Rdn|Rz|Tz)\.?\s*(\d{1,4})\b")
+# Ende des Zitats: Semikolon, Klammer zu, Zeilenende oder Satzende vor einem neuen Satz.
+_ZITAT_ENDE = re.compile(r"[;)\n]|\.\s+[A-ZÄÖÜ]")
+
 
 @dataclass(frozen=True)
 class UrteilsZitat:
@@ -60,6 +65,7 @@ class UrteilsZitat:
     art: str | None = None  # „Urteil“, „Beschluss“ …
     fundstelle: str | None = None  # „NJW 2017, 1093“
     treffer: tuple[int, int] = (0, 0)
+    rn: int | None = None  # zitierte Randnummer, z. B. 22 bei „…, Rn. 22“
 
     @property
     def gerichtstyp(self) -> str:
@@ -98,6 +104,15 @@ def normalisiere_az(az: str) -> str:
     return " ".join(az.split()).casefold()
 
 
+def _zitierte_rn(text: str, ende: int) -> int | None:
+    """Randnummer, die unmittelbar hinter einem Zitat angegeben ist (bis Semikolon, Klammer oder Satzende)."""
+    rest = text[ende:ende + 80]
+    if m := _ZITAT_ENDE.search(rest):
+        rest = rest[:m.start()]
+    m = _RN.search(rest)
+    return int(m.group(1)) if m else None
+
+
 def finde_urteilszitate(text: str) -> list[UrteilsZitat]:
     zitate: list[UrteilsZitat] = []
     belegt: list[tuple[int, int]] = []
@@ -110,6 +125,7 @@ def finde_urteilszitate(text: str) -> list[UrteilsZitat]:
             datum=_iso(m.group("datum")),
             art=ARTEN.get(art, art) if art else None,
             treffer=(m.start(), m.end()),
+            rn=_zitierte_rn(text, m.end()),
         ))
         belegt.append((m.start(), m.end()))
     for m in _NUR_FUNDSTELLE.finditer(text):

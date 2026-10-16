@@ -36,7 +36,7 @@ from . import lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS akte (
@@ -121,9 +121,43 @@ CREATE TABLE IF NOT EXISTS urteilszitat (
     status          TEXT NOT NULL,          -- belegt, abweichend, nicht_gefunden, ausserhalb, …
     hinweis         TEXT,
     stand_id        INTEGER,                -- Stand des Rechtsprechungsverzeichnisses bei der Prüfung
-    entscheidung    TEXT                    -- JSON: Gericht, Spruchkörper, Datum, Aktenzeichen, Link
+    entscheidung    TEXT,                   -- JSON: Gericht, Spruchkörper, Datum, Aktenzeichen, Link
+    rn_zitiert      INTEGER                 -- zitierte Randnummer, z. B. 22 bei „…, Rn. 22“
 );
 CREATE INDEX IF NOT EXISTS urteilszitat_abschnitt ON urteilszitat (abschnitt_id);
+
+-- Entscheidungen, die zur Akte im Volltext vorliegen: selbst ergänzt (z. B. PDF aus juris) oder geladen.
+CREATE TABLE IF NOT EXISTS urteil (
+    id              INTEGER PRIMARY KEY,
+    akte_id         INTEGER NOT NULL REFERENCES akte(id) ON DELETE CASCADE,
+    zitat           TEXT,                   -- Zitat der Akte, zu dem die Entscheidung ergänzt wurde
+    gericht         TEXT NOT NULL,
+    aktenzeichen    TEXT,
+    az_norm         TEXT,
+    datum           TEXT,
+    quelle          TEXT NOT NULL,          -- manuell oder rii (rechtsprechung-im-internet.de)
+    herkunft        TEXT,                   -- z. B. "juris", "beck-online" oder die Adresse des Abrufs
+    dateiname       TEXT NOT NULL,
+    format          TEXT NOT NULL,
+    sha256          TEXT NOT NULL,
+    original        TEXT NOT NULL,          -- Pfad der unverändert abgelegten Datei
+    lesart          TEXT NOT NULL,
+    hinweise        TEXT NOT NULL,          -- JSON-Liste
+    hinzugefuegt_am TEXT NOT NULL,
+    doknr           TEXT,                   -- Dokumentnummer bei rechtsprechung-im-internet.de
+    kopf            TEXT,                   -- JSON: Spruchkörper, Art, Normen, Vorinstanzen, Titel
+    UNIQUE (akte_id, sha256)
+);
+
+CREATE TABLE IF NOT EXISTS urteil_abschnitt (
+    urteil_id       INTEGER NOT NULL REFERENCES urteil(id) ON DELETE CASCADE,
+    nr              INTEGER NOT NULL,
+    seite           INTEGER,
+    rn              INTEGER,
+    text            TEXT NOT NULL,
+    teil            TEXT                    -- leitsatz, tenor, gruende …; NULL bei eigenen Dateien
+);
+CREATE INDEX IF NOT EXISTS urteil_abschnitt_urteil ON urteil_abschnitt (urteil_id, nr);
 """
 
 
@@ -150,6 +184,11 @@ def _migriere(con: sqlite3.Connection) -> None:
     if "urteile_erkannt" not in spalten:
         # Dokumente aus älteren Versionen: Rechtsprechungszitate werden beim nächsten Abruf nachgetragen.
         con.execute("ALTER TABLE dokument ADD COLUMN urteile_erkannt INTEGER")
+    # Zwischenstände von Schema 4 (Entwicklungsversion) um die späteren Spalten ergänzen.
+    for tabelle, spalte, typ in (("urteilszitat", "rn_zitiert", "INTEGER"), ("urteil", "doknr", "TEXT"),
+                                 ("urteil", "kopf", "TEXT"), ("urteil_abschnitt", "teil", "TEXT")):
+        if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
+            con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
 
 
 def _jetzt() -> str:
@@ -337,11 +376,11 @@ def _verknuepfe_urteile(con: sqlite3.Connection, wissen: sqlite3.Connection, dok
             beleg = cache[schluessel]
             con.execute(
                 """INSERT INTO urteilszitat (abschnitt_id, start, ende, seite, zitat, gericht, aktenzeichen, datum,
-                                             status, hinweis, stand_id, entscheidung)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                             status, hinweis, stand_id, entscheidung, rn_zitiert)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (a["id"], *z.treffer, _seite_an(a["seite"], wechsel, z.treffer[0]), schluessel, z.gericht,
                  z.aktenzeichen, z.datum, beleg["status"], beleg["hinweis"], beleg["stand_id"],
-                 json.dumps(beleg["entscheidung"], ensure_ascii=False) if beleg["entscheidung"] else None),
+                 json.dumps(beleg["entscheidung"], ensure_ascii=False) if beleg["entscheidung"] else None, z.rn),
             )
     con.execute("UPDATE dokument SET urteile_erkannt = 1 WHERE id = ?", (dokument_id,))
 
@@ -382,12 +421,25 @@ def rechtsprechung(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id:
         )
         g["fundstellen"].append(
             {"dokument_id": z["dokument_id"], "dateiname": z["dateiname"], "abschnitt": z["abschnitt"],
-             "seite": z["seite"], "rn": z["rn"], "start": z["start"], "ende": z["ende"]}
+             "seite": z["seite"], "rn": z["rn"], "start": z["start"], "ende": z["ende"],
+             "rn_zitiert": z["rn_zitiert"]}
         )
     reihenfolge = {s: i for i, s in enumerate((verzeichnis.ABWEICHEND, verzeichnis.NICHT_GEFUNDEN,
                                                verzeichnis.KEIN_VERZEICHNIS, verzeichnis.BELEGT,
                                                verzeichnis.AUSSERHALB, verzeichnis.NICHT_PRUEFBAR))}
-    return sorted(gruppen.values(), key=lambda g: (reihenfolge.get(g["status"], 9), g["datum"] or "", g["zitat"]))
+    from . import urteile  # urteile nutzt Hilfsfunktionen dieses Moduls
+
+    vorliegend = urteile.liste(con, akte_id)
+    for g in gruppen.values():
+        g["urteil"] = urteile.zu_zitat(vorliegend, g["zitat"], g["gericht"], g["aktenzeichen"])
+        # Zitierte Randnummern gegen den vorliegenden Volltext prüfen.
+        rns = urteile.randnummern(con, g["urteil"]["id"]) if g["urteil"] else set()
+        for f in g["fundstellen"]:
+            f["rn_vorhanden"] = (f["rn_zitiert"] in rns) if rns and f["rn_zitiert"] is not None else None
+        g["rn_hoechste"] = max(rns) if rns else None
+    # Offene Fragen zuerst: innerhalb eines Status stehen Zitate ohne vorliegenden Volltext oben.
+    return sorted(gruppen.values(), key=lambda g: (reihenfolge.get(g["status"], 9), g["urteil"] is not None,
+                                                   g["datum"] or "", g["zitat"]))
 
 
 def _zitat_zaehlung(con: sqlite3.Connection, dokument_id: int) -> dict:

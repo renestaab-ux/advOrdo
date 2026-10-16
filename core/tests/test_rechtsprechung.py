@@ -73,7 +73,8 @@ def test_zitate_pruefen(con, tmp_path):
     belegt = _pruefe(con, KLAGE)
     assert belegt["status"] == verzeichnis.BELEGT
     assert belegt["hinweis"] == "BGH 8. Zivilsenat, 12.10.2016 – VIII ZR 103/15."
-    assert "docid=JURE160018467" in belegt["entscheidung"]["link"]
+    assert "docid=jb-JURE160018467&" in belegt["entscheidung"]["link"]
+    assert belegt["entscheidung"]["doknr"] == "JURE160018467"
     assert _pruefe(con, "BGH, VIII ZR 2/10")["status"] == verzeichnis.BELEGT  # ohne Datum, verbundenes Verfahren
 
     erfunden = _pruefe(con, REPLIK)

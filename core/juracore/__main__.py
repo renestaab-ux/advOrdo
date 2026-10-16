@@ -13,7 +13,7 @@ from .dokumente import lesen, ocr
 from .gesetze import quelle, wissensbasis
 from .gesetze.zitate import finde_zitate
 from .ki import anbieter as ki_anbieter
-from .rechtsprechung import verzeichnis
+from .rechtsprechung import verzeichnis, volltext
 from .rechtsprechung.zitate import finde_urteilszitate
 
 
@@ -40,6 +40,8 @@ def main(argv: list[str] | None = None) -> int:
     rl.add_argument("--datei", type=Path, help="lokal gespeicherte rii-toc.xml statt des Abrufs")
     ur = sub.add_parser("urteil", help='Rechtsprechungszitat prüfen, z. B. "BGH, Urt. v. 12.10.2016 - VIII ZR 103/15"')
     ur.add_argument("zitat")
+    ur.add_argument("--volltext", action="store_true",
+                    help="belegte Entscheidung im Volltext laden und Randnummern zeigen (nur öffentliche Quelle)")
     le = sub.add_parser("lesen", help="Dokument (PDF, DOCX, TXT, MD) lesen und Normzitate prüfen, ohne es zu speichern")
     le.add_argument("pfad", type=Path)
     le.add_argument("--ohne-ocr", action="store_true", help="Bildseiten nicht per Texterkennung lesen")
@@ -95,6 +97,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Kein Rechtsprechungszitat erkannt: {a.zitat!r}", file=sys.stderr)
             return 1
         ergebnis = [{"zitat": str(z)} | verzeichnis.pruefe(con, z) for z in gefunden]
+        if a.volltext:
+            for e in ergebnis:
+                if e["entscheidung"] and e["entscheidung"].get("doknr"):
+                    v = volltext.lies(volltext.lade(e["entscheidung"]["doknr"]))
+                    rn = v.randnummern
+                    e["volltext"] = {"titel": v.titel, "normen": v.normen, "absaetze": len(v.absaetze),
+                                     "randnummern": f"{rn[0]}–{rn[-1]}" if rn else None,
+                                     "leitsatz": next((x.text for x in v.absaetze if x.teil == "leitsatz"), None)}
     elif a.befehl == "lesen":
         ergebnis = _lesen(con, a.pfad, not a.ohne_ocr)
     else:

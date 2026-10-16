@@ -9,9 +9,11 @@ import {
   istZitat,
   lesartText,
   rechtsprechungUmfang,
+  rnHinweis,
   segmente,
   tagsAusText,
   tagUebersicht,
+  urteilHerkunft,
 } from "./kern";
 
 describe("istZitat", () => {
@@ -114,5 +116,20 @@ describe("Rechtsprechung", () => {
         gerichte: { BVerfG: { anzahl: 5, von: "1998-01-02", bis: null }, BGH: { anzahl: 40, von: "2010-01-04", bis: null } },
       }),
     ).toBe("BGH ab 2010, BVerfG ab 1998");
+  });
+});
+
+describe("Randnummern", () => {
+  it("sagt, ob die zitierte Randnummer im Volltext steht", () => {
+    expect(rnHinweis({ rn_zitiert: 22, rn_vorhanden: true }, 67)).toBe("Rn. 22 zitiert");
+    expect(rnHinweis({ rn_zitiert: 99, rn_vorhanden: false }, 67)).toBe("Rn. 99 zitiert, die Entscheidung hat nur Rn. 1–67");
+    expect(rnHinweis({ rn_zitiert: null, rn_vorhanden: null }, 67)).toBeNull();
+  });
+});
+
+describe("Ergänzte Urteile", () => {
+  it("nennt Quelle und Datei", () => {
+    expect(urteilHerkunft({ herkunft: "juris", dateiname: "BGH VIII ZR 999-20.pdf" })).toBe("juris, BGH VIII ZR 999-20.pdf");
+    expect(urteilHerkunft({ herkunft: null, dateiname: "urteil.pdf" })).toBe("urteil.pdf");
   });
 });
