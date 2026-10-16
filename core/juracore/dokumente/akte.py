@@ -36,7 +36,7 @@ from . import lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS akte (
@@ -158,6 +158,21 @@ CREATE TABLE IF NOT EXISTS urteil_abschnitt (
     teil            TEXT                    -- leitsatz, tenor, gruende …; NULL bei eigenen Dateien
 );
 CREATE INDEX IF NOT EXISTS urteil_abschnitt_urteil ON urteil_abschnitt (urteil_id, nr);
+
+-- Volltextsuche über alle Akten (juracore.dokumente.suche); folgt der Tabelle abschnitt über Trigger.
+CREATE VIRTUAL TABLE IF NOT EXISTS abschnitt_fts USING fts5(
+    text, content='abschnitt', content_rowid='id', tokenize='unicode61 remove_diacritics 2'
+);
+CREATE TRIGGER IF NOT EXISTS abschnitt_fts_neu AFTER INSERT ON abschnitt BEGIN
+    INSERT INTO abschnitt_fts (rowid, text) VALUES (new.id, new.text);
+END;
+CREATE TRIGGER IF NOT EXISTS abschnitt_fts_weg AFTER DELETE ON abschnitt BEGIN
+    INSERT INTO abschnitt_fts (abschnitt_fts, rowid, text) VALUES ('delete', old.id, old.text);
+END;
+CREATE TRIGGER IF NOT EXISTS abschnitt_fts_neu_text AFTER UPDATE OF text ON abschnitt BEGIN
+    INSERT INTO abschnitt_fts (abschnitt_fts, rowid, text) VALUES ('delete', old.id, old.text);
+    INSERT INTO abschnitt_fts (rowid, text) VALUES (new.id, new.text);
+END;
 """
 
 
@@ -170,7 +185,12 @@ def oeffne(pfad: str | Path) -> sqlite3.Connection:
     # Gelöschte Akteninhalte nicht als Reste in freien Seiten der Datei stehen lassen.
     con.execute("PRAGMA secure_delete = ON")
     con.execute("PRAGMA journal_mode = WAL")
+    ohne_suchindex = not con.execute("SELECT 1 FROM sqlite_master WHERE name = 'abschnitt_fts'").fetchone()
     con.executescript(_SCHEMA)
+    if ohne_suchindex:
+        # Akten aus Version 4 und älter: vorhandene Texte einmalig in den Suchindex aufnehmen.
+        con.execute("INSERT INTO abschnitt_fts (abschnitt_fts) VALUES ('rebuild')")
+        con.commit()
     _migriere(con)
     con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return con

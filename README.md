@@ -156,6 +156,24 @@ Ein geöffnetes Dokument lässt sich auf vier Arten zeigen:
   Text, die Zitate, die Tags und die Kopie, die die App beim Einlesen abgelegt hat. Die
   Originaldatei am ursprünglichen Ort bleibt unverändert.
 
+## Suche: Volltext über alle Akten
+
+Der Bereich **Suche** durchsucht den gelesenen Text der Dokumente einer Akte oder aller Akten, nach dem Vorbild von „PDF Search“
+für macOS. Die Treffer erscheinen schon beim Tippen:
+
+- links je Dokument Akte, Seitenzahl und Anzahl der Treffer; darunter die Fundstellen (Seite, bei Word- und
+  Textdateien Randnummer oder Abschnitt) mit Rang und Textausschnitt,
+- rechts das Dokument: bei PDFs das Original mit gelb markierten Fundstellen, sonst der Text mit markierten Wörtern,
+- ▲ und ▼ springen zur vorigen oder nächsten Fundstelle,
+- das Auswahlfeld neben dem Suchfeld legt fest, wo gesucht wird: in der gewählten Akte (Standard) oder in allen Akten.
+
+Groß- und Kleinschreibung und Akzente spielen keine Rolle („rucktritt“ findet „Rücktritt“). Mehrere Wörter müssen
+alle vorkommen; eine genaue Wortfolge steht in Anführungszeichen („"Frist bis zum"“); ein Wortanfang endet auf *
+(„Nachbesser*“). Ohne * findet die Suche nur ganze Wörter. Der Suchindex liegt in `akten.sqlite` und wird beim
+Einlesen und Entfernen von Dokumenten mitgeführt; Akten aus älteren Versionen werden beim ersten Start einmalig
+aufgenommen. Wörter, die im PDF über eine Silbentrennung laufen, findet die Suche im Text, markiert sie im Original
+aber nicht.
+
 ## Vergleich: Angaben abgleichen
 
 Der Bereich **Vergleich** (oder **Abgleichen** in der Akte) stellt dieselben Angaben aus den

@@ -4,12 +4,14 @@ import Analyse from "./Analyse";
 import Einstellungen from "./Einstellungen";
 import Gesetze from "./Gesetze";
 import Rechtsprechung from "./Rechtsprechung";
+import Suche from "./Suche";
 import Vergleich from "./Vergleich";
 
-type Bereich = "akte" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
+type Bereich = "akte" | "suche" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
 
 const BEREICHE: { id: Bereich; titel: string; bald?: boolean }[] = [
   { id: "akte", titel: "Akte" },
+  { id: "suche", titel: "Suche" },
   { id: "vergleich", titel: "Vergleich" },
   { id: "analyse", titel: "Analyse" },
   { id: "gesetze", titel: "Gesetze" },
@@ -44,6 +46,16 @@ export default function App() {
       </nav>
       <main className="inhalt">
         {bereich === "akte" && <Akte akteId={akteId} setAkteId={setAkteId} onVergleich={() => setBereich("vergleich")} />}
+        {bereich === "suche" && (
+          <Suche
+            akteId={akteId}
+            setAkteId={setAkteId}
+            onAkte={(id) => {
+              setAkteId(id);
+              setBereich("akte");
+            }}
+          />
+        )}
         {bereich === "vergleich" && <Vergleich akteId={akteId} setAkteId={setAkteId} />}
         {bereich === "analyse" && (
           <Analyse akteId={akteId} setAkteId={setAkteId} onEinstellungen={() => setBereich("einstellungen")} />

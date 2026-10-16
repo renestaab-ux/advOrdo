@@ -134,6 +134,14 @@ abgelegten PDF-Kopie mit PDFium und gibt sie als PNG-Data-URL zurück (eigener P
 Breite 200 bis 2400 Pixel). Die Oberfläche hat keine Dateirechte; sie fordert nur die Seiten an, die sichtbar werden.
 `akten.normen` und `akten.rechtsprechung` nehmen optional `dokument_id`, um nur die Zitate eines Dokuments zu liefern.
 
+Volltextsuche (`juracore.dokumente.suche`, Schema 5): `abschnitt_fts` ist ein FTS5-Index (`unicode61
+remove_diacritics 2`) über `abschnitt.text`, gepflegt durch Trigger beim Einfügen, Ändern und Löschen; beim Öffnen
+einer älteren Akte wird er einmal mit `rebuild` gefüllt. `akten.suche(text, akte_id=None)` übersetzt die Eingabe in
+eine sichere FTS5-Abfrage (Wörter, „Wortfolge“, Wortanfang*), ordnet jeden Treffer über `seitenwechsel` seiner Seite
+zu und gibt Dokumente mit Fundstellen (Seite oder Abschnitt, Rang nach BM25, Ausschnitt, gefundene Wortformen) zurück.
+`akten.seitenbild(…, begriffe)` sucht diese Wortformen mit PDFium auf der Seite und liefert ihre Rechtecke als
+`markierungen` (Anteile der Seitengröße).
+
 Volltexte zur Akte (`juracore.dokumente.urteile`, Schema 4): `urteil` (Gericht, Aktenzeichen, Datum, Quelle
 `manuell` oder `rii`, Herkunft wie „juris“, SHA-256, Pfad der unverändert abgelegten Datei) → `urteil_abschnitt`
 (Text mit Seite und Randnummer). `akten.rechtsprechung` ordnet jedem Zitat das vorliegende Urteil zu: gleiches Zitat
@@ -154,7 +162,6 @@ Randnummern des Volltexts geprüft (`rn_vorhanden`).
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
 - Kern als Sidecar bündeln, Installer je System
-- Volltextsuche über Akten
 - Rechtsprechung: Instanzgerichte (Landesportale), EuGH (EUR-Lex); prüfen, ob die zitierte Rn. die Aussage trägt
 - Chronologie exportieren (Word, PDF, Markdown)
 - Tesseract für den Installer mitliefern (Windows), damit keine eigene Installation nötig ist
