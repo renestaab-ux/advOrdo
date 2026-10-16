@@ -138,13 +138,18 @@ def volltexte_laden(
     akte_id: int,
     archiv: Path,
     lader: Callable[[str], bytes] = rii.lade,
+    zitat: str | None = None,
 ) -> dict:
-    """Lädt die Volltexte aller im Verzeichnis belegten Entscheidungen der Akte, die noch nicht vorliegen."""
+    """Lädt die Volltexte der im Verzeichnis belegten Entscheidungen der Akte, die noch nicht vorliegen.
+
+    Mit ``zitat`` nur die Entscheidung zu diesem Zitat."""
     from .akte import rechtsprechung  # akte nutzt dieses Modul für die Zuordnung
 
     geladen, fehler = [], []
     for g in rechtsprechung(con, wissen, akte_id):
         doknr = _doknr(g["entscheidung"])
+        if zitat is not None and g["zitat"] != zitat:
+            continue
         if g["urteil"] is not None or g["status"] != verzeichnis.BELEGT or doknr is None:
             continue
         try:

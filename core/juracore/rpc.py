@@ -77,8 +77,8 @@ class Kern:
                 herkunft=None: urteile.ergaenzen(self.akten, akte_id, pfad, self.ablage, gericht, aktenzeichen, datum,
                                                  zitat, herkunft),
             "akten.urteile": lambda akte_id: urteile.liste(self.akten, akte_id),
-            "akten.volltexte_laden": lambda akte_id: urteile.volltexte_laden(self.akten, self.con, akte_id,
-                                                                              self.archiv),
+            "akten.volltexte_laden": lambda akte_id, zitat=None: urteile.volltexte_laden(
+                self.akten, self.con, akte_id, self.archiv, zitat=zitat),
             "rechtsprechung.eigene": lambda: urteile.uebersicht(self.akten),
             "akten.urteil": lambda urteil_id: urteile.volltext(self.akten, urteil_id),
             "akten.urteil_entfernen": lambda urteil_id: urteile.entfernen(self.akten, urteil_id, self.ablage),

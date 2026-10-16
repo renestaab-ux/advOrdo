@@ -1,4 +1,14 @@
-import { Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useState } from "react";
+import {
+  CSSProperties,
+  Dispatch,
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { BelegAnsicht } from "./Gesetze";
 import {
@@ -35,6 +45,20 @@ import {
 } from "./kern";
 
 type Ansicht = "dokument" | "normen" | "rechtsprechung";
+
+/** Breite der Seitenleiste (Wortlaut, Volltext), je Gerät gemerkt. */
+const SEITE_STANDARD = 360;
+const SEITE_MIN = 260;
+const BREITE_SCHLUESSEL = "akte.seitenbreite";
+
+function gespeicherteBreite(): number {
+  try {
+    const wert = Number(localStorage.getItem(BREITE_SCHLUESSEL));
+    return wert >= SEITE_MIN ? wert : SEITE_STANDARD;
+  } catch {
+    return SEITE_STANDARD;
+  }
+}
 
 /** Eine einzulesende Datei, beim Ordner-Import mit Unterordner und bestätigten Tags. */
 interface Einzulesen {
@@ -99,6 +123,35 @@ export default function Akte({
   const [ergaenzung, setErgaenzung] = useState<Ergaenzung | null>(null);
   const [volltext, setVolltext] = useState<UrteilVolltext | null>(null);
   const [volltextRn, setVolltextRn] = useState<number | null>(null);
+  const [seitenbreite, setSeitenbreite] = useState(gespeicherteBreite);
+  const flaeche = useRef<HTMLDivElement>(null);
+
+  function setzeSeitenbreite(breite: number) {
+    setSeitenbreite(breite);
+    try {
+      localStorage.setItem(BREITE_SCHLUESSEL, String(breite));
+    } catch {
+      // Ohne Speicher gilt die Breite nur bis zum Neustart.
+    }
+  }
+
+  function breiteZiehen(e: ReactPointerEvent<HTMLDivElement>) {
+    const rechts = flaeche.current?.getBoundingClientRect().right;
+    const gesamt = flaeche.current?.getBoundingClientRect().width;
+    if (rechts == null || gesamt == null) return;
+    e.preventDefault();
+    const bewegen = (ev: PointerEvent) => {
+      // Die Liste links behält mindestens 320 px.
+      setSeitenbreite(Math.round(Math.min(Math.max(rechts - ev.clientX, SEITE_MIN), gesamt - 320)));
+    };
+    const loslassen = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", bewegen);
+      window.removeEventListener("pointerup", loslassen);
+      setzeSeitenbreite(Math.round(Math.min(Math.max(rechts - ev.clientX, SEITE_MIN), gesamt - 320)));
+    };
+    window.addEventListener("pointermove", bewegen);
+    window.addEventListener("pointerup", loslassen);
+  }
 
   const ausfuehren = useCallback(async <T,>(was: string, f: () => Promise<T>) => {
     setLaeuft(was);
@@ -357,10 +410,13 @@ export default function Akte({
     setVolltext(v ?? null);
   }
 
-  async function volltexteLaden() {
+  async function volltexteLaden(zitat?: string) {
     if (akteId == null) return;
-    const e = await ausfuehren("Lade Volltexte von rechtsprechung-im-internet.de …", () =>
-      kern<{ geladen: string[]; fehler: { zitat: string; fehler: string }[] }>("akten.volltexte_laden", { akte_id: akteId }),
+    const e = await ausfuehren(`Lade ${zitat ? "Volltext" : "Volltexte"} von rechtsprechung-im-internet.de …`, () =>
+      kern<{ geladen: string[]; fehler: { zitat: string; fehler: string }[] }>("akten.volltexte_laden", {
+        akte_id: akteId,
+        zitat: zitat ?? null,
+      }),
     );
     if (!e) return;
     await zeigeRechtsprechung();
@@ -631,7 +687,11 @@ export default function Akte({
         </nav>
       )}
 
-      <div className="akte-arbeitsflaeche">
+      <div
+        className="akte-arbeitsflaeche"
+        ref={flaeche}
+        style={{ "--seite-breite": `${seitenbreite}px` } as CSSProperties}
+      >
         <div className="akte-haupt">
           {ansicht === "dokument" && inhalt && <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} />}
           {ansicht === "dokument" && !inhalt && dokumente.length > 0 && (
@@ -651,6 +711,17 @@ export default function Akte({
             />
           )}
         </div>
+        {((ansicht === "rechtsprechung" && volltext) || (ansicht === "dokument" && auswahl)) && (
+          <div
+            className="trenner"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Breite der Seitenleiste"
+            title="Ziehen, um die Breite zu ändern; Doppelklick setzt sie zurück"
+            onPointerDown={breiteZiehen}
+            onDoubleClick={() => setzeSeitenbreite(SEITE_STANDARD)}
+          />
+        )}
         {ansicht === "rechtsprechung" && volltext && (
           <VolltextAnsicht volltext={volltext} rn={volltextRn} onSchliessen={() => setVolltext(null)} />
         )}
@@ -929,7 +1000,7 @@ function RechtsprechungAnsicht({
   laeuft: boolean;
   onFundstelle: (dokumentId: number, abschnitt: number) => void;
   onErgaenzen: (u: UrteilEintrag) => void;
-  onVolltexteLaden: () => void;
+  onVolltexteLaden: (zitat?: string) => void;
   onVolltext: (urteilId: number, rn?: number) => void;
   onEntfernen: (u: UrteilInfo) => void;
 }) {
@@ -951,8 +1022,8 @@ function RechtsprechungAnsicht({
       )}
       {ladbar > 0 && (
         <div className="volltexte-laden">
-          <button className="zweitrangig" onClick={onVolltexteLaden} disabled={laeuft}>
-            {ladbar === 1 ? "Volltext laden" : `${ladbar} Volltexte laden`}
+          <button className="zweitrangig" onClick={() => onVolltexteLaden()} disabled={laeuft}>
+            Alle Volltexte laden ({ladbar})
           </button>
           <span className="fundort">
             Belegte Entscheidungen der Bundesgerichte von rechtsprechung-im-internet.de; danach prüft die App zitierte
@@ -1009,9 +1080,16 @@ function RechtsprechungAnsicht({
                   </button>
                 </>
               ) : (
-                <button className="link" onClick={() => onErgaenzen(u)} disabled={laeuft}>
-                  {u.status === "belegt" ? "Volltext ergänzen …" : "Urteil selbst ergänzen …"}
-                </button>
+                <>
+                  {u.status === "belegt" && u.entscheidung && (
+                    <button className="link" onClick={() => onVolltexteLaden(u.zitat)} disabled={laeuft}>
+                      Volltext laden
+                    </button>
+                  )}
+                  <button className="link" onClick={() => onErgaenzen(u)} disabled={laeuft}>
+                    {u.status === "belegt" ? "eigene Datei ergänzen …" : "Urteil selbst ergänzen …"}
+                  </button>
+                </>
               )}
             </div>
           </li>

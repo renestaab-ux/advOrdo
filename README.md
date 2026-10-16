@@ -267,7 +267,9 @@ Randnummern). Gesendet wird nur die Nummer der Entscheidung; die Datei wird unve
 im Roharchiv abgelegt (`RECHTSPRECHUNG/volltexte/`) und bleibt dort, auch wenn man das Urteil aus der Akte entfernt.
 Zitiert ein Schriftsatz „…, Rn. 36“, zeigt die App, ob es diese Randnummer gibt, und springt per Klick dorthin;
 „Rn. 84“ bei einer Entscheidung mit 67 Randnummern wird als Fehler markiert. Das gilt auch für selbst ergänzte Urteile,
-sofern ihre Randnummern erkannt werden.
+sofern ihre Randnummern erkannt werden. „Alle Volltexte laden“ holt alle auf einmal, „Volltext laden“ beim einzelnen
+Zitat nur diese Entscheidung. Die Breite der Volltext-Leiste lässt sich mit der Trennlinie verschieben (Doppelklick:
+zurück auf Standard).
 
 Ohne App:
 

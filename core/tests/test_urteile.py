@@ -166,7 +166,11 @@ def test_volltexte_der_akte_laden(akten, con, tmp_path):
         angefragt.append(doknr)
         return _zip_auszug()
 
-    ergebnis = urteile.volltexte_laden(akten, con, a["id"], tmp_path / "archiv", lader)
+    # Einzeln: ein anderes Zitat lädt nichts.
+    assert urteile.volltexte_laden(akten, con, a["id"], tmp_path / "archiv", lader,
+                                   zitat="EuGH, Urteil vom 04.06.2015 – C-497/13")["geladen"] == []
+    ergebnis = urteile.volltexte_laden(akten, con, a["id"], tmp_path / "archiv", lader,
+                                       zitat="BGH, Urteil vom 12.10.2016 – VIII ZR 103/15")
     # Nur die belegte BGH-Entscheidung; der EuGH steht nicht im Verzeichnis.
     assert angefragt == ["JURE160018467"] and ergebnis["fehler"] == []
     archiviert = list((tmp_path / "archiv" / "RECHTSPRECHUNG" / "volltexte").iterdir())

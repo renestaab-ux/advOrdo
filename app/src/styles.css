@@ -122,6 +122,7 @@ code { font-family: ui-monospace, monospace; }
 .volltext-teil { font-size: 14px; margin: 14px 0 4px; }
 .volltext-titel { font-style: italic; margin: 4px 0; }
 .volltexte-laden { display: flex; gap: 12px; align-items: center; margin: 4px 0 8px; }
+.volltexte-laden button { white-space: nowrap; }
 .fundstelle { display: inline-flex; gap: 6px; align-items: baseline; margin-right: 12px; }
 .rn-hinweis { font-size: 12px; }
 .rn-hinweis.rn-ok { color: var(--gut); }
@@ -131,8 +132,10 @@ code { font-family: ui-monospace, monospace; }
 .formular input { font: inherit; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--linie); background: var(--hintergrund); color: var(--text); }
 .reiter { display: flex; gap: 8px; margin: 8px 0 4px; }
 .reiter-aktiv { cursor: default; }
-.akte-arbeitsflaeche { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: start; }
-.akte-seite { width: 360px; position: sticky; top: 0; }
+.akte-arbeitsflaeche { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0 10px; align-items: start; }
+.akte-seite { width: var(--seite-breite, 360px); position: sticky; top: 0; }
+.trenner { align-self: stretch; width: 6px; min-height: 120px; cursor: col-resize; border-radius: 3px; background: var(--linie); opacity: 0.5; touch-action: none; }
+.trenner:hover { opacity: 1; background: var(--akzent); }
 .akte-seite .beleg { margin-top: 0; }
 .fundort { font-size: 12px; color: var(--text-leise); margin: 0 0 6px; }
 .dokument { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 16px 20px; margin: 12px 0; }
@@ -154,6 +157,7 @@ button.zitat.gewaehlt, button.zitat:hover { background: color-mix(in srgb, var(-
 @media (max-width: 1100px) {
   .akte-arbeitsflaeche { grid-template-columns: 1fr; }
   .akte-seite { width: auto; position: static; }
+  .trenner { display: none; }
 }
 
 /* Tags, Ordner-Import und Rückfragen */
