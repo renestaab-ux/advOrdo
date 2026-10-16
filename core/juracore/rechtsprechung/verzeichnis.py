@@ -30,7 +30,7 @@ from .zitate import UrteilsZitat, normalisiere_az
 
 URL = "https://www.rechtsprechung-im-internet.de/rii-toc.xml"
 USER_AGENT = "JuristischerDatenabgleich/0.1 (Rechtsprechungsverzeichnis)"
-BUNDESGERICHTE = ("BVerfG", "BGH", "BAG", "BSG", "BFH", "BVerwG", "BPatG")
+BUNDESGERICHTE = ("BVerfG", "BGH", "BAG", "BSG", "BFH", "BVerwG", "BPatG", "GmS-OGB")
 
 # Prüfergebnisse, in der Reihenfolge, in der die App sie zeigt.
 ABWEICHEND = "abweichend"  # Aktenzeichen bekannt, aber Datum oder Gericht passen nicht
@@ -122,7 +122,10 @@ def lies_verzeichnis(daten: bytes) -> Iterator[Eintrag]:
         gericht_text = felder.get("gericht") or ""
         if not az_text or not gericht_text:
             continue
-        gericht, _, spruchkoerper = gericht_text.partition(" ")
+        if gericht_text.startswith("Gemeinsamer Senat"):
+            gericht, spruchkoerper = "GmS-OGB", ""
+        else:
+            gericht, _, spruchkoerper = gericht_text.partition(" ")
         link = felder.get("link") or None
         doknr = m.group(1) if link and (m := re.search(r"jb-([A-Z0-9]+)\.zip", link)) else None
         # Verbundene Verfahren: „VIII ZR 103/15, VIII ZR 104/15“.

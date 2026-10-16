@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from juracore import rpc
+from juracore import db, rpc
 from juracore.dokumente import akte
 from juracore.rechtsprechung import verzeichnis
 from juracore.rechtsprechung.zitate import finde_urteilszitate, normalisiere_az
@@ -140,3 +140,15 @@ def test_rpc(tmp_path):
 def test_unlesbares_verzeichnis(con):
     with pytest.raises(ValueError, match="keine lesbaren Entscheidungen"):
         verzeichnis.importiere(con, b"<html><body>Wartung</body></html>", "x", "abc", "")
+
+
+def test_gemeinsamer_senat_wird_als_gms_ogb_gefuehrt(tmp_path):
+    xml = ("<items><item><gericht>Gemeinsamer Senat der obersten Gerichtshöfe des Bundes</gericht>"
+           "<entsch-datum>20100927</entsch-datum><aktenzeichen>GmS-OGB 1/09</aktenzeichen>"
+           "<link>http://www.rechtsprechung-im-internet.de/jportal/docs/bsjrs/jb-KORE000000004.zip</link>"
+           "</item></items>").encode()
+    con = db.oeffne(tmp_path / "wissen.sqlite")
+    verzeichnis.importiere(con, xml, "test", "abc", "archiv/x.xml")
+    assert set(verzeichnis.stand(con)["gerichte"]) == {"GmS-OGB"}
+    (z,) = finde_urteilszitate("GmS-OGB, Beschluss vom 27.09.2010 – GmS-OGB 1/09")
+    assert verzeichnis.pruefe(con, z)["status"] == verzeichnis.BELEGT

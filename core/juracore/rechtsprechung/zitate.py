@@ -30,6 +30,7 @@ _DATUM = r"(?P<datum>\d{1,2}\.\s?\d{1,2}\.\s?(?:\d{4}|\d{2}))"
 # Deutsches Aktenzeichen: Spruchkörper (römisch oder arabisch), Registerzeichen, laufende Nummer/Jahr.
 _AZ_DE = (
     r"(?:B\s\d+\s[A-Z]{1,3}\s\d+/\d{2}\s?[A-Z]{1,2}"  # BSG: „B 1 KR 2/20 R“
+    r"|GmS-OGB\s\d+/\d{2}"  # Gemeinsamer Senat: „GmS-OGB 1/09“
     r"|(?:[IVX]+[a-z]?|\d{1,3}[a-z]?)\s(?:[A-Z][A-Za-z]{0,5})(?:\s\([A-Za-zÄÖÜäöü]+\))?\s\d{1,5}/\d{2,4}"
     r"(?:\s[a-z](?![a-zäöüß]))?)"
 )
