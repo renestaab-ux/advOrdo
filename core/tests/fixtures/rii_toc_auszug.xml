@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auszug im Aufbau von rii-toc.xml (Rechtsprechung im Internet); Einträge für Tests. -->
+<items>
+  <item>
+    <gericht>BGH 8. Zivilsenat</gericht>
+    <entsch-datum>20161012</entsch-datum>
+    <aktenzeichen>VIII ZR 103/15</aktenzeichen>
+    <link>http://www.rechtsprechung-im-internet.de/jportal/docs/bsjrs/jb-JURE160018467.zip</link>
+    <modified>2016-11-24T10:12:03Z</modified>
+  </item>
+  <item>
+    <gericht>BGH 8. Zivilsenat</gericht>
+    <entsch-datum>20100512</entsch-datum>
+    <aktenzeichen>VIII ZR 1/10, VIII ZR 2/10</aktenzeichen>
+    <link>http://www.rechtsprechung-im-internet.de/jportal/docs/bsjrs/jb-JURE100000001.zip</link>
+    <modified>2010-06-01T08:00:00Z</modified>
+  </item>
+  <item>
+    <gericht>BVerfG 1. Senat 2. Kammer</gericht>
+    <entsch-datum>20200201</entsch-datum>
+    <aktenzeichen>1 BvR 123/20</aktenzeichen>
+    <link>http://www.rechtsprechung-im-internet.de/jportal/docs/bsjrs/jb-KVRE000000002.zip</link>
+    <modified>2020-03-01T08:00:00Z</modified>
+  </item>
+  <item>
+    <gericht>BAG 2. Senat</gericht>
+    <entsch-datum>20190314</entsch-datum>
+    <aktenzeichen>VIII ZR 77/18</aktenzeichen>
+    <link>http://www.rechtsprechung-im-internet.de/jportal/docs/bsjrs/jb-KARE000000003.zip</link>
+    <modified>2019-04-01T08:00:00Z</modified>
+  </item>
+</items>

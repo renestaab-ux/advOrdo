@@ -26,6 +26,7 @@ from .ki import anbieter as ki_anbieter
 from .ki import speicher as ki_speicher
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
+from .rechtsprechung import verzeichnis
 
 log = logging.getLogger("juracore.rpc")
 
@@ -71,6 +72,10 @@ class Kern:
             "akten.dokument": lambda dokument_id: akte.dokument(self.akten, dokument_id),
             "akten.normen": lambda akte_id: akte.normen(self.akten, akte_id),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
+            "akten.rechtsprechung": lambda akte_id: akte.rechtsprechung(self.akten, self.con, akte_id),
+            "rechtsprechung.stand": lambda: verzeichnis.stand(self.con),
+            "rechtsprechung.laden": self.rechtsprechung_laden,
+            "rechtsprechung.laden_datei": self.rechtsprechung_laden_datei,
             "akten.abgleich": lambda akte_id, dokument_ids=None: abgleich.abgleich(self.akten, akte_id, dokument_ids),
             "ki.status": lambda: ki_anbieter.status(ki_anbieter.lade_einstellungen(self.ki_datei)),
             "ki.einstellungen_setzen": self.ki_einstellungen_setzen,
@@ -134,6 +139,16 @@ class Kern:
                 con.close()
 
         return self.auftraege.starte(aufgabe, arbeit)
+
+    def rechtsprechung_laden(self) -> dict:
+        """Lädt das Verzeichnis der Bundesrechtsprechung (öffentliche Liste, keine Akteninhalte)."""
+        daten, sha, archivpfad = verzeichnis.lade(self.archiv)
+        return verzeichnis.importiere(self.con, daten, verzeichnis.URL, sha, archivpfad)
+
+    def rechtsprechung_laden_datei(self, pfad: str) -> dict:
+        daten = Path(pfad).read_bytes()
+        sha, archivpfad = verzeichnis.archiviere(daten, self.archiv)
+        return verzeichnis.importiere(self.con, daten, str(pfad), sha, archivpfad)
 
     def importieren_datei(self, pfad: str) -> dict:
         roh = quelle.lies_datei(Path(pfad), self.archiv)

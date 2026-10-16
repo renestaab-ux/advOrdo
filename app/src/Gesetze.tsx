@@ -5,12 +5,15 @@ import {
   GesetzEintrag,
   ImportErgebnis,
   Norm,
+  RechtsprechungStand,
   Voreinstellung,
   Treffer,
   formatiereBuilddate,
   istDesktop,
   istZitat,
   kern,
+  rechtsprechungUmfang,
+  zeitpunkt,
 } from "./kern";
 
 export default function Gesetze() {
@@ -21,6 +24,7 @@ export default function Gesetze() {
   const [treffer, setTreffer] = useState<Treffer[] | null>(null);
   const [beleg, setBeleg] = useState<Beleg | null>(null);
   const [norm, setNorm] = useState<Norm | null>(null);
+  const [rechtsprechung, setRechtsprechung] = useState<RechtsprechungStand | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
 
@@ -44,11 +48,18 @@ export default function Gesetze() {
     ]);
     setGesetze(liste);
     setVerfuegbar(verf);
+    setRechtsprechung(await kern<RechtsprechungStand | null>("rechtsprechung.stand"));
   }, []);
 
   useEffect(() => {
     if (istDesktop) void ausfuehren("Lade Wissensbasis …", ladeListe);
   }, [ausfuehren, ladeListe]);
+
+  async function rechtsprechungLaden() {
+    await ausfuehren("Lade das Verzeichnis der Bundesrechtsprechung von rechtsprechung-im-internet.de …", async () => {
+      setRechtsprechung(await kern<RechtsprechungStand>("rechtsprechung.laden"));
+    });
+  }
 
   async function importieren(abk: string[]) {
     await ausfuehren(`Lade ${abk.join(", ")} von gesetze-im-internet.de …`, async () => {
@@ -165,6 +176,25 @@ export default function Gesetze() {
       ) : (
         <p className="leer">Noch keine Gesetze in der Wissensbasis. Lade die Voreinstellung, um zu beginnen.</p>
       )}
+
+      <section className="rechtsprechung-stand">
+        <h2>Rechtsprechung</h2>
+        {rechtsprechung ? (
+          <p>
+            Verzeichnis der Bundesgerichte: {rechtsprechung.eintraege.toLocaleString("de-DE")} Entscheidungen (
+            {rechtsprechungUmfang(rechtsprechung)}), geladen {zeitpunkt(rechtsprechung.abgerufen_am)}.
+          </p>
+        ) : (
+          <p className="leer">
+            Noch nicht geladen. Das Verzeichnis listet die Entscheidungen der Bundesgerichte von rechtsprechung-im-internet.de
+            mit Gericht, Datum und Aktenzeichen. Damit prüft die App Rechtsprechungszitate in Akten, ohne etwas aus der
+            Akte zu senden.
+          </p>
+        )}
+        <button className={rechtsprechung ? "zweitrangig" : undefined} onClick={rechtsprechungLaden} disabled={!!laeuft}>
+          {rechtsprechung ? "Verzeichnis aktualisieren" : "Verzeichnis laden"}
+        </button>
+      </section>
 
       <form className="suche" onSubmit={suchen}>
         <input

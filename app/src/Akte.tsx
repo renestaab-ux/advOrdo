@@ -15,6 +15,8 @@ import {
   OcrStatus,
   OrdnerFunde,
   STATUS_TEXT,
+  URTEIL_STATUS_TEXT,
+  UrteilEintrag,
   ZitatStatus,
   fundstelle,
   istDesktop,
@@ -26,7 +28,7 @@ import {
   tagsAusText,
 } from "./kern";
 
-type Ansicht = "dokument" | "normen";
+type Ansicht = "dokument" | "normen" | "rechtsprechung";
 
 /** Eine einzulesende Datei, beim Ordner-Import mit Unterordner und bestätigten Tags. */
 interface Einzulesen {
@@ -64,6 +66,7 @@ export default function Akte({
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [inhalt, setInhalt] = useState<DokumentInhalt | null>(null);
   const [normen, setNormen] = useState<NormEintrag[] | null>(null);
+  const [urteile, setUrteile] = useState<UrteilEintrag[] | null>(null);
   const [ansicht, setAnsicht] = useState<Ansicht>("dokument");
   const [auswahl, setAuswahl] = useState<Auswahl | null>(null);
   const [ziel, setZiel] = useState<number | null>(null);
@@ -112,6 +115,7 @@ export default function Akte({
   useEffect(() => {
     setInhalt(null);
     setNormen(null);
+    setUrteile(null);
     setAuswahl(null);
     setTagFilter(null);
     setTagEdit(null);
@@ -266,12 +270,22 @@ export default function Akte({
     setNormen(n ?? null);
   }
 
+  async function zeigeRechtsprechung() {
+    if (akteId == null) return;
+    setAnsicht("rechtsprechung");
+    const u = await ausfuehren("Sammle Rechtsprechung …", () =>
+      kern<UrteilEintrag[]>("akten.rechtsprechung", { akte_id: akteId }),
+    );
+    setUrteile(u ?? null);
+  }
+
   async function neuPruefen() {
     if (akteId == null) return;
     await ausfuehren("Prüfe Zitate gegen die Wissensbasis …", () => kern("akten.zitate_pruefen", { akte_id: akteId }));
     await ladeDokumente(akteId);
     if (inhalt) await oeffneDokument(inhalt.dokument.id);
     if (ansicht === "normen") await zeigeNormen();
+    if (ansicht === "rechtsprechung") await zeigeRechtsprechung();
   }
 
   async function waehleZitat(zitat: NormZitat, abschnitt: Abschnitt) {
@@ -506,6 +520,9 @@ export default function Akte({
           <button className={ansicht === "normen" ? "reiter-aktiv" : "zweitrangig"} onClick={zeigeNormen}>
             Normen der Akte
           </button>
+          <button className={ansicht === "rechtsprechung" ? "reiter-aktiv" : "zweitrangig"} onClick={zeigeRechtsprechung}>
+            Rechtsprechung der Akte
+          </button>
         </nav>
       )}
 
@@ -516,6 +533,9 @@ export default function Akte({
             <p className="leer">Wähle oben ein Dokument, um Text und Normzitate zu sehen.</p>
           )}
           {ansicht === "normen" && normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} />}
+          {ansicht === "rechtsprechung" && urteile && (
+            <RechtsprechungAnsicht urteile={urteile} onFundstelle={oeffneDokument} />
+          )}
         </div>
         {ansicht === "dokument" && auswahl && (
           <aside className="akte-seite">
@@ -774,5 +794,61 @@ function NormenAnsicht({
         </li>
       ))}
     </ul>
+  );
+}
+
+function RechtsprechungAnsicht({
+  urteile,
+  onFundstelle,
+}: {
+  urteile: UrteilEintrag[];
+  onFundstelle: (dokumentId: number, abschnitt: number) => void;
+}) {
+  const [kopiert, setKopiert] = useState<string | null>(null);
+  if (urteile.length === 0) return <p className="leer">In dieser Akte wurden keine Rechtsprechungszitate erkannt.</p>;
+  const ohneVerzeichnis = urteile.some((u) => u.status === "kein_verzeichnis");
+  async function kopiere(link: string) {
+    await navigator.clipboard.writeText(link);
+    setKopiert(link);
+  }
+  return (
+    <>
+      {ohneVerzeichnis && (
+        <p className="hinweis">
+          Das Verzeichnis der Bundesrechtsprechung ist noch nicht geladen. Lade es unter „Gesetze“ und wähle danach hier
+          „Zitate neu prüfen“.
+        </p>
+      )}
+      <ul className="normen">
+        {urteile.map((u) => (
+          <li key={u.zitat} className={`urteil-${u.status}`}>
+            <div>
+              <span className={`marke-status urteil-${u.status}`}>{URTEIL_STATUS_TEXT[u.status]}</span>{" "}
+              <strong>{u.zitat}</strong>
+            </div>
+            {u.hinweis && <div className={u.status === "belegt" ? "titel" : "hinweis"}>{u.hinweis}</div>}
+            {u.entscheidung?.link && (
+              <div className="link-zeile">
+                <code>{u.entscheidung.link}</code>{" "}
+                <button className="link" onClick={() => kopiere(u.entscheidung!.link!)}>
+                  {kopiert === u.entscheidung.link ? "kopiert" : "Link kopieren"}
+                </button>
+              </div>
+            )}
+            <div className="fundstellen">
+              {u.fundstellen.map((f, i) => (
+                <button key={i} className="link" onClick={() => onFundstelle(f.dokument_id, f.abschnitt)}>
+                  {f.dateiname}, {fundstelle(f)}
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="grenze">
+        Geprüft wird, ob es eine Entscheidung dieses Bundesgerichts mit diesem Aktenzeichen und Datum gibt, nicht, ob sie
+        die zitierte Aussage trägt. Entscheidungen anderer Gerichte und des EuGH sind nicht im Verzeichnis.
+      </p>
+    </>
   );
 }

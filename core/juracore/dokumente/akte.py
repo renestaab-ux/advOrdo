@@ -30,11 +30,13 @@ from pathlib import Path
 
 from ..gesetze import wissensbasis
 from ..gesetze.zitate import finde_zitate
+from ..rechtsprechung import verzeichnis
+from ..rechtsprechung.zitate import finde_urteilszitate
 from . import lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS akte (
@@ -105,6 +107,23 @@ CREATE TABLE IF NOT EXISTS normzitat (
     hinweis         TEXT
 );
 CREATE INDEX IF NOT EXISTS normzitat_abschnitt ON normzitat (abschnitt_id);
+
+CREATE TABLE IF NOT EXISTS urteilszitat (
+    id              INTEGER PRIMARY KEY,
+    abschnitt_id    INTEGER NOT NULL REFERENCES abschnitt(id) ON DELETE CASCADE,
+    start           INTEGER NOT NULL,
+    ende            INTEGER NOT NULL,
+    seite           INTEGER,
+    zitat           TEXT NOT NULL,          -- normalisiert: "BGH, Urteil vom 12.10.2016 – VIII ZR 103/15"
+    gericht         TEXT NOT NULL,
+    aktenzeichen    TEXT,
+    datum           TEXT,
+    status          TEXT NOT NULL,          -- belegt, abweichend, nicht_gefunden, ausserhalb, …
+    hinweis         TEXT,
+    stand_id        INTEGER,                -- Stand des Rechtsprechungsverzeichnisses bei der Prüfung
+    entscheidung    TEXT                    -- JSON: Gericht, Spruchkörper, Datum, Aktenzeichen, Link
+);
+CREATE INDEX IF NOT EXISTS urteilszitat_abschnitt ON urteilszitat (abschnitt_id);
 """
 
 
@@ -128,6 +147,9 @@ def _migriere(con: sqlite3.Connection) -> None:
     spalten = {z["name"] for z in con.execute("PRAGMA table_info(dokument)")}
     if "herkunft" not in spalten:
         con.execute("ALTER TABLE dokument ADD COLUMN herkunft TEXT")
+    if "urteile_erkannt" not in spalten:
+        # Dokumente aus älteren Versionen: Rechtsprechungszitate werden beim nächsten Abruf nachgetragen.
+        con.execute("ALTER TABLE dokument ADD COLUMN urteile_erkannt INTEGER")
 
 
 def _jetzt() -> str:
@@ -200,6 +222,7 @@ def importiere(
         dokument_id = _speichere(con, akte_id, pfad, fmt, sha, original, dok, herkunft)
         _tags_ergaenzen(con, dokument_id, tags or [], "ordner")
         _verknuepfe_zitate(con, wissen, dokument_id)
+        _verknuepfe_urteile(con, wissen, dokument_id)
     zaehlung = _zitat_zaehlung(con, dokument_id)
     return {
         "dateiname": pfad.name,
@@ -297,8 +320,34 @@ def _verknuepfe_zitate(con: sqlite3.Connection, wissen: sqlite3.Connection, doku
             )
 
 
+def _verknuepfe_urteile(con: sqlite3.Connection, wissen: sqlite3.Connection, dokument_id: int) -> None:
+    """Erkennt Rechtsprechungszitate in allen Abschnitten und prüft sie gegen das Verzeichnis."""
+    con.execute(
+        "DELETE FROM urteilszitat WHERE abschnitt_id IN (SELECT id FROM abschnitt WHERE dokument_id = ?)",
+        (dokument_id,),
+    )
+    stand = verzeichnis.stand(wissen)
+    cache: dict[str, dict] = {}
+    for a in con.execute("SELECT * FROM abschnitt WHERE dokument_id = ?", (dokument_id,)).fetchall():
+        wechsel = json.loads(a["seitenwechsel"])
+        for z in finde_urteilszitate(a["text"]):
+            schluessel = str(z)
+            if schluessel not in cache:
+                cache[schluessel] = verzeichnis.pruefe(wissen, z, stand)
+            beleg = cache[schluessel]
+            con.execute(
+                """INSERT INTO urteilszitat (abschnitt_id, start, ende, seite, zitat, gericht, aktenzeichen, datum,
+                                             status, hinweis, stand_id, entscheidung)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (a["id"], *z.treffer, _seite_an(a["seite"], wechsel, z.treffer[0]), schluessel, z.gericht,
+                 z.aktenzeichen, z.datum, beleg["status"], beleg["hinweis"], beleg["stand_id"],
+                 json.dumps(beleg["entscheidung"], ensure_ascii=False) if beleg["entscheidung"] else None),
+            )
+    con.execute("UPDATE dokument SET urteile_erkannt = 1 WHERE id = ?", (dokument_id,))
+
+
 def zitate_neu_pruefen(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int) -> dict:
-    """Prüft alle Zitate einer Akte erneut, z. B. nachdem weitere Gesetze geladen wurden."""
+    """Prüft alle Zitate einer Akte erneut, z. B. nachdem weitere Gesetze oder die Rechtsprechung geladen wurden."""
     with con:
         dokumente = [r["id"] for r in con.execute("SELECT id FROM dokument WHERE akte_id = ?", (akte_id,))]
         for dokument_id in dokumente:
@@ -307,7 +356,38 @@ def zitate_neu_pruefen(con: sqlite3.Connection, wissen: sqlite3.Connection, akte
                 (dokument_id,),
             )
             _verknuepfe_zitate(con, wissen, dokument_id)
+            _verknuepfe_urteile(con, wissen, dokument_id)
     return {"dokumente": len(dokumente)}
+
+
+def rechtsprechung(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int) -> list[dict]:
+    """Alle in einer Akte zitierten Entscheidungen, mit Prüfergebnis und jeder Fundstelle."""
+    with con:
+        for r in con.execute(
+            "SELECT id FROM dokument WHERE akte_id = ? AND urteile_erkannt IS NULL", (akte_id,)
+        ).fetchall():
+            _verknuepfe_urteile(con, wissen, r["id"])
+    zeilen = con.execute(
+        """SELECT z.*, a.nr AS abschnitt, a.rn, d.id AS dokument_id, d.dateiname
+           FROM urteilszitat z JOIN abschnitt a ON a.id = z.abschnitt_id JOIN dokument d ON d.id = a.dokument_id
+           WHERE d.akte_id = ? ORDER BY z.datum, z.zitat, d.dateiname, a.nr""",
+        (akte_id,),
+    ).fetchall()
+    gruppen: dict[str, dict] = {}
+    for z in zeilen:
+        g = gruppen.setdefault(
+            z["zitat"],
+            {k: z[k] for k in ("zitat", "gericht", "aktenzeichen", "datum", "status", "hinweis")}
+            | {"entscheidung": json.loads(z["entscheidung"]) if z["entscheidung"] else None, "fundstellen": []},
+        )
+        g["fundstellen"].append(
+            {"dokument_id": z["dokument_id"], "dateiname": z["dateiname"], "abschnitt": z["abschnitt"],
+             "seite": z["seite"], "rn": z["rn"], "start": z["start"], "ende": z["ende"]}
+        )
+    reihenfolge = {s: i for i, s in enumerate((verzeichnis.ABWEICHEND, verzeichnis.NICHT_GEFUNDEN,
+                                               verzeichnis.KEIN_VERZEICHNIS, verzeichnis.BELEGT,
+                                               verzeichnis.AUSSERHALB, verzeichnis.NICHT_PRUEFBAR))}
+    return sorted(gruppen.values(), key=lambda g: (reihenfolge.get(g["status"], 9), g["datum"] or "", g["zitat"]))
 
 
 def _zitat_zaehlung(con: sqlite3.Connection, dokument_id: int) -> dict:

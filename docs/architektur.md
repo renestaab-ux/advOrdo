@@ -113,11 +113,28 @@ RPC: `ki.status`, `ki.einstellungen_setzen`, `ki.starten` (`zusammenfassung_doku
 Getestet wird ohne echtes Modell: mit einer Attrappe für die Analyse und einem nachgebauten
 Ollama-/LM-Studio-Server auf 127.0.0.1 für die HTTP-Anbindung.
 
+## Rechtsprechung
+
+`juracore.rechtsprechung`: `zitate` erkennt regelbasiert Gericht (Bundesgerichte, EuGH, Instanzgerichte
+mit Ort), Entscheidungsart, Datum, Aktenzeichen (`normalisiere_az` vereinheitlicht Leerzeichen und
+Schreibweise) oder ersatzweise eine Zeitschriftenfundstelle. `verzeichnis` lädt `rii-toc.xml` von
+rechtsprechung-im-internet.de (öffentliche Rechtsquelle, keine Akteninhalte), archiviert es unverändert
+unter `archiv/RECHTSPRECHUNG/<sha256>.xml` und importiert es in die Wissensbasis: `rechtsprechung_stand`
+(je Abruf) → `entscheidung` (Gericht, Spruchkörper, Datum, Aktenzeichen, Dokumentnummer). Ein unveränderter
+Abruf legt keinen neuen Stand an. `pruefe` vergleicht ein Zitat mit dem neuesten Stand und liefert
+`belegt`, `abweichend`, `nicht_gefunden`, `ausserhalb`, `nicht_pruefbar` oder `kein_verzeichnis`.
+
+In `akten.sqlite` (Schema 3) speichert `urteilszitat` je Abschnitt Position, Zitat, Status und den
+verwendeten Stand; „Zitate neu prüfen“ prüft auch diese erneut. RPC: `akten.rechtsprechung`,
+`rechtsprechung.stand`, `rechtsprechung.laden`, `rechtsprechung.laden_datei`. Kommandozeile:
+`juracore rechtsprechung-laden [--datei]`, `juracore urteil "<zitat>"`.
+
 ## Offene Punkte
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
 - Kern als Sidecar bündeln, Installer je System
-- Rechtsprechungszitate erkennen; Volltextsuche über Akten
+- Volltextsuche über Akten
+- Rechtsprechung: Volltexte der Bundesgerichte laden und zitierte Randnummern prüfen; Instanzgerichte (Landesportale)
 - Chronologie exportieren (Word, PDF, Markdown)
 - Tesseract für den Installer mitliefern (Windows), damit keine eigene Installation nötig ist
 - Externe Anbieter (Modus „Externer Anbieter“) mit Warnhinweis und Schlüsselspeicher
