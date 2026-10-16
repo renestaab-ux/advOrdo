@@ -12,6 +12,7 @@ import {
   segmente,
   tagsAusText,
   tagUebersicht,
+  urteilHerkunft,
 } from "./kern";
 
 describe("istZitat", () => {
@@ -114,5 +115,12 @@ describe("Rechtsprechung", () => {
         gerichte: { BVerfG: { anzahl: 5, von: "1998-01-02", bis: null }, BGH: { anzahl: 40, von: "2010-01-04", bis: null } },
       }),
     ).toBe("BGH ab 2010, BVerfG ab 1998");
+  });
+});
+
+describe("Ergänzte Urteile", () => {
+  it("nennt Quelle und Datei", () => {
+    expect(urteilHerkunft({ herkunft: "juris", dateiname: "BGH VIII ZR 999-20.pdf" })).toBe("juris, BGH VIII ZR 999-20.pdf");
+    expect(urteilHerkunft({ herkunft: null, dateiname: "urteil.pdf" })).toBe("urteil.pdf");
   });
 });

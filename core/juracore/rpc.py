@@ -20,7 +20,7 @@ from typing import Any
 
 from . import __version__, db, einstellungen
 from .abgleich import abgleich
-from .dokumente import akte, ocr
+from .dokumente import akte, ocr, urteile
 from .gesetze import quelle, wissensbasis
 from .ki import anbieter as ki_anbieter
 from .ki import speicher as ki_speicher
@@ -73,6 +73,13 @@ class Kern:
             "akten.normen": lambda akte_id: akte.normen(self.akten, akte_id),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
             "akten.rechtsprechung": lambda akte_id: akte.rechtsprechung(self.akten, self.con, akte_id),
+            "akten.urteil_ergaenzen": lambda akte_id, pfad, gericht, aktenzeichen=None, datum=None, zitat=None,
+                herkunft=None: urteile.ergaenzen(self.akten, akte_id, pfad, self.ablage, gericht, aktenzeichen, datum,
+                                                 zitat, herkunft),
+            "akten.urteile": lambda akte_id: urteile.liste(self.akten, akte_id),
+            "rechtsprechung.eigene": lambda: urteile.uebersicht(self.akten),
+            "akten.urteil": lambda urteil_id: urteile.volltext(self.akten, urteil_id),
+            "akten.urteil_entfernen": lambda urteil_id: urteile.entfernen(self.akten, urteil_id, self.ablage),
             "rechtsprechung.stand": lambda: verzeichnis.stand(self.con),
             "rechtsprechung.laden": self.rechtsprechung_laden,
             "rechtsprechung.laden_datei": self.rechtsprechung_laden_datei,

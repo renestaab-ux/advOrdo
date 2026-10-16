@@ -241,7 +241,7 @@ dort fort, wo er stehen geblieben ist. Für einen Neuanfang den Ordner löschen.
 Beim Einlesen erkennt die App auch Rechtsprechungszitate („BGH, Urteil vom 12.10.2016 – VIII ZR 103/15“,
 „BAG, Urt. v. 20.2.2019 – 2 AZR 746/14“, „OLG Hamm, Beschl. v. …“, „EuGH, C-497/13“) und prüft sie gegen
 das Verzeichnis der Bundesgerichte von rechtsprechung-im-internet.de (BVerfG, BGH, BVerwG, BFH, BAG, BSG,
-BPatG). Das Verzeichnis lädt man einmal unter **Gesetze → Rechtsprechung** („Verzeichnis laden“); es ist
+BPatG, GmS-OGB). Das Verzeichnis lädt man einmal im Bereich **Rechtsprechung** („Verzeichnis laden“); es ist
 eine öffentliche Liste und wird wie die Gesetze unverändert unter seiner SHA-256-Prüfsumme archiviert.
 Danach zeigt die Akte im Reiter **Rechtsprechung der Akte**:
 
@@ -252,7 +252,16 @@ Danach zeigt die Akte im Reiter **Rechtsprechung der Akte**:
 - **nicht im Verzeichnis**: Instanzgerichte, EuGH, ältere Entscheidungen vor Beginn des Verzeichnisses,
 - **nicht prüfbar**: Zitat nur mit Zeitschriftenfundstelle (z. B. „BGH NJW 2017, 1093“).
 
-Geprüft wird nur, ob es die Entscheidung gibt, nicht, ob sie die zitierte Aussage trägt. Ohne App:
+Geprüft wird nur, ob es die Entscheidung gibt, nicht, ob sie die zitierte Aussage trägt.
+
+**Urteile selbst ergänzen:** Bei jedem Zitat lässt sich eine eigene Datei als Volltext ablegen („Urteil selbst
+ergänzen …“), z. B. ein PDF-Ausdruck aus juris oder beck-online für ein OLG-Urteil, das nicht im Verzeichnis steht.
+Gericht, Aktenzeichen und Datum werden aus dem Zitat vorgeschlagen, die Quelle aus dem Dateinamen. Die Datei wird
+unverändert bei der Akte abgelegt (`akten/akte-<id>/urteile/`) und gelesen; Randnummern werden erkannt. Das ergänzte
+Urteil gilt auch für andere Zitate der Akte mit demselben Gericht und Aktenzeichen. Der Bereich **Rechtsprechung**
+zeigt alle Quellen und wie viele Entscheidungen selbst ergänzt wurden.
+
+Ohne App:
 
 ```bash
 juracore rechtsprechung-laden                       # Verzeichnis abrufen (oder --datei rii-toc.xml)

@@ -112,6 +112,15 @@ code { font-family: ui-monospace, monospace; }
   color: var(--warnung); background: color-mix(in srgb, var(--warnung) 18%, transparent);
 }
 .link-zeile { font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+.marke-status.urteil-volltext { color: var(--akzent); background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+.urteil-aktionen { display: flex; gap: 14px; align-items: baseline; margin-top: 4px; font-size: 13px; }
+.akte-seite.volltext { max-height: calc(100vh - 40px); overflow-y: auto; }
+.volltext-kopf { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 4px; }
+.volltext-abschnitt { margin: 8px 0; line-height: 1.5; white-space: pre-line; font-size: 14px; }
+.volltext-abschnitt .rn { font-weight: 600; margin-right: 6px; }
+.formular { display: grid; grid-template-columns: 110px minmax(0, 360px); gap: 8px 12px; align-items: center; margin: 8px 0 12px; }
+.formular label { display: contents; }
+.formular input { font: inherit; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--linie); background: var(--hintergrund); color: var(--text); }
 .reiter { display: flex; gap: 8px; margin: 8px 0 4px; }
 .reiter-aktiv { cursor: default; }
 .akte-arbeitsflaeche { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: start; }

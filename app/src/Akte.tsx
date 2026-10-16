@@ -15,8 +15,11 @@ import {
   OcrStatus,
   OrdnerFunde,
   STATUS_TEXT,
+  URTEIL_QUELLEN,
   URTEIL_STATUS_TEXT,
   UrteilEintrag,
+  UrteilInfo,
+  UrteilVolltext,
   ZitatStatus,
   fundstelle,
   istDesktop,
@@ -26,6 +29,7 @@ import {
   sortiereTags,
   tagUebersicht,
   tagsAusText,
+  urteilHerkunft,
 } from "./kern";
 
 type Ansicht = "dokument" | "normen" | "rechtsprechung";
@@ -44,7 +48,18 @@ interface OrdnerFrage {
   tags: Record<string, string>;
 }
 
-type Loeschfrage = { art: "akte"; id: number } | { art: "dokument"; id: number };
+type Loeschfrage = { art: "akte"; id: number } | { art: "dokument"; id: number } | { art: "urteil"; id: number; name: string };
+
+/** Angaben zu einer Entscheidung, die aus einer eigenen Datei ergänzt wird. */
+interface Ergaenzung {
+  pfad: string;
+  name: string;
+  zitat: string;
+  gericht: string;
+  aktenzeichen: string;
+  datum: string;
+  herkunft: string;
+}
 
 interface Auswahl {
   zitat: NormZitat;
@@ -79,6 +94,8 @@ export default function Akte({
   const [loeschfrage, setLoeschfrage] = useState<Loeschfrage | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [tagEdit, setTagEdit] = useState<{ id: number; text: string } | null>(null);
+  const [ergaenzung, setErgaenzung] = useState<Ergaenzung | null>(null);
+  const [volltext, setVolltext] = useState<UrteilVolltext | null>(null);
 
   const ausfuehren = useCallback(async <T,>(was: string, f: () => Promise<T>) => {
     setLaeuft(was);
@@ -121,6 +138,8 @@ export default function Akte({
     setTagEdit(null);
     setOrdnerFrage(null);
     setLoeschfrage(null);
+    setErgaenzung(null);
+    setVolltext(null);
     if (akteId == null) setDokumente([]);
     if (akteId != null) void ausfuehren("Lade Dokumente …", () => ladeDokumente(akteId));
   }, [akteId, ausfuehren, ladeDokumente]);
@@ -231,6 +250,14 @@ export default function Akte({
     const frage = loeschfrage;
     setLoeschfrage(null);
     setMeldung(null);
+    if (frage.art === "urteil") {
+      const weg = await ausfuehren("Entferne …", () => kern<Loeschergebnis>("akten.urteil_entfernen", { urteil_id: frage.id }));
+      if (!weg) return;
+      if (volltext?.id === frage.id) setVolltext(null);
+      await zeigeRechtsprechung();
+      setMeldung(`„${frage.name}“ wurde aus der Akte entfernt.${weg.hinweis ? ` ${weg.hinweis}` : ""}`);
+      return;
+    }
     const methode = frage.art === "akte" ? "akten.loeschen" : "akten.dokument_loeschen";
     const params = frage.art === "akte" ? { akte_id: frage.id } : { dokument_id: frage.id };
     const ergebnis = await ausfuehren("Entferne …", () => kern<Loeschergebnis>(methode, params));
@@ -277,6 +304,52 @@ export default function Akte({
       kern<UrteilEintrag[]>("akten.rechtsprechung", { akte_id: akteId }),
     );
     setUrteile(u ?? null);
+  }
+
+  async function urteilWaehlen(u: UrteilEintrag) {
+    const gewaehlt = await open({
+      title: `Volltext zu „${u.zitat}“ ergänzen`,
+      filters: [{ name: "Entscheidung (PDF, Word, Text)", extensions: ["pdf", "docx", "txt", "md"] }],
+    });
+    if (typeof gewaehlt !== "string") return;
+    const name = gewaehlt.split(/[\\/]/).pop() ?? gewaehlt;
+    // Quelle aus dem Dateinamen vorschlagen, wenn er sie nennt (z. B. „juris_BGH_VIII_ZR_999-20.pdf“).
+    const herkunft = URTEIL_QUELLEN.find((q) => name.toLowerCase().includes(q.toLowerCase().split(" ")[0])) ?? "";
+    setErgaenzung({
+      pfad: gewaehlt,
+      name,
+      zitat: u.zitat,
+      gericht: u.gericht,
+      aktenzeichen: u.aktenzeichen ?? "",
+      datum: u.datum ?? "",
+      herkunft,
+    });
+  }
+
+  async function ergaenzungSpeichern() {
+    if (akteId == null || !ergaenzung) return;
+    const e = ergaenzung;
+    const ergebnis = await ausfuehren(`Lese ${e.name} …`, () =>
+      kern<{ urteil_id: number; neu: boolean }>("akten.urteil_ergaenzen", {
+        akte_id: akteId,
+        pfad: e.pfad,
+        gericht: e.gericht,
+        aktenzeichen: e.aktenzeichen || null,
+        datum: e.datum || null,
+        zitat: e.zitat,
+        herkunft: e.herkunft || null,
+      }),
+    );
+    if (!ergebnis) return;
+    setErgaenzung(null);
+    setMeldung(ergebnis.neu ? `${e.name} zur Akte abgelegt.` : `${e.name} liegt schon bei dieser Akte.`);
+    await zeigeRechtsprechung();
+    await zeigeVolltext(ergebnis.urteil_id);
+  }
+
+  async function zeigeVolltext(urteilId: number) {
+    const v = await ausfuehren("Lade Volltext …", () => kern<UrteilVolltext>("akten.urteil", { urteil_id: urteilId }));
+    setVolltext(v ?? null);
   }
 
   async function neuPruefen() {
@@ -388,15 +461,29 @@ export default function Akte({
           frage={
             loeschfrage.art === "akte"
               ? `Akte „${akte?.name}“ mit ${akte?.dokumente ?? 0} Dokumenten entfernen?`
-              : `Dokument „${dokumente.find((d) => d.id === loeschfrage.id)?.dateiname}“ aus der Akte entfernen?`
+              : loeschfrage.art === "urteil"
+                ? `Ergänztes Urteil „${loeschfrage.name}“ aus der Akte entfernen?`
+                : `Dokument „${dokumente.find((d) => d.id === loeschfrage.id)?.dateiname}“ aus der Akte entfernen?`
           }
           erklaerung={
-            "Entfernt werden der gelesene Text, die Normzitate, die Tags und die Kopie, die die App beim Einlesen " +
-            "abgelegt hat. Deine Originaldatei am ursprünglichen Ort bleibt unverändert."
+            loeschfrage.art === "urteil"
+              ? "Entfernt werden der gelesene Text und die Kopie, die die App abgelegt hat. Deine Datei am " +
+                "ursprünglichen Ort bleibt unverändert."
+              : "Entfernt werden der gelesene Text, die Normzitate, die Tags und die Kopie, die die App beim Einlesen " +
+                "abgelegt hat. Deine Originaldatei am ursprünglichen Ort bleibt unverändert."
           }
           ja="Entfernen"
           onJa={loeschen}
           onNein={() => setLoeschfrage(null)}
+        />
+      )}
+      {ergaenzung && (
+        <ErgaenzungsFrage
+          ergaenzung={ergaenzung}
+          onAendern={(felder) => setErgaenzung({ ...ergaenzung, ...felder })}
+          onSpeichern={ergaenzungSpeichern}
+          onAbbrechen={() => setErgaenzung(null)}
+          laeuft={!!laeuft}
         />
       )}
       {ordnerFrage && (
@@ -534,9 +621,18 @@ export default function Akte({
           )}
           {ansicht === "normen" && normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} />}
           {ansicht === "rechtsprechung" && urteile && (
-            <RechtsprechungAnsicht urteile={urteile} onFundstelle={oeffneDokument} />
+            <RechtsprechungAnsicht
+              urteile={urteile}
+              offen={volltext?.id ?? null}
+              laeuft={!!laeuft}
+              onFundstelle={oeffneDokument}
+              onErgaenzen={urteilWaehlen}
+              onVolltext={(id) => (volltext?.id === id ? setVolltext(null) : zeigeVolltext(id))}
+              onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
+            />
           )}
         </div>
+        {ansicht === "rechtsprechung" && volltext && <VolltextAnsicht volltext={volltext} onSchliessen={() => setVolltext(null)} />}
         {ansicht === "dokument" && auswahl && (
           <aside className="akte-seite">
             <p className="fundort">Zitiert in {auswahl.ort}</p>
@@ -799,10 +895,20 @@ function NormenAnsicht({
 
 function RechtsprechungAnsicht({
   urteile,
+  offen,
+  laeuft,
   onFundstelle,
+  onErgaenzen,
+  onVolltext,
+  onEntfernen,
 }: {
   urteile: UrteilEintrag[];
+  offen: number | null;
+  laeuft: boolean;
   onFundstelle: (dokumentId: number, abschnitt: number) => void;
+  onErgaenzen: (u: UrteilEintrag) => void;
+  onVolltext: (urteilId: number) => void;
+  onEntfernen: (u: UrteilInfo) => void;
 }) {
   const [kopiert, setKopiert] = useState<string | null>(null);
   if (urteile.length === 0) return <p className="leer">In dieser Akte wurden keine Rechtsprechungszitate erkannt.</p>;
@@ -815,8 +921,8 @@ function RechtsprechungAnsicht({
     <>
       {ohneVerzeichnis && (
         <p className="hinweis">
-          Das Verzeichnis der Bundesrechtsprechung ist noch nicht geladen. Lade es unter „Gesetze“ und wähle danach hier
-          „Zitate neu prüfen“.
+          Das Verzeichnis der Bundesrechtsprechung ist noch nicht geladen. Lade es unter „Rechtsprechung“ und wähle danach
+          hier „Zitate neu prüfen“.
         </p>
       )}
       <ul className="normen">
@@ -824,6 +930,7 @@ function RechtsprechungAnsicht({
           <li key={u.zitat} className={`urteil-${u.status}`}>
             <div>
               <span className={`marke-status urteil-${u.status}`}>{URTEIL_STATUS_TEXT[u.status]}</span>{" "}
+              {u.urteil && <span className="marke-status urteil-volltext">Volltext liegt vor</span>}{" "}
               <strong>{u.zitat}</strong>
             </div>
             {u.hinweis && <div className={u.status === "belegt" ? "titel" : "hinweis"}>{u.hinweis}</div>}
@@ -842,13 +949,130 @@ function RechtsprechungAnsicht({
                 </button>
               ))}
             </div>
+            <div className="urteil-aktionen">
+              {u.urteil ? (
+                <>
+                  <button className="link" onClick={() => onVolltext(u.urteil!.id)}>
+                    {offen === u.urteil.id ? "Volltext schließen" : `Volltext anzeigen (${urteilHerkunft(u.urteil)})`}
+                  </button>
+                  <button className="link klein gefahr" onClick={() => onEntfernen(u.urteil!)} disabled={laeuft}>
+                    entfernen
+                  </button>
+                </>
+              ) : (
+                <button className="link" onClick={() => onErgaenzen(u)} disabled={laeuft}>
+                  {u.status === "belegt" ? "Volltext ergänzen …" : "Urteil selbst ergänzen …"}
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
       <p className="grenze">
         Geprüft wird, ob es eine Entscheidung dieses Bundesgerichts mit diesem Aktenzeichen und Datum gibt, nicht, ob sie
-        die zitierte Aussage trägt. Entscheidungen anderer Gerichte und des EuGH sind nicht im Verzeichnis.
+        die zitierte Aussage trägt. Entscheidungen anderer Gerichte und des EuGH sind nicht im Verzeichnis; sie lassen sich
+        als eigene Datei ergänzen, z. B. als PDF-Ausdruck aus juris oder beck-online.
       </p>
     </>
+  );
+}
+
+function ErgaenzungsFrage({
+  ergaenzung,
+  onAendern,
+  onSpeichern,
+  onAbbrechen,
+  laeuft,
+}: {
+  ergaenzung: Ergaenzung;
+  onAendern: (felder: Partial<Ergaenzung>) => void;
+  onSpeichern: () => void;
+  onAbbrechen: () => void;
+  laeuft: boolean;
+}) {
+  const e = ergaenzung;
+  return (
+    <form
+      className="rueckfrage"
+      aria-label="Urteil ergänzen"
+      onSubmit={(ev) => {
+        ev.preventDefault();
+        onSpeichern();
+      }}
+    >
+      <strong>„{e.name}“ als Volltext zu „{e.zitat}“ ablegen</strong>
+      <p>
+        Die Datei wird unverändert bei dieser Akte abgelegt und gelesen; Randnummern werden als Fundstellen erkannt. Bitte
+        prüfe die Angaben, damit die Entscheidung auch anderen Zitaten mit demselben Aktenzeichen zugeordnet wird.
+      </p>
+      <div className="formular">
+        <label>
+          Gericht
+          <input value={e.gericht} onChange={(ev) => onAendern({ gericht: ev.target.value })} required />
+        </label>
+        <label>
+          Aktenzeichen
+          <input value={e.aktenzeichen} onChange={(ev) => onAendern({ aktenzeichen: ev.target.value })} />
+        </label>
+        <label>
+          Datum
+          <input type="date" value={e.datum} onChange={(ev) => onAendern({ datum: ev.target.value })} />
+        </label>
+        <label>
+          Quelle
+          <input
+            list="urteil-quellen"
+            value={e.herkunft}
+            onChange={(ev) => onAendern({ herkunft: ev.target.value })}
+            placeholder="z. B. juris"
+          />
+          <datalist id="urteil-quellen">
+            {URTEIL_QUELLEN.map((q) => (
+              <option key={q} value={q} />
+            ))}
+          </datalist>
+        </label>
+      </div>
+      <div className="aktionen">
+        <button type="submit" disabled={laeuft || !e.gericht.trim()}>
+          Ablegen
+        </button>
+        <button type="button" className="zweitrangig" onClick={onAbbrechen}>
+          Abbrechen
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function VolltextAnsicht({ volltext, onSchliessen }: { volltext: UrteilVolltext; onSchliessen: () => void }) {
+  const v = volltext;
+  return (
+    <aside className="akte-seite volltext">
+      <div className="volltext-kopf">
+        <strong>
+          {[v.gericht, v.aktenzeichen].filter(Boolean).join(" – ")}
+          {v.datum && `, ${v.datum.split("-").reverse().join(".")}`}
+        </strong>
+        <button className="link" onClick={onSchliessen}>
+          schließen
+        </button>
+      </div>
+      <p className="fundort">
+        {v.quelle === "manuell" ? "Selbst ergänzt" : "Geladen"}: {urteilHerkunft(v)}
+      </p>
+      {v.hinweise.map((h, i) => (
+        <p key={i} className="hinweis">
+          {h}
+        </p>
+      ))}
+      {v.abschnitte.map((a) => (
+        <p key={a.nr} className="volltext-abschnitt">
+          {/* Steht die Randnummer schon im Text („(2) …“), nicht doppelt zeigen. */}
+          {a.rn != null && !a.text.startsWith(`(${a.rn})`) && <span className="rn">{a.rn}</span>}
+          {a.text}
+        </p>
+      ))}
+    </aside>
   );
 }

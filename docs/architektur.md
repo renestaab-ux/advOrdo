@@ -129,6 +129,12 @@ verwendeten Stand; „Zitate neu prüfen“ prüft auch diese erneut. RPC: `akte
 `rechtsprechung.stand`, `rechtsprechung.laden`, `rechtsprechung.laden_datei`. Kommandozeile:
 `juracore rechtsprechung-laden [--datei]`, `juracore urteil "<zitat>"`.
 
+Volltexte zur Akte (`juracore.dokumente.urteile`, Schema 4): `urteil` (Gericht, Aktenzeichen, Datum, Quelle
+`manuell` oder `rii`, Herkunft wie „juris“, SHA-256, Pfad der unverändert abgelegten Datei) → `urteil_abschnitt`
+(Text mit Seite und Randnummer). `akten.rechtsprechung` ordnet jedem Zitat das vorliegende Urteil zu: gleiches Zitat
+oder gleiches Gericht und Aktenzeichen. RPC: `akten.urteil_ergaenzen`, `akten.urteile`, `akten.urteil`,
+`akten.urteil_entfernen`, `rechtsprechung.eigene`.
+
 ## Offene Punkte
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)

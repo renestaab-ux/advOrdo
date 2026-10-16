@@ -235,6 +235,42 @@ export interface UrteilEintrag {
   hinweis: string | null;
   entscheidung: { gericht: string; spruchkoerper: string | null; datum: string | null; aktenzeichen: string; link: string | null } | null;
   fundstellen: Fundstelle[];
+  /** Volltext, der zur Akte vorliegt (selbst ergänzt oder geladen). */
+  urteil: UrteilInfo | null;
+}
+
+/** Eine Entscheidung im Volltext zur Akte, z. B. ein PDF-Ausdruck aus juris. */
+export interface UrteilInfo {
+  id: number;
+  zitat: string | null;
+  gericht: string;
+  aktenzeichen: string | null;
+  datum: string | null;
+  quelle: "manuell" | "rii";
+  herkunft: string | null;
+  dateiname: string;
+  format: string;
+  lesart: string;
+  hinzugefuegt_am: string;
+  hinweise: string[];
+}
+
+export interface UrteilVolltext extends UrteilInfo {
+  abschnitte: { nr: number; seite: number | null; rn: number | null; text: string }[];
+}
+
+/** Übliche Quellen für selbst ergänzte Entscheidungen (Vorschläge, frei änderbar). */
+export const URTEIL_QUELLEN = ["juris", "beck-online", "openJur", "Gericht (Ausfertigung)", "Anlage der Gegenseite"];
+
+/** "beck-online, Urteil.pdf" bzw. nur der Dateiname. */
+export function urteilHerkunft(u: Pick<UrteilInfo, "herkunft" | "dateiname">): string {
+  return u.herkunft ? `${u.herkunft}, ${u.dateiname}` : u.dateiname;
+}
+
+/** Selbst ergänzte bzw. geladene Entscheidungen über alle Akten, je Quelle. */
+export interface EigeneUrteile {
+  gesamt: number;
+  quellen: { quelle: "manuell" | "rii"; herkunft: string | null; anzahl: number }[];
 }
 
 export interface RechtsprechungStand {

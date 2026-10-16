@@ -36,7 +36,7 @@ from . import lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS akte (
@@ -124,6 +124,36 @@ CREATE TABLE IF NOT EXISTS urteilszitat (
     entscheidung    TEXT                    -- JSON: Gericht, Spruchkörper, Datum, Aktenzeichen, Link
 );
 CREATE INDEX IF NOT EXISTS urteilszitat_abschnitt ON urteilszitat (abschnitt_id);
+
+-- Entscheidungen, die zur Akte im Volltext vorliegen: selbst ergänzt (z. B. PDF aus juris) oder geladen.
+CREATE TABLE IF NOT EXISTS urteil (
+    id              INTEGER PRIMARY KEY,
+    akte_id         INTEGER NOT NULL REFERENCES akte(id) ON DELETE CASCADE,
+    zitat           TEXT,                   -- Zitat der Akte, zu dem die Entscheidung ergänzt wurde
+    gericht         TEXT NOT NULL,
+    aktenzeichen    TEXT,
+    az_norm         TEXT,
+    datum           TEXT,
+    quelle          TEXT NOT NULL,          -- manuell oder rii (rechtsprechung-im-internet.de)
+    herkunft        TEXT,                   -- z. B. "juris", "beck-online" oder die Adresse des Abrufs
+    dateiname       TEXT NOT NULL,
+    format          TEXT NOT NULL,
+    sha256          TEXT NOT NULL,
+    original        TEXT NOT NULL,          -- Pfad der unverändert abgelegten Datei
+    lesart          TEXT NOT NULL,
+    hinweise        TEXT NOT NULL,          -- JSON-Liste
+    hinzugefuegt_am TEXT NOT NULL,
+    UNIQUE (akte_id, sha256)
+);
+
+CREATE TABLE IF NOT EXISTS urteil_abschnitt (
+    urteil_id       INTEGER NOT NULL REFERENCES urteil(id) ON DELETE CASCADE,
+    nr              INTEGER NOT NULL,
+    seite           INTEGER,
+    rn              INTEGER,
+    text            TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS urteil_abschnitt_urteil ON urteil_abschnitt (urteil_id, nr);
 """
 
 
@@ -387,7 +417,14 @@ def rechtsprechung(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id:
     reihenfolge = {s: i for i, s in enumerate((verzeichnis.ABWEICHEND, verzeichnis.NICHT_GEFUNDEN,
                                                verzeichnis.KEIN_VERZEICHNIS, verzeichnis.BELEGT,
                                                verzeichnis.AUSSERHALB, verzeichnis.NICHT_PRUEFBAR))}
-    return sorted(gruppen.values(), key=lambda g: (reihenfolge.get(g["status"], 9), g["datum"] or "", g["zitat"]))
+    from . import urteile  # urteile nutzt Hilfsfunktionen dieses Moduls
+
+    vorliegend = urteile.liste(con, akte_id)
+    for g in gruppen.values():
+        g["urteil"] = urteile.zu_zitat(vorliegend, g["zitat"], g["gericht"], g["aktenzeichen"])
+    # Offene Fragen zuerst: innerhalb eines Status stehen Zitate ohne vorliegenden Volltext oben.
+    return sorted(gruppen.values(), key=lambda g: (reihenfolge.get(g["status"], 9), g["urteil"] is not None,
+                                                   g["datum"] or "", g["zitat"]))
 
 
 def _zitat_zaehlung(con: sqlite3.Connection, dokument_id: int) -> dict:
