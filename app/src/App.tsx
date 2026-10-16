@@ -49,6 +49,7 @@ export default function App() {
         {bereich === "suche" && (
           <Suche
             akteId={akteId}
+            setAkteId={setAkteId}
             onAkte={(id) => {
               setAkteId(id);
               setBereich("akte");

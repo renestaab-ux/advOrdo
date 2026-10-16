@@ -158,13 +158,14 @@ Ein geöffnetes Dokument lässt sich auf vier Arten zeigen:
 
 ## Suche: Volltext über alle Akten
 
-Der Bereich **Suche** durchsucht den gelesenen Text aller Dokumente aller Akten, nach dem Vorbild von „PDF Search“
+Der Bereich **Suche** durchsucht den gelesenen Text der Dokumente einer Akte oder aller Akten, nach dem Vorbild von „PDF Search“
 für macOS. Die Treffer erscheinen schon beim Tippen:
 
 - links je Dokument Akte, Seitenzahl und Anzahl der Treffer; darunter die Fundstellen (Seite, bei Word- und
   Textdateien Randnummer oder Abschnitt) mit Rang und Textausschnitt,
 - rechts das Dokument: bei PDFs das Original mit gelb markierten Fundstellen, sonst der Text mit markierten Wörtern,
-- ▲ und ▼ springen zur vorigen oder nächsten Fundstelle, „nur gewählte Akte“ beschränkt die Suche.
+- ▲ und ▼ springen zur vorigen oder nächsten Fundstelle,
+- das Auswahlfeld neben dem Suchfeld legt fest, wo gesucht wird: in der gewählten Akte (Standard) oder in allen Akten.
 
 Groß- und Kleinschreibung und Akzente spielen keine Rolle („rucktritt“ findet „Rücktritt“). Mehrere Wörter müssen
 alle vorkommen; eine genaue Wortfolge steht in Anführungszeichen („"Frist bis zum"“); ein Wortanfang endet auf *
