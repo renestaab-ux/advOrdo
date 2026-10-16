@@ -20,7 +20,7 @@ from typing import Any
 
 from . import __version__, db, einstellungen
 from .abgleich import abgleich
-from .dokumente import akte, ansicht, ocr, urteile
+from .dokumente import akte, ansicht, ocr, suche, urteile
 from .gesetze import quelle, wissensbasis
 from .ki import anbieter as ki_anbieter
 from .ki import speicher as ki_speicher
@@ -71,8 +71,9 @@ class Kern:
             "akten.tags_setzen": lambda dokument_id, tags: akte.tags_setzen(self.akten, dokument_id, tags),
             "akten.dokument": lambda dokument_id: akte.dokument(self.akten, dokument_id),
             "akten.normen": lambda akte_id, dokument_id=None: akte.normen(self.akten, akte_id, dokument_id),
-            "akten.seitenbild": lambda dokument_id, seite, breite=1000: ansicht.seitenbild(
-                self.akten, dokument_id, seite, breite),
+            "akten.seitenbild": lambda dokument_id, seite, breite=1000, begriffe=None: ansicht.seitenbild(
+                self.akten, dokument_id, seite, breite, begriffe),
+            "akten.suche": lambda text, akte_id=None: suche.suche(self.akten, text, akte_id),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
             "akten.rechtsprechung": lambda akte_id, dokument_id=None: akte.rechtsprechung(
                 self.akten, self.con, akte_id, dokument_id),

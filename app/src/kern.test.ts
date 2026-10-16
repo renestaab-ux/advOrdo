@@ -10,6 +10,7 @@ import {
   lesartText,
   rechtsprechungUmfang,
   renderBreite,
+  markiereBegriffe,
   rnHinweis,
   segmente,
   tagsAusText,
@@ -141,5 +142,24 @@ describe("Original-Ansicht", () => {
     expect(renderBreite(700, 2)).toBe(1400);
     expect(renderBreite(100, 1)).toBe(400);
     expect(renderBreite(3000, 2)).toBe(2400);
+  });
+});
+
+describe("Suche", () => {
+  it("markiert Begriffe ohne Rücksicht auf Groß- und Kleinschreibung", () => {
+    expect(markiereBegriffe("Der Rücktritt und der rücktritt.", ["Rücktritt"])).toEqual([
+      { text: "Der ", treffer: false },
+      { text: "Rücktritt", treffer: true },
+      { text: " und der ", treffer: false },
+      { text: "rücktritt", treffer: true },
+      { text: ".", treffer: false },
+    ]);
+  });
+  it("nimmt Sonderzeichen wörtlich und den längeren Begriff zuerst", () => {
+    expect(markiereBegriffe("VIII ZR 103/15 (a+b)", ["ZR 103/15", "ZR", "(a+b)"]).filter((t) => t.treffer)).toEqual([
+      { text: "ZR 103/15", treffer: true },
+      { text: "(a+b)", treffer: true },
+    ]);
+    expect(markiereBegriffe("ohne", [])).toEqual([{ text: "ohne", treffer: false }]);
   });
 });

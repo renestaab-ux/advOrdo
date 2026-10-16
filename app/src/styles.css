@@ -271,3 +271,35 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .ki-anleitung { margin-top: 14px; font-size: 13px; }
 .ki-anleitung summary { cursor: pointer; color: var(--akzent); }
 .ki-anleitung li { margin: 6px 0; }
+
+/* Suche */
+.suche-bereich { display: flex; flex-direction: column; height: calc(100vh - 48px); min-height: 0; }
+.suche-bereich .kopf { margin-bottom: 8px; }
+.suche-feld { display: flex; gap: 12px; align-items: center; }
+.suche-feld input[type="search"] { flex: 1; font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.such-pfeile button:disabled { opacity: 0.4; }
+.such-umfang { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-leise); white-space: nowrap; }
+.such-stand { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--text-leise); margin: 10px 0 8px; }
+.such-pfeile { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.such-pfeile button { padding: 2px 10px; }
+.such-position { min-width: 56px; text-align: right; }
+.such-flaeche { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 380px) minmax(0, 1fr); gap: 16px; }
+.such-liste { list-style: none; margin: 0; padding: 0 4px 0 0; overflow: auto; border-right: 1px solid var(--linie); }
+.such-liste ul { list-style: none; margin: 0 0 6px; padding: 0; }
+.such-dokument { border-bottom: 1px solid var(--linie); padding: 4px 0; }
+.such-dokument-kopf { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 16px 1fr; width: 100%; padding: 6px 4px; }
+.such-dokument-kopf:focus-visible { outline: 2px solid var(--akzent); }
+.such-pfeil { color: var(--text-leise); }
+.such-name { font-weight: 600; overflow-wrap: anywhere; }
+.such-meta { grid-column: 2; font-size: 12px; color: var(--text-leise); }
+.such-fundstelle { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; padding: 6px 8px 6px 20px; border-radius: 6px; }
+.such-fundstelle:hover { background: color-mix(in srgb, var(--akzent) 6%, transparent); }
+.such-fundstelle.gewaehlt { background: color-mix(in srgb, var(--akzent) 12%, transparent); }
+.such-fundstelle:focus-visible { outline: 2px solid var(--akzent); }
+.such-ort { font-size: 13px; }
+.such-rang { font-size: 11px; color: var(--flaeche); background: var(--gut); border-radius: 4px; padding: 1px 6px; align-self: center; }
+.such-fundstelle .ausschnitt { grid-column: 1 / -1; margin-top: 0; }
+.such-dokument-ansicht { overflow: auto; min-width: 0; padding-right: 4px; }
+.such-dokument-titel { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--linie); }
+.original-bild { position: relative; }
+.markierung { position: absolute; background: rgb(255 214 0 / 45%); outline: 1px solid rgb(230 180 0 / 70%); border-radius: 2px; pointer-events: none; mix-blend-mode: multiply; }

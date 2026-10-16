@@ -37,6 +37,7 @@ import {
   istDesktop,
   kern,
   lesartText,
+  markiereBegriffe,
   renderBreite,
   segmente,
   sortiereTags,
@@ -964,13 +965,16 @@ export function DokumentAnsicht({
   auswahl = null,
   onZitat,
   markiert,
+  begriffe = [],
 }: {
   inhalt: DokumentInhalt;
   auswahl?: Auswahl | null;
   /** Ohne Handler werden Normzitate nur markiert, nicht anklickbar. */
   onZitat?: (z: NormZitat, a: Abschnitt) => void;
-  /** Abschnitt, der hervorgehoben wird (Fundstelle aus dem Vergleich). */
+  /** Abschnitt, der hervorgehoben wird (Fundstelle aus dem Vergleich oder der Suche). */
   markiert?: number;
+  /** Gesuchte Begriffe, die im Text gelb markiert werden. */
+  begriffe?: string[];
 }) {
   const d = inhalt.dokument;
   return (
@@ -1011,7 +1015,9 @@ export function DokumentAnsicht({
                   {s.text}
                 </button>
               ) : (
-                <span key={i}>{s.text}</span>
+                <span key={i}>
+                  {markiereBegriffe(s.text, begriffe).map((m, j) => (m.treffer ? <mark key={j}>{m.text}</mark> : m.text))}
+                </span>
               ),
             )}
           </p>
@@ -1059,7 +1065,26 @@ function DokModusLeiste({
 }
 
 /** Seiten des Original-PDFs; der Kern rendert sie, sobald sie in Sichtweite kommen. */
-function OriginalAnsicht({ dokument, startSeite }: { dokument: AktenDokument; startSeite: number | null }) {
+/** Nächster Vorfahr, der selbst scrollt; dort wird beobachtet, welche Seiten in Sicht kommen. */
+function scrollRahmen(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
+  }
+  return null;
+}
+
+export function OriginalAnsicht({
+  dokument,
+  startSeite,
+  begriffe,
+  hinweis = "Zitate und Belege zeigt die Textansicht.",
+}: {
+  dokument: Pick<AktenDokument, "id" | "dateiname" | "seiten">;
+  startSeite: number | null;
+  /** Gesuchte Begriffe; ihre Fundstellen werden auf den Seiten gelb markiert. */
+  begriffe?: string[];
+  hinweis?: string;
+}) {
   const seiten = dokument.seiten ?? 1;
   const rahmen = useRef<HTMLDivElement>(null);
   const [bilder, setBilder] = useState<Record<number, Seitenbild | string>>({});
@@ -1076,33 +1101,49 @@ function OriginalAnsicht({ dokument, startSeite }: { dokument: AktenDokument; st
           const seite = Number((e.target as HTMLElement).dataset.seite);
           if (angefragt.current.has(seite)) continue;
           angefragt.current.add(seite);
-          kern<Seitenbild>("akten.seitenbild", { dokument_id: dokument.id, seite, breite })
+          kern<Seitenbild>("akten.seitenbild", { dokument_id: dokument.id, seite, breite, begriffe: begriffe ?? null })
             .then((b) => setBilder((v) => ({ ...v, [seite]: b })))
             .catch((f) => setBilder((v) => ({ ...v, [seite]: String(f) })));
         }
       },
-      { root: null, rootMargin: "600px 0px" },
+      { root: scrollRahmen(el), rootMargin: "600px 0px" },
     );
     el.querySelectorAll<HTMLElement>("[data-seite]").forEach((s) => beobachter.observe(s));
     return () => beobachter.disconnect();
+    // Neue Begriffe: Elternteil setzt einen neuen key, die Ansicht wird neu aufgebaut.
   }, [dokument.id]);
 
+  // Zur Zielseite springen; sobald sie geladen ist, zur ersten Markierung darauf.
+  const ziel = startSeite != null ? bilder[startSeite] : undefined;
+  const zielMarkiert = typeof ziel === "object" && ziel.markierungen.length > 0;
   useEffect(() => {
-    if (startSeite != null) document.getElementById(`seite-${startSeite}`)?.scrollIntoView({ block: "start" });
-  }, [startSeite]);
+    if (startSeite == null) return;
+    const el = zielMarkiert
+      ? rahmen.current?.querySelector(`#seite-${startSeite} .markierung`)
+      : rahmen.current?.querySelector(`#seite-${startSeite}`);
+    el?.scrollIntoView({ block: zielMarkiert ? "center" : "start" });
+  }, [startSeite, zielMarkiert]);
 
   return (
     <div className="original" ref={rahmen}>
       <p className="dokument-info">
-        Originaldatei aus der Ablage der Akte, {seiten} {seiten === 1 ? "Seite" : "Seiten"}. Zitate und Belege zeigt die
-        Textansicht.
+        Originaldatei aus der Ablage der Akte, {seiten} {seiten === 1 ? "Seite" : "Seiten"}. {hinweis}
       </p>
       {Array.from({ length: seiten }, (_, i) => i + 1).map((s) => {
         const b = bilder[s];
         return (
           <figure key={s} id={`seite-${s}`} data-seite={s} className="original-seite">
             {typeof b === "object" ? (
-              <img src={b.bild} width={b.breite} height={b.hoehe} alt={`Seite ${s} von ${dokument.dateiname}`} />
+              <div className="original-bild">
+                <img src={b.bild} width={b.breite} height={b.hoehe} alt={`Seite ${s} von ${dokument.dateiname}`} />
+                {b.markierungen.map((m, i) => (
+                  <span
+                    key={i}
+                    className="markierung"
+                    style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%`, width: `${m.b * 100}%`, height: `${m.h * 100}%` }}
+                  />
+                ))}
+              </div>
             ) : typeof b === "string" ? (
               <p className="fehler">Seite {s} lässt sich nicht anzeigen: {b}</p>
             ) : (

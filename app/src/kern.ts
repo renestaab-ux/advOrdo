@@ -180,6 +180,52 @@ export interface Seitenbild {
   breite: number;
   hoehe: number;
   bild: string;
+  /** Fundstellen gesuchter Begriffe als Anteile der Seitengröße (0 bis 1). */
+  markierungen: { x: number; y: number; b: number; h: number }[];
+}
+
+/** Eine Fundstelle der Volltextsuche: eine Seite, bei Dokumenten ohne Seiten ein Abschnitt. */
+export interface SuchFundstelle {
+  seite: number | null;
+  abschnitt: number;
+  rn: number | null;
+  treffer: number;
+  rang: number;
+  begriffe: string[];
+  ausschnitt: { vor: string; treffer: string; nach: string };
+}
+
+export interface SuchDokument {
+  id: number;
+  dateiname: string;
+  format: AktenDokument["format"];
+  seiten: number | null;
+  akte_id: number;
+  akte: string;
+  treffer: number;
+  rang: number;
+  fundstellen: SuchFundstelle[];
+}
+
+export interface SuchErgebnis {
+  dokumente: SuchDokument[];
+  seiten: number;
+  treffer: number;
+  dauer_ms: number;
+  gekuerzt: boolean;
+}
+
+/** Teilt Text in Stücke und markiert darin die gesuchten Begriffe (ohne Rücksicht auf Groß- und Kleinschreibung). */
+export function markiereBegriffe(text: string, begriffe: string[]): { text: string; treffer: boolean }[] {
+  const muster = [...new Set(begriffe.filter((b) => b.trim()))]
+    .sort((a, b) => b.length - a.length)
+    .map((b) => b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (muster.length === 0) return [{ text, treffer: false }];
+  // split mit Klammergruppe liefert abwechselnd Text und Treffer.
+  return text
+    .split(new RegExp(`(${muster.join("|")})`, "giu"))
+    .map((s, i) => ({ text: s, treffer: i % 2 === 1 }))
+    .filter((s) => s.text !== "");
 }
 
 /** Breite in Pixeln, in der der Kern Seiten rendert: auf 200 gerundet, damit gleiche Fenstergrößen gleiche Bilder liefern. */
