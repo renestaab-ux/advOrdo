@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 BASIS_URL = "https://www.gesetze-im-internet.de"
-USER_AGENT = "JuristischerDatenabgleich/0.1 (Wissensbasis-Import)"
+USER_AGENT = "JuraBox/0.1 (Wissensbasis-Import)"
 
 # Voreingestellte Gesetze (Zivilrecht) stehen in voreinstellung.json. Jedes andere
 # Bundesgesetz lässt sich über sein Kürzel laden (meist die kleingeschriebene

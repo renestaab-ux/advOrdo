@@ -29,7 +29,7 @@ from pathlib import Path
 from .zitate import UrteilsZitat, normalisiere_az
 
 URL = "https://www.rechtsprechung-im-internet.de/rii-toc.xml"
-USER_AGENT = "JuristischerDatenabgleich/0.1 (Rechtsprechungsverzeichnis)"
+USER_AGENT = "JuraBox/0.1 (Rechtsprechungsverzeichnis)"
 BUNDESGERICHTE = ("BVerfG", "BGH", "BAG", "BSG", "BFH", "BVerwG", "BPatG", "GmS-OGB")
 
 # Prüfergebnisse, in der Reihenfolge, in der die App sie zeigt.

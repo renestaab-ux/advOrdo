@@ -1,4 +1,4 @@
-# Juristischer Datenabgleich
+# JuraBox
 
 Desktop-App für Windows, macOS und Linux, die Schriftsätze, Schreiben und Urteile
 analysiert, vergleicht und zusammenfasst. Grundlage ist eine versionierte
@@ -7,6 +7,10 @@ Behauptung**. Jede Aussage verweist auf eine Fundstelle im Dokument oder in eine
 Rechtsquelle mit Fassungsstand.
 
 Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzung in `docs/architektur.md`.
+
+Die App hieß früher „Juristischer Datenabgleich“. Interne Bezeichner tragen den alten
+Namen bewusst weiter (Tauri-Kennung `de.juristischer-datenabgleich.app`, Paketnamen,
+Datenverzeichnisse), damit vorhandene Akten, Gesetze und Einstellungen an ihrem Ort bleiben.
 
 ## Aufbau
 
