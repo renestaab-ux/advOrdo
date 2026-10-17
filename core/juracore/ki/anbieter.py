@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
@@ -514,14 +515,34 @@ class GoogleGemini:
                                  "responseMimeType": "application/json", "responseJsonSchema": _streng(schema)},
         })
 
+    # Wartezeit vor dem einen Wiederholungsversuch nach einem Serverfehler von Google (Sekunden).
+    PAUSE = 3.0
+
     def _schlicht(self, system: str, nutzer: str, schema: dict) -> dict:
-        """Ohne Systemanweisung und JSON-Modus: Beides kennen die Gemma-Modelle bei Google nicht."""
+        """Ohne Systemanweisung und JSON-Modus: Beides kennen die Gemma-Modelle bei Google nicht.
+
+        Meldet Google einen Serverfehler, folgt nach kurzer Pause ein zweiter Versuch; scheitert auch der, nennt die
+        Meldung den Ausweg (ein Gemini-Modell wählen).
+        """
         anweisung = (f"{system}\nAntworte ausschließlich mit einem JSON-Objekt nach diesem JSON-Schema, ohne Text "
                      f"davor oder danach:\n{json.dumps(schema, ensure_ascii=False)}\n\n")
-        return self.http.anfrage(f"/models/{self.modell}:generateContent", {
+        daten = {
             "contents": [{"role": "user", "parts": [{"text": anweisung + nutzer}]}],
             "generationConfig": {"temperature": 0, "maxOutputTokens": EXTERN_ANTWORT_TOKEN},
-        })
+        }
+        for versuch in (1, 2):
+            try:
+                return self.http.anfrage(f"/models/{self.modell}:generateContent", daten)
+            except KiFehler as fehler:
+                if not re.search(r"Fehler 5\d\d", str(fehler)):
+                    raise
+                if versuch == 2:
+                    raise KiFehler(f"{fehler} Google hat die Anfrage zweimal mit einem Serverfehler beantwortet. "
+                                   f"Bitte unter „Einstellungen“ ein anderes Modell wählen (etwa gemini-2.5-flash) "
+                                   f"oder später erneut fragen.") from fehler
+                log.warning("Serverfehler von Google (%s), neuer Versuch", fehler)
+                time.sleep(self.PAUSE)
+        raise AssertionError("unerreichbar")
 
     def chat(self, system: str, nutzer: str, schema: dict) -> dict:
         if not self.modell:

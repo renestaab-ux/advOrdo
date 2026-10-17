@@ -309,6 +309,22 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
     assert url.endswith("/models/gemma-4-31b-it:generateContent")
     assert "systemInstruction" not in daten and "responseMimeType" not in daten["generationConfig"]
 
+    # Serverfehler auch ohne Schema: ein zweiter Versuch, danach eine Meldung mit Ausweg.
+    monkeypatch.setattr(anbieter.GoogleGemini, "PAUSE", 0)
+
+    class _Immer500(_FalscherOeffner):
+        def open(self, req, timeout=None):
+            self.anfragen.append((req.full_url, dict(req.header_items()), json.loads(req.data)))
+            raise urllib.error.HTTPError(req.full_url, 500, "Internal", {}, io.BytesIO(
+                b'{"error": {"code": 500, "message": "Internal error encountered."}}'))
+
+    kaputt = _Immer500({})
+    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", kaputt)
+    with pytest.raises(anbieter.KiFehler, match="anderes Modell wählen"):
+        gemma.chat("System", "Frage", {"type": "object"})
+    assert len(kaputt.anfragen) == 2
+    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+
     netz.antworten[":generateContent"] = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [
         {"text": '{"ok": tr'}]}}]}
     with pytest.raises(anbieter.KiFehler, match="abgeschnitten"):
