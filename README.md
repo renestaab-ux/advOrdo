@@ -125,8 +125,6 @@ Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern aus JuraBox Lite. G
   Monatsende nach § 188 Abs. 3 BGB, Verschiebung über Wochenende und landesweite Feiertage des gewählten Bundeslands.
   Nur Vorwärtsfristen.
 
-Prozesskostenrechner und Literatur folgen.
-
 ## Akte: Dokumente einlesen
 
 Im Bereich **Akte** legt man eine Akte an und fügt Schriftsätze, Schreiben und Urteile hinzu

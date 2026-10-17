@@ -12,13 +12,11 @@ import {
   prozent,
 } from "./kern";
 
-type Werkzeug = "zinsen" | "fristen" | "kosten" | "literatur";
+type Werkzeug = "zinsen" | "fristen";
 
 const WERKZEUGE: { id: Werkzeug; titel: string; bald?: boolean }[] = [
   { id: "zinsen", titel: "Verzugszinsen" },
   { id: "fristen", titel: "Fristen" },
-  { id: "kosten", titel: "Prozesskosten", bald: true },
-  { id: "literatur", titel: "Literatur", bald: true },
 ];
 
 /** Die Toolbox: Rechner aus JuraBox Lite, in einem eigenen Fenster. */
