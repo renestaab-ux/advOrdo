@@ -18,7 +18,7 @@ from .rechtsprechung.zitate import finde_urteilszitate
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="juracore", description="Analysekern Juristischer Datenabgleich")
+    p = argparse.ArgumentParser(prog="juracore", description="Analysekern von JuraBox")
     p.add_argument("--db", type=Path, help="Pfad der Datenbank (Standard: Datenverzeichnis)")
     p.add_argument("--archiv", type=Path, help="Pfad des Roharchivs (Standard: Datenverzeichnis)")
     p.add_argument("-v", "--verbose", action="store_true")

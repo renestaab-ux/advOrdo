@@ -34,7 +34,7 @@ export default function App() {
   return (
     <div className="rahmen">
       <nav className="navigation" aria-label="Bereiche">
-        <div className="marke">Juristischer Datenabgleich</div>
+        <div className="marke">JuraBox</div>
         {BEREICHE.map((b) => (
           <button
             key={b.id}
