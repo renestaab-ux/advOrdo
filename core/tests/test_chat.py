@@ -299,8 +299,15 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
     assert modell.chat("System", "Frage", {"type": "object"}) == {"ok": True}
     assert len(netz.anfragen) == 2
     zweite = netz.anfragen[-1][2]
-    assert "responseJsonSchema" not in zweite["generationConfig"]
-    assert "JSON-Schema" in zweite["systemInstruction"]["parts"][0]["text"]
+    assert "responseJsonSchema" not in zweite["generationConfig"] and "systemInstruction" not in zweite
+    assert "JSON-Schema" in zweite["contents"][0]["parts"][0]["text"]
+
+    # Gemma-Modelle bei Google: gleich ohne Systemanweisung und JSON-Modus.
+    gemma = anbieter.GoogleGemini("models/gemma-4-31b-it", "schluessel")
+    assert gemma.chat("System", "Frage", {"type": "object"}) == {"ok": True}
+    url, _, daten = netz.anfragen[-1]
+    assert url.endswith("/models/gemma-4-31b-it:generateContent")
+    assert "systemInstruction" not in daten and "responseMimeType" not in daten["generationConfig"]
 
     netz.antworten[":generateContent"] = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [
         {"text": '{"ok": tr'}]}}]}

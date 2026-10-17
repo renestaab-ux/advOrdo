@@ -506,27 +506,36 @@ class GoogleGemini:
             and not OpenAIExtern._KEIN_CHAT.search(str(m["name"]))
         ]
 
-    def _anfrage(self, system: str, nutzer: str, konfig: dict) -> dict:
+    def _mit_schema(self, system: str, nutzer: str, schema: dict) -> dict:
         return self.http.anfrage(f"/models/{self.modell}:generateContent", {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": nutzer}]}],
             "generationConfig": {"temperature": 0, "maxOutputTokens": EXTERN_ANTWORT_TOKEN,
-                                 "responseMimeType": "application/json", **konfig},
+                                 "responseMimeType": "application/json", "responseJsonSchema": _streng(schema)},
+        })
+
+    def _schlicht(self, system: str, nutzer: str, schema: dict) -> dict:
+        """Ohne Systemanweisung und JSON-Modus: Beides kennen die Gemma-Modelle bei Google nicht."""
+        anweisung = (f"{system}\nAntworte ausschließlich mit einem JSON-Objekt nach diesem JSON-Schema, ohne Text "
+                     f"davor oder danach:\n{json.dumps(schema, ensure_ascii=False)}\n\n")
+        return self.http.anfrage(f"/models/{self.modell}:generateContent", {
+            "contents": [{"role": "user", "parts": [{"text": anweisung + nutzer}]}],
+            "generationConfig": {"temperature": 0, "maxOutputTokens": EXTERN_ANTWORT_TOKEN},
         })
 
     def chat(self, system: str, nutzer: str, schema: dict) -> dict:
         if not self.modell:
             raise KiFehler("Kein Modell gewählt. Bitte unter „Einstellungen“ ein Modell des Anbieters auswählen.")
-        try:
-            antwort = self._anfrage(system, nutzer, {"responseJsonSchema": _streng(schema)})
-        except KiFehler as fehler:
-            if not re.search(r"Fehler (5\d\d|400)", str(fehler)):
-                raise
-            log.warning("Gemini lehnt die Anfrage mit Schema ab (%s), versuche es ohne Schema-Zwang", fehler)
-            antwort = self._anfrage(
-                system + " Das JSON folgt genau diesem JSON-Schema: " + json.dumps(schema, ensure_ascii=False),
-                nutzer, {},
-            )
+        if self.modell.startswith("gemma"):
+            antwort = self._schlicht(system, nutzer, schema)
+        else:
+            try:
+                antwort = self._mit_schema(system, nutzer, schema)
+            except KiFehler as fehler:
+                if not re.search(r"Fehler (5\d\d|400)", str(fehler)):
+                    raise
+                log.warning("Gemini lehnt die Anfrage mit Schema ab (%s), versuche es ohne Schema-Zwang", fehler)
+                antwort = self._schlicht(system, nutzer, schema)
         if (antwort.get("promptFeedback") or {}).get("blockReason"):
             raise KiFehler(f"Google Gemini hat die Anfrage abgelehnt ({antwort['promptFeedback']['blockReason']}).")
         kandidat = (antwort.get("candidates") or [{}])[0]
