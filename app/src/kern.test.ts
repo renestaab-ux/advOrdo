@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   abgleichZusammenfassung,
   auswahlText,
+  datumDe,
+  euro,
+  heuteIso,
+  prozent,
   dauerText,
   groesseText,
   veraltet,
@@ -179,5 +183,15 @@ describe("auswahlText", () => {
     expect(auswahlText({ vollstaendig: false, absaetze: 30, von: 90, dokumente: 1, dokumente_von: 1 })).toBe(
       "30 von 90 Absätzen, ausgewählt nach den Begriffen der Frage",
     );
+  });
+});
+
+describe("Toolbox-Formate", () => {
+  it("schreibt Beträge, Sätze und Daten deutsch", () => {
+    expect(euro("1234.5")).toBe("1.234,50 €");
+    expect(prozent("8.62")).toBe("8,62 %");
+    expect(prozent("-0.88")).toBe("-0,88 %");
+    expect(datumDe("2026-10-17")).toBe("17.10.2026");
+    expect(heuteIso(new Date(2026, 0, 5))).toBe("2026-01-05");
   });
 });

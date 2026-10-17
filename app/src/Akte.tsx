@@ -104,7 +104,10 @@ export default function Akte({
   setAkteId,
   onVergleich,
   onEinstellungen,
+  neueAkte = 0,
 }: {
+  /** Zählt hoch, wenn „Akte anlegen“ gewählt wurde; dann bekommt das Namensfeld den Fokus. */
+  neueAkte?: number;
   akteId: number | null;
   setAkteId: Dispatch<SetStateAction<number | null>>;
   onVergleich: () => void;
@@ -112,6 +115,10 @@ export default function Akte({
 }) {
   const [akten, setAkten] = useState<AkteTyp[]>([]);
   const [neuerName, setNeuerName] = useState("");
+  const neuerNameFeld = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (neueAkte > 0) neuerNameFeld.current?.focus();
+  }, [neueAkte]);
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [inhalt, setInhalt] = useState<DokumentInhalt | null>(null);
   const [normen, setNormen] = useState<NormEintrag[] | null>(null);
@@ -556,6 +563,7 @@ export default function Akte({
         )}
         <form className="weiteres" onSubmit={anlegen}>
           <input
+            ref={neuerNameFeld}
             value={neuerName}
             onChange={(e) => setNeuerName(e.target.value)}
             placeholder="Neue Akte, z. B. Brückner ./. Autohaus Rehnfeld"

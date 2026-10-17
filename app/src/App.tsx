@@ -4,13 +4,17 @@ import Analyse from "./Analyse";
 import Einstellungen from "./Einstellungen";
 import Gesetze from "./Gesetze";
 import Rechtsprechung from "./Rechtsprechung";
+import Start, { StartZiel } from "./Start";
 import Suche from "./Suche";
+import Toolbox from "./Toolbox";
 import Vergleich from "./Vergleich";
+import { invoke } from "@tauri-apps/api/core";
 import { KiModus, istDesktop, kern } from "./kern";
 
-type Bereich = "akte" | "suche" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
+type Bereich = "start" | "toolbox" | "akte" | "suche" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
 
 const BEREICHE: { id: Bereich; titel: string; bald?: boolean }[] = [
+  { id: "start", titel: "Start" },
   { id: "akte", titel: "Akte" },
   { id: "suche", titel: "Suche" },
   { id: "vergleich", titel: "Vergleich" },
@@ -21,7 +25,7 @@ const BEREICHE: { id: Bereich; titel: string; bald?: boolean }[] = [
 ];
 
 export default function App() {
-  const [bereich, setBereich] = useState<Bereich>("akte");
+  const [bereich, setBereich] = useState<Bereich>("start");
   // Die gewählte Akte gilt für Akte, Vergleich und Analyse gemeinsam.
   const [akteId, setAkteId] = useState<number | null>(null);
   // Ob Dokumentinhalte das Gerät verlassen (externe KI gewählt); immer sichtbar in der Navigation.
@@ -30,12 +34,30 @@ export default function App() {
     if (istDesktop) void kern<KiModus>("ki.modus").then(setModus, () => setModus(null));
   }, []);
   useEffect(ladeModus, [ladeModus]);
+  // „Akte anlegen“ vom Startbildschirm: Bereich Akte mit dem Namensfeld im Fokus.
+  const [neueAkte, setNeueAkte] = useState(0);
+
+  async function starte(ziel: StartZiel) {
+    if (ziel === "anlegen") {
+      setNeueAkte((n) => n + 1);
+      setBereich("akte");
+    } else if (ziel === "akte") {
+      setNeueAkte(0);
+      setBereich("akte");
+    } else if (ziel === "einstellungen") {
+      setBereich("einstellungen");
+    } else if (ziel === "toolbox") {
+      // Die Toolbox hat ein eigenes Fenster; im Browser (ohne Desktop-App) erscheint sie hier.
+      if (istDesktop) await invoke("toolbox_oeffnen");
+      else setBereich("toolbox");
+    }
+  }
 
   return (
     <div className="rahmen">
       <nav className="navigation" aria-label="Bereiche">
         <div className="marke">JuraBox</div>
-        {BEREICHE.map((b) => (
+        {BEREICHE.filter((b) => b.id !== "toolbox").map((b) => (
           <button
             key={b.id}
             className={b.id === bereich ? "nav-eintrag aktiv" : "nav-eintrag"}
@@ -62,8 +84,11 @@ export default function App() {
         )}
       </nav>
       <main className="inhalt">
+        {bereich === "start" && <Start onWahl={(z) => void starte(z)} />}
+        {bereich === "toolbox" && <Toolbox />}
         {bereich === "akte" && (
           <Akte
+            neueAkte={neueAkte}
             akteId={akteId}
             setAkteId={setAkteId}
             onVergleich={() => setBereich("vergleich")}

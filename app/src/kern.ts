@@ -757,3 +757,81 @@ export function auswahlText(a: ChatAuswahl): string {
   const aus = a.dokumente_von === 1 ? "" : ` aus ${a.dokumente === a.dokumente_von ? doks(a.dokumente) : `${a.dokumente} von ${doks(a.dokumente_von)}`}`;
   return `${a.absaetze} von ${a.von} Absätzen${aus}, ausgewählt nach den Begriffen der Frage`;
 }
+
+// ---- Toolbox: Rechner aus JuraBox Lite ----
+
+export interface ZinsZeile {
+  von: string;
+  bis: string;
+  tage: number;
+  satz: string;
+  grundlage: string;
+  zinsen: string;
+  zinssaldo: string;
+  restschuld: string;
+  ereignis: string;
+}
+
+export interface ZinsErgebnis {
+  zeilen: ZinsZeile[];
+  summe_tage: number;
+  summe_zinsen: string;
+  pauschale: string;
+  hauptforderung: string;
+  offene_zinsen: string;
+  gesamt: string;
+  aktueller_satz: string;
+  zinsen_pro_tag: string;
+  grundlagen: string[];
+  basiszins_quelle: string;
+  hinweise: string[];
+}
+
+export interface BasiszinsStand {
+  quelle: string;
+  stand: string;
+  saetze: { ab: string; satz: string; eigen: boolean }[];
+  aktuell: { ab: string; satz: string };
+  bekannt_bis: string;
+}
+
+export interface FristErgebnis {
+  fristbeginn: string;
+  rechnerisches_ende: string;
+  ende: string;
+  wochentag: string;
+  verschoben: boolean;
+  grund: string;
+  grundlagen: string[];
+  land: string;
+  feiertage_stand: string;
+}
+
+export const BUNDESLAENDER: [string, string][] = [
+  ["BW", "Baden-Württemberg"], ["BY", "Bayern"], ["BE", "Berlin"], ["BB", "Brandenburg"], ["HB", "Bremen"],
+  ["HH", "Hamburg"], ["HE", "Hessen"], ["MV", "Mecklenburg-Vorpommern"], ["NI", "Niedersachsen"],
+  ["NW", "Nordrhein-Westfalen"], ["RP", "Rheinland-Pfalz"], ["SL", "Saarland"], ["SN", "Sachsen"],
+  ["ST", "Sachsen-Anhalt"], ["SH", "Schleswig-Holstein"], ["TH", "Thüringen"],
+];
+
+/** Betrag aus dem Kern ("1234.5") deutsch mit zwei Nachkommastellen: "1.234,50 €". */
+export function euro(betrag: string | number): string {
+  return Number(betrag).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+/** Prozentsatz aus dem Kern ("8.62") deutsch: "8,62 %". */
+export function prozent(satz: string | number): string {
+  return Number(satz).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
+}
+
+/** ISO-Datum (JJJJ-MM-TT) als TT.MM.JJJJ, ohne Umweg über die Zeitzone. */
+export function datumDe(iso: string): string {
+  const [j, m, t] = iso.split("-");
+  return `${t}.${m}.${j}`;
+}
+
+/** Heutiges Datum als JJJJ-MM-TT in lokaler Zeit. */
+export function heuteIso(jetzt = new Date()): string {
+  const z = (n: number) => String(n).padStart(2, "0");
+  return `${jetzt.getFullYear()}-${z(jetzt.getMonth() + 1)}-${z(jetzt.getDate())}`;
+}
