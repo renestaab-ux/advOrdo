@@ -388,7 +388,7 @@ def test_auftraege_laufen_einzeln_und_lassen_sich_abbrechen():
 
     a = auftraege.starte("test", arbeit)
     assert auftraege.status(a["auftrag_id"])["status"] == "laeuft"
-    with pytest.raises(RuntimeError, match="läuft bereits"):
+    with pytest.raises(RuntimeError, match="anderen Auftrag"):
         auftraege.starte("test", arbeit)
     auftraege.abbrechen(a["auftrag_id"])
     weiter.set()
@@ -404,7 +404,7 @@ def test_auftraege_laufen_einzeln_und_lassen_sich_abbrechen():
 
 def test_rpc_startet_analyse_im_hintergrund(con, tmp_path):
     kern = rpc.Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
-    kern.ki_fabrik = lambda e: Attrappe(modell_antwort)
+    kern.ki_fabrik = lambda e, schluessel=None: Attrappe(modell_antwort)
     akte_id, _ = _akte(kern.akten, con, tmp_path)
 
     def aufruf(methode, **params):
@@ -421,7 +421,7 @@ def test_rpc_startet_analyse_im_hintergrund(con, tmp_path):
 
     # Ein Port, an dem nichts läuft: Status meldet „nicht erreichbar“, speichert aber die Wahl.
     stand = aufruf("ki.einstellungen_setzen", anbieter="ollama", endpunkt="http://127.0.0.1:9", modell=Attrappe.modell)
-    assert stand["erreichbar"] is False and "nicht erreichbar" in stand["hinweis"]
+    assert stand["lokal"]["erreichbar"] is False and "nicht erreichbar" in stand["hinweis"]
 
     auftrag = aufruf("ki.starten", aufgabe="widersprueche", akte_id=akte_id)
     stand = _warte(lambda: aufruf("ki.auftrag", auftrag_id=auftrag["auftrag_id"]))

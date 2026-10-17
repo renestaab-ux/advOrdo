@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Akte from "./Akte";
 import Analyse from "./Analyse";
 import Einstellungen from "./Einstellungen";
@@ -6,6 +6,7 @@ import Gesetze from "./Gesetze";
 import Rechtsprechung from "./Rechtsprechung";
 import Suche from "./Suche";
 import Vergleich from "./Vergleich";
+import { KiModus, istDesktop, kern } from "./kern";
 
 type Bereich = "akte" | "suche" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
 
@@ -23,6 +24,12 @@ export default function App() {
   const [bereich, setBereich] = useState<Bereich>("akte");
   // Die gewählte Akte gilt für Akte, Vergleich und Analyse gemeinsam.
   const [akteId, setAkteId] = useState<number | null>(null);
+  // Ob Dokumentinhalte das Gerät verlassen (externe KI gewählt); immer sichtbar in der Navigation.
+  const [modus, setModus] = useState<KiModus | null>(null);
+  const ladeModus = useCallback(() => {
+    if (istDesktop) void kern<KiModus>("ki.modus").then(setModus, () => setModus(null));
+  }, []);
+  useEffect(ladeModus, [ladeModus]);
 
   return (
     <div className="rahmen">
@@ -40,12 +47,29 @@ export default function App() {
             {b.bald && <span className="bald">bald</span>}
           </button>
         ))}
-        <div className="modus" title="Dokumentinhalte verlassen dieses Gerät nicht.">
-          Modus: nur lokal
-        </div>
+        {modus?.aktiv === "extern" ? (
+          <button
+            className="modus extern"
+            onClick={() => setBereich("einstellungen")}
+            title="Analyse und Chat senden Fragen und Dokumenttexte an diesen Anbieter. Umstellen unter „Einstellungen“."
+          >
+            Modus: Externer Anbieter ({modus.titel})
+          </button>
+        ) : (
+          <div className="modus" title="Dokumentinhalte verlassen dieses Gerät nicht.">
+            Modus: nur lokal
+          </div>
+        )}
       </nav>
       <main className="inhalt">
-        {bereich === "akte" && <Akte akteId={akteId} setAkteId={setAkteId} onVergleich={() => setBereich("vergleich")} />}
+        {bereich === "akte" && (
+          <Akte
+            akteId={akteId}
+            setAkteId={setAkteId}
+            onVergleich={() => setBereich("vergleich")}
+            onEinstellungen={() => setBereich("einstellungen")}
+          />
+        )}
         {bereich === "suche" && (
           <Suche
             akteId={akteId}
@@ -62,7 +86,7 @@ export default function App() {
         )}
         {bereich === "gesetze" && <Gesetze />}
         {bereich === "rechtsprechung" && <Rechtsprechung onAkte={() => setBereich("akte")} />}
-        {bereich === "einstellungen" && <Einstellungen />}
+        {bereich === "einstellungen" && <Einstellungen onGeaendert={ladeModus} />}
       </main>
     </div>
   );

@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import Chat from "./Chat";
 import { BelegAnsicht } from "./Gesetze";
 import {
   Abschnitt,
@@ -47,9 +48,9 @@ import {
   urteilHerkunft,
 } from "./kern";
 
-type Ansicht = "dokument" | "normen" | "rechtsprechung";
+type Ansicht = "dokument" | "normen" | "rechtsprechung" | "chat";
 /** Was zum geöffneten Dokument gezeigt wird. */
-type DokModus = "text" | "original" | "normen" | "rechtsprechung";
+type DokModus = "text" | "original" | "normen" | "rechtsprechung" | "chat";
 
 /** Breite der Seitenleiste (Wortlaut, Volltext), je Gerät gemerkt. */
 const SEITE_STANDARD = 360;
@@ -102,10 +103,12 @@ export default function Akte({
   akteId,
   setAkteId,
   onVergleich,
+  onEinstellungen,
 }: {
   akteId: number | null;
   setAkteId: Dispatch<SetStateAction<number | null>>;
   onVergleich: () => void;
+  onEinstellungen?: () => void;
 }) {
   const [akten, setAkten] = useState<AkteTyp[]>([]);
   const [neuerName, setNeuerName] = useState("");
@@ -727,6 +730,9 @@ export default function Akte({
           <button className={ansicht === "rechtsprechung" ? "reiter-aktiv" : "zweitrangig"} onClick={zeigeRechtsprechung}>
             Rechtsprechung der Akte
           </button>
+          <button className={ansicht === "chat" ? "reiter-aktiv" : "zweitrangig"} onClick={() => setAnsicht("chat")}>
+            Chat mit der Akte
+          </button>
         </nav>
       )}
 
@@ -761,6 +767,10 @@ export default function Akte({
               onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
             />
           )}
+          {ansicht === "dokument" && inhalt && dokModus === "chat" && akteId != null && (
+            <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />
+          )}
+          {ansicht === "chat" && akteId != null && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
           {ansicht === "dokument" && !inhalt && dokumente.length > 0 && (
             <p className="leer">Wähle oben ein Dokument, um Text und Normzitate zu sehen.</p>
           )}
@@ -1032,6 +1042,7 @@ const DOK_MODI: { modus: DokModus; text: string }[] = [
   { modus: "original", text: "Original" },
   { modus: "normen", text: "Normen" },
   { modus: "rechtsprechung", text: "Rechtsprechung" },
+  { modus: "chat", text: "Chat" },
 ];
 
 function DokModusLeiste({

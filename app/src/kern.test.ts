@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   abgleichZusammenfassung,
+  auswahlText,
   dauerText,
   groesseText,
   veraltet,
@@ -161,5 +162,22 @@ describe("Suche", () => {
       { text: "(a+b)", treffer: true },
     ]);
     expect(markiereBegriffe("ohne", [])).toEqual([{ text: "ohne", treffer: false }]);
+  });
+});
+
+describe("auswahlText", () => {
+  it("nennt, was dem Modell vorlag", () => {
+    expect(auswahlText({ vollstaendig: true, absaetze: 40, von: 40, dokumente: 3, dokumente_von: 3 })).toBe(
+      "alle 3 Dokumente vollständig",
+    );
+    expect(auswahlText({ vollstaendig: true, absaetze: 12, von: 12, dokumente: 1, dokumente_von: 1 })).toBe(
+      "das Dokument vollständig",
+    );
+    expect(auswahlText({ vollstaendig: false, absaetze: 120, von: 450, dokumente: 6, dokumente_von: 8 })).toBe(
+      "120 von 450 Absätzen aus 6 von 8 Dokumenten, ausgewählt nach den Begriffen der Frage",
+    );
+    expect(auswahlText({ vollstaendig: false, absaetze: 30, von: 90, dokumente: 1, dokumente_von: 1 })).toBe(
+      "30 von 90 Absätzen, ausgewählt nach den Begriffen der Frage",
+    );
   });
 });

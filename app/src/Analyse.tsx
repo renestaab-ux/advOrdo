@@ -26,7 +26,7 @@ import {
 } from "./kern";
 
 type Ansicht = "widersprueche" | "chronologie" | "akte" | "dokumente";
-type Offen = { inhalt: DokumentInhalt; abschnitt: number } | null;
+export type Offen = { inhalt: DokumentInhalt; abschnitt: number } | null;
 
 const LEER: KiErgebnisse = { zusammenfassung_akte: null, widersprueche: null, chronologie: null, dokumente: {} };
 
@@ -157,17 +157,19 @@ export default function Analyse({
       </header>
       <p className="erklaerung">
         Fasst Dokumente und die Akte zusammen, sucht inhaltliche Widersprüche und erstellt eine Chronologie mit dem
-        lokalen Sprachmodell. Jede
+        gewählten Sprachmodell. Jede
         Aussage verweist auf ihre Fundstelle; ob das Zitat dort wirklich steht, prüft die App am Originaltext. Aussagen
         ohne auffindbares Zitat sind als „ohne Beleg“ markiert. Die Einschätzungen des Modells sind Hinweise, keine
         Bewertung.
       </p>
 
-      <p className={bereit ? "ki-zeile bereit" : "ki-zeile"}>
+      <p className={bereit && !status?.extern ? "ki-zeile bereit" : "ki-zeile"}>
         {status == null
           ? "Prüfe Sprachmodell …"
           : bereit
-            ? `Sprachmodell: ${status.modell} über ${status.anbieter_titel}, auf diesem Gerät`
+            ? status.extern
+              ? `Externer Anbieter: ${status.modell} über ${status.titel}. Dokumenttexte werden dorthin übertragen.`
+              : `Sprachmodell: ${status.modell} über ${status.titel}, auf diesem Gerät`
             : `Sprachmodell nicht bereit: ${status.hinweis ?? ""}`}{" "}
         <button className="link klein" onClick={onEinstellungen}>
           Einstellungen
@@ -453,7 +455,7 @@ function ErgebnisKopf({
   );
 }
 
-function FundstelleZeile({
+export function FundstelleZeile({
   f,
   offen,
   onFundstelle,
