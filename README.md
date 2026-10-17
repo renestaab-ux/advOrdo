@@ -12,7 +12,7 @@ Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzu
 
 | Ordner | Inhalt |
 | --- | --- |
-| `core/` | Analysekern in Python (`juracore`): Gesetzes-Import, Wissensbasis, Einlesen von Akten (PDF, DOCX, OCR), Normzitate, Abgleich von Angaben, Analyse mit lokalem Sprachmodell; später RAG |
+| `core/` | Analysekern in Python (`juracore`): Gesetzes-Import, Wissensbasis, Einlesen von Akten (PDF, DOCX, OCR), Normzitate, Abgleich von Angaben, Analyse und Chat mit lokalem Sprachmodell (externe Anbieter nur nach Freischaltung); später RAG |
 | `app/` | Oberfläche (React + TypeScript, Vite) |
 | `app/src-tauri/` | Desktop-Hülle (Tauri 2, Rust); startet den Kern als Kindprozess |
 | `docs/` | Architektur und Entscheidungen |
@@ -132,7 +132,7 @@ laufende Absatz („Abschn. 12“) als Fundstelle.
 
 ### Dokumentansicht
 
-Ein geöffnetes Dokument lässt sich auf vier Arten zeigen:
+Ein geöffnetes Dokument lässt sich auf fünf Arten zeigen:
 
 - **Text**: der gelesene Text mit Fundstellen und markierten Zitaten; ein Klick auf ein Normzitat zeigt den Wortlaut.
 - **Original** (nur PDF): die Seiten der abgelegten Originaldatei, wie sie gedruckt aussehen. Der Kern rendert sie
@@ -140,6 +140,7 @@ Ein geöffnetes Dokument lässt sich auf vier Arten zeigen:
   dessen Seite, und der Wortlaut bleibt daneben stehen.
 - **Normen** und **Rechtsprechung**: wie die Reiter „Normen der Akte“ und „Rechtsprechung der Akte“, aber nur mit den
   Zitaten aus diesem Dokument. Volltexte laden und Urteile ergänzen geht auch hier.
+- **Chat**: Fragen an dieses eine Dokument (siehe „Chat mit Akte und Dokument“).
 
 ### Ordner, Beteiligte und Entfernen
 
@@ -264,6 +265,43 @@ Chronologie und vergleicht sie mit den erwarteten Ereignissen aus `erwartungen.j
 Die Antworten des Modells bleiben in `ki-pruefen-daten` gespeichert, solange sich die Testakte nicht
 ändert und Modell und Kontext gleich bleiben. Ein abgebrochener Lauf setzt dadurch beim nächsten Mal
 dort fort, wo er stehen geblieben ist. Für einen Neuanfang den Ordner löschen.
+
+## Chat mit Akte und Dokument
+
+Im Bereich „Akte“ stellt der Reiter **Chat mit der Akte** Fragen an alle Dokumente der Akte, der
+Modus **Chat** eines geöffneten Dokuments nur an dieses. Die Antwort besteht aus einzelnen Aussagen:
+
+- **Aus der Akte**: eine Tatsache mit Fundstelle. Das Modell nennt Dokument, Absatz und ein wörtliches
+  Zitat; die App prüft das Zitat am Originaltext und zeigt die gefundene Stelle (Klick öffnet das
+  Dokument daneben). Steht das Zitat so nicht im Dokument, heißt die Aussage „ohne Beleg“.
+- **Einschätzung des Modells**: rechtliche oder inhaltliche Würdigung, gegebenenfalls mit den Stellen,
+  auf die sie sich stützt.
+- **Hinweis**: etwa, dass die Dokumente zur Frage nichts enthalten.
+
+Die Fundstellen stehen zunächst eingeklappt als kurze Quellenangabe unter der Aussage (das Zitat zeigt
+der Tooltip). „Zitate einblenden“ zeigt die Sätze aus den Dokumenten; dasselbe gilt in „Analyse“ und
+„Vergleich“.
+
+Passt die Akte in den Kontext des Modells, sieht es alle Dokumente vollständig. Sonst bekommt es den
+Kopf jedes Dokuments (die ersten zwei Absätze) und die Absätze mit den meisten Begriffen der Frage; der
+Rest des Platzes wird in Aktenreihenfolge aufgefüllt. Unter jeder Antwort steht, was vorlag. Die
+letzten drei Fragen und Antworten gehen als Zusammenhang mit. Der Verlauf bleibt je Akte bzw. Dokument
+gespeichert, bis man ihn leert oder die Akte entfernt.
+
+## Externe KI (nur ausnahmsweise)
+
+Voreingestellt arbeitet die App nur lokal. Unter „Einstellungen“ → „Externe KI“ lassen sich Anthropic
+Claude, OpenAI, Google Gemini, Mistral oder ein anderer Dienst mit OpenAI-kompatibler Schnittstelle
+(nur HTTPS) anbinden. Das geht erst, nachdem der Schalter **Externe KI einbinden** eingeschaltet und der
+Hinweis auf Datenschutz- und Berufsrecht bestätigt wurde. Danach API-Schlüssel und Modell eintragen,
+„Speichern“ (fragt beim Anbieter nur die Modellliste ab) und unter „Analyse und Chat verwenden“ den
+externen Anbieter wählen. Solange er gewählt ist, steht links unten „Modus: Externer Anbieter“, und
+Analyse und Chat weisen darauf hin, dass Dokumenttexte das Gerät verlassen. Schalter aus stellt sofort
+wieder auf lokal.
+
+Die Schlüssel liegen in `ki-schluessel.json` im Datenverzeichnis der App (Linux/macOS: nur für den
+Benutzer lesbar), getrennt von `ki.json`, und werden nie wieder angezeigt. Die Kommandozeile
+(`ki-status`, `ki-pruefen`) arbeitet immer lokal.
 
 ## Rechtsprechung: Urteilszitate prüfen
 

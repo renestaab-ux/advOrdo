@@ -215,6 +215,8 @@ button.gefahr-voll { background: #b3261e; border-color: #b3261e; color: #fff; }
 .belege .link { font-weight: 400; text-align: left; }
 .belege li.gewaehlt .link { font-weight: 600; }
 .belege .ausschnitt { flex-basis: 100%; margin: 0; }
+/* Eingeklappte Belege: kurze Quellenangaben nebeneinander statt Zitaten untereinander. */
+.belege:has(> li.kompakt) { display: flex; flex-wrap: wrap; gap: 6px; }
 .weitere-merkmale { margin: 16px 0; }
 .weitere-merkmale summary { cursor: pointer; color: var(--text-leise); }
 .grenze { font-size: 12px; color: var(--text-leise); margin-top: 20px; }
@@ -303,3 +305,43 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .such-dokument-titel { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--linie); }
 .original-bild { position: relative; }
 .markierung { position: absolute; background: rgb(255 214 0 / 45%); outline: 1px solid rgb(230 180 0 / 70%); border-radius: 2px; pointer-events: none; mix-blend-mode: multiply; }
+
+/* Externe KI: abgesetzt, damit klar ist, dass es die Ausnahme ist */
+.modus.extern { color: var(--warnung); font-weight: 600; text-align: left; background: color-mix(in srgb, var(--warnung) 12%, transparent); border: 1px solid var(--warnung); padding: 6px 8px; font-size: 12px; }
+.ki-zeile.extern { color: var(--warnung); font-weight: 600; }
+.extern-karte { border-style: dashed; }
+.extern-karte.freigegeben { border: 1px solid var(--warnung); border-left-width: 4px; }
+.schalter { display: flex; align-items: center; gap: 10px; font-weight: 600; margin: 8px 0 12px; }
+.schalter input { width: 18px; height: 18px; accent-color: var(--warnung); }
+.schalter .leise { font-weight: 400; }
+.rueckfrage .schalter { font-weight: 400; }
+.rechtshinweis { font-size: 13px; line-height: 1.5; padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--warnung) 9%, transparent); border: 1px solid color-mix(in srgb, var(--warnung) 40%, transparent); }
+.rechtshinweis ul { margin: 6px 0; padding-left: 20px; }
+.rechtshinweis li { margin: 4px 0; }
+.ki-wahl { border: 1px solid var(--linie); border-radius: 8px; padding: 8px 14px 12px; margin: 14px 0 0; display: grid; gap: 6px; }
+.ki-wahl legend { font-weight: 600; padding: 0 4px; }
+
+/* Chat mit Akte und Dokument */
+.chat { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 14px; align-items: start; }
+.chat.mit-seite { grid-template-columns: minmax(0, 1fr) auto; }
+.chat-haupt { max-width: 1200px; }
+.chat-verlauf { display: grid; gap: 12px; margin: 14px 0; }
+.chat-frage { justify-self: end; max-width: 80%; white-space: pre-wrap; padding: 8px 14px; border-radius: 12px 12px 2px 12px; background: color-mix(in srgb, var(--akzent) 14%, var(--flaeche)); }
+.chat-frage.wartet { opacity: 0.7; }
+.chat-antwort { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 12px 12px 12px 2px; padding: 4px 16px 2px; }
+.chat-aussagen { list-style: none; padding-left: 0; display: grid; gap: 0; margin: 4px 0; }
+.chat-aussagen > li { padding: 10px 0; border-top: 1px solid var(--linie); line-height: 1.5; }
+.chat-aussagen > li:first-child { border-top: none; }
+.chat-aussagen .belege { margin-top: 6px; }
+button.quelle { font-size: 12px; padding: 1px 9px; border-radius: 999px; background: color-mix(in srgb, var(--akzent) 8%, transparent); border: 1px solid color-mix(in srgb, var(--akzent) 30%, transparent); color: var(--akzent); font-weight: 400; }
+button.quelle .quelle-partei { color: var(--text-leise); }
+button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var(--akzent) 20%, transparent); }
+.chat-fuss { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline; margin: 2px 0 10px; padding-top: 8px; border-top: 1px solid var(--linie); }
+.chat-aussagen > li.chat-hinweis { color: var(--text-leise); font-style: italic; }
+.chat-aussagen > li.chat-einschaetzung > div { color: var(--text); }
+.chat-eingabe { display: grid; gap: 8px; }
+.chat-eingabe textarea { font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); resize: vertical; min-height: 52px; }
+.chat-eingabe .aktionen { display: flex; gap: 8px; }
+@media (max-width: 1100px) {
+  .chat.mit-seite { grid-template-columns: 1fr; }
+}

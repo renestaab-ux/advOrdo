@@ -1,5 +1,6 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
+import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
 import {
   Abgleich,
   AbgleichFundstelle,
@@ -9,7 +10,6 @@ import {
   DokumentInhalt,
   EINORDNUNG_TEXT,
   abgleichZusammenfassung,
-  fundstelle,
   istDesktop,
   kern,
 } from "./kern";
@@ -176,7 +176,10 @@ export default function Vergleich({
       {ergebnis && (
         <div className="akte-arbeitsflaeche">
           <div className="akte-haupt">
-            <p className="zusammenfassung">{abgleichZusammenfassung(ergebnis)}</p>
+            <Zitatbereich>
+            <p className="zusammenfassung">
+              {abgleichZusammenfassung(ergebnis)} <ZitateSchalter />
+            </p>
             {abweichend.length === 0 && (
               <p className="leer">Keine abweichenden Angaben gefunden.</p>
             )}
@@ -199,6 +202,7 @@ export default function Vergleich({
                 ))}
               </details>
             )}
+            </Zitatbereich>
             <p className="grenze">
               Aussagen ohne Zahl oder Datum, etwa ob eine Nachbesserung angeboten oder abgelehnt wurde, prüft der Bereich
               „Analyse“ mit dem lokalen Sprachmodell.
@@ -247,26 +251,14 @@ function MerkmalKarte({
           <div key={w.wert} className="wert">
             <div className="wert-anzeige">{w.anzeige}</div>
             <ul className="belege">
-              {w.fundstellen.map((f, i) => {
-                const gewaehlt = offen?.inhalt.dokument.id === f.dokument_id && offen.abschnitt === f.abschnitt;
-                return (
-                  <li key={i} className={gewaehlt ? "gewaehlt" : undefined}>
-                    <button className="link" onClick={() => onFundstelle(f)} title="Dokument an dieser Stelle öffnen">
-                      {f.dateiname}, {fundstelle(f)}
-                    </button>
-                    {f.parteien.map((p) => (
-                      <span key={p} className="tag">
-                        {p}
-                      </span>
-                    ))}
-                    <div className="ausschnitt">
-                      {f.ausschnitt.davor}
-                      <mark>{f.ausschnitt.wert}</mark>
-                      {f.ausschnitt.danach}
-                    </div>
-                  </li>
-                );
-              })}
+              {w.fundstellen.map((f, i) => (
+                <Beleg
+                  key={i}
+                  f={f}
+                  gewaehlt={offen?.inhalt.dokument.id === f.dokument_id && offen.abschnitt === f.abschnitt}
+                  onFundstelle={() => onFundstelle(f)}
+                />
+              ))}
             </ul>
           </div>
         ))}

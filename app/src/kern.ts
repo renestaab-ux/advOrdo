@@ -510,7 +510,8 @@ export interface KiModell {
   quantisierung: string | null;
 }
 
-export interface KiStatus {
+/** Stand des lokalen Modellprogramms (Ollama, LM Studio). */
+export interface KiLokalStatus {
   anbieter: string;
   endpunkt: string;
   modell: string;
@@ -525,7 +526,47 @@ export interface KiStatus {
   hinweis: string | null;
 }
 
-export type KiAufgabe = "zusammenfassung_dokument" | "zusammenfassung_akte" | "widersprueche" | "chronologie";
+/** Stand der externen KI; der Schlüssel selbst kommt nie zur Oberfläche, nur seine letzten vier Zeichen. */
+export interface KiExternStatus {
+  freigegeben: boolean;
+  anbieter: string;
+  anbieter_titel: string;
+  anbieter_liste: { id: string; titel: string; adresse: string; vorschlag: string }[];
+  adresse: string;
+  modell: string;
+  kontext: number;
+  schluessel_hinterlegt: boolean;
+  schluessel_ende: string | null;
+  /** Ob der Anbieter bei dieser Abfrage angefragt wurde (nur die Modellliste, keine Inhalte). */
+  geprueft: boolean;
+  erreichbar: boolean;
+  modelle: KiModell[];
+  bereit: boolean;
+  hinweis: string | null;
+}
+
+export interface KiStatus {
+  /** Welches Modell Analyse und Chat verwenden. */
+  aktiv: "lokal" | "extern";
+  /** Dokumentinhalte gehen an einen externen Anbieter. */
+  extern: boolean;
+  bereit: boolean;
+  modell: string;
+  titel: string;
+  kontext: number;
+  hinweis: string | null;
+  lokal: KiLokalStatus;
+  externe: KiExternStatus;
+}
+
+/** Für die Anzeige in der Navigation, ohne Anfrage an ein Modell. */
+export interface KiModus {
+  aktiv: "lokal" | "extern";
+  titel: string | null;
+  modell: string;
+}
+
+export type KiAufgabe = "zusammenfassung_dokument" | "zusammenfassung_akte" | "widersprueche" | "chronologie" | "chat";
 
 export interface KiFundstelle extends AbgleichFundstelle {
   /** Ob das Zitat des Modells wörtlich oder nur angenähert im Dokument steht. */
@@ -674,4 +715,45 @@ export function zeitpunkt(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// --- Chat mit Akte und Dokument -----------------------------------------------------------------------
+
+export interface ChatAussage {
+  text: string;
+  /** tatsache: aus den Dokumenten; einschaetzung: Würdigung des Modells; hinweis: etwa „steht nicht in der Akte“. */
+  art: "tatsache" | "einschaetzung" | "hinweis";
+  status: "belegt" | "ohne_beleg" | "hinweis";
+  fundstellen: KiFundstelle[];
+}
+
+export interface ChatAuswahl {
+  vollstaendig: boolean;
+  absaetze: number;
+  von: number;
+  dokumente: number;
+  dokumente_von: number;
+}
+
+export interface ChatEintrag {
+  id: number;
+  rolle: "frage" | "antwort";
+  erstellt_am: string;
+  /** Nur bei Fragen. */
+  text?: string;
+  aussagen?: ChatAussage[];
+  auswahl?: ChatAuswahl;
+  modell?: string;
+  /** Name des externen Anbieters, wenn die Frage das Gerät verlassen hat. */
+  extern?: string | null;
+}
+
+/** Was dem Modell vorlag, z. B. „alle 3 Dokumente vollständig“ oder „120 von 450 Absätzen aus 6 von 8 Dokumenten“. */
+export function auswahlText(a: ChatAuswahl): string {
+  const doks = (n: number) => `${n} ${n === 1 ? "Dokument" : "Dokumenten"}`;
+  if (a.vollstaendig) {
+    return a.dokumente_von === 1 ? "das Dokument vollständig" : `alle ${a.dokumente_von} Dokumente vollständig`;
+  }
+  const aus = a.dokumente_von === 1 ? "" : ` aus ${a.dokumente === a.dokumente_von ? doks(a.dokumente) : `${a.dokumente} von ${doks(a.dokumente_von)}`}`;
+  return `${a.absaetze} von ${a.von} Absätzen${aus}, ausgewählt nach den Begriffen der Frage`;
 }

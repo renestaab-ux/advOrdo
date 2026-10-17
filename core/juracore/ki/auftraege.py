@@ -89,7 +89,8 @@ class Auftraege:
         """Startet ``arbeit(auftrag)`` im Hintergrund. ``warten`` führt sie sofort aus (Kommandozeile, Tests)."""
         with self._sperre:
             if any(a.status == LAEUFT for a in self._auftraege.values()):
-                raise RuntimeError("Es läuft bereits eine Analyse. Bitte warten oder sie abbrechen.")
+                raise RuntimeError("Das Sprachmodell arbeitet gerade an einem anderen Auftrag (Analyse oder "
+                                   "Chat). Bitte warten oder ihn abbrechen.")
             auftrag = Auftrag(next(self._nummern), aufgabe)
             self._auftraege[auftrag.nr] = auftrag
             for alt in sorted(self._auftraege)[:-_BEHALTEN]:

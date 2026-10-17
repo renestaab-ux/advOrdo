@@ -23,6 +23,7 @@ from .abgleich import abgleich
 from .dokumente import akte, ansicht, ocr, suche, urteile
 from .gesetze import quelle, wissensbasis
 from .ki import anbieter as ki_anbieter
+from .ki import chat as ki_chat
 from .ki import speicher as ki_speicher
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
@@ -42,8 +43,10 @@ class Kern:
         self.ablage = Path(db_pfad).parent / "akten"
         # Sprachmodell: Einstellungen in ki.json, Analysen als Hintergrundaufträge, Ergebnisse in akten.sqlite.
         ki_speicher.einrichten(self.akten)
+        ki_chat.einrichten(self.akten)
         self.ki_datei = Path(db_pfad).parent / "ki.json"
-        self.ki_fabrik = ki_anbieter.erzeuge
+        self.schluessel_datei = Path(db_pfad).parent / "ki-schluessel.json"
+        self.ki_fabrik = ki_anbieter.erzeuge_aktiv
         self.auftraege = Auftraege()
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
@@ -90,15 +93,20 @@ class Kern:
             "rechtsprechung.laden": self.rechtsprechung_laden,
             "rechtsprechung.laden_datei": self.rechtsprechung_laden_datei,
             "akten.abgleich": lambda akte_id, dokument_ids=None: abgleich.abgleich(self.akten, akte_id, dokument_ids),
-            "ki.status": lambda: ki_anbieter.status(ki_anbieter.lade_einstellungen(self.ki_datei)),
+            "ki.status": self.ki_status,
+            "ki.modus": self.ki_modus,
             "ki.einstellungen_setzen": self.ki_einstellungen_setzen,
+            "ki.extern_setzen": self.ki_extern_setzen,
             "ki.starten": self.ki_starten,
             "ki.auftrag": self.auftraege.status,
             "ki.laufend": lambda: (a.als_dict() if (a := self.auftraege.laufend()) else None),
             "ki.abbrechen": self.auftraege.abbrechen,
             "ki.ergebnisse": lambda akte_id: ki_speicher.ergebnisse(
-                self.akten, akte_id, ki_anbieter.lade_einstellungen(self.ki_datei).modell
+                self.akten, akte_id, ki_anbieter.lade_einstellungen(self.ki_datei).aktives_modell
             ),
+            "ki.chat_verlauf": lambda akte_id, dokument_id=None: ki_chat.verlauf(self.akten, akte_id, dokument_id),
+            "ki.chat_fragen": self.ki_chat_fragen,
+            "ki.chat_leeren": lambda akte_id, dokument_id=None: ki_chat.leeren(self.akten, akte_id, dokument_id),
         }
 
     def importieren(self, gesetze: list[str]) -> list[dict]:
@@ -115,10 +123,81 @@ class Kern:
                 ergebnisse.append({"abk": abk.upper(), "neu": False, "fehler": str(fehler)})
         return ergebnisse
 
+    def _schluessel(self, e: ki_anbieter.KiEinstellungen) -> str | None:
+        return ki_anbieter.lade_schluessel(self.schluessel_datei, e.extern_anbieter)
+
+    def ki_status(self, verbindung: bool = False) -> dict:
+        """Stand des gewählten Modells; ``verbindung`` fragt auch den externen Anbieter (nur die Modellliste)."""
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        return ki_anbieter.gesamtstatus(e, self._schluessel(e), bool(verbindung))
+
+    def ki_modus(self) -> dict:
+        """Ohne Anfrage an ein Modell: ob Dokumentinhalte das Gerät verlassen (für die Anzeige in der Navigation)."""
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        titel = ki_anbieter.EXTERNE[e.extern_anbieter]["titel"] if e.extern else None
+        return {"aktiv": ki_anbieter.EXTERN if e.extern else ki_anbieter.LOKAL, "titel": titel,
+                "modell": e.aktives_modell}
+
     def ki_einstellungen_setzen(self, anbieter: str, endpunkt: str, modell: str = "", kontext: int = 16384) -> dict:
-        e = ki_anbieter.KiEinstellungen(anbieter, endpunkt, modell, kontext)
+        """Das lokale Modell; die Einstellungen der externen KI bleiben, wie sie sind."""
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        e.anbieter, e.endpunkt, e.modell, e.kontext = anbieter, endpunkt, modell, kontext
         ki_anbieter.speichere_einstellungen(self.ki_datei, e)
-        return ki_anbieter.status(e)
+        return ki_anbieter.gesamtstatus(e, self._schluessel(e))
+
+    def ki_extern_setzen(
+        self, freigegeben: bool, anbieter: str | None = None, modell: str | None = None, adresse: str | None = None,
+        kontext: int | None = None, aktiv: str | None = None, schluessel: str | None = None,
+        schluessel_loeschen: bool = False, verbindung: bool = False,
+    ) -> dict:
+        """Schalter „Externe KI einbinden“, Anbieter, Modell, Schlüssel und die Wahl lokal/extern.
+
+        Ausschalten setzt die Wahl auf lokal zurück; hinterlegte Schlüssel bleiben, bis sie gelöscht werden.
+        """
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        e.extern_freigegeben = bool(freigegeben)
+        if anbieter is not None:
+            e.extern_anbieter = anbieter
+        if modell is not None:
+            e.extern_modell = modell
+        if adresse is not None:
+            e.extern_adresse = adresse
+        if kontext is not None:
+            e.extern_kontext = kontext
+        if aktiv is not None:
+            e.aktiv = aktiv
+        if aktiv == ki_anbieter.EXTERN and not e.extern_freigegeben:
+            raise ValueError("Externe KI ist nicht eingebunden; zuerst den Schalter einschalten.")
+        e.pruefen()
+        if schluessel_loeschen:
+            ki_anbieter.speichere_schluessel(self.schluessel_datei, e.extern_anbieter, None)
+        elif schluessel:
+            ki_anbieter.speichere_schluessel(self.schluessel_datei, e.extern_anbieter, schluessel)
+        ki_anbieter.speichere_einstellungen(self.ki_datei, e)
+        return ki_anbieter.gesamtstatus(e, self._schluessel(e), bool(verbindung))
+
+    def _ki_modell(self) -> tuple[ki_anbieter.KiEinstellungen, ki_anbieter.Anbieter]:
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        if not e.aktives_modell:
+            raise ValueError("Kein Sprachmodell gewählt. Bitte unter „Einstellungen“ ein Modell auswählen.")
+        return e, self.ki_fabrik(e, self._schluessel(e) if e.extern else None)
+
+    def ki_chat_fragen(self, akte_id: int, frage: str, dokument_id: int | None = None) -> dict:
+        """Stellt eine Frage an die Akte bzw. an ein Dokument im Hintergrund; die Antwort liefert ``ki.auftrag``."""
+        if not str(frage).strip():
+            raise ValueError("Die Frage ist leer.")
+        e, modell = self._ki_modell()
+        extern = ki_anbieter.EXTERNE[e.extern_anbieter]["titel"] if e.extern else None
+
+        def arbeit(auftrag) -> dict:
+            con = akte.oeffne(self.akten_pfad)
+            try:
+                return ki_chat.frage(con, modell, e.aktiver_kontext, int(akte_id), str(frage),
+                                     None if dokument_id is None else int(dokument_id), auftrag, extern)
+            finally:
+                con.close()
+
+        return self.auftraege.starte("chat", arbeit)
 
     KI_AUFGABEN = ("zusammenfassung_dokument", "zusammenfassung_akte", "widersprueche", "chronologie")
 
@@ -131,16 +210,13 @@ class Kern:
             raise ValueError(f"Unbekannte Aufgabe: {aufgabe!r}")
         if (dokument_id if aufgabe == "zusammenfassung_dokument" else akte_id) is None:
             raise ValueError("Für diese Aufgabe fehlt die Akte bzw. das Dokument.")
-        e = ki_anbieter.lade_einstellungen(self.ki_datei)
-        if not e.modell:
-            raise ValueError("Kein Sprachmodell gewählt. Bitte unter „Einstellungen“ ein Modell auswählen.")
-        modell = self.ki_fabrik(e)
+        e, modell = self._ki_modell()
 
         def arbeit(auftrag) -> dict:
             # Eigene Verbindung: SQLite-Verbindungen gehören zu dem Thread, der sie geöffnet hat.
             con = akte.oeffne(self.akten_pfad)
             try:
-                analyse = Analyse(con, modell, e.kontext, auftrag, neu=bool(neu))
+                analyse = Analyse(con, modell, e.aktiver_kontext, auftrag, neu=bool(neu))
                 if aufgabe == "zusammenfassung_dokument":
                     return analyse.zusammenfassung_dokument(int(dokument_id))
                 if aufgabe == "zusammenfassung_akte":
