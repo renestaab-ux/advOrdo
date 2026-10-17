@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 
 import pytest
 
@@ -228,14 +229,13 @@ def test_anthropic_ueber_https(monkeypatch):
         modell.chat("System", "Frage", schema)
 
 
-def test_openai_gemini_mistral_ueber_https(monkeypatch):
+def test_openai_und_mistral_ueber_https(monkeypatch):
     antwort = {"choices": [{"message": {"content": '{"ok": true}'}, "finish_reason": "stop"}]}
     netz = _FalscherOeffner({"/chat/completions": antwort,
-                             "/models": {"data": [{"id": "models/gemini-x"}, {"id": "text-embedding-3"}]}})
+                             "/models": {"data": [{"id": "gpt-x"}, {"id": "text-embedding-3"}]}})
     monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
     for name, url, feld, temperatur in (
         ("openai_cloud", "https://api.openai.com/v1", "max_completion_tokens", False),
-        ("gemini", "https://generativelanguage.googleapis.com/v1beta/openai", "max_tokens", True),
         ("mistral", "https://api.mistral.ai/v1", "max_tokens", True),
     ):
         e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter=name,
@@ -245,7 +245,7 @@ def test_openai_gemini_mistral_ueber_https(monkeypatch):
         assert adresse == url + "/chat/completions" and kopf["Authorization"] == "Bearer schluessel"
         assert daten[feld] == anbieter.EXTERN_ANTWORT_TOKEN and ("temperature" in daten) is temperatur
     # Modellnamen ohne „models/“, ohne Einbettungsmodelle.
-    assert [m["name"] for m in anbieter.erzeuge_aktiv(e, "schluessel").modelle()] == ["gemini-x"]
+    assert [m["name"] for m in anbieter.erzeuge_aktiv(e, "schluessel").modelle()] == ["gpt-x"]
 
 
 def test_ohne_schalter_kein_externes_modell():
@@ -255,3 +255,54 @@ def test_ohne_schalter_kein_externes_modell():
         anbieter.erzeuge_extern(e, "schluessel")
     with pytest.raises(anbieter.KiFehler, match="kein API-Schlüssel"):
         anbieter.erzeuge_extern(anbieter.KiEinstellungen(extern_freigegeben=True), None)
+
+
+class _Fehler500(_FalscherOeffner):
+    """Wie Google mit strukturierter Ausgabe: erst Serverfehler, ohne Schema eine Antwort."""
+
+    def open(self, req, timeout=None):
+        daten = json.loads(req.data) if req.data else None
+        if daten and "responseJsonSchema" in daten["generationConfig"]:
+            self.anfragen.append((req.full_url, dict(req.header_items()), daten))
+            raise urllib.error.HTTPError(req.full_url, 500, "Internal", {}, io.BytesIO(
+                b'{"error": {"code": 500, "message": "Internal error encountered.", "status": "INTERNAL"}}'))
+        return super().open(req, timeout)
+
+
+def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
+    antwort = {"candidates": [{"finishReason": "STOP", "content": {"parts": [
+        {"text": "Überlegung", "thought": True}, {"text": '{"ok": true}'}]}}]}
+    netz = _FalscherOeffner({
+        ":generateContent": antwort,
+        "/models?pageSize=1000": {"models": [
+            {"name": "models/gemini-2.5-pro", "displayName": "Gemini 2.5 Pro",
+             "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/text-embedding-004", "supportedGenerationMethods": ["embedContent"]}]},
+    })
+    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="gemini",
+                                 extern_modell="gemini-2.5-pro")
+    modell = anbieter.erzeuge_aktiv(e, "schluessel")
+    assert [m["name"] for m in modell.modelle()] == ["gemini-2.5-pro"]
+    assert modell.chat("System", "Frage", {"type": "object"}) == {"ok": True}
+    url, kopf, daten = netz.anfragen[-1]
+    assert url == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent"
+    assert kopf["X-goog-api-key"] == "schluessel"
+    assert daten["systemInstruction"]["parts"][0]["text"] == "System"
+    konfig = daten["generationConfig"]
+    assert konfig["responseMimeType"] == "application/json"
+    assert konfig["responseJsonSchema"] == {"type": "object", "additionalProperties": False}
+
+    # Serverfehler mit Schema: zweiter Versuch ohne Schema-Zwang, das Schema steht in der Anweisung.
+    netz = _Fehler500(netz.antworten)
+    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    assert modell.chat("System", "Frage", {"type": "object"}) == {"ok": True}
+    assert len(netz.anfragen) == 2
+    zweite = netz.anfragen[-1][2]
+    assert "responseJsonSchema" not in zweite["generationConfig"]
+    assert "JSON-Schema" in zweite["systemInstruction"]["parts"][0]["text"]
+
+    netz.antworten[":generateContent"] = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [
+        {"text": '{"ok": tr'}]}}]}
+    with pytest.raises(anbieter.KiFehler, match="abgeschnitten"):
+        modell.chat("System", "Frage", {"type": "object"})

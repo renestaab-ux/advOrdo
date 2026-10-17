@@ -52,7 +52,7 @@ ANDERER = "anderer"
 EXTERNE = {
     ANTHROPIC: {"titel": "Anthropic Claude", "adresse": "https://api.anthropic.com", "vorschlag": "claude-opus-5-5"},
     "openai_cloud": {"titel": "OpenAI", "adresse": "https://api.openai.com/v1", "vorschlag": ""},
-    "gemini": {"titel": "Google Gemini", "adresse": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "gemini": {"titel": "Google Gemini", "adresse": "https://generativelanguage.googleapis.com/v1beta",
                "vorschlag": ""},
     "mistral": {"titel": "Mistral AI", "adresse": "https://api.mistral.ai/v1", "vorschlag": "mistral-large-latest"},
     ANDERER: {"titel": "Anderer Anbieter (OpenAI-kompatibel)", "adresse": "", "vorschlag": ""},
@@ -483,6 +483,61 @@ class OpenAIExtern:
         return lies_json(nachricht.get("content") or "", auswahl[0].get("finish_reason") == "length")
 
 
+class GoogleGemini:
+    """Gemini über die eigene Schnittstelle (generateContent) mit JSON-Schema (responseJsonSchema).
+
+    Die OpenAI-kompatible Schnittstelle von Google beantwortete strukturierte Anfragen mit „Fehler 500: Internal
+    error encountered“. Meldet Google auch hier einen Serverfehler, folgt ein zweiter Versuch ohne Schema-Zwang: Das
+    Schema steht dann in der Anweisung, die Antwort muss trotzdem JSON sein und wird wie jede andere geprüft.
+    """
+
+    def __init__(self, modell: str, schluessel: str, kontext: int = 32768):
+        self.http = _Http(EXTERNE["gemini"]["adresse"], "Google Gemini", {"x-goog-api-key": schluessel}, extern=True)
+        self.modell = modell.removeprefix("models/")
+        self.kontext = kontext
+
+    def modelle(self) -> list[dict]:
+        antwort = self.http.anfrage("/models?pageSize=1000", timeout=15)
+        return [
+            {"name": str(m["name"]).removeprefix("models/"), "groesse": None, "parameter": m.get("displayName"),
+             "quantisierung": None}
+            for m in antwort.get("models", [])
+            if m.get("name") and "generateContent" in (m.get("supportedGenerationMethods") or [])
+            and not OpenAIExtern._KEIN_CHAT.search(str(m["name"]))
+        ]
+
+    def _anfrage(self, system: str, nutzer: str, konfig: dict) -> dict:
+        return self.http.anfrage(f"/models/{self.modell}:generateContent", {
+            "systemInstruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": nutzer}]}],
+            "generationConfig": {"temperature": 0, "maxOutputTokens": EXTERN_ANTWORT_TOKEN,
+                                 "responseMimeType": "application/json", **konfig},
+        })
+
+    def chat(self, system: str, nutzer: str, schema: dict) -> dict:
+        if not self.modell:
+            raise KiFehler("Kein Modell gewählt. Bitte unter „Einstellungen“ ein Modell des Anbieters auswählen.")
+        try:
+            antwort = self._anfrage(system, nutzer, {"responseJsonSchema": _streng(schema)})
+        except KiFehler as fehler:
+            if not re.search(r"Fehler (5\d\d|400)", str(fehler)):
+                raise
+            log.warning("Gemini lehnt die Anfrage mit Schema ab (%s), versuche es ohne Schema-Zwang", fehler)
+            antwort = self._anfrage(
+                system + " Das JSON folgt genau diesem JSON-Schema: " + json.dumps(schema, ensure_ascii=False),
+                nutzer, {},
+            )
+        if (antwort.get("promptFeedback") or {}).get("blockReason"):
+            raise KiFehler(f"Google Gemini hat die Anfrage abgelehnt ({antwort['promptFeedback']['blockReason']}).")
+        kandidat = (antwort.get("candidates") or [{}])[0]
+        grund = kandidat.get("finishReason")
+        if grund in ("SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII"):
+            raise KiFehler(f"Google Gemini hat die Antwort zurückgehalten ({grund}).")
+        teile = (kandidat.get("content") or {}).get("parts") or []
+        text = "".join(t.get("text", "") for t in teile if not t.get("thought"))
+        return lies_json(text, grund == "MAX_TOKENS")
+
+
 def erzeuge_extern(e: KiEinstellungen, schluessel: str | None) -> Anbieter:
     if not e.extern_freigegeben:
         raise KiFehler("Externe KI ist nicht eingebunden. Der Schalter steht unter „Einstellungen“.")
@@ -492,6 +547,8 @@ def erzeuge_extern(e: KiEinstellungen, schluessel: str | None) -> Anbieter:
     titel = EXTERNE[e.extern_anbieter]["titel"]
     if e.extern_anbieter == ANTHROPIC:
         return AnthropicClaude(e.extern_modell, schluessel, e.extern_kontext)
+    if e.extern_anbieter == "gemini":
+        return GoogleGemini(e.extern_modell, schluessel, e.extern_kontext)
     if not e.externe_adresse:
         raise KiFehler("Für den anderen Anbieter fehlt die Adresse (https://…/v1).")
     if e.extern_anbieter == "openai_cloud":
