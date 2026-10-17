@@ -278,6 +278,10 @@ Modus **Chat** eines geöffneten Dokuments nur an dieses. Die Antwort besteht au
   auf die sie sich stützt.
 - **Hinweis**: etwa, dass die Dokumente zur Frage nichts enthalten.
 
+Die Fundstellen stehen zunächst eingeklappt als kurze Quellenangabe unter der Aussage (das Zitat zeigt
+der Tooltip). „Zitate einblenden“ zeigt die Sätze aus den Dokumenten; dasselbe gilt in „Analyse“ und
+„Vergleich“.
+
 Passt die Akte in den Kontext des Modells, sieht es alle Dokumente vollständig. Sonst bekommt es den
 Kopf jedes Dokuments (die ersten zwei Absätze) und die Absätze mit den meisten Begriffen der Frage; der
 Rest des Platzes wird in Aktenreihenfolge aufgefüllt. Unter jeder Antwort steht, was vorlag. Die

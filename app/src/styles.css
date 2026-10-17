@@ -215,6 +215,8 @@ button.gefahr-voll { background: #b3261e; border-color: #b3261e; color: #fff; }
 .belege .link { font-weight: 400; text-align: left; }
 .belege li.gewaehlt .link { font-weight: 600; }
 .belege .ausschnitt { flex-basis: 100%; margin: 0; }
+/* Eingeklappte Belege: kurze Quellenangaben nebeneinander statt Zitaten untereinander. */
+.belege:has(> li.kompakt) { display: flex; flex-wrap: wrap; gap: 6px; }
 .weitere-merkmale { margin: 16px 0; }
 .weitere-merkmale summary { cursor: pointer; color: var(--text-leise); }
 .grenze { font-size: 12px; color: var(--text-leise); margin-top: 20px; }
@@ -322,12 +324,19 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 /* Chat mit Akte und Dokument */
 .chat { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 14px; align-items: start; }
 .chat.mit-seite { grid-template-columns: minmax(0, 1fr) auto; }
-.chat-haupt { max-width: 900px; }
+.chat-haupt { max-width: 1200px; }
 .chat-verlauf { display: grid; gap: 12px; margin: 14px 0; }
 .chat-frage { justify-self: end; max-width: 80%; white-space: pre-wrap; padding: 8px 14px; border-radius: 12px 12px 2px 12px; background: color-mix(in srgb, var(--akzent) 14%, var(--flaeche)); }
 .chat-frage.wartet { opacity: 0.7; }
 .chat-antwort { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 12px 12px 12px 2px; padding: 4px 16px 2px; }
-.chat-aussagen { list-style: none; padding-left: 0; }
+.chat-aussagen { list-style: none; padding-left: 0; display: grid; gap: 0; margin: 4px 0; }
+.chat-aussagen > li { padding: 10px 0; border-top: 1px solid var(--linie); line-height: 1.5; }
+.chat-aussagen > li:first-child { border-top: none; }
+.chat-aussagen .belege { margin-top: 6px; }
+button.quelle { font-size: 12px; padding: 1px 9px; border-radius: 999px; background: color-mix(in srgb, var(--akzent) 8%, transparent); border: 1px solid color-mix(in srgb, var(--akzent) 30%, transparent); color: var(--akzent); font-weight: 400; }
+button.quelle .quelle-partei { color: var(--text-leise); }
+button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var(--akzent) 20%, transparent); }
+.chat-fuss { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline; margin: 2px 0 10px; padding-top: 8px; border-top: 1px solid var(--linie); }
 .chat-aussagen > li.chat-hinweis { color: var(--text-leise); font-style: italic; }
 .chat-aussagen > li.chat-einschaetzung > div { color: var(--text); }
 .chat-eingabe { display: grid; gap: 8px; }

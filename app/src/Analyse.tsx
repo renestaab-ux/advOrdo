@@ -1,5 +1,6 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
+import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
 import {
   ART_TEXT,
   Akte as AkteTyp,
@@ -18,7 +19,6 @@ import {
   KiWiderspruch,
   KiZusammenfassung,
   dauerText,
-  fundstelle,
   istDesktop,
   kern,
   veraltet,
@@ -233,6 +233,7 @@ export default function Analyse({
 
       <div className="akte-arbeitsflaeche">
         <div className="akte-haupt">
+          <Zitatbereich>
           {ansicht === "widersprueche" &&
             (w ? (
               <>
@@ -260,7 +261,7 @@ export default function Analyse({
           {ansicht === "chronologie" &&
             (c ? (
               <>
-                <ErgebnisKopf ergebnis={c} veraltet={veraltet(c, ids)} text={chronologieText(c)} />
+                <ErgebnisKopf ergebnis={c} veraltet={veraltet(c, ids)} text={chronologieText(c)} mitSchalter={false} />
                 <ChronologieTabelle c={c} offen={offen} onFundstelle={oeffne} />
                 <p className="grenze">
                   Die Daten stammen aus den belegten Tatsachenangaben und den Köpfen der Dokumente. „Datum ohne Beleg“
@@ -285,6 +286,11 @@ export default function Analyse({
           {ansicht === "dokumente" && (
             <div className="ki-dokumente">
               {dokumente.length === 0 && <p className="leer">Diese Akte enthält noch keine Dokumente.</p>}
+              {Object.keys(ergebnisse.dokumente).length > 0 && (
+                <p className="ki-herkunft">
+                  <ZitateSchalter />
+                </p>
+              )}
               {dokumente.map((d) => {
                 const zf = ergebnisse.dokumente[String(d.id)];
                 return (
@@ -312,6 +318,7 @@ export default function Analyse({
               })}
             </div>
           )}
+          </Zitatbereich>
         </div>
         {offen && (
           <aside className="akte-seite vergleich-dokument">
@@ -369,6 +376,7 @@ function ChronologieTabelle({
               <summary className="leise">
                 {e.quellen.length} {e.quellen.length === 1 ? "Fundstelle" : "Fundstellen"}
               </summary>
+              <Zitatbereich zeigen>
               <ul className="belege">
                 {e.quellen.map((q, j) => (
                   <li key={j} className="chrono-quelle">
@@ -383,6 +391,7 @@ function ChronologieTabelle({
                   </li>
                 ))}
               </ul>
+              </Zitatbereich>
             </details>
           </div>
         </li>
@@ -419,6 +428,7 @@ function ErgebnisKopf({
   ergebnis,
   veraltet,
   text,
+  mitSchalter = true,
 }: {
   ergebnis: {
     modell: string;
@@ -429,6 +439,8 @@ function ErgebnisKopf({
   };
   veraltet: boolean;
   text: string;
+  /** Die Chronologie klappt ihre Fundstellen selbst ein. */
+  mitSchalter?: boolean;
 }) {
   const luecken = ergebnis.luecken ?? [];
   return (
@@ -437,6 +449,12 @@ function ErgebnisKopf({
       <p className="ki-herkunft">
         Erstellt {zeitpunkt(ergebnis.erstellt_am)} mit {ergebnis.modell}
         {veraltet && <span className="hinweis"> · Die Akte hat sich seitdem geändert, bitte neu berechnen.</span>}
+        {mitSchalter && (
+          <>
+            {" · "}
+            <ZitateSchalter />
+          </>
+        )}
       </p>
       {luecken.length > 0 && (
         <p className="hinweis">
@@ -464,28 +482,19 @@ export function FundstelleZeile({
   offen: Offen;
   onFundstelle: (f: KiFundstelle) => void;
 }) {
-  const gewaehlt = offen?.inhalt.dokument.id === f.dokument_id && offen.abschnitt === f.abschnitt;
   return (
-    <li className={gewaehlt ? "gewaehlt" : undefined}>
-      <button className="link" onClick={() => onFundstelle(f)} title="Dokument an dieser Stelle öffnen">
-        {f.dateiname}, {fundstelle(f)}
-      </button>
-      {f.parteien.map((p) => (
-        <span key={p} className="tag">
-          {p}
-        </span>
-      ))}
-      {f.treffer === "angenaehert" && (
-        <span className="leise" title="Das Zitat des Modells weicht leicht vom Originaltext ab; gezeigt wird das Original.">
-          angenähert
-        </span>
-      )}
-      <div className="ausschnitt">
-        {f.ausschnitt.davor}
-        <mark>{f.ausschnitt.wert}</mark>
-        {f.ausschnitt.danach}
-      </div>
-    </li>
+    <Beleg
+      f={f}
+      gewaehlt={offen?.inhalt.dokument.id === f.dokument_id && offen.abschnitt === f.abschnitt}
+      onFundstelle={() => onFundstelle(f)}
+      zusatz={
+        f.treffer === "angenaehert" && (
+          <span className="leise" title="Das Zitat des Modells weicht leicht vom Originaltext ab; gezeigt wird das Original.">
+            angenähert
+          </span>
+        )
+      }
+    />
   );
 }
 

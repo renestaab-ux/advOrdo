@@ -1,6 +1,7 @@
 import { KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
 import { FundstelleZeile, Offen } from "./Analyse";
+import { Zitatbereich, ZitateSchalter } from "./Belege";
 import {
   ChatAussage,
   ChatEintrag,
@@ -248,30 +249,35 @@ function ChatAntwort({
 }) {
   const aussagen = eintrag.aussagen ?? [];
   return (
-    <div className="chat-antwort">
-      {aussagen.length === 0 && <p className="leer">Das Modell hat keine Antwort geliefert.</p>}
-      <ul className="ki-aussagen chat-aussagen">
-        {aussagen.map((a, i) => (
-          <li key={i} className={`${a.status} chat-${a.art}`}>
-            <div>
-              {a.art !== "tatsache" && <span className="art">{ART_TEXT[a.art]}</span>} {a.text}
-              {a.art === "tatsache" && a.status === "ohne_beleg" && <span className="ohne-beleg">ohne Beleg</span>}
-            </div>
-            {a.fundstellen.length > 0 && (
-              <ul className="belege">
-                {a.fundstellen.map((f, j) => (
-                  <FundstelleZeile key={j} f={f} offen={offen} onFundstelle={onFundstelle} />
-                ))}
-              </ul>
-            )}
-          </li>
-        ))}
-      </ul>
-      <p className="ki-herkunft">
-        {zeitpunkt(eintrag.erstellt_am)} · {eintrag.modell}
-        {eintrag.extern ? ` über ${eintrag.extern} (extern)` : ", auf diesem Gerät"}
-        {eintrag.auswahl && <> · Vorgelegt: {auswahlText(eintrag.auswahl)}</>}
-      </p>
-    </div>
+    <Zitatbereich>
+      <div className="chat-antwort">
+        {aussagen.length === 0 && <p className="leer">Das Modell hat keine Antwort geliefert.</p>}
+        <ul className="chat-aussagen">
+          {aussagen.map((a, i) => (
+            <li key={i} className={`${a.status} chat-${a.art}`}>
+              <div>
+                {a.art !== "tatsache" && <span className="art">{ART_TEXT[a.art]}</span>} {a.text}
+                {a.art === "tatsache" && a.status === "ohne_beleg" && <span className="ohne-beleg">ohne Beleg</span>}
+              </div>
+              {a.fundstellen.length > 0 && (
+                <ul className="belege">
+                  {a.fundstellen.map((f, j) => (
+                    <FundstelleZeile key={j} f={f} offen={offen} onFundstelle={onFundstelle} />
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+        <p className="ki-herkunft chat-fuss">
+          <span>
+            {zeitpunkt(eintrag.erstellt_am)} · {eintrag.modell}
+            {eintrag.extern ? ` über ${eintrag.extern} (extern)` : ", auf diesem Gerät"}
+            {eintrag.auswahl && <> · Vorgelegt: {auswahlText(eintrag.auswahl)}</>}
+          </span>
+          {aussagen.some((a) => a.fundstellen.length > 0) && <ZitateSchalter />}
+        </p>
+      </div>
+    </Zitatbereich>
   );
 }
