@@ -85,7 +85,7 @@ export interface Beleg {
 
 /** Erkennt, ob eine Eingabe ein Normzitat ist ("§ 280 Abs. 1 BGB") statt eines Suchbegriffs. */
 export function istZitat(eingabe: string): boolean {
-  return /^\s*(§§?|Art\.|Artikel)\s*\d+[a-z]?\b.*\s[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]*[A-ZÄÖÜ]\s*$/.test(eingabe);
+  return /^\s*(§§?|Art\.|Artikel)\s*\d+[a-z]?\b.*\s(?:[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]*[A-ZÄÖÜ]|Rom[ -]?I{1,2}(?:[ -]?VO)?)\s*$/.test(eingabe);
 }
 
 /** Datumsstempel der Quelle ("20260901120000") lesbar machen. */

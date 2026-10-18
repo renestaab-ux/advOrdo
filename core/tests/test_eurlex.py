@@ -160,7 +160,42 @@ def test_unlesbare_antwort_nennt_ausweg(monkeypatch):
         eurlex.lade("../etc")
 
 
+def test_zitate_rom_verordnungen():
+    for text in ("Art. 4 Abs. 1 lit. a Rom I-VO", "Art. 4 Abs. 1 lit. a Rom I", "Art. 4 Abs. 1 lit. a Rom-I-VO"):
+        assert str(parse_zitat(text)) == "Art. 4 Abs. 1 lit. a Rom I-VO"
+    assert [str(z) for z in finde_zitate("nach Art. 4 Abs. 1 Rom II-VO und Art. 14 Rom II")] == [
+        "Art. 4 Abs. 1 Rom II-VO", "Art. 14 Rom II-VO"]
+    # "Rom" als Wort ohne Verordnung ist kein Gesetz.
+    assert finde_zitate("Art. 3 Rom ist die Hauptstadt") == []
+
+
+def test_rom_verordnung_import_und_aufloesung(con, tmp_path):
+    html = """<html><body><table><tr><td><p class="hd-date">31.7.2007</p></td><td><p class="hd-lg">DE</p></td>
+    <td><p class="hd-ti">Amtsblatt der Europäischen Union</p></td><td><p class="hd-oj">L 199/40</p></td></tr></table>
+    <p class="doc-ti">VERORDNUNG (EG) Nr. 864/2007 DES EUROPÄISCHEN PARLAMENTS UND DES RATES</p>
+    <p class="ti-art">Artikel 4</p><p class="sti-art">Allgemeine Kollisionsnorm</p>
+    <p class="normal">(1) Soweit in dieser Verordnung nichts anderes vorgesehen ist, ist auf ein außervertragliches
+    Schuldverhältnis aus unerlaubter Handlung das Recht des Staates anzuwenden, in dem der Schaden eintritt.</p>
+    <p class="normal">Geschehen zu Straßburg am 11. Juli 2007.</p></body></html>"""
+    datei = tmp_path / "rom2.html"
+    datei.write_text(html, encoding="utf-8")
+    roh = quelle.lies_datei(datei, tmp_path / "archiv", abk="Rom II-VO")
+    assert roh.archivpfad.parent.name == "ROM II-VO"
+    wissensbasis.importiere(con, roh, roh.abk)
+    b = wissensbasis.loese_zitat(con, "Art. 4 Abs. 1 Rom II")
+    assert b["status"] == "belegt" and b["wortlaut"].startswith("Soweit in dieser Verordnung")
+    assert b["fassung"]["stand"] == ["ABl. L 199 vom 31.7.2007, S. 40"]
+
+
+def test_abkuerzung_ohne_pfadzeichen():
+    assert quelle.pfadkuerzel("Rom I-VO") == ("ROM I-VO", "32008R0593")
+    for falsch in ("../bgb", "a/b", "Rom I-VO x", "-x", "a.b"):
+        with pytest.raises(ValueError):
+            quelle.pfadkuerzel(falsch, [])
+
+
 def test_voreinstellung_enthaelt_unionsrecht():
     gesetze = {g["abk"]: g for g in quelle.voreinstellung()}
+    assert gesetze["Rom I-VO"]["kuerzel"] == "32008R0593" and gesetze["Rom II-VO"]["kuerzel"] == "32007R0864"
     assert gesetze["DSGVO"]["kuerzel"] == "32016R0679" and gesetze["DSGVO"]["gruppe"] == "Unionsrecht"
     assert eurlex.ist_celex(gesetze["EuGVVO"]["kuerzel"])

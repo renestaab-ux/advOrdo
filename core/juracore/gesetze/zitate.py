@@ -7,7 +7,7 @@ Unterstützt werden auch die in Schriftsätzen üblichen Kurzformen:
 - abgekürzte Absatz- oder Satzfolgen: "§§ 280 Abs. 1, 2, 286 BGB" (Abs. 2), "§ 709 Satz 1 und 2 ZPO"
 - Verkettung über "i.V.m.", "und", ",": "§ 280 Abs. 1 i.V.m. § 241 Abs. 2 BGB"
 - Unionsrecht: "Art. 6 Abs. 1 UAbs. 1 lit. f DSGVO" (Buchstaben wie Nummern, Unterabsatz wird übergangen),
-  "DS-GVO" als Schreibweise der DSGVO
+  "DS-GVO" als Schreibweise der DSGVO, "Rom I", "Rom-II-VO" als "Rom I-VO", "Rom II-VO"
 """
 
 from __future__ import annotations
@@ -54,7 +54,12 @@ _ELEMENT = re.compile(
     rf"(?:\s*{_SATZ}\s*(?P<satz>\d+))?"
     rf"(?:\s*{_NR}\s*(?P<nr>{_NR_WERT}))?"
 )
-_GESETZ = re.compile(r"\s*(?P<gesetz>[A-ZÄÖÜ](?:[A-Za-zÄÖÜäöüß]|-(?=[A-ZÄÖÜ]))*[A-ZÄÖÜ](?:\s?[IVX]+)?)\b")
+_GESETZ = re.compile(
+    r"\s*(?P<gesetz>Rom[ -]?I{1,2}(?:[ -]?VO)?(?![\wäöüß])"
+    r"|[A-ZÄÖÜ](?:[A-Za-zÄÖÜäöüß]|-(?=[A-ZÄÖÜ]))*[A-ZÄÖÜ](?:\s?[IVX]+)?)\b"
+)
+# "Rom I", "Rom-I-VO", "Rom I VO" -> "Rom I-VO" (Abkürzung in der Voreinstellung).
+_ROM = re.compile(r"^Rom[ -]?(I{1,2})(?:[ -]?VO)?$")
 # Andere Schreibweisen derselben Abkürzung.
 _SCHREIBWEISEN = {"DS-GVO": "DSGVO", "EU-DSGVO": "DSGVO", "Brüssel-Ia-VO": "EuGVVO"}
 # Zwischen zwei Paragraphengruppen, die sich ein Gesetz teilen: "§ 280 Abs. 1 i.V.m. § 241 Abs. 2 BGB".
@@ -89,6 +94,11 @@ class Zitat:
             teile.append(f"Nr. {self.nr}" if self.nr[0].isdigit() else f"lit. {self.nr}")
         teile.append(self.gesetz)
         return " ".join(teile)
+
+
+def _vereinheitliche(gesetz: str) -> str:
+    rom = _ROM.match(gesetz)
+    return f"Rom {rom.group(1)}-VO" if rom else _SCHREIBWEISEN.get(gesetz, gesetz)
 
 
 def _gesetze_zuordnen(text: str, gruppen: list[re.Match]) -> list[tuple[str | None, int]]:
@@ -165,7 +175,7 @@ def finde_zitate(text: str) -> list[Zitat]:
         for teil, spanne in _elemente(m.group("ziele"), m.start("ziele")):
             zitate.append(
                 Zitat(
-                    gesetz=_SCHREIBWEISEN.get(gesetz, gesetz),
+                    gesetz=_vereinheitliche(gesetz),
                     nummer=re.sub(r"\s*§\s*", " § ", teil["nummer"]),
                     absatz=teil["absatz"],
                     satz=int(teil["satz"]) if teil["satz"] else None,

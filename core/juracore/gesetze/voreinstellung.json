@@ -38,6 +38,8 @@
     {"abk": "JVEG", "kuerzel": "jveg", "titel": "Justizvergütungs- und -entschädigungsgesetz", "gruppe": "Kosten"},
     {"abk": "UStG", "kuerzel": "ustg_1980", "titel": "Umsatzsteuergesetz (Vorsteuer bei Schadensersatz und Miete)", "gruppe": "Steuern"},
     {"abk": "DSGVO", "kuerzel": "32016R0679", "titel": "Datenschutz-Grundverordnung, VO (EU) 2016/679 (EUR-Lex)", "gruppe": "Unionsrecht"},
-    {"abk": "EuGVVO", "kuerzel": "32012R1215", "titel": "Brüssel Ia-Verordnung, VO (EU) Nr. 1215/2012 (EUR-Lex)", "gruppe": "Unionsrecht"}
+    {"abk": "EuGVVO", "kuerzel": "32012R1215", "titel": "Brüssel Ia-Verordnung, VO (EU) Nr. 1215/2012 (EUR-Lex)", "gruppe": "Unionsrecht"},
+    {"abk": "Rom I-VO", "kuerzel": "32008R0593", "titel": "Rom I-Verordnung (vertragliche Schuldverhältnisse), VO (EG) Nr. 593/2008 (EUR-Lex)", "gruppe": "Unionsrecht"},
+    {"abk": "Rom II-VO", "kuerzel": "32007R0864", "titel": "Rom II-Verordnung (außervertragliche Schuldverhältnisse), VO (EG) Nr. 864/2007 (EUR-Lex)", "gruppe": "Unionsrecht"}
   ]
 }
