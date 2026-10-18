@@ -263,7 +263,7 @@ class Kern:
         return verzeichnis.importiere(self.con, daten, str(pfad), sha, archivpfad)
 
     def importieren_datei(self, pfad: str) -> dict:
-        roh = quelle.lies_datei(Path(pfad), self.archiv)
+        roh = quelle.lies_datei(Path(pfad), self.archiv, gesetze=quelle.voreinstellung(self.eigene_liste))
         return wissensbasis.importiere(self.con, roh)
 
     def bearbeite(self, zeile: str) -> dict:

@@ -7,9 +7,12 @@ import sqlite3
 from datetime import UTC, datetime
 
 from .. import db
+from . import eurlex
 from .gii import parse_gii_xml
 from .quelle import Rohdatei
 from .zitate import Zitat, parse_zitat
+
+GII_HINWEIS = "Konsolidierte, nichtamtliche Fassung (Gesetze im Internet)."
 
 
 def importiere(con: sqlite3.Connection, roh: Rohdatei, abk: str | None = None) -> dict:
@@ -19,7 +22,10 @@ def importiere(con: sqlite3.Connection, roh: Rohdatei, abk: str | None = None) -
     sie gilt die juristische Abkürzung aus der Datei, die bei Gesetze im Internet
     teils abweicht ("BGBEG", "UWG 2004").
     """
-    dokument = parse_gii_xml(roh.xml)
+    if eurlex.ist_eurlex(roh.xml):
+        dokument = eurlex.parse_eurlex_html(roh.xml, abk or roh.abk)
+    else:
+        dokument = parse_gii_xml(roh.xml)
     datei_abk = dokument.abk.upper()
     abk = (abk or datei_abk).upper()
     with con:
@@ -199,9 +205,10 @@ def loese_zitat(con: sqlite3.Connection, zitat: str | Zitat, fassung_id: int | N
         if z.nr is not None:
             eintrag = next((t for s in saetze for nr, t in s["nummern"] if nr == z.nr), None)
             if eintrag is None:
-                ergebnis["hinweis"] = f"Nr. {z.nr} wurde in der Fundstelle nicht gefunden."
+                art = "Nr." if z.nr[0].isdigit() else "Buchstabe"
+                ergebnis["hinweis"] = f"{art} {z.nr} wurde in der Fundstelle nicht gefunden."
                 return ergebnis
-            teil_text = f"{z.nr}. {eintrag}"
+            teil_text = f"{z.nr}. {eintrag}" if z.nr[0].isdigit() else f"{z.nr}) {eintrag}"
     ergebnis.update(status="belegt", wortlaut=teil_text)
     return ergebnis
 
@@ -224,5 +231,9 @@ def _fassung_info(f: sqlite3.Row) -> dict:
         "builddate": f["builddate"],
         "stand": json.loads(f["stand"] or "[]"),
         "sha256": f["sha256"],
-        "hinweis": "Konsolidierte, nichtamtliche Fassung (Gesetze im Internet).",
+        "hinweis": eurlex.HINWEIS if _ist_amtsblatt(f) else GII_HINWEIS,
     }
+
+
+def _ist_amtsblatt(f: sqlite3.Row) -> bool:
+    return any(s.startswith("ABl.") for s in json.loads(f["stand"] or "[]"))

@@ -1,4 +1,4 @@
-"""Abruf von Bundesrecht aus "Gesetze im Internet" und revisionssicheres Roharchiv.
+"""Abruf von Bundesrecht aus "Gesetze im Internet", Unionsrecht aus EUR-Lex und revisionssicheres Roharchiv.
 
 Jede Quelldatei wird unverändert unter ihrer SHA-256-Prüfsumme abgelegt.
 Der Abruf ist bedingt (ETag / Last-Modified), damit unveränderte Gesetze
@@ -18,12 +18,15 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import eurlex
+
 BASIS_URL = "https://www.gesetze-im-internet.de"
 USER_AGENT = "JuraBox/0.1 (Wissensbasis-Import)"
 
 # Voreingestellte Gesetze (Zivilrecht) stehen in voreinstellung.json. Jedes andere
 # Bundesgesetz lässt sich über sein Kürzel laden (meist die kleingeschriebene
-# Abkürzung, z. B. "GmbHG" -> "gmbhg").
+# Abkürzung, z. B. "GmbHG" -> "gmbhg"). Einträge, deren Kürzel eine CELEX-Nummer ist
+# (DSGVO: 32016R0679), kommen aus EUR-Lex.
 _VOREINSTELLUNG = Path(__file__).with_name("voreinstellung.json")
 
 
@@ -56,6 +59,9 @@ class NichtGeaendert(Exception):
 def lade_gesetz(abk: str, archiv: Path, timeout: float = 60, gesetze: list[dict] | None = None) -> Rohdatei:
     """Lädt die XML-Fassung eines Gesetzes und legt das ZIP im Roharchiv ab."""
     abk, kuerzel = pfadkuerzel(abk, gesetze)
+    if eurlex.ist_celex(kuerzel):
+        daten, url = eurlex.lade(kuerzel, timeout)
+        return archiviere(abk, daten, url, archiv)
     url = f"{BASIS_URL}/{kuerzel}/xml.zip"
     meta_pfad = archiv / abk / "abruf.json"
     meta = json.loads(meta_pfad.read_text(encoding="utf-8")) if meta_pfad.exists() else {}
@@ -96,18 +102,31 @@ def pfadkuerzel(abk: str, gesetze: list[dict] | None = None) -> tuple[str, str]:
     return abk.upper(), bekannt.get(abk.upper(), abk.lower())
 
 
-def lies_datei(pfad: Path, archiv: Path | None, abk: str | None = None) -> Rohdatei:
-    """Liest eine lokal vorliegende GII-Datei (.xml oder .zip), z. B. für Offline-Importe."""
+def lies_datei(pfad: Path, archiv: Path | None, abk: str | None = None, gesetze: list[dict] | None = None) -> Rohdatei:
+    """Liest eine lokal vorliegende GII-Datei (.xml oder .zip) oder eine aus EUR-Lex gespeicherte
+    HTML-Seite, z. B. für Offline-Importe."""
     daten = pfad.read_bytes()
+    if abk is None and eurlex.ist_eurlex(daten):
+        abk = _abk_zu_celex(daten, gesetze)
     return archiviere(abk or pfad.stem.upper(), daten, str(pfad), archiv)
+
+
+def _abk_zu_celex(daten: bytes, gesetze: list[dict] | None) -> str | None:
+    """Abkürzung einer gespeicherten EUR-Lex-Seite aus der Voreinstellung, erkannt an der CELEX-Nummer."""
+    text = daten.decode("utf-8", "replace")
+    for g in gesetze if gesetze is not None else voreinstellung():
+        if eurlex.ist_celex(g["kuerzel"]) and re.search(rf"CELEX(?::|%3A)\s*{g['kuerzel']}\b", text):
+            return g["abk"].upper()
+    return None
 
 
 def archiviere(abk: str, daten: bytes, quelle: str, archiv: Path | None) -> Rohdatei:
     sha = hashlib.sha256(daten).hexdigest()
     ist_zip = daten[:2] == b"PK"
+    endung = "zip" if ist_zip else "html" if eurlex.ist_eurlex(daten) else "xml"
     archivpfad = None
     if archiv is not None:
-        archivpfad = archiv / abk.upper() / f"{sha}.{'zip' if ist_zip else 'xml'}"
+        archivpfad = archiv / abk.upper() / f"{sha}.{endung}"
         if not archivpfad.exists():
             archivpfad.parent.mkdir(parents=True, exist_ok=True)
             tmp = archivpfad.with_suffix(".tmp")
