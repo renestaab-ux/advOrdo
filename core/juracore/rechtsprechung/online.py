@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import urllib.error
 from collections.abc import Callable
@@ -149,14 +150,19 @@ def _passt_gericht(zitiert: str, gefunden: str) -> bool:
     return bool(z) and g[:len(z)] == z
 
 
+def _az_kern(az: str) -> str:
+    """Vergleichsform ohne das Kennzeichen elektronischer Akten („14 U 2300/25 e“ = „14 U 2300/25“)."""
+    return re.sub(r"/(\d{2,4}) e$", r"/\1", normalisiere_az(az))
+
+
 def bewerte(quelle: str, gericht: str, aktenzeichen: str, datum: str | None, treffer: list[dict]) -> dict:
     """Ordnet die Treffer einer Suche dem Zitat zu: belegt, abweichend oder nicht gefunden."""
     titel = TITEL[quelle]
-    az = normalisiere_az(aktenzeichen)
+    az = _az_kern(aktenzeichen)
 
     def az_passt(t: dict) -> bool:
         liste = t.get("aktenzeichen_liste") or [a for a in (t.get("aktenzeichen") or "").split(",")]
-        return any(normalisiere_az(a) == az for a in liste if a.strip())
+        return any(_az_kern(a) == az for a in liste if a.strip())
 
     gleiche = [t for t in treffer if az_passt(t)]
     eigene = [t for t in gleiche if _passt_gericht(gericht, t["gericht"])]

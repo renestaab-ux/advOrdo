@@ -53,6 +53,21 @@ def test_bayern_volltext_lesen():
         bayern.adresse("../x")
 
 
+def test_manifest_im_zip_wird_uebergangen():
+    puffer = io.BytesIO()
+    with zipfile.ZipFile(puffer, "w") as z:
+        z.writestr("bayportalrsp/Y-1.xml", (FIXTURES / "bayern_volltext_auszug.xml").read_bytes())
+        z.writestr("META-INF/manifest.xml", "<manifest/>")
+    assert bayern.lies(puffer.getvalue()).doknr == "Y-1"
+
+
+def test_kennzeichen_e_beim_aktenzeichen():
+    treffer = [{"gericht": "OLG München", "aktenzeichen": "14 U 2300/25 e", "datum": "2025-12-18",
+                "doktyp": "Urteil", "doknr": "Y-2"}]
+    for az in ("14 U 2300/25 e", "14 U 2300/25"):
+        assert online.bewerte(online.BAYERN, "OLG München", az, "2025-12-18", treffer)["status"] == verzeichnis.BELEGT
+
+
 def test_bayern_trefferliste():
     treffer, gesamt = bayern.lies_trefferliste((FIXTURES / "bayern_trefferliste.html").read_text(encoding="utf-8"))
     assert gesamt == 2

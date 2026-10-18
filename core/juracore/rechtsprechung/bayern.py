@@ -222,7 +222,8 @@ def lies(daten: bytes, entscheidung: dict | None = None) -> Volltext:
     """Liest eine Entscheidung (ZIP mit bayportalrsp/<doknr>.xml oder die XML-Datei selbst)."""
     if daten[:2] == b"PK":
         with zipfile.ZipFile(io.BytesIO(daten)) as z:
-            xmls = [n for n in z.namelist() if n.lower().endswith(".xml")]
+            # Neben der Entscheidung liegt META-INF/manifest.xml im Archiv.
+            xmls = [n for n in z.namelist() if n.lower().endswith(".xml") and not n.upper().startswith("META-INF/")]
             if len(xmls) != 1:
                 raise ValueError(f"Erwartet genau eine XML-Datei im Archiv, gefunden: {xmls}")
             doknr_datei = xmls[0].rsplit("/", 1)[-1][:-4]
