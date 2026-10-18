@@ -35,12 +35,14 @@ def voreinstellung(eigene_liste: Path | None = None) -> list[dict]:
     pfad = eigene_liste if eigene_liste is not None and eigene_liste.exists() else _VOREINSTELLUNG
     gesetze = json.loads(pfad.read_text(encoding="utf-8"))["gesetze"]
     for g in gesetze:
-        if not _KUERZEL.match(g["abk"]) or not _KUERZEL.match(g["kuerzel"]):
+        if not _ABK.match(g["abk"]) or not _KUERZEL.match(g["kuerzel"]):
             raise ValueError(f"Ungültiger Eintrag in {pfad.name}: {g}")
     return gesetze
 
 
 _KUERZEL = re.compile(r"^[A-Za-z0-9_]{1,40}$")
+# Abkürzungen wie "Rom I-VO" enthalten Leerzeichen und Bindestrich; Punkte und Schrägstriche nie.
+_ABK = re.compile(r"^[A-Za-z0-9_](?:[A-Za-z0-9_ -]{0,38}[A-Za-z0-9_])?$")
 
 
 @dataclass
@@ -96,10 +98,13 @@ def lade_gesetz(abk: str, archiv: Path, timeout: float = 60, gesetze: list[dict]
 def pfadkuerzel(abk: str, gesetze: list[dict] | None = None) -> tuple[str, str]:
     """Normalisierte Abkürzung und Pfadkürzel; lehnt alles ab, was kein Kürzel sein kann."""
     abk = abk.strip()
-    if not _KUERZEL.match(abk):
+    if not _ABK.match(abk):
         raise ValueError(f"Ungültige Gesetzesabkürzung: {abk!r}")
     bekannt = {g["abk"].upper(): g["kuerzel"] for g in (gesetze if gesetze is not None else voreinstellung())}
-    return abk.upper(), bekannt.get(abk.upper(), abk.lower())
+    kuerzel = bekannt.get(abk.upper(), abk.lower())
+    if not _KUERZEL.match(kuerzel):
+        raise ValueError(f"Ungültige Gesetzesabkürzung: {abk!r}")
+    return abk.upper(), kuerzel
 
 
 def lies_datei(pfad: Path, archiv: Path | None, abk: str | None = None, gesetze: list[dict] | None = None) -> Rohdatei:
