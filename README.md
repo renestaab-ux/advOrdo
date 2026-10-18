@@ -364,12 +364,34 @@ sofern ihre Randnummern erkannt werden. „Alle Volltexte laden“ holt alle auf
 Zitat nur diese Entscheidung. Die Breite der Volltext-Leiste lässt sich mit der Trennlinie verschieben (Doppelklick:
 zurück auf Standard).
 
+**Bayern und NeuRIS online prüfen:** Für Zitate, die das Verzeichnis nicht belegen kann, gibt es im Reiter
+„Rechtsprechung der Akte“ den Knopf **„Online prüfen“**:
+
+- Zitate **bayerischer Gerichte** (OLG München, LG Traunstein, BayObLG, VGH München …) sucht die App beim
+  Bürgerservice BAYERN.RECHT (gesetze-bayern.de). Das Portal hat kein Verzeichnis; gesucht wird live, nur auf
+  Knopfdruck und nur mit dem Aktenzeichen. Dort stehen nur zur Veröffentlichung bestimmte Entscheidungen; fehlt
+  eine, bleibt das Zitat „nicht im Verzeichnis“ mit einem Hinweis.
+- Zitate der **Bundesgerichte**, die im Verzeichnis fehlen (z. B. ganz neue Entscheidungen), sucht die App bei
+  **NeuRIS**, dem Rechtsinformationsportal des Bundes. NeuRIS ist noch in der Testphase und deshalb zunächst aus;
+  einschalten im Bereich **Rechtsprechung** („NeuRIS-Rechtsprechung nutzen“).
+
+Was online gefunden wird, gilt als belegt (die Quelle steht im Hinweis), und „Volltext laden“ holt die
+Entscheidung dann aus dieser Quelle: bei Bayern das ZIP (Archiv `RECHTSPRECHUNG/bayern/`), bei NeuRIS das HTML
+(`RECHTSPRECHUNG/neuris/`), jeweils unverändert unter der SHA-256-Prüfsumme. Die Ergebnisse der Online-Prüfung
+sind öffentliche Angaben ohne Bezug zur Akte und liegen in der Wissensbasis; ein Zitat wird nur einmal abgefragt.
+
+Nutzung: Nach den Nutzungshinweisen von gesetze-bayern.de dürfen Vorschriften und Entscheidungen uneingeschränkt
+weiterverwendet werden; die redaktionellen Leitsätze (C.H.Beck) sind urheberrechtlich geschützt, die Datenbank
+nach §§ 87a ff. UrhG. Gerichtsentscheidungen sind amtliche Werke (§ 5 UrhG). Die App ruft deshalb nur einzelne
+Entscheidungen ab, nie den ganzen Bestand.
+
 Ohne App:
 
 ```bash
 juracore rechtsprechung-laden                       # Verzeichnis abrufen (oder --datei rii-toc.xml)
 juracore urteil "BGH, Urteil vom 12.10.2016 – VIII ZR 103/15"
 juracore urteil "BGH, VIII ZR 103/15" --volltext  # lädt den Volltext und zeigt Leitsatz und Randnummern
+juracore urteil "OLG München, Urteil vom 14.03.2023 – 7 U 1234/22" --online --volltext  # Bayern bzw. NeuRIS
 ```
 
 ## Wissensbasis: Gesetze

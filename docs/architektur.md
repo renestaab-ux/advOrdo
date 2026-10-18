@@ -158,6 +158,19 @@ vorliegenden Entscheidungen einer Akte; ein Fehler hält die übrigen nicht auf.
 (`urteilszitat.rn_zitiert`, erkannt bis Semikolon, Klammer oder Satzende hinter dem Aktenzeichen) wird gegen die
 Randnummern des Volltexts geprüft (`rn_vorhanden`).
 
+Online-Quellen (`juracore.rechtsprechung.online`, `bayern`, `neuris`): Zitate, die das Verzeichnis nicht belegt,
+prüft `akten.online_pruefen` auf Nutzeraktion live, mit nichts als dem Aktenzeichen. Zuständig ist gesetze-bayern.de
+für bayerische Gerichte (`bayern.ist_bayerisch`, Ortsliste) und NeuRIS für Bundesgerichte, wenn es eingeschaltet ist
+(`rechtsprechung-quellen.json`, RPC `rechtsprechung.quellen`/`rechtsprechung.quellen_setzen`, Standard aus). Die
+Ergebnisse stehen in der Wissensbasis (`rechtsprechung_online`, Schlüssel Quelle + Zitat) und ergänzen beim Prüfen
+das Ergebnis des Verzeichnisses (`online.ergaenze`); die Entscheidung trägt dann `quelle` und `doknr`, und
+`akten.volltexte_laden` lädt aus dieser Quelle. Bayern: Sitzung mit Cookie, Filter `DOKTYP/rspr`, Formular mit
+`__RequestVerificationToken`, `POST /Search` mit `SearchFields.Aktenzeichen`, Trefferliste `p.hltitel`/`p.hlSubTitel`;
+Volltext `GET /Content/Zip/<doknr>` (XML mit `metadaten`/`textdaten`, Randnummer `<rd nr="N"/>`), Archiv
+`RECHTSPRECHUNG/bayern/`. NeuRIS: `GET /v1/case-law?fileNumber=…` (JSON-LD, `member[].item`), Volltext
+`GET /v1/case-law/<documentNumber>.html` (`section#…`, `dl.border-number`), Archiv `RECHTSPRECHUNG/neuris/`. Beide
+Formate sind der Funktionsbeschreibung von JuraBox Lite entnommen und müssen an echten Dateien bestätigt werden.
+
 ## Toolbox
 
 Die Toolbox ist ein zweites Tauri-Fenster (`src-tauri/src/fenster.rs`, Befehl `toolbox_oeffnen`), das dieselbe
@@ -172,7 +185,8 @@ ihrem letzten Eintrag.
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
 - Kern als Sidecar bündeln, Installer je System
-- Rechtsprechung: Instanzgerichte (Landesportale), EuGH (EUR-Lex); prüfen, ob die zitierte Rn. die Aussage trägt
+- Rechtsprechung: weitere Landesportale (z. B. NRWE), EuGH (EUR-Lex); prüfen, ob die zitierte Rn. die Aussage trägt
+- Bayern und NeuRIS: Formate an echten Abrufen bestätigen; Suchmaske im Bereich Rechtsprechung; Landesrecht Bayern
 - Chronologie exportieren (Word, PDF, Markdown)
 - Tesseract für den Installer mitliefern (Windows), damit keine eigene Installation nötig ist
 - Externe Anbieter (Modus „Externer Anbieter“) mit Warnhinweis und Schlüsselspeicher

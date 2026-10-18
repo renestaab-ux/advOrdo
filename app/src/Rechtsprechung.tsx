@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
-import { EigeneUrteile, RechtsprechungStand, istDesktop, kern, rechtsprechungUmfang, zeitpunkt } from "./kern";
+import {
+  EigeneUrteile,
+  RechtsprechungQuellen,
+  RechtsprechungStand,
+  UrteilQuelle,
+  istDesktop,
+  kern,
+  rechtsprechungUmfang,
+  zeitpunkt,
+} from "./kern";
 
 /** Bereich „Rechtsprechung“: die Quellen, gegen die Urteilszitate geprüft und aus denen Volltexte genommen werden. */
 export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
   const [stand, setStand] = useState<RechtsprechungStand | null>(null);
   const [eigene, setEigene] = useState<EigeneUrteile | null>(null);
+  const [quellen, setQuellen] = useState<RechtsprechungQuellen | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
 
@@ -26,6 +36,7 @@ export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
     void ausfuehren("Lade Quellen …", async () => {
       setStand(await kern<RechtsprechungStand | null>("rechtsprechung.stand"));
       setEigene(await kern<EigeneUrteile>("rechtsprechung.eigene"));
+      setQuellen(await kern<RechtsprechungQuellen>("rechtsprechung.quellen"));
     });
   }, [ausfuehren]);
 
@@ -35,9 +46,17 @@ export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
     });
   }
 
+  async function neurisSchalten(an: boolean) {
+    await ausfuehren("Speichere …", async () => {
+      setQuellen(await kern<RechtsprechungQuellen>("rechtsprechung.quellen_setzen", { neuris: an }));
+    });
+  }
+
   const manuell = eigene?.quellen.filter((q) => q.quelle === "manuell") ?? [];
   const selbst = manuell.reduce((n, q) => n + q.anzahl, 0);
-  const geladen = (eigene?.quellen ?? []).filter((q) => q.quelle === "rii").reduce((n, q) => n + q.anzahl, 0);
+  const anzahl = (quelle: UrteilQuelle) =>
+    (eigene?.quellen ?? []).filter((q) => q.quelle === quelle).reduce((n, q) => n + q.anzahl, 0);
+  const geladen = anzahl("rii");
 
   return (
     <div className="rechtsprechung">
@@ -80,6 +99,50 @@ export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
       </section>
 
       <section className="karte">
+        <h2>Bürgerservice BAYERN.RECHT</h2>
+        <p className="fundort">gesetze-bayern.de · Entscheidungen bayerischer Gerichte aller Instanzen</p>
+        <p>
+          Ohne Verzeichnis: Zitate bayerischer Gerichte (z. B. OLG München, LG Traunstein, BayObLG) sucht die App erst,
+          wenn man in der Akte unter „Rechtsprechung der Akte“ „Online prüfen“ wählt. Gesendet wird nur das
+          Aktenzeichen.
+        </p>
+        {anzahl("bayern") > 0 && (
+          <p>
+            {anzahl("bayern")} {anzahl("bayern") === 1 ? "Volltext" : "Volltexte"} zu Akten geladen.
+          </p>
+        )}
+        <p className="grenze">
+          Im Portal stehen nur Entscheidungen, die die Gerichte zur Veröffentlichung bestimmt haben; fehlt eine, heißt das
+          nicht, dass es sie nicht gibt. Die redaktionellen Leitsätze stammen von C.H.Beck und sind urheberrechtlich
+          geschützt. Abgerufen werden nur einzelne Entscheidungen, nie der ganze Bestand.
+        </p>
+      </section>
+
+      <section className="karte">
+        <h2>NeuRIS – Rechtsinformationsportal des Bundes</h2>
+        <p className="fundort">rechtsinformationen.bund.de · Testphase · oberste Bundesgerichte</p>
+        <label className="schalter">
+          <input
+            type="checkbox"
+            checked={!!quellen?.neuris}
+            disabled={!quellen || !!laeuft}
+            onChange={(e) => neurisSchalten(e.target.checked)}
+          />{" "}
+          NeuRIS-Rechtsprechung nutzen
+        </label>
+        <p>
+          Zweite Quelle für Zitate der Bundesgerichte, die im Verzeichnis von rechtsprechung-im-internet.de fehlen, etwa
+          ganz neue Entscheidungen. Geprüft wird wie bei Bayern erst auf „Online prüfen“ in der Akte.
+        </p>
+        {anzahl("neuris") > 0 && (
+          <p>
+            {anzahl("neuris")} {anzahl("neuris") === 1 ? "Volltext" : "Volltexte"} zu Akten geladen.
+          </p>
+        )}
+        <p className="grenze">Testbetrieb, ohne Gewähr: Die Schnittstelle kann sich ändern oder zeitweise fehlen.</p>
+      </section>
+
+      <section className="karte">
         <h2>Eigene Dateien</h2>
         <p className="fundort">z. B. PDF-Ausdrucke aus juris, beck-online oder openJur</p>
         {selbst > 0 ? (
@@ -103,7 +166,7 @@ export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
       <section className="karte">
         <h2>Weitere Quellen (geplant)</h2>
         <ul>
-          <li>Rechtsprechung der Länder (Landesportale, z. B. Bürgerservice Bayern, NRWE)</li>
+          <li>Rechtsprechung weiterer Länder (Landesportale, z. B. NRWE)</li>
           <li>EuGH und EuG (EUR-Lex, curia.europa.eu)</li>
         </ul>
       </section>

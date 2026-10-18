@@ -23,8 +23,10 @@ import {
   Loeschergebnis,
   NormEintrag,
   NormZitat,
+  ONLINE_QUELLE,
   OcrStatus,
   OrdnerFunde,
+  QUELLEN_HINWEIS,
   Seitenbild,
   STATUS_TEXT,
   URTEIL_QUELLEN,
@@ -32,6 +34,7 @@ import {
   URTEIL_TEILE,
   UrteilEintrag,
   UrteilInfo,
+  UrteilStatus,
   UrteilVolltext,
   ZitatStatus,
   fundstelle,
@@ -460,7 +463,7 @@ export default function Akte({
 
   async function volltexteLaden(zitat?: string) {
     if (akteId == null) return;
-    const e = await ausfuehren(`Lade ${zitat ? "Volltext" : "Volltexte"} von rechtsprechung-im-internet.de …`, () =>
+    const e = await ausfuehren(`Lade ${zitat ? "Volltext" : "Volltexte"} aus den öffentlichen Quellen …`, () =>
       kern<{ geladen: string[]; fehler: { zitat: string; fehler: string }[] }>("akten.volltexte_laden", {
         akte_id: akteId,
         zitat: zitat ?? null,
@@ -471,6 +474,23 @@ export default function Akte({
     setMeldung(
       `${e.geladen.length} ${e.geladen.length === 1 ? "Volltext" : "Volltexte"} geladen.` +
         (e.fehler.length ? ` Nicht geladen: ${e.fehler.map((f) => `${f.zitat} (${f.fehler})`).join("; ")}` : ""),
+    );
+  }
+
+  async function onlinePruefen() {
+    if (akteId == null) return;
+    const e = await ausfuehren("Suche zitierte Entscheidungen bei gesetze-bayern.de bzw. NeuRIS …", () =>
+      kern<{ geprueft: { zitat: string; quelle: string; status: UrteilStatus }[]; fehler: { zitat: string; quelle: string; fehler: string }[] }>(
+        "akten.online_pruefen",
+        { akte_id: akteId },
+      ),
+    );
+    if (!e) return;
+    await aktualisiereUrteile();
+    const belegt = e.geprueft.filter((g) => g.status === "belegt").length;
+    setMeldung(
+      `${e.geprueft.length} ${e.geprueft.length === 1 ? "Zitat" : "Zitate"} online geprüft, davon ${belegt} belegt.` +
+        (e.fehler.length ? ` Nicht geprüft: ${e.fehler.map((f) => `${f.zitat} (${f.quelle}: ${f.fehler})`).join("; ")}` : ""),
     );
   }
 
@@ -771,6 +791,7 @@ export default function Akte({
               onFundstelle={oeffneDokument}
               onErgaenzen={urteilWaehlen}
               onVolltexteLaden={volltexteLaden}
+              onOnlinePruefen={onlinePruefen}
               onVolltext={(id, rn) => (volltext?.id === id && rn == null ? setVolltext(null) : zeigeVolltext(id, rn))}
               onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
             />
@@ -791,6 +812,7 @@ export default function Akte({
               onFundstelle={oeffneDokument}
               onErgaenzen={urteilWaehlen}
               onVolltexteLaden={volltexteLaden}
+              onOnlinePruefen={onlinePruefen}
               onVolltext={(id, rn) => (volltext?.id === id && rn == null ? setVolltext(null) : zeigeVolltext(id, rn))}
               onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
             />
@@ -1215,6 +1237,7 @@ function RechtsprechungAnsicht({
   onFundstelle,
   onErgaenzen,
   onVolltexteLaden,
+  onOnlinePruefen,
   onVolltext,
   onEntfernen,
   leer = "In dieser Akte wurden keine Rechtsprechungszitate erkannt.",
@@ -1226,6 +1249,7 @@ function RechtsprechungAnsicht({
   onFundstelle: (dokumentId: number, abschnitt: number) => void;
   onErgaenzen: (u: UrteilEintrag) => void;
   onVolltexteLaden: (zitat?: string) => void;
+  onOnlinePruefen: () => void;
   onVolltext: (urteilId: number, rn?: number) => void;
   onEntfernen: (u: UrteilInfo) => void;
 }) {
@@ -1233,6 +1257,8 @@ function RechtsprechungAnsicht({
   if (urteile.length === 0) return <p className="leer">{leer}</p>;
   const ohneVerzeichnis = urteile.some((u) => u.status === "kein_verzeichnis");
   const ladbar = urteile.filter((u) => u.status === "belegt" && !u.urteil && u.entscheidung).length;
+  const online = urteile.filter((u) => u.online_offen);
+  const onlineQuellen = [...new Set(online.map((u) => ONLINE_QUELLE[u.online_offen!]))].join(" und ");
   async function kopiere(link: string) {
     await navigator.clipboard.writeText(link);
     setKopiert(link);
@@ -1245,14 +1271,24 @@ function RechtsprechungAnsicht({
           hier „Zitate neu prüfen“.
         </p>
       )}
+      {online.length > 0 && (
+        <div className="volltexte-laden">
+          <button className="zweitrangig" onClick={onOnlinePruefen} disabled={laeuft}>
+            Online prüfen ({online.length})
+          </button>
+          <span className="fundort">
+            Sucht offene Zitate bei {onlineQuellen}. Gesendet wird nur das Aktenzeichen der zitierten Entscheidung.
+          </span>
+        </div>
+      )}
       {ladbar > 0 && (
         <div className="volltexte-laden">
           <button className="zweitrangig" onClick={() => onVolltexteLaden()} disabled={laeuft}>
             Alle Volltexte laden ({ladbar})
           </button>
           <span className="fundort">
-            Belegte Entscheidungen der Bundesgerichte von rechtsprechung-im-internet.de; danach prüft die App zitierte
-            Randnummern. Gesendet wird nur die Nummer der Entscheidung.
+            Belegte Entscheidungen aus der Quelle, die sie belegt hat (rechtsprechung-im-internet.de, gesetze-bayern.de
+            oder NeuRIS); danach prüft die App zitierte Randnummern. Gesendet wird nur die Nummer der Entscheidung.
           </span>
         </div>
       )}
@@ -1321,9 +1357,11 @@ function RechtsprechungAnsicht({
         ))}
       </ul>
       <p className="grenze">
-        Geprüft wird, ob es eine Entscheidung dieses Bundesgerichts mit diesem Aktenzeichen und Datum gibt, nicht, ob sie
-        die zitierte Aussage trägt. Entscheidungen anderer Gerichte und des EuGH sind nicht im Verzeichnis; sie lassen sich
-        als eigene Datei ergänzen, z. B. als PDF-Ausdruck aus juris oder beck-online.
+        Geprüft wird, ob es eine Entscheidung dieses Gerichts mit diesem Aktenzeichen und Datum gibt, nicht, ob sie die
+        zitierte Aussage trägt. Bundesgerichte prüft die App gegen das Verzeichnis von rechtsprechung-im-internet.de (und auf
+        Wunsch bei NeuRIS), bayerische Gerichte online bei gesetze-bayern.de; dort stehen nur zur Veröffentlichung
+        bestimmte Entscheidungen. Andere Gerichte und der EuGH lassen sich als eigene Datei ergänzen, z. B. als
+        PDF-Ausdruck aus juris oder beck-online.
       </p>
     </>
   );
@@ -1426,6 +1464,7 @@ function VolltextAnsicht({
       <p className="fundort">
         {v.quelle === "manuell" ? "Selbst ergänzt" : "Geladen"}: {urteilHerkunft(v)}
       </p>
+      {QUELLEN_HINWEIS[v.quelle] && <p className="fundort">{QUELLEN_HINWEIS[v.quelle]}</p>}
       {v.kopf?.titel && <p className="volltext-titel">{v.kopf.titel}</p>}
       {v.kopf?.normen && <p className="fundort">Normen: {v.kopf.normen}</p>}
       {v.kopf?.vorinstanz.map((z, i) => (
@@ -1439,7 +1478,7 @@ function VolltextAnsicht({
         </p>
       ))}
       {v.abschnitte.map((a) => {
-        const kopf = a.teil && a.teil !== teil ? URTEIL_TEILE[a.teil] ?? a.teil : null;
+        const kopf = a.teil && a.teil !== teil ? URTEIL_TEILE[a.teil] ?? a.teil[0].toUpperCase() + a.teil.slice(1) : null;
         teil = a.teil;
         return (
           <div key={a.nr}>

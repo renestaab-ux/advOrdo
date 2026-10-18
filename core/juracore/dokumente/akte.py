@@ -30,8 +30,8 @@ from pathlib import Path
 
 from ..gesetze import wissensbasis
 from ..gesetze.zitate import finde_zitate
-from ..rechtsprechung import verzeichnis
-from ..rechtsprechung.zitate import finde_urteilszitate
+from ..rechtsprechung import online, verzeichnis
+from ..rechtsprechung.zitate import az_kern, finde_urteilszitate
 from . import lesen
 from .modell import Dokument
 from .ocr import Tesseract
@@ -392,7 +392,7 @@ def _verknuepfe_urteile(con: sqlite3.Connection, wissen: sqlite3.Connection, dok
         for z in finde_urteilszitate(a["text"]):
             schluessel = str(z)
             if schluessel not in cache:
-                cache[schluessel] = verzeichnis.pruefe(wissen, z, stand)
+                cache[schluessel] = online.ergaenze(wissen, schluessel, verzeichnis.pruefe(wissen, z, stand))
             beleg = cache[schluessel]
             con.execute(
                 """INSERT INTO urteilszitat (abschnitt_id, start, ende, seite, zitat, gericht, aktenzeichen, datum,
@@ -419,11 +419,19 @@ def zitate_neu_pruefen(con: sqlite3.Connection, wissen: sqlite3.Connection, akte
     return {"dokumente": len(dokumente)}
 
 
+def urteilszitate_neu_pruefen(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int) -> None:
+    """Prüft nur die Rechtsprechungszitate einer Akte erneut, z. B. nach einer Online-Prüfung."""
+    with con:
+        for r in con.execute("SELECT id FROM dokument WHERE akte_id = ?", (akte_id,)).fetchall():
+            _verknuepfe_urteile(con, wissen, r["id"])
+
+
 def rechtsprechung(
-    con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int, dokument_id: int | None = None
+    con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int, dokument_id: int | None = None,
+    online_quellen: set[str] | None = None,
 ) -> list[dict]:
     """Alle in einer Akte (oder nur in einem ihrer Dokumente) zitierten Entscheidungen, mit Prüfergebnis und
-    jeder Fundstelle."""
+    jeder Fundstelle. ``online_offen`` nennt die Online-Quelle, bei der ein offenes Zitat noch zu prüfen ist."""
     with con:
         for r in con.execute(
             "SELECT id FROM dokument WHERE akte_id = ? AND urteile_erkannt IS NULL", (akte_id,)
@@ -435,13 +443,19 @@ def rechtsprechung(
            WHERE d.akte_id = ? AND (? IS NULL OR d.id = ?) ORDER BY z.datum, z.zitat, d.dateiname, a.nr""",
         (akte_id, dokument_id, dokument_id),
     ).fetchall()
-    gruppen: dict[str, dict] = {}
+    gruppen: dict[tuple, dict] = {}
     for z in zeilen:
+        # Dieselbe Entscheidung, einmal als „Urteil“, einmal als „Endurteil“ zitiert, ist ein Eintrag.
+        schluessel = ((z["gericht"].casefold(), az_kern(z["aktenzeichen"]), z["datum"])
+                      if z["aktenzeichen"] else (z["zitat"],))
         g = gruppen.setdefault(
-            z["zitat"],
+            schluessel,
             {k: z[k] for k in ("zitat", "gericht", "aktenzeichen", "datum", "status", "hinweis")}
-            | {"entscheidung": json.loads(z["entscheidung"]) if z["entscheidung"] else None, "fundstellen": []},
+            | {"entscheidung": json.loads(z["entscheidung"]) if z["entscheidung"] else None, "fundstellen": [],
+               "zitate": []},
         )
+        if z["zitat"] not in g["zitate"]:
+            g["zitate"].append(z["zitat"])
         g["fundstellen"].append(
             {"dokument_id": z["dokument_id"], "dateiname": z["dateiname"], "abschnitt": z["abschnitt"],
              "seite": z["seite"], "rn": z["rn"], "start": z["start"], "ende": z["ende"],
@@ -460,6 +474,10 @@ def rechtsprechung(
         for f in g["fundstellen"]:
             f["rn_vorhanden"] = (f["rn_zitiert"] in rns) if rns and f["rn_zitiert"] is not None else None
         g["rn_hoechste"] = max(rns) if rns else None
+        quelle = online.zustaendig(g["gericht"], g["aktenzeichen"], g["status"],
+                                   {online.BAYERN} if online_quellen is None else online_quellen)
+        g["online_offen"] = quelle if quelle and any(
+            quelle not in online.ergebnisse(wissen, z) for z in g["zitate"]) else None
     # Offene Fragen zuerst: innerhalb eines Status stehen Zitate ohne vorliegenden Volltext oben.
     return sorted(gruppen.values(), key=lambda g: (reihenfolge.get(g["status"], 9), g["urteil"] is not None,
                                                    g["datum"] or "", g["zitat"]))

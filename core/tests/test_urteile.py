@@ -132,7 +132,8 @@ def test_rpc(tmp_path):
 def _zip_auszug() -> bytes:
     puffer = io.BytesIO()
     with zipfile.ZipFile(puffer, "w") as z:
-        z.writestr("jb-KORE301892016.xml", (FIXTURES / "rii_volltext_auszug.xml").read_bytes())
+        # Fester Zeitstempel: Sonst unterscheiden sich zwei Aufrufe, wenn eine Sekundengrenze dazwischen liegt.
+        z.writestr(zipfile.ZipInfo("jb-KORE301892016.xml", (2026, 1, 1, 0, 0, 0)), (FIXTURES / "rii_volltext_auszug.xml").read_bytes())
     return puffer.getvalue()
 
 

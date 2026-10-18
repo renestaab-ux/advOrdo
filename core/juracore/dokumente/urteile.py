@@ -5,9 +5,10 @@ Tippfehler im Aktenzeichen), kann man sie aus einer anderen Quelle ergänzen, z.
 aus juris oder beck-online. Die Datei wird wie ein Aktendokument unverändert unter ihrer SHA-256-
 Prüfsumme abgelegt und gelesen; Randnummern werden als Fundstellen erkannt.
 
-Entscheidungen der Bundesgerichte, die im Verzeichnis belegt sind, lädt ``volltexte_laden`` als
-öffentliche Rechtsquelle von rechtsprechung-im-internet.de; das ZIP wird unverändert im Roharchiv
-abgelegt und bleibt dort, auch wenn das Urteil aus der Akte entfernt wird.
+Belegte Entscheidungen lädt ``volltexte_laden`` als öffentliche Rechtsquelle aus der Quelle, die
+sie belegt hat: rechtsprechung-im-internet.de, gesetze-bayern.de oder NeuRIS. Die geladene Datei
+wird unverändert im Roharchiv abgelegt und bleibt dort, auch wenn das Urteil aus der Akte entfernt
+wird.
 
 Ein Urteil gehört zu dem Zitat, für das es ergänzt wurde, und zu jedem anderen Zitat der Akte mit
 demselben Gericht und Aktenzeichen.
@@ -24,15 +25,24 @@ import urllib.error
 from collections.abc import Callable
 from pathlib import Path
 
-from ..rechtsprechung import verzeichnis
+from ..rechtsprechung import bayern, neuris, verzeichnis
 from ..rechtsprechung import volltext as rii
-from ..rechtsprechung.zitate import normalisiere_az
+from ..rechtsprechung.zitate import az_kern, normalisiere_az
 from . import lesen
 from .akte import _entferne_datei, _jetzt, _sha256
 from .ocr import Tesseract
 
 MANUELL = "manuell"
 RII = "rii"
+BAYERN = "bayern"
+NEURIS = "neuris"
+
+# Je Quelle: Leser (Daten, Treffer) → Volltext, Herkunft, Archivordner und Dateiendung.
+_QUELLEN = {
+    RII: (lambda daten, _e: rii.lies(daten), rii.HERKUNFT, "volltexte", "zip"),
+    BAYERN: (bayern.lies, bayern.HERKUNFT, "bayern", "zip"),
+    NEURIS: (neuris.lies, neuris.HERKUNFT, "neuris", "html"),
+}
 
 log = logging.getLogger("juracore.urteile")
 
@@ -108,21 +118,26 @@ def _doknr(entscheidung: dict | None) -> str | None:
     return m.group(1) if m else None
 
 
-def _speichere_volltext(con: sqlite3.Connection, akte_id: int, zitat: str, daten: bytes, archiv: Path) -> int:
-    v = rii.lies(daten)
-    sha, pfad = rii.archiviere(daten, archiv)
+def _speichere_volltext(
+    con: sqlite3.Connection, akte_id: int, zitat: str, daten: bytes, archiv: Path,
+    quelle: str = RII, entscheidung: dict | None = None,
+) -> int:
+    leser, herkunft, ordner, endung = _QUELLEN[quelle]
+    v = leser(daten, entscheidung)
+    sha, pfad = rii.archiviere(daten, archiv, ordner, endung)
     vorhanden = con.execute("SELECT id FROM urteil WHERE akte_id = ? AND sha256 = ?", (akte_id, sha)).fetchone()
     if vorhanden:
         return vorhanden["id"]
     kopf = {"spruchkoerper": v.spruchkoerper, "doktyp": v.doktyp, "normen": v.normen,
             "vorinstanz": v.vorinstanz, "titel": v.titel}
+    dateiname = {RII: f"jb-{v.doknr}.zip", BAYERN: f"{v.doknr}.zip", NEURIS: f"{v.doknr}.html"}[quelle]
     with con:
         urteil_id = con.execute(
             """INSERT INTO urteil (akte_id, zitat, gericht, aktenzeichen, az_norm, datum, quelle, herkunft, dateiname,
                                    format, sha256, original, lesart, hinweise, hinzugefuegt_am, doknr, kopf)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (akte_id, zitat, v.gericht, v.aktenzeichen, normalisiere_az(v.aktenzeichen), v.datum, RII,
-             rii.HERKUNFT, f"jb-{v.doknr}.zip", "rii", sha, str(pfad), "datei", "[]", _jetzt(), v.doknr,
+            (akte_id, zitat, v.gericht, v.aktenzeichen, normalisiere_az(v.aktenzeichen), v.datum, quelle,
+             herkunft, dateiname, quelle, sha, str(pfad), "datei", "[]", _jetzt(), v.doknr,
              json.dumps(kopf, ensure_ascii=False)),
         ).lastrowid
         con.executemany(
@@ -139,21 +154,24 @@ def volltexte_laden(
     archiv: Path,
     lader: Callable[[str], bytes] = rii.lade,
     zitat: str | None = None,
+    lader_online: dict[str, Callable[[str], bytes]] | None = None,
 ) -> dict:
-    """Lädt die Volltexte der im Verzeichnis belegten Entscheidungen der Akte, die noch nicht vorliegen.
-
-    Mit ``zitat`` nur die Entscheidung zu diesem Zitat."""
+    """Lädt die Volltexte der belegten Entscheidungen der Akte, die noch nicht vorliegen, aus der Quelle,
+    die sie belegt hat. Mit ``zitat`` nur die Entscheidung zu diesem Zitat."""
     from .akte import rechtsprechung  # akte nutzt dieses Modul für die Zuordnung
 
+    lader_je_quelle = {RII: lader, BAYERN: bayern.lade, NEURIS: neuris.lade} | (lader_online or {})
     geladen, fehler = [], []
     for g in rechtsprechung(con, wissen, akte_id):
         doknr = _doknr(g["entscheidung"])
-        if zitat is not None and g["zitat"] != zitat:
+        quelle = (g["entscheidung"] or {}).get("quelle") or RII
+        if zitat is not None and zitat not in g["zitate"]:
             continue
-        if g["urteil"] is not None or g["status"] != verzeichnis.BELEGT or doknr is None:
+        if g["urteil"] is not None or g["status"] != verzeichnis.BELEGT or doknr is None or quelle not in _QUELLEN:
             continue
         try:
-            _speichere_volltext(con, akte_id, g["zitat"], lader(doknr), archiv)
+            _speichere_volltext(con, akte_id, g["zitat"], lader_je_quelle[quelle](doknr), archiv, quelle,
+                                g["entscheidung"])
             geladen.append(g["zitat"])
         except (OSError, ValueError, urllib.error.URLError) as f:
             log.warning("Volltext %s nicht geladen: %s", doknr, f)
@@ -182,11 +200,11 @@ def randnummern(con: sqlite3.Connection, urteil_id: int) -> set[int]:
 
 def zu_zitat(urteile: list[dict], zitat: str, gericht: str, aktenzeichen: str | None) -> dict | None:
     """Das zur Akte vorliegende Urteil für ein Zitat: gleiches Zitat oder gleiches Gericht und Aktenzeichen."""
-    az = normalisiere_az(aktenzeichen) if aktenzeichen else None
+    az = az_kern(aktenzeichen) if aktenzeichen else None
     for u in urteile:
         if u["zitat"] == zitat:
             return u
-        if az and u["aktenzeichen"] and normalisiere_az(u["aktenzeichen"]) == az \
+        if az and u["aktenzeichen"] and az_kern(u["aktenzeichen"]) == az \
                 and u["gericht"].casefold() == gericht.casefold():
             return u
     return None

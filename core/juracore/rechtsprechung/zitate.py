@@ -104,6 +104,11 @@ def normalisiere_az(az: str) -> str:
     return " ".join(az.split()).casefold()
 
 
+def az_kern(az: str) -> str:
+    """Vergleichsform ohne das Kennzeichen elektronischer Akten („14 U 2300/25 e“ = „14 U 2300/25“)."""
+    return re.sub(r"/(\d{2,4}) e$", r"/\1", normalisiere_az(az))
+
+
 def _zitierte_rn(text: str, ende: int) -> int | None:
     """Randnummer, die unmittelbar hinter einem Zitat angegeben ist (bis Semikolon, Klammer oder Satzende)."""
     rest = text[ende:ende + 80]
