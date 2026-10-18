@@ -15,8 +15,9 @@
 Die Tauri-Hülle startet den Kern als Kindprozess und tauscht JSON-Zeilen über
 stdin/stdout aus. Es gibt keinen offenen Port, über den andere Programme oder
 Webseiten auf Akteninhalte zugreifen könnten. Für die Auslieferung wird der Kern
-mit PyInstaller zu einer ausführbaren Datei gebündelt und als Tauri-Sidecar
-mitgeliefert (offen).
+mit PyInstaller zu einer ausführbaren Datei gebündelt (`core/kern_bauen.py`) und als
+Tauri-Sidecar mitgeliefert (`npm run paket`, Konfiguration `tauri.paket.conf.json`). Der Release-Build
+startet `juracore` aus dem Ordner der App; fehlt die Datei, nimmt er wie die Entwicklung die `.venv`.
 
 ## Wissensbasis Gesetze
 
@@ -189,7 +190,7 @@ ihrem letzten Eintrag.
 ## Offene Punkte
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
-- Kern als Sidecar bündeln, Installer je System
+- Installer über GitHub Actions bauen und signieren (bisher lokal, siehe README)
 - Rechtsprechung: weitere Landesportale (z. B. NRWE), EuGH (EUR-Lex); prüfen, ob die zitierte Rn. die Aussage trägt
 - Bayern und NeuRIS: Formate an echten Abrufen bestätigen; Suchmaske im Bereich Rechtsprechung; Landesrecht Bayern
 - Chronologie exportieren (Word, PDF, Markdown)

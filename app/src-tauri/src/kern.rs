@@ -67,6 +67,7 @@ impl Kern {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
+        ohne_konsolenfenster(&mut befehl);
         let mut kind = befehl.spawn().map_err(|e| format!("Analysekern konnte nicht gestartet werden: {e}"))?;
         let stdin = kind.stdin.take().ok_or("stdin des Kerns fehlt")?;
         let stdout = BufReader::new(kind.stdout.take().ok_or("stdout des Kerns fehlt")?);
@@ -75,7 +76,7 @@ impl Kern {
 }
 
 /// Entwicklung: `python -m juracore serve` im Ordner `core/`.
-/// Auslieferung: gebündeltes Kernprogramm neben der App (Sidecar, folgt mit dem Installer).
+/// Auslieferung: gebündeltes Kernprogramm `juracore` neben der App (Sidecar, `core/kern_bauen.py`).
 /// Interpreter: `JURACORE_PYTHON`, sonst die `.venv` im Projektordner, sonst `python`/`python3`.
 fn kern_befehl() -> Command {
     let sidecar = std::env::current_exe()
@@ -95,6 +96,17 @@ fn kern_befehl() -> Command {
     c.args(["-m", "juracore", "serve"]).current_dir(projekt.join("core"));
     c
 }
+
+/// Windows öffnet für ein Konsolenprogramm, das eine Fenster-App startet, sonst ein leeres Konsolenfenster.
+#[cfg(windows)]
+fn ohne_konsolenfenster(befehl: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    befehl.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn ohne_konsolenfenster(_befehl: &mut Command) {}
 
 /// Interpreter einer virtuellen Umgebung `.venv`; Windows legt ihn unter `Scripts` ab.
 fn venv_python(projekt: &Path) -> PathBuf {

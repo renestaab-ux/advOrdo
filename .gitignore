@@ -13,6 +13,8 @@ app/dist/
 # Rust / Tauri
 app/src-tauri/target/
 app/src-tauri/gen/
+# Gebündelter Kern für den Installer (core/kern_bauen.py)
+app/src-tauri/binaries/
 
 # Lokale Daten (Roharchiv, Datenbanken) gehören nie ins Repository
 daten/
