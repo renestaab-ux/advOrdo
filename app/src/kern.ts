@@ -776,6 +776,7 @@ export interface ZinsErgebnis {
   zeilen: ZinsZeile[];
   summe_tage: number;
   summe_zinsen: string;
+  summe_zinsen_genau: string;
   pauschale: string;
   hauptforderung: string;
   offene_zinsen: string;
@@ -814,9 +815,9 @@ export const BUNDESLAENDER: [string, string][] = [
   ["ST", "Sachsen-Anhalt"], ["SH", "Schleswig-Holstein"], ["TH", "Thüringen"],
 ];
 
-/** Betrag aus dem Kern ("1234.5") deutsch mit zwei Nachkommastellen: "1.234,50 €". */
-export function euro(betrag: string | number): string {
-  return Number(betrag).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+/** Betrag aus dem Kern ("1234.5") deutsch, mit zwei oder mehr Nachkommastellen: "1.234,50 €". */
+export function euro(betrag: string | number, stellen = 2): string {
+  return Number(betrag).toLocaleString("de-DE", { minimumFractionDigits: stellen, maximumFractionDigits: stellen }) + " €";
 }
 
 /** Prozentsatz aus dem Kern ("8.62") deutsch: "8,62 %". */

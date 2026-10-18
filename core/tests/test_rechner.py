@@ -21,12 +21,21 @@ def test_verbraucher_ein_jahr_kalendergenau():
     # 2024 ist ein Schaltjahr: 1.000 € × 8,62 % × 182/366 = 42,864… und × 8,37 % × 184/366 = 42,078…
     e = berechne(Eingabe(Decimal(1000), date(2024, 1, 1), date(2024, 12, 31)))
     assert [(z["von"], z["tage"], z["satz"], z["zinsen"]) for z in e["zeilen"]] == [
-        ("2024-01-01", 182, "8.62", "42.86"),
-        ("2024-07-01", 184, "8.37", "42.08"),
+        ("2024-01-01", 182, "8.62", "42.8645"),
+        ("2024-07-01", 184, "8.37", "42.0787"),
     ]
     assert e["summe_tage"] == 366 and e["summe_zinsen"] == "84.94" and e["gesamt"] == "1084.94"
-    assert e["zinsen_pro_tag"] == "0.23"
+    assert e["zinsen_pro_tag"] == "0.2287"
     assert e["grundlagen"] == ["§ 288 Abs. 1 BGB", "§ 247 BGB"]
+
+
+def test_wie_basiszinssatz_de():
+    # Kontrollrechnung von René mit basiszinssatz.de (18.10.2026): 2.000 €, Handelsgeschäft, 15.01.2015–18.10.2026.
+    e = berechne(Eingabe(Decimal(2000), date(2015, 1, 15), date(2026, 10, 18), art="entgelt"))
+    assert [(z["tage"], z["satz"], z["zinsen"]) for z in (e["zeilen"][0], e["zeilen"][-1])] == [
+        (167, "8.17", "74.7611"), (110, "10.52", "63.4082")]
+    assert (e["summe_tage"], e["summe_zinsen_genau"], e["gesamt"]) == (4295, "2152.4214", "4152.42")
+    assert e["zinsen_pro_tag"] == "0.5764"
 
 
 def test_entgelt_weiche_2014_und_pauschale():
@@ -47,15 +56,15 @@ def test_30e_360_und_fester_satz():
     e = berechne(Eingabe(Decimal(1000), date(2025, 1, 1), date(2025, 6, 30), art="fest",
                          fester_satz=Decimal(6), methode="30E/360"))
     (z,) = e["zeilen"]
-    assert (z["tage"], z["zinsen"]) == (180, "30.00")
+    assert (z["tage"], z["zinsen"]) == (180, "30.0000")
 
 
 def test_teilzahlung_zuerst_auf_zinsen_ab_folgetag():
     e = berechne(Eingabe(Decimal(1000), date(2025, 1, 1), date(2025, 3, 31), art="fest", fester_satz=Decimal(10),
                          ereignisse=[Ereignis(date(2025, 1, 31), Decimal(100), "teilzahlung")]))
     erste, zweite = e["zeilen"]
-    # 31 Tage auf 1.000 € = 8,49 € Zinsen; am Zahltag gilt noch der alte Stand.
-    assert (erste["bis"], erste["tage"], erste["zinsen"]) == ("2025-01-31", 31, "8.49")
+    # 31 Tage auf 1.000 € = 8,4932 € Zinsen; am Zahltag gilt noch der alte Stand.
+    assert (erste["bis"], erste["tage"], erste["zinsen"]) == ("2025-01-31", 31, "8.4932")
     assert zweite["von"] == "2025-02-01" and zweite["restschuld"] == "908.49"
     assert "auf Zinsen 8,49 €" in zweite["ereignis"]
     assert "§ 367 Abs. 1 BGB" in e["grundlagen"]
@@ -71,7 +80,7 @@ def test_raten_und_vollstaendige_tilgung():
     assert [r.datum for r in folge] == [date(2025, 1, 31), date(2025, 2, 28), date(2025, 3, 31), date(2025, 4, 30)]
     e = berechne(Eingabe(Decimal(1000), date(2025, 1, 1), date(2025, 12, 31), art="fest", ereignisse=folge))
     assert e["hauptforderung"] == "0.00" and e["offene_zinsen"] == "0.00"
-    assert e["zinsen_pro_tag"] == "0.00"
+    assert e["zinsen_pro_tag"] == "0.0000"
 
 
 def test_eingaben_und_fehler():

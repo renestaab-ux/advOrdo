@@ -321,7 +321,7 @@ function ZinsAusgabe({ e }: { e: ZinsErgebnis }) {
         <dd className="gesamt">{euro(e.gesamt)}</dd>
         <dt>Zinsen je weiteren Tag</dt>
         <dd>
-          {euro(e.zinsen_pro_tag)} (zuletzt {prozent(e.aktueller_satz)})
+          {euro(e.zinsen_pro_tag, 4)} (zuletzt {prozent(e.aktueller_satz)})
         </dd>
       </dl>
       {e.hinweise.map((h) => (
@@ -357,8 +357,8 @@ function ZinsAusgabe({ e }: { e: ZinsErgebnis }) {
                   {prozent(z.satz)}
                 </td>
                 <td className="zahl">{euro(z.restschuld)}</td>
-                <td className="zahl">{euro(z.zinsen)}</td>
-                <td className="zahl">{euro(z.zinssaldo)}</td>
+                <td className="zahl">{euro(z.zinsen, 4)}</td>
+                <td className="zahl">{euro(z.zinssaldo, 4)}</td>
               </tr>
             </Fragment>
           ))}
@@ -368,15 +368,16 @@ function ZinsAusgabe({ e }: { e: ZinsErgebnis }) {
             <td colSpan={2}>Summe</td>
             <td className="zahl">{e.summe_tage}</td>
             <td colSpan={2} />
-            <td className="zahl">{euro(e.summe_zinsen)}</td>
+            <td className="zahl">{euro(e.summe_zinsen_genau, 4)}</td>
             <td />
           </tr>
         </tfoot>
       </table>
       <p className="grundlagen">
         Grundlage: {e.grundlagen.length ? e.grundlagen.join(", ") : "vereinbarter fester Zinssatz"}. Basiszinssatz laut
-        Deutscher Bundesbank, zuletzt hinterlegt ab {e.basiszins_quelle}. Jede Zeile ist auf den Cent gerundet;
-        Zahlungen wirken ab dem Folgetag; kein Zinseszins. Ohne Gewähr.
+        Deutscher Bundesbank, zuletzt hinterlegt ab {e.basiszins_quelle}. Gerechnet wird ungerundet (Zeilen mit vier
+        Nachkommastellen); auf den Cent gerundet sind nur die Endbeträge. Zahlungen wirken ab dem Folgetag; kein
+        Zinseszins. Ohne Gewähr.
       </p>
     </div>
   );

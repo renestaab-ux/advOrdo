@@ -118,7 +118,8 @@ Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern aus JuraBox Lite. G
   Entgeltforderung (+ 9, bei Verzugsbeginn vor dem 29.07.2014 + 8), Dauerschuldverhältnis, eigene Punkte oder fester
   Satz; weitere Forderungen, Teilzahlungen und monatliche Raten (wirken ab dem Folgetag, Verrechnung nach § 367 BGB
   oder § 497 Abs. 3 BGB); Zinsmethoden act/act, act/360, act/365, act/365,25, act/366 und 30E/360; Pauschale nach
-  § 288 Abs. 5 BGB. Ergebnis als Zinsstaffel, jede Zeile auf den Cent gerundet, druckbar. Die Basiszinssätze seit
+  § 288 Abs. 5 BGB. Ergebnis als Zinsstaffel, ungerundet gerechnet (Zeilen mit vier Nachkommastellen,
+  nur die Endbeträge auf den Cent gerundet, wie bei basiszinssatz.de), druckbar. Die Basiszinssätze seit
   01.07.2002 sind hinterlegt (Deutsche Bundesbank); einen neuen Satz zum 1.1. oder 1.7. trägt man unter
   „Basiszinssatz“ selbst nach, hinterlegte Sätze werden nie überschrieben.
 - **Fristen** (§§ 187, 188, 193 BGB): Ereignis- oder Tagesbeginnfrist in Tagen, Wochen, Monaten oder Jahren,

@@ -1,7 +1,8 @@
 """Verzugszinsenrechner nach §§ 288, 247 BGB, übernommen aus JuraBox Lite.
 
 Rechenweg wie eine Zinsstaffel: Der Zeitraum wird an jedem Basiszinssatz-Stichtag und an jedem Zahlungsereignis
-geteilt; jede Zeile wird für sich auf den Cent gerundet. Ereignisse (weitere Forderungen, Teilzahlungen, Raten)
+geteilt. Gerechnet wird ungerundet (Zeilen mit vier Nachkommastellen angezeigt); auf den Cent gerundet werden nur die
+Endbeträge, wie bei basiszinssatz.de. Ereignisse (weitere Forderungen, Teilzahlungen, Raten)
 wirken ab dem Folgetag. Kein Zinseszins auf aufgelaufene Zinsen.
 """
 
@@ -15,6 +16,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from .basiszins import Basiszins
 
 CENT = Decimal("0.01")
+VIER = Decimal("0.0001")  # Anzeige der ungerundeten Zwischenwerte
 PAUSCHALE = Decimal(40)  # § 288 Abs. 5 S. 1 BGB
 STICHTAG_2014 = date(2014, 7, 29)  # § 288 Abs. 2 BGB n. F., Art. 229 § 34 EGBGB
 MAX_RATEN = 2400
@@ -37,6 +39,10 @@ VERRECHNUNG = {
 
 def cent(betrag: Decimal) -> Decimal:
     return betrag.quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+def genau(betrag: Decimal) -> str:
+    return str(betrag.quantize(VIER, rounding=ROUND_HALF_UP))
 
 
 def betrag(wert) -> Decimal:
@@ -156,7 +162,7 @@ def berechne(e: Eingabe, bz: Basiszins | None = None) -> dict:
         grenzen |= {date(j, 1, 1) for j in range(e.beginn.year + 1, e.ende.year + 1)}
     anfaenge = [e.beginn, *sorted(grenzen)]
 
-    rest, zinssaldo = e.hauptbetrag, Decimal(0)
+    rest, zinssaldo, summe = e.hauptbetrag, Decimal(0), Decimal(0)
     zeilen = []
     satz, basis = Decimal(0), Decimal(365)
     for i, von in enumerate(anfaenge):
@@ -184,15 +190,16 @@ def berechne(e: Eingabe, bz: Basiszins | None = None) -> dict:
         if rest <= Decimal("0.005"):
             if texte:
                 zeilen.append({"von": von.isoformat(), "bis": bis.isoformat(), "tage": 0, "satz": str(satz),
-                               "grundlage": grundlage, "zinsen": "0.00", "zinssaldo": str(cent(zinssaldo)),
+                               "grundlage": grundlage, "zinsen": genau(Decimal(0)), "zinssaldo": genau(zinssaldo),
                                "restschuld": str(cent(rest)), "ereignis": "; ".join(texte)})
             if zinssaldo <= Decimal("0.005"):
                 break
             continue
-        zinsen = cent(rest * satz / 100 * tage / basis) if satz > 0 else Decimal("0.00")
+        zinsen = rest * satz / 100 * tage / basis if satz > 0 else Decimal(0)
         zinssaldo += zinsen
+        summe += zinsen
         zeilen.append({"von": von.isoformat(), "bis": bis.isoformat(), "tage": tage, "satz": str(satz),
-                       "grundlage": grundlage, "zinsen": str(zinsen), "zinssaldo": str(cent(zinssaldo)),
+                       "grundlage": grundlage, "zinsen": genau(zinsen), "zinssaldo": genau(zinssaldo),
                        "restschuld": str(cent(rest)), "ereignis": "; ".join(texte)})
 
     pauschale = PAUSCHALE * e.pauschalen
@@ -204,17 +211,18 @@ def berechne(e: Eingabe, bz: Basiszins | None = None) -> dict:
                         "Toolbox eintragen.")
     if satz < 0:
         hinweise.append("Der Zinssatz war zeitweise negativ; für diese Zeilen wurden keine Zinsen angesetzt.")
-    pro_tag = cent(rest * max(satz, Decimal(0)) / 100 / basis)
+    pro_tag = genau(rest * max(satz, Decimal(0)) / 100 / basis)
     return {
         "zeilen": zeilen,
         "summe_tage": sum(z["tage"] for z in zeilen),
-        "summe_zinsen": str(sum((Decimal(z["zinsen"]) for z in zeilen), Decimal("0.00"))),
+        "summe_zinsen": str(cent(summe)),
+        "summe_zinsen_genau": genau(summe),
         "pauschale": str(cent(pauschale)),
         "hauptforderung": str(cent(rest)),
         "offene_zinsen": str(cent(zinssaldo)),
         "gesamt": str(cent(rest + zinssaldo + pauschale)),
         "aktueller_satz": str(satz),
-        "zinsen_pro_tag": str(pro_tag),
+        "zinsen_pro_tag": pro_tag,
         "grundlagen": _grundlagen(e),
         "basiszins_quelle": f"{bz.letzter()[0]:%d.%m.%Y}: {_de(bz.letzter()[1])} %",
         "hinweise": hinweise,

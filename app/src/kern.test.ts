@@ -189,6 +189,7 @@ describe("auswahlText", () => {
 describe("Toolbox-Formate", () => {
   it("schreibt Beträge, Sätze und Daten deutsch", () => {
     expect(euro("1234.5")).toBe("1.234,50 €");
+    expect(euro("74.7611", 4)).toBe("74,7611 €");
     expect(prozent("8.62")).toBe("8,62 %");
     expect(prozent("-0.88")).toBe("-0,88 %");
     expect(datumDe("2026-10-17")).toBe("17.10.2026");
