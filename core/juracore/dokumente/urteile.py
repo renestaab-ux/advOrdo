@@ -27,7 +27,7 @@ from pathlib import Path
 
 from ..rechtsprechung import bayern, neuris, verzeichnis
 from ..rechtsprechung import volltext as rii
-from ..rechtsprechung.zitate import normalisiere_az
+from ..rechtsprechung.zitate import az_kern, normalisiere_az
 from . import lesen
 from .akte import _entferne_datei, _jetzt, _sha256
 from .ocr import Tesseract
@@ -165,7 +165,7 @@ def volltexte_laden(
     for g in rechtsprechung(con, wissen, akte_id):
         doknr = _doknr(g["entscheidung"])
         quelle = (g["entscheidung"] or {}).get("quelle") or RII
-        if zitat is not None and g["zitat"] != zitat:
+        if zitat is not None and zitat not in g["zitate"]:
             continue
         if g["urteil"] is not None or g["status"] != verzeichnis.BELEGT or doknr is None or quelle not in _QUELLEN:
             continue
@@ -200,11 +200,11 @@ def randnummern(con: sqlite3.Connection, urteil_id: int) -> set[int]:
 
 def zu_zitat(urteile: list[dict], zitat: str, gericht: str, aktenzeichen: str | None) -> dict | None:
     """Das zur Akte vorliegende Urteil für ein Zitat: gleiches Zitat oder gleiches Gericht und Aktenzeichen."""
-    az = normalisiere_az(aktenzeichen) if aktenzeichen else None
+    az = az_kern(aktenzeichen) if aktenzeichen else None
     for u in urteile:
         if u["zitat"] == zitat:
             return u
-        if az and u["aktenzeichen"] and normalisiere_az(u["aktenzeichen"]) == az \
+        if az and u["aktenzeichen"] and az_kern(u["aktenzeichen"]) == az \
                 and u["gericht"].casefold() == gericht.casefold():
             return u
     return None

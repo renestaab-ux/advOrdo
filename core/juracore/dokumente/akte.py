@@ -31,7 +31,7 @@ from pathlib import Path
 from ..gesetze import wissensbasis
 from ..gesetze.zitate import finde_zitate
 from ..rechtsprechung import online, verzeichnis
-from ..rechtsprechung.zitate import finde_urteilszitate
+from ..rechtsprechung.zitate import az_kern, finde_urteilszitate
 from . import lesen
 from .modell import Dokument
 from .ocr import Tesseract
@@ -443,13 +443,19 @@ def rechtsprechung(
            WHERE d.akte_id = ? AND (? IS NULL OR d.id = ?) ORDER BY z.datum, z.zitat, d.dateiname, a.nr""",
         (akte_id, dokument_id, dokument_id),
     ).fetchall()
-    gruppen: dict[str, dict] = {}
+    gruppen: dict[tuple, dict] = {}
     for z in zeilen:
+        # Dieselbe Entscheidung, einmal als „Urteil“, einmal als „Endurteil“ zitiert, ist ein Eintrag.
+        schluessel = ((z["gericht"].casefold(), az_kern(z["aktenzeichen"]), z["datum"])
+                      if z["aktenzeichen"] else (z["zitat"],))
         g = gruppen.setdefault(
-            z["zitat"],
+            schluessel,
             {k: z[k] for k in ("zitat", "gericht", "aktenzeichen", "datum", "status", "hinweis")}
-            | {"entscheidung": json.loads(z["entscheidung"]) if z["entscheidung"] else None, "fundstellen": []},
+            | {"entscheidung": json.loads(z["entscheidung"]) if z["entscheidung"] else None, "fundstellen": [],
+               "zitate": []},
         )
+        if z["zitat"] not in g["zitate"]:
+            g["zitate"].append(z["zitat"])
         g["fundstellen"].append(
             {"dokument_id": z["dokument_id"], "dateiname": z["dateiname"], "abschnitt": z["abschnitt"],
              "seite": z["seite"], "rn": z["rn"], "start": z["start"], "ende": z["ende"],
@@ -470,7 +476,8 @@ def rechtsprechung(
         g["rn_hoechste"] = max(rns) if rns else None
         quelle = online.zustaendig(g["gericht"], g["aktenzeichen"], g["status"],
                                    {online.BAYERN} if online_quellen is None else online_quellen)
-        g["online_offen"] = quelle if quelle and quelle not in online.ergebnisse(wissen, g["zitat"]) else None
+        g["online_offen"] = quelle if quelle and any(
+            quelle not in online.ergebnisse(wissen, z) for z in g["zitate"]) else None
     # Offene Fragen zuerst: innerhalb eines Status stehen Zitate ohne vorliegenden Volltext oben.
     return sorted(gruppen.values(), key=lambda g: (reihenfolge.get(g["status"], 9), g["urteil"] is not None,
                                                    g["datum"] or "", g["zitat"]))

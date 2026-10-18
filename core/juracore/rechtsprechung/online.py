@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import sqlite3
 import urllib.error
 from collections.abc import Callable
@@ -26,7 +25,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import bayern, neuris, verzeichnis
-from .zitate import normalisiere_az
+from .zitate import az_kern
 
 log = logging.getLogger("juracore.online")
 
@@ -150,19 +149,14 @@ def _passt_gericht(zitiert: str, gefunden: str) -> bool:
     return bool(z) and g[:len(z)] == z
 
 
-def _az_kern(az: str) -> str:
-    """Vergleichsform ohne das Kennzeichen elektronischer Akten („14 U 2300/25 e“ = „14 U 2300/25“)."""
-    return re.sub(r"/(\d{2,4}) e$", r"/\1", normalisiere_az(az))
-
-
 def bewerte(quelle: str, gericht: str, aktenzeichen: str, datum: str | None, treffer: list[dict]) -> dict:
     """Ordnet die Treffer einer Suche dem Zitat zu: belegt, abweichend oder nicht gefunden."""
     titel = TITEL[quelle]
-    az = _az_kern(aktenzeichen)
+    az = az_kern(aktenzeichen)
 
     def az_passt(t: dict) -> bool:
         liste = t.get("aktenzeichen_liste") or [a for a in (t.get("aktenzeichen") or "").split(",")]
-        return any(_az_kern(a) == az for a in liste if a.strip())
+        return any(az_kern(a) == az for a in liste if a.strip())
 
     gleiche = [t for t in treffer if az_passt(t)]
     eigene = [t for t in gleiche if _passt_gericht(gericht, t["gericht"])]
@@ -213,7 +207,8 @@ def pruefe(
     geprueft, fehler = [], []
     for z in zitate:
         quelle = zustaendig(z["gericht"], z["aktenzeichen"], z["status"], aktiv)
-        if quelle is None or (not neu and quelle in ergebnisse(con, z["zitat"])):
+        alle = z.get("zitate") or [z["zitat"]]
+        if quelle is None or (not neu and all(quelle in ergebnisse(con, a) for a in alle)):
             continue
         try:
             ergebnis = bewerte(quelle, z["gericht"], z["aktenzeichen"], z["datum"], suche[quelle](z["aktenzeichen"]))
@@ -221,6 +216,7 @@ def pruefe(
             log.warning("Online-Prüfung %s bei %s fehlgeschlagen: %s", z["zitat"], quelle, f)
             fehler.append({"zitat": z["zitat"], "quelle": TITEL[quelle], "fehler": str(f)})
             continue
-        _speichere(con, quelle, z["zitat"], ergebnis)
+        for zitat in z.get("zitate") or [z["zitat"]]:  # gleiche Entscheidung, verschieden zitiert
+            _speichere(con, quelle, zitat, ergebnis)
         geprueft.append({"zitat": z["zitat"], "quelle": TITEL[quelle], "status": ergebnis["status"]})
     return {"geprueft": geprueft, "fehler": fehler}

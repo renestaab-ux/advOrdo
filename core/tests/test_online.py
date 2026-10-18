@@ -197,6 +197,23 @@ def test_bundesgericht_bei_neuris_pruefen(akten, con, tmp_path):
     assert (tmp_path / "archiv" / "RECHTSPRECHUNG" / "neuris").is_dir()
 
 
+def test_gleiche_entscheidung_verschieden_zitiert(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Zweimal")
+    (tmp_path / "k.md").write_text(f"(1) {OLG}\n\n(2) Ebenso OLG München, Endurteil vom 14.03.2023 – 7 U 1234/22 e.",
+                                   encoding="utf-8")
+    akte.importiere(akten, con, a["id"], tmp_path / "k.md", tmp_path / "ablage", ocr=False)
+    gruppen = akte.rechtsprechung(akten, con, a["id"])
+    assert len(gruppen) == 1 and len(gruppen[0]["zitate"]) == 2 and len(gruppen[0]["fundstellen"]) == 2
+    treffer = [t.als_dict() for t in bayern.lies_trefferliste(
+        (FIXTURES / "bayern_trefferliste.html").read_text(encoding="utf-8"))[0]]
+    gesucht = []
+    online.pruefe(con, gruppen, {"bayern"}, suche={"bayern": lambda az: gesucht.append(az) or treffer})
+    assert len(gesucht) == 1
+    akte.urteilszitate_neu_pruefen(akten, con, a["id"])
+    g = akte.rechtsprechung(akten, con, a["id"])[0]
+    assert g["status"] == verzeichnis.BELEGT and g["online_offen"] is None
+
+
 def test_nicht_gefunden_und_fehler(akten, con, tmp_path):
     a = akte.akte_anlegen(akten, "Fehler")
     (tmp_path / "k.md").write_text(f"(1) {OLG}", encoding="utf-8")
