@@ -123,7 +123,9 @@ Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern aus JuraBox Lite. G
   01.07.2002 sind hinterlegt (Deutsche Bundesbank); einen neuen Satz zum 1.1. oder 1.7. trägt man unter
   „Basiszinssatz“ selbst nach, hinterlegte Sätze werden nie überschrieben.
 - **Fristen** (§§ 187, 188, 193 BGB): Ereignis- oder Tagesbeginnfrist in Tagen, Wochen, Monaten oder Jahren,
-  Monatsende nach § 188 Abs. 3 BGB, Verschiebung über Wochenende und landesweite Feiertage des gewählten Bundeslands.
+  Monatsende nach § 188 Abs. 3 BGB, Verschiebung über Wochenende und landesweite Feiertage des gewählten Bundeslands;
+  alle Daten mit Wochentag. In Bayern zählt Mariä Himmelfahrt (15. August) standardmäßig mit (überwiegend
+  katholische Gemeinden); hängt das Fristende davon ab, nennt ein Hinweis auch das Ende für die übrigen Gemeinden.
   Nur Vorwärtsfristen.
 
 ## Akte: Dokumente einlesen

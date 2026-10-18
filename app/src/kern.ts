@@ -797,10 +797,15 @@ export interface BasiszinsStand {
 }
 
 export interface FristErgebnis {
+  bezugstag: string;
+  wochentag_bezugstag: string;
   fristbeginn: string;
+  wochentag_fristbeginn: string;
   rechnerisches_ende: string;
+  wochentag_rechnerisch: string;
   ende: string;
   wochentag: string;
+  hinweise: string[];
   verschoben: boolean;
   grund: string;
   grundlagen: string[];

@@ -465,7 +465,6 @@ function Fristen() {
   const [einheit, setEinheit] = useState("wochen");
   const [p193, setP193] = useState(true);
   const [land, setLand] = useState(gespeichertesLand);
-  const [maria, setMaria] = useState(false);
   const [ergebnis, setErgebnis] = useState<FristErgebnis | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
 
@@ -489,8 +488,8 @@ function Fristen() {
       einheit,
       beginn,
       paragraf_193: p193,
-      land,
-      maria_himmelfahrt_bayern: land === "BY" && maria,
+      land: land === "BY-ohne" ? "BY" : land,
+      maria_himmelfahrt_bayern: land === "BY",
     }).then(
       (e) => {
         if (!gueltig) return;
@@ -502,7 +501,7 @@ function Fristen() {
     return () => {
       gueltig = false;
     };
-  }, [bezugstag, beginn, anzahl, einheit, p193, land, maria]);
+  }, [bezugstag, beginn, anzahl, einheit, p193, land]);
 
   return (
     <section className="rechner">
@@ -526,11 +525,23 @@ function Fristen() {
         <label>
           Bundesland (Feiertage)
           <select value={land} onChange={(e) => setLand(e.target.value)}>
-            {BUNDESLAENDER.map(([k, n]) => (
-              <option key={k} value={k}>
-                {n}
-              </option>
-            ))}
+            {BUNDESLAENDER.flatMap(([k, n]) =>
+              // Mariä Himmelfahrt ist in Bayern nur in überwiegend katholischen Gemeinden Feiertag.
+              k === "BY"
+                ? [
+                    <option key="BY" value="BY">
+                      Bayern, mit 15. August (kath. Gemeinden)
+                    </option>,
+                    <option key="BY-ohne" value="BY-ohne">
+                      Bayern, ohne 15. August (übrige Gemeinden)
+                    </option>,
+                  ]
+                : [
+                    <option key={k} value={k}>
+                      {n}
+                    </option>,
+                  ],
+            )}
           </select>
         </label>
         <fieldset className="breit wahl">
@@ -546,12 +557,6 @@ function Fristen() {
             <input type="checkbox" checked={p193} onChange={(e) => setP193(e.target.checked)} /> Fristende an Samstag,
             Sonntag oder Feiertag auf den nächsten Werktag verschieben (§ 193 BGB, § 222 Abs. 2 ZPO)
           </label>
-          {land === "BY" && (
-            <label>
-              <input type="checkbox" checked={maria} onChange={(e) => setMaria(e.target.checked)} /> Mariä Himmelfahrt
-              (15. August) einbeziehen; in Bayern nur regional Feiertag
-            </label>
-          )}
         </fieldset>
       </form>
       {fehler && <p className="fehler">{fehler}</p>}
@@ -566,10 +571,18 @@ function Fristen() {
             </button>
           </div>
           <dl className="summen">
+            <dt>Ereignis</dt>
+            <dd>
+              {ergebnis.wochentag_bezugstag}, {datumDe(ergebnis.bezugstag)}
+            </dd>
             <dt>Fristbeginn</dt>
-            <dd>{datumDe(ergebnis.fristbeginn)}</dd>
+            <dd>
+              {ergebnis.wochentag_fristbeginn}, {datumDe(ergebnis.fristbeginn)}
+            </dd>
             <dt>Rechnerisches Ende</dt>
-            <dd>{datumDe(ergebnis.rechnerisches_ende)}</dd>
+            <dd>
+              {ergebnis.wochentag_rechnerisch}, {datumDe(ergebnis.rechnerisches_ende)}
+            </dd>
             {ergebnis.verschoben && (
               <>
                 <dt>Verschoben wegen</dt>
@@ -577,10 +590,15 @@ function Fristen() {
               </>
             )}
           </dl>
+          {ergebnis.hinweise.map((h) => (
+            <p key={h} className="hinweis">
+              {h}
+            </p>
+          ))}
           <p className="grundlagen">
-            Grundlage: {ergebnis.grundlagen.join(", ")}. Feiertage: {ergebnis.land}, nur landesweite Feiertage (Stand{" "}
-            {ergebnis.feiertage_stand}). Rückwärtsfristen (z. B. Ladungsfristen) rechnet dieses Werkzeug nicht. Ohne
-            Gewähr.
+            Grundlage: {ergebnis.grundlagen.join(", ")}. Feiertage: {ergebnis.land}, ohne örtliche Sonderfeiertage wie
+            das Augsburger Friedensfest (Stand {ergebnis.feiertage_stand}). Rückwärtsfristen (z. B. Ladungsfristen)
+            rechnet dieses Werkzeug nicht. Ohne Gewähr.
           </p>
         </div>
       )}

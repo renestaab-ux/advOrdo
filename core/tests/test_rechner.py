@@ -143,6 +143,18 @@ def test_frist_feiertag_und_monatsende():
     assert f["ende"] == "2026-02-28" and "§ 188 Abs. 3 BGB" in f["grundlagen"]
 
 
+def test_frist_bayern_mariae_himmelfahrt():
+    # Kontrollrechnung von René mit lto.de (Bayern kath.): 15.07.2024 + 1 Monat = Do 15.08.2024 → Fr 16.08.2024.
+    f = fristen.berechne(date(2024, 7, 15), 1, "monate", land="BY")
+    assert (f["fristbeginn"], f["wochentag_fristbeginn"]) == ("2024-07-16", "Dienstag")
+    assert (f["rechnerisches_ende"], f["wochentag_rechnerisch"]) == ("2024-08-15", "Donnerstag")
+    assert (f["ende"], f["wochentag"], f["grund"]) == ("2024-08-16", "Freitag", "Mariä Himmelfahrt")
+    assert "ohne überwiegend katholische Bevölkerung endet die Frist am Donnerstag, 15.08.2024" in f["hinweise"][0]
+    ohne = fristen.berechne(date(2024, 7, 15), 1, "monate", land="BY", maria_himmelfahrt_bayern=False)
+    assert ohne["ende"] == "2024-08-15" and "16.08.2024" in ohne["hinweise"][0]
+    assert fristen.berechne(date(2024, 7, 15), 2, "wochen", land="BY")["hinweise"] == []
+
+
 def test_frist_tagesbeginn():
     f = fristen.berechne(date(2026, 1, 1), 1, "jahre", beginn="tagesbeginn")
     assert (f["fristbeginn"], f["ende"]) == ("2026-01-01", "2026-12-31")
