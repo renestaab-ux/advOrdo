@@ -1,4 +1,5 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { EigeneKurzstand, istDesktop, kern } from "./kern";
 
 export type StartZiel = "anlegen" | "akte" | "eigene" | "toolbox" | "einstellungen";
 
@@ -46,16 +47,26 @@ const SYMBOLE: Record<StartZiel, ReactNode> = {
 const KACHELN: { ziel: StartZiel; titel: string; text: string; bald?: boolean }[] = [
   { ziel: "anlegen", titel: "Akte anlegen", text: "Neues Mandat mit Bezeichnung anlegen" },
   { ziel: "akte", titel: "Mit Akte arbeiten", text: "Dokumente, Suche, Vergleich und Analyse" },
-  { ziel: "eigene", titel: "Eigene Daten", text: "Kanzleidaten", bald: true },
+  { ziel: "eigene", titel: "Eigene Daten", text: "Kanzlei bzw. Unternehmen und Ihre Person" },
   { ziel: "toolbox", titel: "Toolbox", text: "Verzugszinsen- und Fristenrechner, eigenes Fenster" },
   { ziel: "einstellungen", titel: "Einstellungen", text: "Sprachmodell und externe KI" },
 ];
 
 /** Startbildschirm nach Renés Skizze: große Kacheln für die Einstiege. */
-export default function Start({ onWahl }: { onWahl: (ziel: StartZiel) => void }) {
+export default function Start({ onWahl, umgebung }: { onWahl: (ziel: StartZiel) => void; umgebung: string | null }) {
+  // Stand der Eigenen Daten für die Kachel, z. B. „3 Angaben fehlen“.
+  const [profil, setProfil] = useState<EigeneKurzstand | null>(null);
+  useEffect(() => {
+    if (istDesktop) void kern<EigeneKurzstand>("eigene.kurzstand").then(setProfil, () => setProfil(null));
+  }, []);
   return (
     <div className="start">
       <h1>JuraBox</h1>
+      {umgebung && (
+        <p className="umgebung-zeile">
+          Umgebung: <strong>{umgebung}</strong>
+        </p>
+      )}
       <div className="kacheln">
         {KACHELN.map((k) => (
           <button
@@ -73,6 +84,11 @@ export default function Start({ onWahl }: { onWahl: (ziel: StartZiel) => void })
               {k.bald && <span className="bald">bald</span>}
             </span>
             <span className="kachel-text">{k.text}</span>
+            {k.ziel === "eigene" && profil && (
+              <span className={profil.eingerichtet && profil.fehlend === 0 ? "kachel-stand gut" : "kachel-stand"}>
+                {profil.text}
+              </span>
+            )}
           </button>
         ))}
       </div>

@@ -21,6 +21,8 @@ from typing import Any
 from . import __version__, db, einstellungen
 from .abgleich import abgleich
 from .dokumente import akte, ansicht, ocr, suche, urteile
+from .eigene import daten as eigene
+from .eigene.felder import FELDER, FORMEN
 from .gesetze import quelle, wissensbasis
 from .ki import anbieter as ki_anbieter
 from .ki import chat as ki_chat
@@ -29,6 +31,7 @@ from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
 from .rechner import basiszins, fristen, verzugszinsen
 from .rechtsprechung import online, verzeichnis
+from .umgebungen import Umgebungen
 
 log = logging.getLogger("juracore.rpc")
 
@@ -39,12 +42,9 @@ class Kern:
         self.archiv = archiv
         self.eigene_liste = Path(db_pfad).parent / "gesetze.json"
         # Akten getrennt von der Wissensbasis: eigene Datenbank, Originale je Akte in einem eigenen Ordner.
-        self.akten_pfad = Path(db_pfad).parent / "akten.sqlite"
-        self.akten = akte.oeffne(self.akten_pfad)
-        self.ablage = Path(db_pfad).parent / "akten"
-        # Sprachmodell: Einstellungen in ki.json, Analysen als Hintergrundaufträge, Ergebnisse in akten.sqlite.
-        ki_speicher.einrichten(self.akten)
-        ki_chat.einrichten(self.akten)
+        # Beides gehört zur aktiven Arbeitsumgebung; die Wissensbasis teilen sich alle Umgebungen.
+        self.umgebungen = Umgebungen(Path(db_pfad).parent)
+        self._oeffne_akten(self.umgebungen.ordner())
         self.ki_datei = Path(db_pfad).parent / "ki.json"
         self.schluessel_datei = Path(db_pfad).parent / "ki-schluessel.json"
         self.ki_fabrik = ki_anbieter.erzeuge_aktiv
@@ -53,6 +53,31 @@ class Kern:
         self.quellen_datei = Path(db_pfad).parent / "rechtsprechung-quellen.json"
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
+            "umgebungen.liste": self.umgebungen.liste,
+            "umgebungen.anlegen": self.umgebungen.anlegen,
+            "umgebungen.umbenennen": self.umgebungen.umbenennen,
+            "umgebungen.loeschen": self.umgebungen.loeschen,
+            "umgebungen.wechseln": self.umgebung_wechseln,
+            "eigene.felder": lambda: {"felder": FELDER, "formen": FORMEN},
+            "eigene.stand": lambda: eigene.stand(self.akten),
+            "eigene.kurzstand": lambda: eigene.kurzstand(self.akten),
+            "eigene.form_setzen": lambda form: eigene.form_setzen(self.akten, form),
+            "eigene.organisation_speichern": lambda daten: eigene.organisation_speichern(self.akten, daten),
+            "eigene.inhaber_speichern": lambda daten, mitgliedschaft=None: eigene.inhaber_speichern(
+                self.akten, daten, mitgliedschaft),
+            "eigene.inhaber_waehlen": lambda person_id: eigene.inhaber_waehlen(self.akten, person_id),
+            "eigene.einheit_speichern": lambda art, daten, einheit_id=None: eigene.einheit_speichern(
+                self.akten, art, daten, einheit_id),
+            "eigene.person_speichern": lambda organisation_id, daten, mitgliedschaft=None, person_id=None:
+                eigene.person_speichern(self.akten, organisation_id, daten, mitgliedschaft, person_id),
+            "eigene.archivieren": lambda objekt, objekt_id, archiviert=True: eigene.archivieren(
+                self.akten, objekt, objekt_id, archiviert),
+            "eigene.loeschen": lambda objekt, objekt_id: eigene.loeschen(self.akten, objekt, objekt_id),
+            "eigene.duplizieren": lambda organisation_id: eigene.duplizieren(self.akten, organisation_id),
+            "eigene.assistent_fertig": lambda fertig=True: eigene.assistent_fertig(self.akten, fertig),
+            "eigene.aenderungen": lambda limit=50: eigene.aenderungen(self.akten, limit),
+            "eigene.exportieren": lambda pfad: eigene.exportieren(self.akten, pfad),
+            "eigene.importieren": lambda pfad, ersetzen=False: eigene.importieren(self.akten, pfad, ersetzen),
             "gesetze.liste": lambda: db.gesetze(self.con),
             "gesetze.verfuegbar": lambda: quelle.voreinstellung(self.eigene_liste),
             "gesetze.importieren": self.importieren,
@@ -120,6 +145,25 @@ class Kern:
             "rechner.basiszins_entfernen": lambda ab: basiszins.entfernen(self.basiszins_datei, ab),
             "ki.chat_leeren": lambda akte_id, dokument_id=None: ki_chat.leeren(self.akten, akte_id, dokument_id),
         }
+
+    def _oeffne_akten(self, ordner: Path) -> None:
+        self.akten_pfad = ordner / "akten.sqlite"
+        self.akten = akte.oeffne(self.akten_pfad)
+        self.ablage = ordner / "akten"
+        # Sprachmodell: Einstellungen in ki.json, Analysen als Hintergrundaufträge, Ergebnisse in akten.sqlite.
+        ki_speicher.einrichten(self.akten)
+        ki_chat.einrichten(self.akten)
+        # Eigene Daten (Profil, Kanzlei bzw. Unternehmen) gehören ebenfalls zur Umgebung.
+        eigene.einrichten(self.akten)
+
+    def umgebung_wechseln(self, umgebung_id: str) -> dict:
+        """Schließt die Akten der aktiven Umgebung und öffnet die der gewählten."""
+        if self.auftraege.laufend():
+            raise RuntimeError("Eine Analyse läuft noch. Bitte warten oder sie abbrechen, dann die Umgebung wechseln.")
+        ordner = self.umgebungen.aktivieren(umgebung_id)
+        self.akten.close()
+        self._oeffne_akten(ordner)
+        return self.umgebungen.liste()
 
     def importieren(self, gesetze: list[str]) -> list[dict]:
         ergebnisse = []

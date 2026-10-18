@@ -929,3 +929,125 @@ export function heuteIso(jetzt = new Date()): string {
   const z = (n: number) => String(n).padStart(2, "0");
   return `${jetzt.getFullYear()}-${z(jetzt.getMonth() + 1)}-${z(jetzt.getDate())}`;
 }
+
+export interface Umgebung {
+  id: string;
+  name: string;
+  angelegt_am: string | null;
+  standard: boolean;
+  aktiv: boolean;
+}
+
+export interface UmgebungsListe {
+  aktiv: string;
+  umgebungen: Umgebung[];
+}
+
+/** Die aktive Arbeitsumgebung; angezeigt wird sie erst, wenn es mehr als eine gibt. */
+export function aktiveUmgebung(liste: UmgebungsListe | null): Umgebung | null {
+  if (!liste || liste.umgebungen.length < 2) return null;
+  return liste.umgebungen.find((u) => u.id === liste.aktiv) ?? null;
+}
+
+// ---------------------------------------------------------------- Eigene Daten
+
+export interface FeldDef {
+  schluessel: string;
+  titel: string;
+  typ: "text" | "email" | "tel" | "url" | "auswahl" | "mehrfach" | "mehrzeilig" | "ja_nein" | "datum";
+  pflicht: boolean;
+  hinweis?: string;
+  optionen?: string[];
+  hoechstens?: number;
+  vorgabe?: string;
+}
+
+export type Werte = Record<string, string | string[] | boolean>;
+
+export interface EigeneFelder {
+  felder: Record<string, FeldDef[]>;
+  formen: Record<string, string>;
+}
+
+export interface EigenePerson {
+  id: number;
+  daten: Werte;
+  archiviert: boolean;
+  geaendert_am: string;
+  mitgliedschaft: Werte;
+}
+
+export interface EigeneOrganisation {
+  id: number;
+  art: "kanzlei" | "unternehmen" | "konzerngesellschaft" | "beauftragte_kanzlei";
+  daten: Werte;
+  archiviert: boolean;
+  geaendert_am: string;
+  anwaelte?: EigenePerson[];
+}
+
+export type Organisationsform = "einzelanwalt" | "kanzlei" | "rechtsabteilung";
+
+export interface EigeneDaten {
+  profil: {
+    form: Organisationsform | null;
+    organisation_id: number | null;
+    person_id: number | null;
+    assistent_fertig: boolean;
+  };
+  formen: Record<string, string>;
+  organisation: EigeneOrganisation | null;
+  organisation_felder: string;
+  organisation_name: string;
+  inhaber: EigenePerson | null;
+  inhaber_felder: string;
+  berufstraeger: EigenePerson[];
+  konzerngesellschaften: EigeneOrganisation[];
+  beauftragte_kanzleien: EigeneOrganisation[];
+  fehlend: string[];
+  hinweise: string[];
+}
+
+export interface EigeneKurzstand {
+  text: string;
+  eingerichtet: boolean;
+  fehlend: number;
+  hinweise: number;
+}
+
+export interface EigeneAenderung {
+  id: number;
+  zeitpunkt: string;
+  objekt: string;
+  bezeichnung: string;
+  feld: string;
+  alt: string | null;
+  neu: string | null;
+}
+
+/** „Dr. Erika Muster“ aus den Personendaten. */
+export function personName(daten: Werte): string {
+  return [daten.titel, daten.vorname, daten.nachname].filter((t) => typeof t === "string" && t).join(" ");
+}
+
+/** Anzeigetext eines Feldwerts; leer, wenn nichts eingetragen ist. */
+export function feldText(feld: FeldDef, wert: Werte[string] | undefined): string {
+  if (wert === undefined || wert === null) return "";
+  if (feld.typ === "ja_nein") return wert === true ? "ja" : "";
+  if (Array.isArray(wert)) return wert.join(", ");
+  if (feld.typ === "datum" && typeof wert === "string" && wert) return datumDe(wert);
+  return String(wert);
+}
+
+/** Anfangswerte eines Formulars: gespeicherte Werte, sonst Vorgaben. */
+export function startwerte(felder: FeldDef[], gespeichert: Werte | null | undefined): Werte {
+  const werte: Werte = {};
+  for (const f of felder) {
+    const g = gespeichert?.[f.schluessel];
+    if (g !== undefined) werte[f.schluessel] = g;
+    else if (f.typ === "mehrfach") werte[f.schluessel] = [];
+    else if (f.typ === "ja_nein") werte[f.schluessel] = false;
+    else werte[f.schluessel] = gespeichert ? "" : (f.vorgabe ?? "");
+  }
+  return werte;
+}

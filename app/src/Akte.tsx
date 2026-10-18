@@ -865,7 +865,7 @@ export default function Akte({
   );
 }
 
-function Rueckfrage({
+export function Rueckfrage({
   frage,
   erklaerung,
   ja,

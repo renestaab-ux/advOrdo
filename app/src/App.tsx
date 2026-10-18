@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Akte from "./Akte";
 import Analyse from "./Analyse";
+import EigeneDaten from "./EigeneDaten";
 import Einstellungen from "./Einstellungen";
 import Gesetze from "./Gesetze";
 import Rechtsprechung from "./Rechtsprechung";
@@ -9,9 +10,9 @@ import Suche from "./Suche";
 import Toolbox from "./Toolbox";
 import Vergleich from "./Vergleich";
 import { invoke } from "@tauri-apps/api/core";
-import { KiModus, istDesktop, kern } from "./kern";
+import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern } from "./kern";
 
-type Bereich = "start" | "toolbox" | "akte" | "suche" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
+type Bereich = "start" | "eigene" | "toolbox" | "akte" | "suche" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
 
 const BEREICHE: { id: Bereich; titel: string; bald?: boolean }[] = [
   { id: "start", titel: "Start" },
@@ -34,6 +35,20 @@ export default function App() {
     if (istDesktop) void kern<KiModus>("ki.modus").then(setModus, () => setModus(null));
   }, []);
   useEffect(ladeModus, [ladeModus]);
+  // Arbeitsumgebung (eigene Akten je Identität); nach einem Wechsel werden alle Bereiche neu geladen.
+  const [umgebungen, setUmgebungen] = useState<UmgebungsListe | null>(null);
+  const [stand, setStand] = useState(0);
+  useEffect(() => {
+    if (istDesktop) void kern<UmgebungsListe>("umgebungen.liste").then(setUmgebungen, () => setUmgebungen(null));
+  }, []);
+  function umgebungGeaendert(liste: UmgebungsListe, gewechselt: boolean) {
+    setUmgebungen(liste);
+    if (gewechselt) {
+      setAkteId(null);
+      setStand((n) => n + 1);
+    }
+  }
+  const umgebung = aktiveUmgebung(umgebungen);
   // „Akte anlegen“ vom Startbildschirm: Bereich Akte mit dem Namensfeld im Fokus.
   const [neueAkte, setNeueAkte] = useState(0);
 
@@ -44,6 +59,8 @@ export default function App() {
     } else if (ziel === "akte") {
       setNeueAkte(0);
       setBereich("akte");
+    } else if (ziel === "eigene") {
+      setBereich("eigene");
     } else if (ziel === "einstellungen") {
       setBereich("einstellungen");
     } else if (ziel === "toolbox") {
@@ -82,10 +99,20 @@ export default function App() {
             Modus: nur lokal
           </div>
         )}
+        {umgebung && (
+          <button
+            className="umgebung-anzeige"
+            onClick={() => setBereich("einstellungen")}
+            title="Akten und Analysen gehören zu dieser Umgebung. Wechseln unter „Einstellungen“."
+          >
+            Umgebung: <strong>{umgebung.name}</strong>
+          </button>
+        )}
       </nav>
-      <main className="inhalt">
-        {bereich === "start" && <Start onWahl={(z) => void starte(z)} />}
+      <main className="inhalt" key={stand}>
+        {bereich === "start" && <Start onWahl={(z) => void starte(z)} umgebung={umgebung?.name ?? null} />}
         {bereich === "toolbox" && <Toolbox />}
+        {bereich === "eigene" && <EigeneDaten onZurueck={() => setBereich("start")} />}
         {bereich === "akte" && (
           <Akte
             neueAkte={neueAkte}
@@ -111,7 +138,14 @@ export default function App() {
         )}
         {bereich === "gesetze" && <Gesetze />}
         {bereich === "rechtsprechung" && <Rechtsprechung onAkte={() => setBereich("akte")} />}
-        {bereich === "einstellungen" && <Einstellungen onGeaendert={ladeModus} />}
+        {bereich === "einstellungen" && (
+          <Einstellungen
+            onGeaendert={ladeModus}
+            umgebungen={umgebungen}
+            onUmgebungen={umgebungGeaendert}
+            onEigeneDaten={() => setBereich("eigene")}
+          />
+        )}
       </main>
     </div>
   );

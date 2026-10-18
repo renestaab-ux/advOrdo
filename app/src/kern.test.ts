@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  FeldDef,
+  aktiveUmgebung,
+  feldText,
+  personName,
+  startwerte,
   abgleichZusammenfassung,
   auswahlText,
   datumDe,
@@ -232,5 +237,37 @@ describe("Datum eines Dokuments", () => {
 
   it("zeigt einen Strich, wenn nichts bekannt ist", () => {
     expect(dokumentDatum({ ...leer, datum: null, datum_quelle: "unbekannt" }).text).toBe("–");
+  });
+});
+
+describe("aktiveUmgebung", () => {
+  const u = (id: string, aktiv = false) => ({ id, name: id.toUpperCase(), angelegt_am: null, standard: id === "standard", aktiv });
+  it("zeigt nichts, solange es nur die Standardumgebung gibt", () => {
+    expect(aktiveUmgebung({ aktiv: "standard", umgebungen: [u("standard", true)] })).toBeNull();
+    expect(aktiveUmgebung(null)).toBeNull();
+  });
+  it("nennt die aktive Umgebung, sobald es mehrere gibt", () => {
+    const liste = { aktiv: "test", umgebungen: [u("standard"), u("test", true)] };
+    expect(aktiveUmgebung(liste)?.name).toBe("TEST");
+  });
+});
+
+describe("Eigene Daten", () => {
+  const f = (typ: FeldDef["typ"], extra: Partial<FeldDef> = {}): FeldDef => ({ schluessel: "x", titel: "X", typ, pflicht: false, ...extra });
+  it("setzt Namen aus Titel, Vor- und Nachname zusammen", () => {
+    expect(personName({ titel: "Dr.", vorname: "Erika", nachname: "Muster" })).toBe("Dr. Erika Muster");
+    expect(personName({ titel: "", vorname: "Max", nachname: "Beispiel" })).toBe("Max Beispiel");
+  });
+  it("zeigt Feldwerte lesbar an", () => {
+    expect(feldText(f("mehrfach"), ["Arbeitsrecht", "Erbrecht"])).toBe("Arbeitsrecht, Erbrecht");
+    expect(feldText(f("ja_nein"), true)).toBe("ja");
+    expect(feldText(f("ja_nein"), false)).toBe("");
+    expect(feldText(f("datum"), "2026-03-01")).toBe("01.03.2026");
+    expect(feldText(f("text"), undefined)).toBe("");
+  });
+  it("füllt Vorgaben nur in neue Formulare", () => {
+    const felder = [f("text", { schluessel: "land", vorgabe: "Deutschland" }), f("mehrfach", { schluessel: "fa" })];
+    expect(startwerte(felder, null)).toEqual({ land: "Deutschland", fa: [] });
+    expect(startwerte(felder, { land: "" })).toEqual({ land: "", fa: [] });
   });
 });

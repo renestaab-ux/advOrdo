@@ -1,0 +1,170 @@
+{
+  "format": "jurabox-eigene-daten",
+  "version": 1,
+  "exportiert_am": "2026-10-18T13:35:20",
+  "form": "rechtsabteilung",
+  "organisation": "o1",
+  "inhaber": "p1",
+  "organisationen": [
+    {
+      "schluessel": "o1",
+      "art": "unternehmen",
+      "archiviert": false,
+      "daten": {
+        "name": "Stadtwerke Lindenau GmbH",
+        "rechtsform": "GmbH",
+        "kurzname": "SWL",
+        "strasse": "Am Rheinufer 900",
+        "plz": "77999",
+        "ort": "Lindenau am Rhein",
+        "land": "Deutschland",
+        "registergericht": "Amtsgericht Freiburg im Breisgau",
+        "registernummer": "HRB 999001",
+        "gesetzliche_vertreter": "Karl Wenzel (Geschäftsführer)",
+        "abteilung": "Rechtsabteilung",
+        "abteilung_email": "recht@stadtwerke-lindenau.example",
+        "abteilung_telefon": "07800 000000-50",
+        "ebo": ""
+      }
+    },
+    {
+      "schluessel": "o2",
+      "art": "konzerngesellschaft",
+      "archiviert": false,
+      "daten": {
+        "name": "Bäderbetriebe Lindenau GmbH",
+        "rechtsform": "GmbH",
+        "kurzname": "BBL",
+        "strasse": "Am Weilbad 3",
+        "plz": "77999",
+        "ort": "Lindenau am Rhein",
+        "land": "Deutschland",
+        "registergericht": "Amtsgericht Freiburg im Breisgau",
+        "registernummer": "HRB 999002",
+        "gesetzliche_vertreter": "Dr. Petra Engelhardt (Geschäftsführerin)",
+        "interne_kennung": "KG-02",
+        "beziehung": "Tochtergesellschaft"
+      }
+    },
+    {
+      "schluessel": "o3",
+      "art": "konzerngesellschaft",
+      "archiviert": false,
+      "daten": {
+        "name": "Verkehrsbetriebe Lindenau GmbH",
+        "rechtsform": "GmbH",
+        "kurzname": "VBL",
+        "strasse": "Depotweg 900",
+        "plz": "77999",
+        "ort": "Lindenau am Rhein",
+        "land": "Deutschland",
+        "registergericht": "Amtsgericht Freiburg im Breisgau",
+        "registernummer": "HRB 999003",
+        "gesetzliche_vertreter": "Anton Reiser (Geschäftsführer)",
+        "interne_kennung": "KG-03",
+        "beziehung": "Tochtergesellschaft"
+      }
+    },
+    {
+      "schluessel": "o4",
+      "art": "beauftragte_kanzlei",
+      "archiviert": false,
+      "daten": {
+        "name": "Brandt Okafor Rechtsanwälte PartG mbB",
+        "rechtsform": "PartG mbB",
+        "strasse": "Kriegsstraße 900",
+        "plz": "76133",
+        "ort": "Karlsruhe",
+        "land": "Deutschland",
+        "telefon": "",
+        "email": "kanzlei@brandt-okafor.example",
+        "bea_kanzlei": ""
+      }
+    }
+  ],
+  "personen": [
+    {
+      "schluessel": "p1",
+      "archiviert": false,
+      "daten": {
+        "anrede": "Frau",
+        "titel": "Dr.",
+        "vorname": "Miriam",
+        "nachname": "Sauer",
+        "zulassungsstatus": "Syndikusrechtsanwalt",
+        "funktion": "Leiterin Recht",
+        "fachanwalt": [
+          "Vergaberecht"
+        ],
+        "kammer": "Rechtsanwaltskammer Freiburg",
+        "safe_id": "",
+        "telefon": "",
+        "email": "miriam.sauer@stadtwerke-lindenau.example"
+      }
+    },
+    {
+      "schluessel": "p2",
+      "archiviert": false,
+      "daten": {
+        "anrede": "Herr",
+        "titel": "Dr.",
+        "vorname": "Jan",
+        "nachname": "Brandt",
+        "berufsbezeichnung": "Rechtsanwalt",
+        "fachanwalt": [
+          "Bau- und Architektenrecht",
+          "Vergaberecht"
+        ],
+        "safe_id": "",
+        "telefon": "",
+        "email": "brandt@brandt-okafor.example"
+      }
+    },
+    {
+      "schluessel": "p3",
+      "archiviert": false,
+      "daten": {
+        "anrede": "Frau",
+        "titel": "",
+        "vorname": "Ada",
+        "nachname": "Okafor",
+        "berufsbezeichnung": "Rechtsanwältin",
+        "fachanwalt": [
+          "Handels- und Gesellschaftsrecht"
+        ],
+        "safe_id": "",
+        "telefon": "",
+        "email": "okafor@brandt-okafor.example"
+      }
+    }
+  ],
+  "mitgliedschaften": [
+    {
+      "person": "p1",
+      "organisation": "o1",
+      "daten": {}
+    },
+    {
+      "person": "p2",
+      "organisation": "o4",
+      "daten": {
+        "stellung": "",
+        "standort": "",
+        "dezernat": "",
+        "vertretungsorgan": false,
+        "ausgeschieden_am": ""
+      }
+    },
+    {
+      "person": "p3",
+      "organisation": "o4",
+      "daten": {
+        "stellung": "",
+        "standort": "",
+        "dezernat": "",
+        "vertretungsorgan": false,
+        "ausgeschieden_am": ""
+      }
+    }
+  ]
+}

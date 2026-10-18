@@ -1,11 +1,22 @@
 import { FormEvent, useEffect, useState } from "react";
-import { KiStatus, groesseText, istDesktop, kern } from "./kern";
+import Umgebungen from "./Umgebungen";
+import { KiStatus, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
 
 const KONTEXTE = [8192, 16384, 32768];
 const KONTEXTE_EXTERN = [32768, 131072];
 
 /** Einstellungen: welches Sprachmodell Analyse und Chat verwenden; lokal, oder ausnahmsweise ein externer Anbieter. */
-export default function Einstellungen({ onGeaendert }: { onGeaendert?: () => void }) {
+export default function Einstellungen({
+  onGeaendert,
+  umgebungen,
+  onUmgebungen,
+  onEigeneDaten,
+}: {
+  onGeaendert?: () => void;
+  umgebungen: UmgebungsListe | null;
+  onUmgebungen: (liste: UmgebungsListe, gewechselt: boolean) => void;
+  onEigeneDaten: () => void;
+}) {
   const [status, setStatus] = useState<KiStatus | null>(null);
   const [anbieter, setAnbieter] = useState("ollama");
   const [endpunkt, setEndpunkt] = useState("");
@@ -84,6 +95,21 @@ export default function Einstellungen({ onGeaendert }: { onGeaendert?: () => voi
             : `das Modell auf diesem Gerät (${status.modell || "kein Modell gewählt"}). Dokumentinhalte verlassen es nicht.`}
         </p>
       )}
+
+      <Umgebungen liste={umgebungen} onGeaendert={onUmgebungen} />
+
+      <section className="karte">
+        <div className="kopf">
+          <h2>Eigene Daten</h2>
+          <button className="zweitrangig" onClick={onEigeneDaten}>
+            Öffnen
+          </button>
+        </div>
+        <p className="erklaerung">
+          Wer mit JuraBox arbeitet: Organisationsform, Kanzlei bzw. Unternehmen und Ihre Person. Die Angaben gehören zur
+          aktiven Arbeitsumgebung.
+        </p>
+      </section>
 
       <section className="karte">
         <h2>Sprachmodell auf diesem Gerät</h2>

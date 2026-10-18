@@ -1,0 +1,124 @@
+{
+  "format": "jurabox-eigene-daten",
+  "version": 1,
+  "exportiert_am": "2026-10-18T13:35:20",
+  "form": "kanzlei",
+  "organisation": "o1",
+  "inhaber": "p1",
+  "organisationen": [
+    {
+      "schluessel": "o1",
+      "art": "kanzlei",
+      "archiviert": false,
+      "daten": {
+        "name": "Albrecht Tiedemann Rechtsanwälte",
+        "rechtsform": "GbR/Sozietät",
+        "strasse": "Kaiser-Joseph-Straße 300",
+        "plz": "79098",
+        "ort": "Freiburg im Breisgau",
+        "land": "Deutschland",
+        "zweigstellen": "",
+        "telefon": "0761 000000-0",
+        "fax": "",
+        "email": "kanzlei@albrecht-tiedemann.example",
+        "website": "",
+        "registergericht": "",
+        "registernummer": "",
+        "bea_kanzlei": "",
+        "haftpflicht_versicherer": "Beispiel Versicherung AG",
+        "haftpflicht_anschrift": "Musterplatz 1, 50667 Köln",
+        "haftpflicht_geltungsbereich": "Europa"
+      }
+    }
+  ],
+  "personen": [
+    {
+      "schluessel": "p1",
+      "archiviert": false,
+      "daten": {
+        "anrede": "Frau",
+        "titel": "",
+        "vorname": "Sophie",
+        "nachname": "Albrecht",
+        "berufsbezeichnung": "Rechtsanwältin",
+        "fachanwalt": [
+          "Verkehrsrecht"
+        ],
+        "kammer": "Rechtsanwaltskammer Freiburg",
+        "safe_id": "",
+        "telefon": "",
+        "email": "albrecht@albrecht-tiedemann.example"
+      }
+    },
+    {
+      "schluessel": "p2",
+      "archiviert": false,
+      "daten": {
+        "anrede": "Herr",
+        "titel": "",
+        "vorname": "Martin",
+        "nachname": "Tiedemann",
+        "berufsbezeichnung": "Rechtsanwalt",
+        "fachanwalt": [
+          "Bau- und Architektenrecht",
+          "Miet- und Wohnungseigentumsrecht"
+        ],
+        "kammer": "Rechtsanwaltskammer Freiburg",
+        "safe_id": "",
+        "telefon": "",
+        "email": ""
+      }
+    },
+    {
+      "schluessel": "p3",
+      "archiviert": false,
+      "daten": {
+        "anrede": "Frau",
+        "titel": "",
+        "vorname": "Lea",
+        "nachname": "Kunz",
+        "berufsbezeichnung": "Rechtsanwältin",
+        "fachanwalt": [],
+        "kammer": "Rechtsanwaltskammer Freiburg",
+        "safe_id": "",
+        "telefon": "",
+        "email": ""
+      }
+    }
+  ],
+  "mitgliedschaften": [
+    {
+      "person": "p1",
+      "organisation": "o1",
+      "daten": {
+        "stellung": "Gesellschafter/Partner",
+        "standort": "",
+        "dezernat": "Kauf- und Verkehrsrecht",
+        "vertretungsorgan": false,
+        "ausgeschieden_am": ""
+      }
+    },
+    {
+      "person": "p2",
+      "organisation": "o1",
+      "daten": {
+        "stellung": "Gesellschafter/Partner",
+        "standort": "",
+        "dezernat": "Baurecht",
+        "vertretungsorgan": false,
+        "ausgeschieden_am": ""
+      }
+    },
+    {
+      "person": "p3",
+      "organisation": "o1",
+      "daten": {
+        "stellung": "Angestellt",
+        "standort": "",
+        "dezernat": "Kauf- und Verkehrsrecht",
+        "vertretungsorgan": false,
+        "ausgeschieden_am": ""
+      }
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "format": "jurabox-eigene-daten",
+  "version": 1,
+  "exportiert_am": "2026-10-18T13:35:20",
+  "form": "einzelanwalt",
+  "organisation": "o1",
+  "inhaber": "p1",
+  "organisationen": [
+    {
+      "schluessel": "o1",
+      "art": "kanzlei",
+      "archiviert": false,
+      "daten": {
+        "name": "",
+        "strasse": "Schwarzwaldstraße 900",
+        "plz": "79117",
+        "ort": "Freiburg im Breisgau",
+        "land": "Deutschland",
+        "zweigstellen": "",
+        "telefon": "0761 000000-0",
+        "fax": "",
+        "email": "kanzlei@kanzlei-weidinger.example",
+        "website": "https://kanzlei-weidinger.example",
+        "haftpflicht_versicherer": "Beispiel Versicherung AG",
+        "haftpflicht_anschrift": "Musterplatz 1, 50667 Köln",
+        "haftpflicht_geltungsbereich": "Europa"
+      }
+    }
+  ],
+  "personen": [
+    {
+      "schluessel": "p1",
+      "archiviert": false,
+      "daten": {
+        "anrede": "Herr",
+        "titel": "",
+        "vorname": "Jonas",
+        "nachname": "Weidinger",
+        "berufsbezeichnung": "Rechtsanwalt",
+        "fachanwalt": [
+          "Verkehrsrecht",
+          "Versicherungsrecht"
+        ],
+        "kammer": "Rechtsanwaltskammer Freiburg",
+        "safe_id": "",
+        "telefon": "0761 000000-1",
+        "email": "weidinger@kanzlei-weidinger.example"
+      }
+    }
+  ],
+  "mitgliedschaften": [
+    {
+      "person": "p1",
+      "organisation": "o1",
+      "daten": {}
+    }
+  ]
+}

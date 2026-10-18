@@ -402,3 +402,56 @@ button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var
   .rahmen { display: block; height: auto; }
   .rechner-ergebnis { border: none; padding: 0; }
 }
+
+/* Arbeitsumgebungen */
+.umgebungen { list-style: none; padding: 0; margin: 12px 0; }
+.umgebungen li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--linie); }
+.umgebungen li.aktiv .umgebung-titel { font-weight: 600; }
+.umgebungen .aktionen { display: flex; gap: 8px; flex-wrap: wrap; }
+.umgebung-name, .umgebung-neu { display: flex; gap: 8px; align-items: center; flex: 1; }
+.umgebung-name input, .umgebung-neu input { flex: 1; min-width: 0; }
+.marke-aktiv { margin-left: 8px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; color: var(--gut); border: 1px solid var(--gut); }
+.umgebung-anzeige { font-size: 12px; color: var(--text-leise); text-align: left; background: none; border: none; padding: 0; margin-top: 6px; cursor: pointer; }
+.umgebung-anzeige strong { color: var(--text); }
+.start .umgebung-zeile { margin: -16px 0 20px; color: var(--text-leise); }
+
+/* Eigene Daten */
+.eigene { max-width: 860px; }
+.eigene .karte { max-width: none; }
+.eigene .karte .kopf h2 { margin: 4px 0; }
+.frage-gross { font-size: 18px; margin: 16px 0; }
+.formkarten { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+@media (max-width: 760px) { .formkarten { grid-template-columns: 1fr; } }
+.formkarte { display: flex; flex-direction: column; gap: 8px; text-align: left; background: var(--flaeche); color: var(--text); border: 1px solid var(--linie); padding: 16px; border-radius: 8px; }
+.formkarte:hover:not(:disabled) { border-color: var(--akzent); }
+.formkarte.gewaehlt { border-color: var(--akzent); box-shadow: 0 0 0 1px var(--akzent); }
+.formkarte span { color: var(--text-leise); font-size: 13px; }
+.formular-raster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 12px 0; }
+@media (max-width: 760px) { .formular-raster { grid-template-columns: 1fr; } }
+.feld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.feld-breit { grid-column: 1 / -1; }
+.feld input, .feld select, .feld textarea { font: inherit; }
+.feld-ja-nein span { display: flex; align-items: center; gap: 6px; }
+.feld-hinweis { color: var(--text-leise); font-size: 12px; }
+.pflicht { color: var(--akzent); }
+.mehrfach { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.assistent-navigation { margin: 16px 0; }
+.anzeige { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; margin: 8px 0 0; }
+.anzeige div { display: flex; flex-direction: column; }
+.anzeige dt { color: var(--text-leise); font-size: 12px; }
+.anzeige dd { margin: 0; white-space: pre-line; }
+.vollstaendigkeit h3 { font-size: 14px; margin: 4px 0; }
+.vollstaendigkeit ul { margin: 4px 0 8px; padding-left: 20px; }
+.eintraege { list-style: none; padding: 0; margin: 8px 0 0; }
+.eintraege > li { padding: 8px 0; border-bottom: 1px solid var(--linie); display: flex; flex-direction: column; gap: 4px; }
+.eintraege > li:not(:has(.eintrag-kopf)) { flex-direction: row; justify-content: space-between; align-items: center; gap: 12px; }
+.eintraege li.archiviert { opacity: 0.6; }
+.eintrag-kopf { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.eintrag-formular { border: 1px solid var(--linie); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+.anwaelte { margin-left: 16px; font-size: 13px; }
+.anwaelte ul { list-style: none; padding: 0; margin: 4px 0; }
+.schalter-zeile { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-leise); margin: 8px 0; }
+.kachel-stand { font-size: 12px; color: var(--warnung); }
+.kachel-stand.gut { color: var(--gut); }
+.eigene table.tabelle { width: 100%; border-collapse: collapse; font-size: 13px; }
+.eigene table.tabelle td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--linie); vertical-align: top; }
