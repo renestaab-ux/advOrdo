@@ -1,0 +1,7 @@
+{"@type": "hydra:Collection", "totalItems": 1, "member": [
+ {"@type": "SearchResult", "textMatches": [], "item": {
+   "@type": "Decision", "@id": "/v1/case-law/KORE999992026",
+   "documentNumber": "KORE999992026", "ecli": "ECLI:DE:BGH:2026:010626UVIIIZR1126.0",
+   "courtType": "BGH", "courtName": "Bundesgerichtshof", "judicialBody": "8. Zivilsenat",
+   "decisionDate": "2026-06-01", "fileNumbers": ["VIII ZR 11/26"], "documentType": "Urteil",
+   "headline": "Erfundene Entscheidung für Tests"}}]}

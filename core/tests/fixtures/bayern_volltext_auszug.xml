@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE bayportalrsp SYSTEM "https://www.gesetze-bayern.de/dtd/bayportalrsp.dtd">
+<!-- Erfundene Entscheidung, nachgebildet nach dem in der Funktionsbeschreibung von JuraBox Lite (§ 5.3)
+     beschriebenen Format von gesetze-bayern.de; kein echter Inhalt, nur für Tests. -->
+<bayportalrsp>
+  <metadaten>
+    <aktenzeichen>7 U 1234/22</aktenzeichen>
+    <doktyp>EndUrt</doktyp>
+    <entsch-datum>2023-03-14</entsch-datum>
+    <gericht><gerid>OLGMUE</gerid><gertyp>OLG</gertyp><gerort>München</gerort></gericht>
+    <gerichtsbarkeit>Ordentliche Gerichtsbarkeit</gerichtsbarkeit>
+    <spruchkoerper>7. Zivilsenat</spruchkoerper>
+    <norm><normgliederung><enbez>BGB § 434</enbez></normgliederung></norm>
+    <norm><normgliederung><enbez>BGB § 323</enbez></normgliederung></norm>
+    <fundstelle><periodikum>BeckRS</periodikum><zitstelle>2023, 99999</zitstelle></fundstelle>
+    <vorinstanz><az>3 O 111/21</az><datum>2022-06-01</datum><doktyp>EndUrt</doktyp><gericht>LG Traunstein</gericht></vorinstanz>
+    <schlagwort>Gebrauchtwagen</schlagwort>
+  </metadaten>
+  <textdaten>
+    <titelzeile><body><div><p>Rücktritt vom Gebrauchtwagenkauf&nbsp;wegen Rost</p></div></body></titelzeile>
+    <leitsatz><body><div><span>1.</span><p>Erster Leitsatz (Rn. 3) <span class="redLS">(redaktioneller Leitsatz)</span></p></div></body></leitsatz>
+    <leitsatz><body><div><span>2.</span><p>Zweiter Leitsatz (Rn. 4) <span class="redLS">(redaktioneller Leitsatz)</span></p></div></body></leitsatz>
+    <tenor><body><div><p>Die Berufung wird zurückgewiesen.</p></div></body></tenor>
+    <gruende><body><div>
+      <p><rd nr="1"/>Die Parteien streiten über die Rückabwicklung eines Kaufvertrags.</p>
+      <p><rd nr="2"/>Das Landgericht hat der Klage stattgegeben.</p>
+      <p><rd nr="3"/>Die Berufung ist unbegründet; der Mangel lag bei&nbsp;Gefahrübergang vor.</p>
+    </div></body></gruende>
+    <anmerkung><body><div><p>Unbekannter Teil wird mitgelesen.</p></div></body></anmerkung>
+  </textdaten>
+</bayportalrsp>

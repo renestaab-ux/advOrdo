@@ -293,12 +293,44 @@ export interface UrteilEintrag {
   datum: string | null;
   status: UrteilStatus;
   hinweis: string | null;
-  entscheidung: { gericht: string; spruchkoerper: string | null; datum: string | null; aktenzeichen: string; link: string | null } | null;
+  entscheidung: {
+    gericht: string;
+    spruchkoerper: string | null;
+    datum: string | null;
+    aktenzeichen: string;
+    link: string | null;
+    /** Quelle, die das Zitat belegt hat; fehlt bei rechtsprechung-im-internet.de. */
+    quelle?: OnlineQuelle;
+  } | null;
   fundstellen: (Fundstelle & { rn_zitiert: number | null; rn_vorhanden: boolean | null })[];
   /** Volltext, der zur Akte vorliegt (selbst ergänzt oder geladen). */
   urteil: UrteilInfo | null;
   /** Höchste Randnummer im Volltext, wenn einer vorliegt. */
   rn_hoechste: number | null;
+  /** Online-Quelle, bei der das noch nicht belegte Zitat geprüft werden kann. */
+  online_offen: OnlineQuelle | null;
+}
+
+export type OnlineQuelle = "bayern" | "neuris";
+
+export const ONLINE_QUELLE: Record<OnlineQuelle, string> = {
+  bayern: "gesetze-bayern.de",
+  neuris: "NeuRIS (Testphase)",
+};
+
+/** Herkunftshinweis der Quellen, aus denen Volltexte geladen werden. */
+export const QUELLEN_HINWEIS: Partial<Record<UrteilQuelle, string>> = {
+  rii: "Quelle: Rechtsprechung im Internet (BMJ/BfJ). Anonymisierte Fassung, kein amtlicher Text.",
+  bayern:
+    "Quelle: Bürgerservice BAYERN.RECHT (gesetze-bayern.de). Redaktionell bearbeitete, anonymisierte Fassung, kein amtlicher Text; redaktionelle Leitsätze urheberrechtlich geschützt.",
+  neuris: "Quelle: Rechtsinformationsportal des Bundes, Testphase – ohne Gewähr. Kein amtlicher Text.",
+};
+
+export type UrteilQuelle = "manuell" | "rii" | OnlineQuelle;
+
+/** Welche Online-Quellen genutzt werden; gesetze-bayern.de ist immer an. */
+export interface RechtsprechungQuellen {
+  neuris: boolean;
 }
 
 /** Eine Entscheidung im Volltext zur Akte, z. B. ein PDF-Ausdruck aus juris. */
@@ -308,7 +340,7 @@ export interface UrteilInfo {
   gericht: string;
   aktenzeichen: string | null;
   datum: string | null;
-  quelle: "manuell" | "rii";
+  quelle: UrteilQuelle;
   herkunft: string | null;
   dateiname: string;
   format: string;
@@ -355,7 +387,7 @@ export function urteilHerkunft(u: Pick<UrteilInfo, "herkunft" | "dateiname">): s
 /** Selbst ergänzte bzw. geladene Entscheidungen über alle Akten, je Quelle. */
 export interface EigeneUrteile {
   gesamt: number;
-  quellen: { quelle: "manuell" | "rii"; herkunft: string | null; anzahl: number }[];
+  quellen: { quelle: UrteilQuelle; herkunft: string | null; anzahl: number }[];
 }
 
 export interface RechtsprechungStand {

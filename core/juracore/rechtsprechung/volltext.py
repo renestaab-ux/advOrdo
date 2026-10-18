@@ -76,10 +76,12 @@ def lade(doknr: str, timeout: float = 60) -> bytes:
         return antwort.read()
 
 
-def archiviere(daten: bytes, archiv: Path) -> tuple[str, Path]:
-    """Legt die Datei unverändert und schreibgeschützt unter ihrer Prüfsumme ab; Vorhandenes bleibt."""
+def archiviere(daten: bytes, archiv: Path, ordner: str = "volltexte", endung: str = "zip") -> tuple[str, Path]:
+    """Legt die Datei unverändert und schreibgeschützt unter ihrer Prüfsumme ab; Vorhandenes bleibt.
+
+    ``ordner`` trennt die Quellen: ``volltexte`` (rechtsprechung-im-internet.de), ``bayern``, ``neuris``."""
     sha = hashlib.sha256(daten).hexdigest()
-    ziel = Path(archiv) / "RECHTSPRECHUNG" / "volltexte" / f"{sha}.zip"
+    ziel = Path(archiv) / "RECHTSPRECHUNG" / ordner / f"{sha}.{endung}"
     if not ziel.exists():
         ziel.parent.mkdir(parents=True, exist_ok=True)
         tmp = ziel.with_suffix(".tmp")

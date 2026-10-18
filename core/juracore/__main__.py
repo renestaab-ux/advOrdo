@@ -13,7 +13,7 @@ from .dokumente import lesen, ocr
 from .gesetze import quelle, wissensbasis
 from .gesetze.zitate import finde_zitate
 from .ki import anbieter as ki_anbieter
-from .rechtsprechung import verzeichnis, volltext
+from .rechtsprechung import bayern, neuris, online, verzeichnis, volltext
 from .rechtsprechung.zitate import finde_urteilszitate
 
 
@@ -42,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     ur.add_argument("zitat")
     ur.add_argument("--volltext", action="store_true",
                     help="belegte Entscheidung im Volltext laden und Randnummern zeigen (nur öffentliche Quelle)")
+    ur.add_argument("--online", action="store_true",
+                    help="nicht belegte Zitate bei gesetze-bayern.de bzw. NeuRIS (Testphase) suchen")
     le = sub.add_parser("lesen", help="Dokument (PDF, DOCX, TXT, MD) lesen und Normzitate prüfen, ohne es zu speichern")
     le.add_argument("pfad", type=Path)
     le.add_argument("--ohne-ocr", action="store_true", help="Bildseiten nicht per Texterkennung lesen")
@@ -97,10 +99,23 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Kein Rechtsprechungszitat erkannt: {a.zitat!r}", file=sys.stderr)
             return 1
         ergebnis = [{"zitat": str(z)} | verzeichnis.pruefe(con, z) for z in gefunden]
+        if a.online:
+            for z, e in zip(gefunden, ergebnis, strict=True):
+                q = online.zustaendig(z.gericht, z.aktenzeichen, e["status"], {online.BAYERN, online.NEURIS})
+                if q:
+                    try:
+                        treffer = online.SUCHE[q](z.aktenzeichen)
+                    except (OSError, ValueError) as f:
+                        e["online_fehler"] = f"{online.TITEL[q]}: {f}"
+                        continue
+                    e.update(online.bewerte(q, z.gericht, z.aktenzeichen, z.datum, treffer))
         if a.volltext:
+            leser = {"rii": (volltext.lade, lambda d, _e: volltext.lies(d)), "bayern": (bayern.lade, bayern.lies),
+                     "neuris": (neuris.lade, neuris.lies)}
             for e in ergebnis:
-                if e["entscheidung"] and e["entscheidung"].get("doknr"):
-                    v = volltext.lies(volltext.lade(e["entscheidung"]["doknr"]))
+                if e["status"] == verzeichnis.BELEGT and e["entscheidung"] and e["entscheidung"].get("doknr"):
+                    lade, lies = leser[e["entscheidung"].get("quelle", "rii")]
+                    v = lies(lade(e["entscheidung"]["doknr"]), e["entscheidung"])
                     rn = v.randnummern
                     e["volltext"] = {"titel": v.titel, "normen": v.normen, "absaetze": len(v.absaetze),
                                      "randnummern": f"{rn[0]}–{rn[-1]}" if rn else None,

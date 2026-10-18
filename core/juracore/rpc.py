@@ -28,7 +28,7 @@ from .ki import speicher as ki_speicher
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
 from .rechner import basiszins, fristen, verzugszinsen
-from .rechtsprechung import verzeichnis
+from .rechtsprechung import online, verzeichnis
 
 log = logging.getLogger("juracore.rpc")
 
@@ -50,6 +50,7 @@ class Kern:
         self.ki_fabrik = ki_anbieter.erzeuge_aktiv
         self.auftraege = Auftraege()
         self.basiszins_datei = Path(db_pfad).parent / "basiszins.json"
+        self.quellen_datei = Path(db_pfad).parent / "rechtsprechung-quellen.json"
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
             "gesetze.liste": lambda: db.gesetze(self.con),
@@ -81,7 +82,10 @@ class Kern:
             "akten.suche": lambda text, akte_id=None: suche.suche(self.akten, text, akte_id),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
             "akten.rechtsprechung": lambda akte_id, dokument_id=None: akte.rechtsprechung(
-                self.akten, self.con, akte_id, dokument_id),
+                self.akten, self.con, akte_id, dokument_id, self._online_quellen()),
+            "akten.online_pruefen": self.online_pruefen,
+            "rechtsprechung.quellen": lambda: online.einstellungen(self.quellen_datei),
+            "rechtsprechung.quellen_setzen": lambda neuris: online.einstellungen_setzen(self.quellen_datei, neuris),
             "akten.urteil_ergaenzen": lambda akte_id, pfad, gericht, aktenzeichen=None, datum=None, zitat=None,
                 herkunft=None: urteile.ergaenzen(self.akten, akte_id, pfad, self.ablage, gericht, aktenzeichen, datum,
                                                  zitat, herkunft),
@@ -236,6 +240,17 @@ class Kern:
                 con.close()
 
         return self.auftraege.starte(aufgabe, arbeit)
+
+    def _online_quellen(self) -> set[str]:
+        return online.quellen(online.einstellungen(self.quellen_datei))
+
+    def online_pruefen(self, akte_id: int, neu: bool = False) -> dict:
+        """Prüft offene Zitate einer Akte bei gesetze-bayern.de bzw. NeuRIS; gesendet wird nur das Aktenzeichen."""
+        aktiv = self._online_quellen()
+        ergebnis = online.pruefe(self.con, akte.rechtsprechung(self.akten, self.con, akte_id, None, aktiv), aktiv,
+                                 bool(neu))
+        akte.urteilszitate_neu_pruefen(self.akten, self.con, akte_id)
+        return ergebnis
 
     def rechtsprechung_laden(self) -> dict:
         """Lädt das Verzeichnis der Bundesrechtsprechung (öffentliche Liste, keine Akteninhalte)."""
