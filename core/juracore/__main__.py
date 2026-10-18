@@ -27,7 +27,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("serve", help="JSON-RPC über stdin/stdout für die Desktop-App")
     imp = sub.add_parser("import", help="Gesetze von gesetze-im-internet.de laden (z. B. BGB ZPO)")
     imp.add_argument("gesetze", nargs="+")
-    imd = sub.add_parser("import-datei", help="Lokale GII-Datei (.xml/.zip) importieren")
+    imd = sub.add_parser(
+        "import-datei", help="Lokale GII-Datei (.xml/.zip) oder gespeicherte EUR-Lex-Seite (.html) importieren"
+    )
     imd.add_argument("pfad", type=Path)
     su = sub.add_parser("suche", help="Volltextsuche in den Gesetzen")
     su.add_argument("text")

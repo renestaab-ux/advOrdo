@@ -82,7 +82,10 @@ class Liste:
     eintraege: list[tuple[str, str]]
 
     def als_text(self) -> str:
-        return "\n".join(f"{nr}. {text}" if nr.isdigit() else f"{nr}) {text}" for nr, text in self.eintraege)
+        return "\n".join(
+            f"{nr}. {text}" if nr.isdigit() else f"{nr}) {text}" if nr.isalnum() else f"{nr} {text}"
+            for nr, text in self.eintraege
+        )
 
 
 @dataclass

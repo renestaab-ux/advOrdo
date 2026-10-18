@@ -405,7 +405,7 @@ juracore suche "Verjährungsfrist"
 juracore liste
 ```
 
-- Voreingestellt sind 36 Bundesgesetze, die in Zivilrechtsstreitigkeiten typischerweise
+- Voreingestellt sind 36 Bundesgesetze und zwei EU-Verordnungen, die in Zivilrechtsstreitigkeiten typischerweise
   gebraucht werden (`core/juracore/gesetze/voreinstellung.json`, gegliedert nach Gebieten).
   Eine eigene Liste im selben Format unter `<Datenverzeichnis>/gesetze.json` ersetzt sie.
 - Weitere Bundesgesetze lädt man über ihre Abkürzung, wie sie in der Adresse auf
@@ -415,6 +415,26 @@ juracore liste
   Ältere Fassungen bleiben abrufbar, damit frühere Analysen reproduzierbar sind.
 - Normen sind bis auf Absatz, Satz und Nummer zerlegt; Zitate werden darauf aufgelöst.
 - Die Texte von „Gesetze im Internet“ sind konsolidiert, aber nicht amtlich. Die App zeigt das bei jedem Beleg an.
+
+### Unionsrecht aus EUR-Lex
+
+```bash
+juracore import DSGVO EuGVVO                 # lädt die HTML-Fassung von eur-lex.europa.eu
+juracore import-datei DSGVO.html             # im Browser gespeicherte EUR-Lex-Seite
+juracore zitat "Art. 6 Abs. 1 lit. f DSGVO"
+```
+
+- Voreingestellt (Gruppe „Unionsrecht“) sind die DSGVO und die EuGVVO. In
+  `voreinstellung.json` ist das Kürzel dann die CELEX-Nummer (DSGVO: `32016R0679`).
+- Gespeichert wird die Fassung des Amtsblatts, ohne spätere Änderungen und Berichtigungen.
+  Die App nennt das bei jedem Beleg; Quelle © Europäische Union, Weiterverwendung mit
+  Quellenangabe erlaubt (Beschluss 2011/833/EU).
+- Zitate mit Buchstaben („lit. f“, „Buchst. f“), Unterabsatz („UAbs. 1“, wird übergangen) und
+  der Schreibweise „DS-GVO“ werden erkannt. Die Erwägungsgründe sind als eigene Einträge
+  durchsuchbar.
+- Liefert EUR-Lex statt des Rechtstexts etwa eine Prüfseite, die Seite im Browser öffnen, als
+  „Webseite, nur HTML“ speichern und mit `import-datei` einlesen; die Abkürzung wird an der
+  CELEX-Nummer erkannt.
 
 Die Testdaten unter `core/tests/fixtures/` sind von Hand gekürzte Auszüge im
 GII-Format und keine Rechtsquelle.

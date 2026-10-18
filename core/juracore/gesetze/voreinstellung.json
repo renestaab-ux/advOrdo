@@ -1,5 +1,5 @@
 {
-  "_hinweis": "Voreingestellte Gesetze für Zivilrechtsstreitigkeiten. 'kuerzel' ist der Pfad auf gesetze-im-internet.de (https://www.gesetze-im-internet.de/<kuerzel>/). Eine eigene Liste unter <Datenverzeichnis>/gesetze.json ersetzt diese.",
+  "_hinweis": "Voreingestellte Gesetze für Zivilrechtsstreitigkeiten. 'kuerzel' ist der Pfad auf gesetze-im-internet.de (https://www.gesetze-im-internet.de/<kuerzel>/) oder bei Unionsrecht die CELEX-Nummer bei EUR-Lex. Eine eigene Liste unter <Datenverzeichnis>/gesetze.json ersetzt diese.",
   "gesetze": [
     {"abk": "BGB", "kuerzel": "bgb", "titel": "Bürgerliches Gesetzbuch", "gruppe": "Materielles Zivilrecht"},
     {"abk": "EGBGB", "kuerzel": "bgbeg", "titel": "Einführungsgesetz zum BGB", "gruppe": "Materielles Zivilrecht"},
@@ -36,6 +36,8 @@
     {"abk": "FamGKG", "kuerzel": "famgkg", "titel": "Gesetz über Gerichtskosten in Familiensachen", "gruppe": "Kosten"},
     {"abk": "RVG", "kuerzel": "rvg", "titel": "Rechtsanwaltsvergütungsgesetz", "gruppe": "Kosten"},
     {"abk": "JVEG", "kuerzel": "jveg", "titel": "Justizvergütungs- und -entschädigungsgesetz", "gruppe": "Kosten"},
-    {"abk": "UStG", "kuerzel": "ustg_1980", "titel": "Umsatzsteuergesetz (Vorsteuer bei Schadensersatz und Miete)", "gruppe": "Steuern"}
+    {"abk": "UStG", "kuerzel": "ustg_1980", "titel": "Umsatzsteuergesetz (Vorsteuer bei Schadensersatz und Miete)", "gruppe": "Steuern"},
+    {"abk": "DSGVO", "kuerzel": "32016R0679", "titel": "Datenschutz-Grundverordnung, VO (EU) 2016/679 (EUR-Lex)", "gruppe": "Unionsrecht"},
+    {"abk": "EuGVVO", "kuerzel": "32012R1215", "titel": "Brüssel Ia-Verordnung, VO (EU) Nr. 1215/2012 (EUR-Lex)", "gruppe": "Unionsrecht"}
   ]
 }

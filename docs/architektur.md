@@ -24,6 +24,11 @@ mitgeliefert (offen).
 `absatz` → `satz` (mit Nummern). Suche und Zitatauflösung nutzen standardmäßig
 die neueste Fassung; über `fassung_id` lässt sich jede ältere Fassung abfragen.
 
+Quellen: Bundesrecht als GII-XML (`gesetze/gii.py`), Unionsrecht als HTML-Fassung des
+Amtsblatts aus EUR-Lex (`gesetze/eurlex.py`, Klassen `oj-ti-art`, `oj-normal` usw., ältere
+Rechtsakte ohne `oj-`). Beide Leser liefern dasselbe `GesetzDokument`; `wissensbasis.importiere`
+erkennt das Format am Inhalt. Erwägungsgründe stehen als `norm` mit `typ = 'erwaegungsgrund'`.
+
 ## Akten einlesen
 
 `juracore.dokumente`: `lesen` liest PDF (PDFium über `pypdfium2`), DOCX (Word-XML direkt,

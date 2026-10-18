@@ -51,7 +51,7 @@ export default function Gesetze() {
   }, [ausfuehren, ladeListe]);
 
   async function importieren(abk: string[]) {
-    await ausfuehren(`Lade ${abk.join(", ")} von gesetze-im-internet.de …`, async () => {
+    await ausfuehren(`Lade ${abk.join(", ")} von gesetze-im-internet.de bzw. EUR-Lex …`, async () => {
       const ergebnisse = await kern<ImportErgebnis[]>("gesetze.importieren", { gesetze: abk });
       await ladeListe();
       const fehler = ergebnisse.filter((e) => e.fehler).map((e) => `${e.abk}: ${e.fehler}`);
@@ -83,8 +83,12 @@ export default function Gesetze() {
   }
 
   async function oeffne(abk: string, bezeichnung: string) {
-    const nummer = bezeichnung.replace(/^(§§?|Art\.?|Artikel)\s*/, "");
-    const typ = bezeichnung.startsWith("Art") ? "artikel" : "paragraph";
+    const nummer = bezeichnung.replace(/^(§§?|Art\.?|Artikel|Erwägungsgrund)\s*/, "");
+    const typ = bezeichnung.startsWith("Art")
+      ? "artikel"
+      : bezeichnung.startsWith("Erwägungsgrund")
+        ? "erwaegungsgrund"
+        : "paragraph";
     const n = await ausfuehren("Lade Norm …", () => kern<Norm | null>("gesetze.norm", { gesetz: abk, nummer, typ }));
     setNorm(n ?? null);
   }

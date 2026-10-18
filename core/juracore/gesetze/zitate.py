@@ -6,6 +6,8 @@ Unterstützt werden auch die in Schriftsätzen üblichen Kurzformen:
 - weitere Absätze derselben Norm: "§ 346 Abs. 1, Abs. 2 Satz 1 Nr. 1 BGB"
 - abgekürzte Absatz- oder Satzfolgen: "§§ 280 Abs. 1, 2, 286 BGB" (Abs. 2), "§ 709 Satz 1 und 2 ZPO"
 - Verkettung über "i.V.m.", "und", ",": "§ 280 Abs. 1 i.V.m. § 241 Abs. 2 BGB"
+- Unionsrecht: "Art. 6 Abs. 1 UAbs. 1 lit. f DSGVO" (Buchstaben wie Nummern, Unterabsatz wird übergangen),
+  "DS-GVO" als Schreibweise der DSGVO
 """
 
 from __future__ import annotations
@@ -15,7 +17,13 @@ from dataclasses import dataclass
 
 _ABS = r"(?:Abs\.|Absatz|Absatzes|Absätze)"
 _SATZ = r"(?:S\.|Satz|Satzes|Sätze)"
-_NR = r"(?:Nr\.|Nummer|Nrn\.)"
+_NR = r"(?:Nr\.|Nummer|Nrn\.|lit\.|Buchst\.|Buchstabe)"
+# Nummer ("4", "3a") oder Buchstabe einer Aufzählung im Unionsrecht ("lit. f").
+_NR_WERT = r"(?:\d+[a-z]?|[a-z](?![\wäöüß]))"
+# Weiterer Buchstabe einer Aufzählung: "lit. a und f".
+_BUCHSTABE = r"(?<![\wäöüß.])[a-z](?![\wäöüß.])"
+# Unterabsätze zählen im Unionsrecht innerhalb des Absatzes; für die Auflösung genügt der Absatz.
+_UABS = r"(?:\s*(?:UAbs\.|Unterabs\.|Unterabsatz)\s*\d+)?"
 
 # Paragraph innerhalb eines Artikels, z. B. "Art. 229 § 6 EGBGB".
 _UNTERPARAGRAPH = r"(?:\s*§\s*\d+[a-z]?)?"
@@ -23,16 +31,16 @@ _UNTERPARAGRAPH = r"(?:\s*§\s*\d+[a-z]?)?"
 # Ein Normziel: Nummer, optional Absatz, Satz, Nummer und "f."/"ff.".
 _ZIEL_ROH = (
     rf"\d+[a-z]?{_UNTERPARAGRAPH}"
-    rf"(?:\s*{_ABS}\s*\d+[a-z]?)?"
+    rf"(?:\s*{_ABS}\s*\d+[a-z]?{_UABS})?"
     rf"(?:\s*{_SATZ}\s*\d+)?"
-    rf"(?:\s*{_NR}\s*\d+[a-z]?)?"
+    rf"(?:\s*{_NR}\s*{_NR_WERT})?"
     r"(?:\s*ff?\.)?"
 )
 # Eine weitere Stelle derselben Norm ohne Paragraphennummer: ", Abs. 2 Satz 1 Nr. 1".
 _TEIL_ROH = (
-    rf"(?:{_ABS}\s*\d+[a-z]?|{_SATZ}\s*\d+|{_NR}\s*\d+[a-z]?)"
+    rf"(?:{_ABS}\s*\d+[a-z]?{_UABS}|{_SATZ}\s*\d+|{_NR}\s*{_NR_WERT}|{_BUCHSTABE})"
     rf"(?:\s*{_SATZ}\s*\d+)?"
-    rf"(?:\s*{_NR}\s*\d+[a-z]?)?"
+    rf"(?:\s*{_NR}\s*{_NR_WERT})?"
 )
 _TRENNER = r"\s*(?:,|und|bis|-|–)\s*"
 _GRUPPE = re.compile(
@@ -40,12 +48,15 @@ _GRUPPE = re.compile(
     rf"(?P<ziele>{_ZIEL_ROH}(?:{_TRENNER}(?:{_ZIEL_ROH}|{_TEIL_ROH}))*)"
 )
 _ELEMENT = re.compile(
+    rf"(?P<buchstabe>{_BUCHSTABE})|"
     rf"(?P<nummer>\d+[a-z]?{_UNTERPARAGRAPH})?"
-    rf"(?:\s*{_ABS}\s*(?P<absatz>\d+[a-z]?))?"
+    rf"(?:\s*{_ABS}\s*(?P<absatz>\d+[a-z]?){_UABS})?"
     rf"(?:\s*{_SATZ}\s*(?P<satz>\d+))?"
-    rf"(?:\s*{_NR}\s*(?P<nr>\d+[a-z]?))?"
+    rf"(?:\s*{_NR}\s*(?P<nr>{_NR_WERT}))?"
 )
-_GESETZ = re.compile(r"\s*(?P<gesetz>[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]*[A-ZÄÖÜ](?:\s?[IVX]+)?)\b")
+_GESETZ = re.compile(r"\s*(?P<gesetz>[A-ZÄÖÜ](?:[A-Za-zÄÖÜäöüß]|-(?=[A-ZÄÖÜ]))*[A-ZÄÖÜ](?:\s?[IVX]+)?)\b")
+# Andere Schreibweisen derselben Abkürzung.
+_SCHREIBWEISEN = {"DS-GVO": "DSGVO", "EU-DSGVO": "DSGVO", "Brüssel-Ia-VO": "EuGVVO"}
 # Zwischen zwei Paragraphengruppen, die sich ein Gesetz teilen: "§ 280 Abs. 1 i.V.m. § 241 Abs. 2 BGB".
 _VERBINDER = re.compile(
     r"\s*(?:,|;|und|oder|sowie|bzw\.|i\.\s?V\.\s?m\.|iVm|in Verbindung mit)\s*(?=§|Art\.|Artikel)"
@@ -75,7 +86,7 @@ class Zitat:
         if self.satz:
             teile.append(f"S. {self.satz}")
         if self.nr:
-            teile.append(f"Nr. {self.nr}")
+            teile.append(f"Nr. {self.nr}" if self.nr[0].isdigit() else f"lit. {self.nr}")
         teile.append(self.gesetz)
         return " ".join(teile)
 
@@ -101,6 +112,14 @@ def _elemente(ziele: str, versatz: int) -> list[tuple[dict, tuple[int, int]]]:
     vorher: dict | None = None
     for m in _ELEMENT.finditer(ziele):
         if not m.group(0).strip():
+            continue
+        if m.group("buchstabe"):
+            # "lit. a und f": weiterer Buchstabe derselben Stelle.
+            if vorher is None or not vorher["nr"] or vorher["nr"][0].isdigit():
+                continue
+            teil = {**vorher, "nr": m.group("buchstabe")}
+            ergebnis.append((teil, (versatz + m.start(), versatz + m.end())))
+            vorher = teil
             continue
         teil = {k: m.group(k) for k in ("nummer", "absatz", "satz", "nr")}
         if vorher is not None:
@@ -146,7 +165,7 @@ def finde_zitate(text: str) -> list[Zitat]:
         for teil, spanne in _elemente(m.group("ziele"), m.start("ziele")):
             zitate.append(
                 Zitat(
-                    gesetz=gesetz,
+                    gesetz=_SCHREIBWEISEN.get(gesetz, gesetz),
                     nummer=re.sub(r"\s*§\s*", " § ", teil["nummer"]),
                     absatz=teil["absatz"],
                     satz=int(teil["satz"]) if teil["satz"] else None,
