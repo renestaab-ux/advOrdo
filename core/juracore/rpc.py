@@ -27,6 +27,7 @@ from .ki import chat as ki_chat
 from .ki import speicher as ki_speicher
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
+from .rechner import basiszins, fristen, verzugszinsen
 from .rechtsprechung import verzeichnis
 
 log = logging.getLogger("juracore.rpc")
@@ -48,6 +49,7 @@ class Kern:
         self.schluessel_datei = Path(db_pfad).parent / "ki-schluessel.json"
         self.ki_fabrik = ki_anbieter.erzeuge_aktiv
         self.auftraege = Auftraege()
+        self.basiszins_datei = Path(db_pfad).parent / "basiszins.json"
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
             "gesetze.liste": lambda: db.gesetze(self.con),
@@ -106,6 +108,12 @@ class Kern:
             ),
             "ki.chat_verlauf": lambda akte_id, dokument_id=None: ki_chat.verlauf(self.akten, akte_id, dokument_id),
             "ki.chat_fragen": self.ki_chat_fragen,
+            "rechner.verzugszinsen": lambda **p: verzugszinsen.berechne(
+                verzugszinsen.aus_params(p), basiszins.lade(self.basiszins_datei)),
+            "rechner.frist": lambda **p: fristen.aus_params(p),
+            "rechner.basiszins": lambda: basiszins.stand(self.basiszins_datei),
+            "rechner.basiszins_eintragen": lambda ab, satz: basiszins.eintragen(self.basiszins_datei, ab, satz),
+            "rechner.basiszins_entfernen": lambda ab: basiszins.entfernen(self.basiszins_datei, ab),
             "ki.chat_leeren": lambda akte_id, dokument_id=None: ki_chat.leeren(self.akten, akte_id, dokument_id),
         }
 

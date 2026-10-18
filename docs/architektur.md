@@ -158,6 +158,16 @@ vorliegenden Entscheidungen einer Akte; ein Fehler hält die übrigen nicht auf.
 (`urteilszitat.rn_zitiert`, erkannt bis Semikolon, Klammer oder Satzende hinter dem Aktenzeichen) wird gegen die
 Randnummern des Volltexts geprüft (`rn_vorhanden`).
 
+## Toolbox
+
+Die Toolbox ist ein zweites Tauri-Fenster (`src-tauri/src/fenster.rs`, Befehl `toolbox_oeffnen`), das dieselbe
+Oberfläche mit `?fenster=toolbox` lädt und über denselben Kernprozess rechnet; die Berechtigungen in
+`capabilities/default.json` gelten für beide Fenster. Die Rechner liegen in `juracore/rechner/` (`verzugszinsen`,
+`fristen`, `feiertage`, `basiszins`), sind reine Funktionen ohne Netz und Datenbank und rechnen mit `Decimal`. Die
+RPC-Methoden heißen `rechner.verzugszinsen`, `rechner.frist` und `rechner.basiszins*`. Selbst eingetragene
+Basiszinssätze stehen in `basiszins.json` im Datenverzeichnis und ergänzen die fest hinterlegte Tabelle nur nach
+ihrem letzten Eintrag.
+
 ## Offene Punkte
 
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
