@@ -37,6 +37,7 @@ import {
   UrteilStatus,
   UrteilVolltext,
   ZitatStatus,
+  dokumentDatum,
   fundstelle,
   istDesktop,
   kern,
@@ -130,6 +131,8 @@ export default function Akte({
   const [dokModus, setDokModus] = useState<DokModus>("text");
   const [auswahl, setAuswahl] = useState<Auswahl | null>(null);
   const [ziel, setZiel] = useState<number | null>(null);
+  // Abschnitt, zu dem gesprungen wurde (z. B. die Datumszeile); bleibt hervorgehoben, bis ein anderes Dokument geöffnet wird.
+  const [markiert, setMarkiert] = useState<number | null>(null);
   const [ocr, setOcr] = useState<OcrStatus | null>(null);
   const [gesetzeGeladen, setGesetzeGeladen] = useState<number | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
@@ -138,6 +141,7 @@ export default function Akte({
   const [ordnerFrage, setOrdnerFrage] = useState<OrdnerFrage | null>(null);
   const [loeschfrage, setLoeschfrage] = useState<Loeschfrage | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [nachDatum, setNachDatum] = useState(false);
   const [tagEdit, setTagEdit] = useState<{ id: number; text: string } | null>(null);
   const [ergaenzung, setErgaenzung] = useState<Ergaenzung | null>(null);
   const [volltext, setVolltext] = useState<UrteilVolltext | null>(null);
@@ -368,6 +372,7 @@ export default function Akte({
     if (modus === "normen") await ladeNormen(id);
     if (modus === "rechtsprechung") await ladeUrteile(id);
     if (abschnitt != null) setZiel(abschnitt);
+    setMarkiert(abschnitt ?? null);
   }
 
   async function ladeNormen(dokumentId: number | null) {
@@ -526,10 +531,14 @@ export default function Akte({
   const akte = akten.find((a) => a.id === akteId) ?? null;
   const tags = tagUebersicht(dokumente);
   const ohneTag = dokumente.filter((d) => d.tags.length === 0).length;
-  const sichtbar =
+  const gefiltert =
     tagFilter == null
       ? dokumente
       : dokumente.filter((d) => (tagFilter === "" ? d.tags.length === 0 : d.tags.some((t) => t.name === tagFilter)));
+  // Zeitlich geordnet: älteste zuerst, Dokumente ohne Datum am Ende.
+  const sichtbar = nachDatum
+    ? [...gefiltert].sort((a, b) => (a.datum ?? "9999").localeCompare(b.datum ?? "9999"))
+    : gefiltert;
 
 
   const zeigeVolltextSeite =
@@ -677,6 +686,16 @@ export default function Akte({
           <thead>
             <tr>
               <th>Dokument</th>
+              <th>
+                <button
+                  className="link spaltenkopf"
+                  onClick={() => setNachDatum(!nachDatum)}
+                  aria-pressed={nachDatum}
+                  title={nachDatum ? "Wieder nach Ordner und Dateiname ordnen" : "Nach Datum ordnen, älteste zuerst"}
+                >
+                  Datum {nachDatum ? "▲" : "↕"}
+                </button>
+              </th>
               <th>Beteiligte / Tags</th>
               <th>Gelesen als</th>
               <th>Seiten</th>
@@ -695,6 +714,9 @@ export default function Akte({
                     {d.dateiname}
                   </button>
                   {d.herkunft && <div className="herkunft">{d.herkunft}</div>}
+                </td>
+                <td>
+                  <DokumentDatum d={d} onFundstelle={() => oeffneDokument(d.id, d.datum_abschnitt ?? undefined)} />
                 </td>
                 <td>
                   {tagEdit?.id === d.id ? (
@@ -774,7 +796,7 @@ export default function Akte({
             <DokModusLeiste dokument={inhalt.dokument} modus={dokModus} onModus={waehleDokModus} />
           )}
           {ansicht === "dokument" && inhalt && dokModus === "text" && (
-            <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} />
+            <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} markiert={markiert ?? undefined} />
           )}
           {ansicht === "dokument" && inhalt && dokModus === "original" && (
             <OriginalAnsicht key={inhalt.dokument.id} dokument={inhalt.dokument} startSeite={auswahl?.zitat.seite ?? null} />
@@ -985,6 +1007,24 @@ function TagEditor({
   );
 }
 
+/** Datum in der Dokumentliste: Wert und Herkunft; die Datumszeile öffnet das Dokument an ihrer Fundstelle. */
+function DokumentDatum({ d, onFundstelle }: { d: AktenDokument; onFundstelle: () => void }) {
+  const angabe = dokumentDatum(d);
+  if (!d.datum) return <span title={angabe.erklaerung}>–</span>;
+  return (
+    <div className="dok-datum" title={angabe.erklaerung}>
+      {d.datum_quelle === "dokument" && d.datum_abschnitt != null ? (
+        <button className="link" onClick={onFundstelle}>
+          {angabe.text}
+        </button>
+      ) : (
+        angabe.text
+      )}
+      <div className="herkunft">{angabe.herkunft}</div>
+    </div>
+  );
+}
+
 function ZitatZaehlung({ zitate }: { zitate: Partial<Record<ZitatStatus, number>> }) {
   const reihenfolge: ZitatStatus[] = ["belegt", "nicht_gefunden", "unbekanntes_gesetz"];
   const teile = reihenfolge.filter((s) => zitate[s]);
@@ -1024,6 +1064,12 @@ export function DokumentAnsicht({
         {lesartText(d)}
         {d.seiten != null && <> · {d.seiten} Seiten</>} · SHA-256 {d.sha256.slice(0, 12)}…
         {d.herkunft && <> · Ordner {d.herkunft}</>}
+        {d.datum && (
+          <span title={dokumentDatum(d).erklaerung}>
+            {" "}
+            · Datum {dokumentDatum(d).text} ({dokumentDatum(d).herkunft})
+          </span>
+        )}
       </p>
       {d.tags.length > 0 && (
         <div className="tags">

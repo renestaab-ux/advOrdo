@@ -121,7 +121,20 @@ export interface AktenDokument {
   /** Unterordner beim Ordner-Import, z. B. "Kläger/Anlagen". */
   herkunft: string | null;
   tags: Tag[];
+  /** Datum des Dokuments als JJJJ-MM-TT; null, wenn keins zu ermitteln war. */
+  datum: string | null;
+  /** dokument: Datumszeile im Text, word: letztes Speichern laut Word, datei: Änderungsdatum der Datei. */
+  datum_quelle: DatumQuelle | null;
+  /** Fundstelle der Datumszeile. */
+  datum_abschnitt: number | null;
+  datum_seite: number | null;
+  datum_text: string | null;
+  /** Letztes Speichern als ISO-Zeitpunkt (Word-Eigenschaften oder Dateidatum beim Einlesen). */
+  gespeichert_am: string | null;
+  gespeichert_quelle: "word" | "datei" | null;
 }
+
+export type DatumQuelle = "dokument" | "word" | "datei" | "unbekannt";
 
 export interface Tag {
   name: string;
@@ -866,6 +879,49 @@ export function prozent(satz: string | number): string {
 export function datumDe(iso: string): string {
   const [j, m, t] = iso.split("-");
   return `${t}.${m}.${j}`;
+}
+
+/** ISO-Zeitpunkt ("2026-10-17T21:30:00+02:00") als "17.10.2026, 21:30", so wie er gespeichert ist. */
+export function zeitpunktDe(iso: string): string {
+  const uhr = iso.slice(11, 16);
+  return datumDe(iso.slice(0, 10)) + (uhr ? `, ${uhr}` : "");
+}
+
+/** Datum eines Dokuments für die Anzeige: Wert, kurze Herkunft und Erläuterung mit Fundstelle. */
+export function dokumentDatum(
+  d: Pick<AktenDokument, "datum" | "datum_quelle" | "datum_seite" | "datum_text" | "gespeichert_am" | "gespeichert_quelle">,
+): { text: string; herkunft: string; erklaerung: string } {
+  const gespeichert =
+    d.gespeichert_am &&
+    `Zuletzt gespeichert: ${zeitpunktDe(d.gespeichert_am)} (${d.gespeichert_quelle === "word" ? "laut Word" : "Dateidatum"}).`;
+  if (!d.datum || d.datum_quelle === "unbekannt" || !d.datum_quelle) {
+    return { text: "–", herkunft: "", erklaerung: "Im Dokument steht keine Datumszeile; ein Speicherdatum ist nicht bekannt." };
+  }
+  switch (d.datum_quelle) {
+    case "dokument":
+      return {
+        text: datumDe(d.datum),
+        herkunft: "aus dem Dokument",
+        erklaerung: [
+          `Datumszeile${d.datum_seite != null ? ` auf S. ${d.datum_seite}` : ""}: „${d.datum_text}“.`,
+          gespeichert,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      };
+    case "word":
+      return {
+        text: datumDe(d.datum),
+        herkunft: "zuletzt gespeichert",
+        erklaerung: `Keine Datumszeile im Dokument. ${gespeichert}`,
+      };
+    case "datei":
+      return {
+        text: datumDe(d.datum),
+        herkunft: "Dateidatum",
+        erklaerung: `Keine Datumszeile im Dokument. ${gespeichert}`,
+      };
+  }
 }
 
 /** Heutiges Datum als JJJJ-MM-TT in lokaler Zeit. */

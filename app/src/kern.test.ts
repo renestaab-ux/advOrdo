@@ -3,6 +3,7 @@ import {
   abgleichZusammenfassung,
   auswahlText,
   datumDe,
+  dokumentDatum,
   euro,
   heuteIso,
   prozent,
@@ -194,5 +195,42 @@ describe("Toolbox-Formate", () => {
     expect(prozent("-0.88")).toBe("-0,88 %");
     expect(datumDe("2026-10-17")).toBe("17.10.2026");
     expect(heuteIso(new Date(2026, 0, 5))).toBe("2026-01-05");
+  });
+});
+
+describe("Datum eines Dokuments", () => {
+  const leer = { datum_seite: null, datum_text: null, gespeichert_am: null, gespeichert_quelle: null } as const;
+
+  it("nennt bei der Datumszeile die Fundstelle", () => {
+    const d = dokumentDatum({
+      ...leer,
+      datum: "2025-06-23",
+      datum_quelle: "dokument",
+      datum_seite: 1,
+      datum_text: "Freiburg, den 23.06.2025",
+      gespeichert_am: "2026-10-11T12:58:57+02:00",
+      gespeichert_quelle: "datei",
+    });
+    expect(d.text).toBe("23.06.2025");
+    expect(d.herkunft).toBe("aus dem Dokument");
+    expect(d.erklaerung).toBe(
+      "Datumszeile auf S. 1: „Freiburg, den 23.06.2025“. Zuletzt gespeichert: 11.10.2026, 12:58 (Dateidatum).",
+    );
+  });
+
+  it("weist beim Word-Entwurf auf den Speicherstand hin", () => {
+    const d = dokumentDatum({
+      ...leer,
+      datum: "2026-10-17",
+      datum_quelle: "word",
+      gespeichert_am: "2026-10-17T23:30:00+02:00",
+      gespeichert_quelle: "word",
+    });
+    expect(d.herkunft).toBe("zuletzt gespeichert");
+    expect(d.erklaerung).toBe("Keine Datumszeile im Dokument. Zuletzt gespeichert: 17.10.2026, 23:30 (laut Word).");
+  });
+
+  it("zeigt einen Strich, wenn nichts bekannt ist", () => {
+    expect(dokumentDatum({ ...leer, datum: null, datum_quelle: "unbekannt" }).text).toBe("–");
   });
 });

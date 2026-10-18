@@ -156,6 +156,23 @@ Noch nicht erkannt werden Zitate ohne „§“/„Art.“
 Seitenzahlen, wenn sie Seitenumbrüche enthalten; sonst gilt die Randnummer bzw. der
 laufende Absatz („Abschn. 12“) als Fundstelle.
 
+### Datum der Dokumente
+
+Die Dokumentliste zeigt zu jedem Dokument ein Datum und darunter, woher es stammt:
+
+1. **aus dem Dokument**: die Datumszeile im Text, z. B. „Freiburg, den 23.06.2025“, „Denzlingen, 30.06.2025“
+   oder „Verkündet am 14.09.2026“. Es zählt die erste solche Zeile; Daten im Fließtext („Schreiben vom …“)
+   nimmt die App nicht, weil sie andere Vorgänge bezeichnen. Ein Klick auf das Datum öffnet das Dokument an
+   der Datumszeile.
+2. **zuletzt gespeichert**: Word-Datei ohne Datumszeile, etwa ein Entwurf. Das Datum stammt aus den
+   Dokumenteigenschaften, die Word beim Speichern schreibt.
+3. **Dateidatum**: sonst das Änderungsdatum der Datei beim Einlesen.
+
+Fährt man mit der Maus über das Datum, nennt die App die Fundstelle und den letzten Speicherstand. Ein Klick
+auf die Spalte „Datum“ ordnet die Liste zeitlich, älteste zuerst. Bei Dokumenten, die vor dieser Version
+eingelesen wurden, ergänzt die App das Datum beim Start aus dem gespeicherten Text; das Dateidatum am
+ursprünglichen Ort kennt sie dafür nicht mehr.
+
 ### Dokumentansicht
 
 Ein geöffnetes Dokument lässt sich auf fünf Arten zeigen:
