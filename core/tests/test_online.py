@@ -16,7 +16,8 @@ BGH_NEU = "So zuletzt BGH, Urteil vom 01.06.2026 – VIII ZR 11/26, Rn. 14."
 def _bay_zip() -> bytes:
     puffer = io.BytesIO()
     with zipfile.ZipFile(puffer, "w") as z:
-        z.writestr("bayportalrsp/Y-300-Z-BECKRS-B-2023-N-99999.xml", (FIXTURES / "bayern_volltext_auszug.xml").read_bytes())
+        # Fester Zeitstempel: Sonst unterscheiden sich zwei Aufrufe, wenn eine Sekundengrenze dazwischen liegt.
+        z.writestr(zipfile.ZipInfo("bayportalrsp/Y-300-Z-BECKRS-B-2023-N-99999.xml", (2026, 1, 1, 0, 0, 0)), (FIXTURES / "bayern_volltext_auszug.xml").read_bytes())
     return puffer.getvalue()
 
 
