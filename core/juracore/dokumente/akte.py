@@ -32,11 +32,11 @@ from ..gesetze import wissensbasis
 from ..gesetze.zitate import finde_zitate
 from ..rechtsprechung import online, verzeichnis
 from ..rechtsprechung.zitate import az_kern, finde_urteilszitate
-from . import lesen
+from . import datum, lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS akte (
@@ -59,6 +59,14 @@ CREATE TABLE IF NOT EXISTS dokument (
     ocr_konfidenz   REAL,
     hinweise        TEXT NOT NULL,          -- JSON-Liste
     herkunft        TEXT,                   -- Unterordner beim Ordner-Import, z. B. "Kläger/Anlagen"
+    -- Datum des Dokuments (juracore.dokumente.datum): aus der Datumszeile, sonst aus dem Speicherstand.
+    datum           TEXT,                   -- JJJJ-MM-TT
+    datum_quelle    TEXT,                   -- dokument, word, datei, unbekannt; NULL = noch nicht ermittelt
+    datum_abschnitt INTEGER,                -- Fundstelle der Datumszeile (Abschnitt-Nr.)
+    datum_seite     INTEGER,
+    datum_text      TEXT,                   -- die Datumszeile, z. B. "Freiburg, den 23.06.2025"
+    gespeichert_am  TEXT,                   -- letztes Speichern (Word-Eigenschaften oder Dateidatum), ISO
+    gespeichert_quelle TEXT,                -- word oder datei
     UNIQUE (akte_id, sha256)
 );
 
@@ -192,6 +200,7 @@ def oeffne(pfad: str | Path) -> sqlite3.Connection:
         con.execute("INSERT INTO abschnitt_fts (abschnitt_fts) VALUES ('rebuild')")
         con.commit()
     _migriere(con)
+    _daten_nachtragen(con)
     con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return con
 
@@ -206,9 +215,41 @@ def _migriere(con: sqlite3.Connection) -> None:
         con.execute("ALTER TABLE dokument ADD COLUMN urteile_erkannt INTEGER")
     # Zwischenstände von Schema 4 (Entwicklungsversion) um die späteren Spalten ergänzen.
     for tabelle, spalte, typ in (("urteilszitat", "rn_zitiert", "INTEGER"), ("urteil", "doknr", "TEXT"),
-                                 ("urteil", "kopf", "TEXT"), ("urteil_abschnitt", "teil", "TEXT")):
+                                 ("urteil", "kopf", "TEXT"), ("urteil_abschnitt", "teil", "TEXT"),
+                                 *(("dokument", s, t) for s, t in _DATUM_SPALTEN.items())):
         if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
             con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
+
+
+def _daten_nachtragen(con: sqlite3.Connection) -> None:
+    """Dokumente aus Version 5 und älter: Datum aus dem gespeicherten Text und der abgelegten Kopie ermitteln.
+
+    Das Dateidatum am ursprünglichen Ort ist dafür nicht mehr bekannt; die Kopie trägt den Zeitpunkt des Einlesens.
+    """
+    offen = con.execute("SELECT id, format, original FROM dokument WHERE datum_quelle IS NULL").fetchall()
+    if not offen:
+        return
+    with con:
+        for z in offen:
+            abschnitte = con.execute(
+                "SELECT nr, seite, text FROM abschnitt WHERE dokument_id = ? ORDER BY nr", (z["id"],)
+            ).fetchall()
+            _datum_speichern(con, z["id"], datum.ermitteln(abschnitte, z["format"], Path(z["original"]), None))
+
+
+_DATUM_SPALTEN = {
+    "datum": "TEXT", "datum_quelle": "TEXT", "datum_abschnitt": "INTEGER", "datum_seite": "INTEGER",
+    "datum_text": "TEXT", "gespeichert_am": "TEXT", "gespeichert_quelle": "TEXT",
+}  # fmt: skip
+
+
+def _datum_speichern(con: sqlite3.Connection, dokument_id: int, d: dict) -> None:
+    con.execute(
+        """UPDATE dokument SET datum = ?, datum_quelle = ?, datum_abschnitt = ?, datum_seite = ?, datum_text = ?,
+                               gespeichert_am = ?, gespeichert_quelle = ? WHERE id = ?""",
+        (d["datum"], d["quelle"], d["abschnitt"], d["seite"], d["text"], d["gespeichert"], d["gespeichert_quelle"],
+         dokument_id),
+    )
 
 
 def _jetzt() -> str:
@@ -336,6 +377,8 @@ def _speichere(
             for a in dok.abschnitte
         ],
     )
+    abschnitte = [(a.nr, a.seite, a.text) for a in dok.abschnitte]
+    _datum_speichern(con, dokument_id, datum.ermitteln(abschnitte, fmt, original, pfad))
     return dokument_id
 
 
