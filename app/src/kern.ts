@@ -103,7 +103,106 @@ export interface Akte {
   name: string;
   angelegt_am: string;
   dokumente: number;
+  aktenzeichen: string | null;
+  status: string;
+  gegenstand: string | null;
+  mandanten: string[];
+  gegner: string[];
+  gerichte: { name: string; aktenzeichen: string }[];
 }
+
+/** Anzeige einer Akte in Auswahllisten: „12/26 · Brückner ./. Autohaus“; ohne Aktenzeichen nur der Name. */
+export function akteTitel(a: Pick<Akte, "name" | "aktenzeichen">): string {
+  return a.aktenzeichen ? `${a.aktenzeichen} · ${a.name}` : a.name;
+}
+
+/** Eine Person oder Organisation aus dem Beteiligtenverzeichnis. */
+export interface Beteiligter {
+  id: number;
+  art: "person" | "organisation";
+  name: string;
+  daten: Record<string, string | string[]>;
+  geaendert_am: string;
+  stufe?: "gleich" | "aehnlich";
+  beziehungen?: { von: number; zu: number; art: string; anderer: number; name: string; text: string }[];
+  akten?: { akte_id: number; rolle: string; akte: string; aktenzeichen: string | null }[];
+}
+
+/** Ein Beteiligter in einer Akte, mit Rolle und Seite. */
+export interface Beteiligung {
+  id: number;
+  rolle: string;
+  rolle_text: string;
+  seite: "eigene" | "gegen" | "neutral";
+  name: string;
+  quelle: "verzeichnis" | "eigene_organisation" | "eigene_person";
+  beteiligter_id: number | null;
+  art: "person" | "organisation" | null;
+  aktenzeichen: string;
+}
+
+export interface KollisionsTreffer {
+  ampel: "rot" | "gelb";
+  stufe: string;
+  text: string;
+  dort: { akte_id: number | null; aktenzeichen: string | null; akte: string; umgebung: string; andere_umgebung: boolean };
+}
+
+export interface Kollisionspruefung {
+  id: number;
+  zeitpunkt: string;
+  ampel: "gruen" | "gelb" | "rot";
+  treffer: KollisionsTreffer[];
+  umgebungen: string[];
+  entscheidung: string | null;
+  entscheidung_text: string | null;
+  begruendung: string | null;
+  entschieden_am: string | null;
+}
+
+export interface AkteStammdaten {
+  id: number;
+  name: string;
+  aktenzeichen: string | null;
+  gegenstand: string | null;
+  sachgebiet: string | null;
+  eigene_rolle: string | null;
+  status: string;
+  sachbearbeiter_id: number | null;
+  mandat_seit: string | null;
+  gegenstandswert: string | null;
+  notiz: string | null;
+  dokumente: number;
+  beteiligte: Beteiligung[];
+  kollision: Kollisionspruefung | null;
+}
+
+export interface AktenOptionen {
+  rollen: Record<string, { seite: "eigene" | "gegen" | "neutral"; text: string }>;
+  seiten: Record<string, string>;
+  status: Record<string, string>;
+  eigene_rollen: string[];
+  sachgebiete: string[];
+  kategorien: string[];
+  beziehungen: Record<string, string>;
+  entscheidungen: Record<string, string>;
+  form: string | null;
+  sachbearbeiter: { id: number; name: string }[];
+  konzerngesellschaften: { id: number; name: string }[];
+  anwaelte: { id: number; name: string; kanzlei: string }[];
+}
+
+export interface AktenEinstellungen {
+  aktenzeichen_zusatz: string;
+  naechste_nummer: Record<string, number>;
+  kollision_ausgenommen: string[];
+}
+
+export const AMPEL_TEXT: Record<string, string> = {
+  gruen: "Keine Treffer",
+  gelb: "Ähnliche Namen oder verbundene Beteiligte",
+  rot: "Partei steht anderswo auf der Gegenseite",
+};
 
 export interface AktenDokument {
   id: number;

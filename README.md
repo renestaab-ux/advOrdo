@@ -200,6 +200,32 @@ Ein geöffnetes Dokument lässt sich auf fünf Arten zeigen:
   Text, die Zitate, die Tags und die Kopie, die die App beim Einlesen abgelegt hat. Die
   Originaldatei am ursprünglichen Ort bleibt unverändert.
 
+### Stammdaten, Beteiligte und Kollisionsprüfung
+
+Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1 (Datenteil). In der Akte öffnet **Stammdaten und Beteiligte**:
+
+- **Aktenzeichen** nach dem Schema Nummer/Jahr (102/26): Neue Akten bekommen die nächste freie Nummer des laufenden
+  Jahres; beim Anlegen lässt sich auch ein eigenes eintragen. Ein vergebenes Aktenzeichen wird nie ein zweites Mal
+  vergeben, auch nicht nach dem Löschen der Akte. Unter **Einstellungen → Akten** stellt man die nächste Nummer ein
+  (für eine bisherige Zählung) und einen Zusatz wie ein Kürzel (102/26 RS). Bestehende Akten behalten ihre Daten und
+  bekommen ihr Aktenzeichen dort nachträglich.
+- **Stammdaten**: Kurzbezeichnung, Gegenstand, Sachgebiet, eigene Rolle, Status (laufend, ruhend, abgeschlossen),
+  Sachbearbeiter aus „Eigene Daten“, Mandat seit, Gegenstandswert, Notiz.
+- **Beteiligte** mit Rolle und Seite: Mandant, Gegner, Prozessbevollmächtigter und Versicherer des Gegners, Gericht
+  (mit gerichtlichem Aktenzeichen), Sachverständiger, Zeuge, Streitverkündeter. Personen und Organisationen stehen
+  einmal im **Beteiligtenverzeichnis** und werden in jeder Akte wiederverwendet; beim Anlegen weist die App auf
+  gleiche oder ähnliche Namen hin. Zu einem Eintrag lassen sich frühere Namen, gesetzliche Vertreter und verbundene
+  Organisationen (Mutter, Tochter) erfassen. Bei einer Rechtsabteilung ist die Konzerngesellschaft aus „Eigene
+  Daten“ der Mandant, dazu kommt der vertretende Anwalt.
+- **Kollisionsprüfung** (§ 43a Abs. 4 BRAO, § 3 BORA): Sobald Mandant oder Gegner eingetragen werden, sucht die App in
+  allen Akten, auch abgeschlossenen, ob dieselbe Partei anderswo auf der anderen Seite steht. Verglichen werden Namen
+  ohne Rechtsform und Titel (auch frühere Namen), Geburtsdatum bzw. Registernummer, gesetzliche Vertreter und
+  verbundene Organisationen. **Rot**: dieselbe Partei; **Gelb**: ähnlicher Name, Vertreter, verbundene Organisation
+  oder (Rechtsabteilung) eine eigene Konzerngesellschaft als Gegner. Die anderen Arbeitsumgebungen auf dem Gerät
+  durchsucht die App mit, aber nur lesend, etwa bei Doppelzulassung; Testumgebungen lassen sich unter Einstellungen
+  ausnehmen. Ob ein Konflikt besteht, entscheidet der Anwalt; Prüfung, Treffer und Entscheidung mit Begründung
+  bleiben in der Akte dokumentiert.
+
 ## Suche: Volltext über alle Akten
 
 Der Bereich **Suche** durchsucht den gelesenen Text der Dokumente einer Akte oder aller Akten, nach dem Vorbild von „PDF Search“

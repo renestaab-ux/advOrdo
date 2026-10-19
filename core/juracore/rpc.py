@@ -20,6 +20,8 @@ from typing import Any
 
 from . import __version__, db, einstellungen
 from .abgleich import abgleich
+from .aktenverwaltung import beteiligte, kollision, stammdaten
+from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
 from .dokumente import akte, ansicht, ocr, suche, urteile
 from .eigene import daten as eigene
 from .eigene.felder import FELDER, FORMEN
@@ -88,8 +90,36 @@ class Kern:
             ),
             "zitat.aufloesen": lambda zitat, fassung_id=None: wissensbasis.loese_zitat(self.con, zitat, fassung_id),
             "ocr.status": ocr.status,
-            "akten.liste": lambda: akte.akten(self.akten),
-            "akten.anlegen": lambda name: akte.akte_anlegen(self.akten, name),
+            "akten.liste": lambda: stammdaten.uebersicht(self.akten),
+            "akten.anlegen": self.akte_anlegen,
+            "akten.optionen": self.akten_optionen,
+            "akten.stammdaten": self.akte_stammdaten,
+            "akten.stammdaten_speichern": lambda akte_id, daten: self._mit_kollision(
+                stammdaten.speichern(self.akten, akte_id, daten)),
+            "akten.aktenzeichen_vorschlag": lambda: stammdaten.vorschlag(self.akten),
+            "akten.aktenzeichen_vergeben": lambda akte_id, aktenzeichen=None: self._mit_kollision(
+                stammdaten.vergeben(self.akten, akte_id, aktenzeichen)),
+            "akten.einstellungen": lambda: stammdaten.einstellungen(self.akten),
+            "akten.einstellungen_setzen": lambda **p: stammdaten.einstellungen_setzen(self.akten, **p),
+            "akten.beteiligung_hinzufuegen": lambda akte_id, rolle, **p: self._nach_aenderung(
+                stammdaten.beteiligung_hinzufuegen(self.akten, akte_id, rolle, **p), rolle),
+            "akten.beteiligung_aendern": lambda beteiligung_id, rolle=None, aktenzeichen=None: self._nach_aenderung(
+                stammdaten.beteiligung_aendern(self.akten, beteiligung_id, rolle, aktenzeichen), rolle),
+            "akten.beteiligung_entfernen": lambda beteiligung_id: self._nach_aenderung(
+                stammdaten.beteiligung_entfernen(self.akten, beteiligung_id), "mandant"),
+            "akten.kollision_pruefen": self.kollision_pruefen,
+            "akten.kollision_entscheiden": lambda pruefung_id, entscheidung, begruendung="": kollision.entscheiden(
+                self.akten, pruefung_id, entscheidung, begruendung),
+            "akten.kollision_verlauf": lambda akte_id: kollision.verlauf(self.akten, akte_id),
+            "beteiligte.liste": lambda suche="", art=None: beteiligte.liste(self.akten, suche, art),
+            "beteiligte.eintrag": lambda beteiligter_id: beteiligte.eintrag(self.akten, beteiligter_id),
+            "beteiligte.aehnliche": lambda art, daten, ausser=None: beteiligte.aehnliche(
+                self.akten, art, daten, ausser),
+            "beteiligte.speichern": lambda art, daten, beteiligter_id=None: beteiligte.speichern(
+                self.akten, art, daten, beteiligter_id),
+            "beteiligte.loeschen": lambda beteiligter_id: beteiligte.loeschen(self.akten, beteiligter_id),
+            "beteiligte.beziehung_setzen": lambda von, zu, art, vorhanden=True: beteiligte.beziehung_setzen(
+                self.akten, von, zu, art, vorhanden),
             "akten.dokumente": lambda akte_id: akte.dokumente(self.akten, akte_id),
             "akten.loeschen": lambda akte_id: akte.akte_loeschen(self.akten, akte_id, self.ablage),
             "akten.importieren": lambda akte_id, pfad, tags=None, herkunft=None: akte.importiere(
@@ -155,6 +185,80 @@ class Kern:
         ki_chat.einrichten(self.akten)
         # Eigene Daten (Profil, Kanzlei bzw. Unternehmen) gehören ebenfalls zur Umgebung.
         eigene.einrichten(self.akten)
+        # Aktenverwaltung: Beteiligte, Aktenzeichen, Kollisionsprüfung (verweist auf Akten und Eigene Daten).
+        aktenverwaltung_einrichten(self.akten)
+
+    def akte_anlegen(self, name: str, aktenzeichen: str | None = None, ohne_aktenzeichen: bool = False) -> dict:
+        """Neue Akte; sie bekommt das vorgeschlagene oder das eingegebene Aktenzeichen."""
+        if aktenzeichen and aktenzeichen.strip():
+            stammdaten.zerlege(aktenzeichen)  # Schema prüfen, bevor etwas angelegt wird
+        neu = akte.akte_anlegen(self.akten, name)
+        if not ohne_aktenzeichen:
+            try:
+                stammdaten.vergeben(self.akten, neu["id"], aktenzeichen)
+            except ValueError:
+                akte.akte_loeschen(self.akten, neu["id"], self.ablage)
+                raise
+        return next(a for a in stammdaten.uebersicht(self.akten) if a["id"] == neu["id"])
+
+    def akten_optionen(self) -> dict:
+        """Auswahllisten für Stammdaten und Beteiligte, dazu die passenden Einträge aus „Eigene Daten“."""
+        s = eigene.stand(self.akten, mit_archiv=False)
+        personen = [s["inhaber"]] if s["inhaber"] else []
+        personen += [b for b in s["berufstraeger"] if not s["inhaber"] or b["id"] != s["inhaber"]["id"]]
+        anwaelte = [{"id": a["id"], "name": eigene.anzeigename(a["daten"], "person_extern"), "kanzlei":
+                     k["daten"].get("name", "")} for k in s["beauftragte_kanzleien"] for a in k.get("anwaelte", [])]
+        if s["profil"]["form"] == "rechtsabteilung" and s["inhaber"]:
+            anwaelte.insert(0, {"id": s["inhaber"]["id"], "name": eigene.anzeigename(
+                s["inhaber"]["daten"], "person_rechtsabteilung"), "kanzlei": "selbst (Rechtsabteilung)"})
+        return {
+            "rollen": {k: {"seite": v[0], "text": v[1]} for k, v in stammdaten.ROLLEN.items()},
+            "seiten": stammdaten.SEITEN, "status": stammdaten.STATUS, "eigene_rollen": stammdaten.EIGENE_ROLLEN,
+            "sachgebiete": stammdaten.SACHGEBIETE, "kategorien": beteiligte.KATEGORIEN,
+            "beziehungen": beteiligte.BEZIEHUNGEN, "entscheidungen": kollision.ENTSCHEIDUNGEN,
+            "form": s["profil"]["form"],
+            "sachbearbeiter": [{"id": p["id"], "name": eigene.anzeigename(p["daten"], "person_anwalt")}
+                               for p in personen],
+            "konzerngesellschaften": [{"id": o["id"], "name": o["daten"].get("name", "")}
+                                      for o in s["konzerngesellschaften"]],
+            "anwaelte": anwaelte,
+        }
+
+    def akte_stammdaten(self, akte_id: int) -> dict:
+        return self._mit_kollision(stammdaten.stammdaten(self.akten, akte_id))
+
+    def _mit_kollision(self, daten: dict) -> dict:
+        return {**daten, "kollision": kollision.letzte(self.akten, daten["id"])}
+
+    def _nach_aenderung(self, daten: dict, rolle: str | None) -> dict:
+        """Nach einer Änderung an Mandant oder Gegner gleich erneut prüfen."""
+        if rolle is None or rolle in kollision.PARTEIROLLEN:
+            self.kollision_pruefen(daten["id"])
+        return self._mit_kollision(daten)
+
+    def kollision_pruefen(self, akte_id: int) -> dict:
+        """Prüft in der aktiven Umgebung und, nur lesend, in den anderen Umgebungen (außer den ausgenommenen)."""
+        liste = self.umgebungen.liste()
+        aktiv = next(u for u in liste["umgebungen"] if u["aktiv"])
+        ausgenommen = set(stammdaten.einstellungen(self.akten)["kollision_ausgenommen"])
+        andere: list[tuple[str, sqlite3.Connection]] = []
+        try:
+            for u in liste["umgebungen"]:
+                pfad = self.umgebungen.ordner(u["id"]) / "akten.sqlite"
+                if u["aktiv"] or u["id"] in ausgenommen or not pfad.is_file():
+                    continue
+                try:
+                    c = sqlite3.connect(f"{pfad.resolve().as_uri()}?mode=ro", uri=True)
+                    c.row_factory = sqlite3.Row
+                    c.execute("SELECT 1 FROM akte LIMIT 1")
+                except sqlite3.Error as fehler:
+                    log.warning("Umgebung %s für die Kollisionsprüfung nicht lesbar: %s", u["name"], fehler)
+                    continue
+                andere.append((u["name"], c))
+            return kollision.pruefen(self.akten, akte_id, andere, aktiv["name"])
+        finally:
+            for _, c in andere:
+                c.close()
 
     def umgebung_wechseln(self, umgebung_id: str) -> dict:
         """Schließt die Akten der aktiven Umgebung und öffnet die der gewählten."""

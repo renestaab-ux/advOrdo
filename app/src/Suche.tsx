@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { DokumentAnsicht, OriginalAnsicht } from "./Akte";
-import { Akte, DokumentInhalt, SuchDokument, SuchErgebnis, SuchFundstelle, fundstelle, istDesktop, kern } from "./kern";
+import { Akte, akteTitel, DokumentInhalt, SuchDokument, SuchErgebnis, SuchFundstelle, fundstelle, istDesktop, kern } from "./kern";
 
 interface Auswahl {
   dokument: SuchDokument;
@@ -154,7 +154,7 @@ export default function Suche({
         >
           {akten.map((a) => (
             <option key={a.id} value={a.id}>
-              Akte: {a.name}
+              Akte: {akteTitel(a)}
             </option>
           ))}
           <option value="alle">Alle Akten</option>

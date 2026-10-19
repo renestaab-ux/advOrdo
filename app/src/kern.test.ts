@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FeldDef,
+  akteTitel,
   aktiveUmgebung,
   feldText,
   personName,
@@ -269,5 +270,12 @@ describe("Eigene Daten", () => {
     const felder = [f("text", { schluessel: "land", vorgabe: "Deutschland" }), f("mehrfach", { schluessel: "fa" })];
     expect(startwerte(felder, null)).toEqual({ land: "Deutschland", fa: [] });
     expect(startwerte(felder, { land: "" })).toEqual({ land: "", fa: [] });
+  });
+});
+
+describe("akteTitel", () => {
+  it("zeigt das Aktenzeichen vor dem Namen", () => {
+    expect(akteTitel({ name: "Brückner ./. Autohaus", aktenzeichen: "12/26" })).toBe("12/26 · Brückner ./. Autohaus");
+    expect(akteTitel({ name: "Testakte Ordner", aktenzeichen: null })).toBe("Testakte Ordner");
   });
 });
