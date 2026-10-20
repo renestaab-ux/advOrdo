@@ -125,7 +125,10 @@ def _akten_info(con: sqlite3.Connection) -> dict[int, dict]:
 
 
 def _beschreibe(p: dict) -> dict:
-    return {"name": p["name"], "rolle": p["rolle"], "rolle_text": ROLLEN[p["rolle"]][1], "via": p["via"]}
+    d = {"name": p["name"], "rolle": p["rolle"], "rolle_text": ROLLEN[p["rolle"]][1], "via": p["via"]}
+    if p.get("vorab"):
+        d["vorab"] = True  # noch nicht eingetragen
+    return d
 
 
 def _treffer(con: sqlite3.Connection, akte_id: int, hier: list[dict],
@@ -224,7 +227,8 @@ def _text(t: dict) -> str:
         if d["status"] and d["status"] != "laufend":
             ort += f", {d['status']}"
     dort = d["name"] + (f" ({d['via']})" if d["via"] else "")
-    return f"{wer} ist hier {h['rolle_text']}; {gleich}{dort} ist {ort} {d['rolle_text']}."
+    hier = "wäre hier" if h.get("vorab") else "ist hier"
+    return f"{wer} {hier} {h['rolle_text']}; {gleich}{dort} ist {ort} {d['rolle_text']}."
 
 
 def _jetzt() -> str:

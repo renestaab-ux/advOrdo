@@ -251,7 +251,7 @@ def test_kollision_vorab_fuer_suchtreffer(con):
     neu = neue_akte(con, "Neu")
     v = kollision.vorab(con, neu, "mandant", [jonas, nordstern])
     assert list(v) == [str(jonas)] and v[str(jonas)]["ampel"] == "rot"
-    assert v[str(jonas)]["texte"] == ["Jonas Reiter ist hier Mandant; Jonas Reiter ist in Akte 1/26 Gegner."]
+    assert v[str(jonas)]["texte"] == ["Jonas Reiter wäre hier Mandant; Jonas Reiter ist in Akte 1/26 Gegner."]
     assert kollision.vorab(con, neu, "zeuge", [jonas]) == {}
     # In derselben Akte: wer schon Mandant ist, ist als Gegner verdächtig.
     v = kollision.vorab(con, alt, "gegner", [nordstern])
