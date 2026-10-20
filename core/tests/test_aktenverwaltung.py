@@ -74,10 +74,20 @@ def test_beziehungen_und_loeschschutz(con):
     gmbh = firma(con, "Autohaus Rehnfeld GmbH")
     gf = person(con, "Klaus", "Rehnfeld")
     # Vertreter gleich beim Anlegen der Organisation: ein vorhandener und ein neuer.
-    neu = beteiligte.speichern(con, "organisation", {"name": "Rehnfeld Leasing GmbH"},
-                               vertreter=[{"beteiligter_id": gf}, {"vorname": "Iris", "nachname": "Brandt"}])
-    assert sorted(b["text"] for b in neu["beziehungen"]) == ["vertreten durch Iris Brandt",
-                                                             "vertreten durch Klaus Rehnfeld"]
+    neu = beteiligte.speichern(con, "organisation", {"name": "Rehnfeld Leasing GmbH"}, vertreter=[
+        {"beteiligter_id": gf, "funktion": "Geschäftsführer"},
+        {"anrede": "Frau", "titel": "Dr.", "vorname": "Iris", "nachname": "Brandt", "funktion": "Geschäftsführerin"}])
+    assert sorted(b["text"] for b in neu["beziehungen"]) == [
+        "vertreten durch Frau Dr. Iris Brandt (Geschäftsführerin)", "vertreten durch Klaus Rehnfeld (Geschäftsführer)"]
+    iris = next(b["anderer"] for b in neu["beziehungen"] if "Iris" in b["text"])
+    assert [b["text"] for b in beteiligte.eintrag(con, iris)["beziehungen"]] == [
+        "Geschäftsführerin von Rehnfeld Leasing GmbH"]
+    # Funktion nachträglich ändern; ohne Angabe bleibt sie, "" löscht sie.
+    beteiligte.beziehung_setzen(con, gf, neu["id"], "gesetzlicher_vertreter", funktion="Liquidator")
+    beteiligte.beziehung_setzen(con, gf, neu["id"], "gesetzlicher_vertreter")
+    assert [b["funktion"] for b in beteiligte.eintrag(con, gf)["beziehungen"]] == ["Liquidator"]
+    beteiligte.beziehung_setzen(con, gf, neu["id"], "gesetzlicher_vertreter", funktion="")
+    assert beteiligte.eintrag(con, gf)["beziehungen"][0]["text"] == "Gesetzlicher Vertreter von Rehnfeld Leasing GmbH"
     with pytest.raises(ValueError, match="Nachnamen"):
         beteiligte.speichern(con, "organisation", {"name": "X GmbH"}, vertreter=[{"vorname": "Ohne"}])
     with pytest.raises(ValueError, match="ist eine Person"):

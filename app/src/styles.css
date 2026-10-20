@@ -492,3 +492,6 @@ li.vorab-rot .hinweis-zeile:last-child { color: var(--fehler); }
 .ampel-punkt.ampel-rot, .ampel-punkt.ampel-gelb { width: 9px; height: 9px; vertical-align: 1px; }
 .neuer-vertreter { margin-top: 8px; }
 input.betrag { text-align: right; }
+.kollision-kurz { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--linie); margin-top: 16px; padding-top: 10px; }
+.kollision-kurz .ampel { margin: 0; }
+input.funktion { font: inherit; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); width: 220px; margin-left: auto; margin-right: 8px; }

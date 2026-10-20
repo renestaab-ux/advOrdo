@@ -124,7 +124,7 @@ export interface Beteiligter {
   daten: Record<string, string | string[]>;
   geaendert_am: string;
   stufe?: "gleich" | "aehnlich";
-  beziehungen?: { von: number; zu: number; art: string; anderer: number; name: string; text: string }[];
+  beziehungen?: { von: number; zu: number; art: string; anderer: number; name: string; funktion?: string; text: string }[];
   akten?: { akte_id: number; rolle: string; akte: string; aktenzeichen: string | null }[];
 }
 
@@ -188,6 +188,7 @@ export interface AktenOptionen {
   sachgebiete: string[];
   kategorien: string[];
   beziehungen: Record<string, string>;
+  funktionen: string[];
   entscheidungen: Record<string, string>;
   form: string | null;
   sachbearbeiter: { id: number; name: string }[];

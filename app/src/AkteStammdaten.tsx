@@ -489,6 +489,7 @@ function BeteiligteDerAkte({
           vorbelegung={suche}
           kategorien={optionen.kategorien}
           beziehungen={optionen.beziehungen}
+          funktionen={optionen.funktionen ?? []}
           ausfuehren={ausfuehren}
           onFertig={(neu, uebernehmen) => {
             setFormular(null);
@@ -522,6 +523,7 @@ function BeteiligterFormular({
   vorbelegung,
   kategorien,
   beziehungen,
+  funktionen,
   ausfuehren,
   onFertig,
   rolleText,
@@ -531,6 +533,7 @@ function BeteiligterFormular({
   vorbelegung: string;
   kategorien: string[];
   beziehungen: Record<string, string>;
+  funktionen: string[];
   ausfuehren: Ausfuehren;
   onFertig: (neu: Beteiligter | null, uebernehmen: boolean) => void;
   rolleText: string;
@@ -576,35 +579,41 @@ function BeteiligterFormular({
         art,
         daten,
         beteiligter_id: aktuell?.id ?? null,
-        vertreter: vertreter.map((v) => ("beteiligter_id" in v ? { beteiligter_id: v.beteiligter_id } : v.daten)),
+        vertreter: vertreter.map((v) =>
+          "beteiligter_id" in v ? { beteiligter_id: v.beteiligter_id, funktion: v.funktion } : { ...v.daten, funktion: v.funktion },
+        ),
       }),
     );
     if (neu) onFertig(neu, uebernehmen && !aktuell);
   }
 
   /** Neue Person als gesetzlichen Vertreter: bei einer bestehenden Organisation sofort, sonst beim Speichern. */
-  async function vertreterNeu(v: Record<string, string>) {
+  async function vertreterNeu(eingabe: Record<string, string>) {
+    const { funktion, ...v } = eingabe;
     if (!aktuell) {
-      setVertreter([...vertreter, { daten: v, name: [v.vorname, v.nachname].filter(Boolean).join(" ") }]);
+      const name = [v.anrede, v.titel, v.vorname, v.nachname].filter(Boolean).join(" ");
+      setVertreter([...vertreter, { daten: v, name, funktion }]);
       return true;
     }
     const p = await ausfuehren(() => kern<Beteiligter>("beteiligte.speichern", { art: "person", daten: v }));
     if (!p) return false;
-    await beziehung(p, "gesetzlicher_vertreter");
+    await beziehung(p, "gesetzlicher_vertreter", true, funktion);
     return true;
   }
 
-  async function beziehung(anderer: Beteiligter, bezArt: string, vorhanden = true) {
+  async function beziehung(anderer: Beteiligter, bezArt: string, vorhanden = true, funktion?: string) {
     if (!aktuell) {
       if (bezArt === "gesetzlicher_vertreter" && !vertreter.some((v) => "beteiligter_id" in v && v.beteiligter_id === anderer.id)) {
-        setVertreter([...vertreter, { beteiligter_id: anderer.id, name: anderer.name }]);
+        setVertreter([...vertreter, { beteiligter_id: anderer.id, name: anderer.name, funktion: "" }]);
       }
       setBezSuche("");
       return;
     }
     // Gesetzlicher Vertreter: die Person vertritt die Organisation.
     const [von, zu] = bezArt === "gesetzlicher_vertreter" && aktuell.art === "organisation" ? [anderer.id, aktuell.id] : [aktuell.id, anderer.id];
-    const neu = await ausfuehren(() => kern<Beteiligter>("beteiligte.beziehung_setzen", { von, zu, art: bezArt, vorhanden }));
+    const neu = await ausfuehren(() =>
+      kern<Beteiligter>("beteiligte.beziehung_setzen", { von, zu, art: bezArt, vorhanden, funktion: funktion ?? null }),
+    );
     if (neu) {
       setAktuell(await kern<Beteiligter>("beteiligte.eintrag", { beteiligter_id: aktuell.id }));
       setBezSuche("");
@@ -625,6 +634,11 @@ function BeteiligterFormular({
 
   return (
     <div className="eintrag-formular beteiligter-formular" role="dialog" aria-label="Beteiligter">
+      <datalist id="vertreter-funktionen">
+        {funktionen.map((f) => (
+          <option key={f} value={f} />
+        ))}
+      </datalist>
       <h3>{aktuell ? aktuell.name : art === "person" ? "Neue Person" : "Neue Organisation"}</h3>
       <form onSubmit={(e) => void speichern(e, true)}>
         <div className="formular-raster">
@@ -660,6 +674,14 @@ function BeteiligterFormular({
                   <span>
                     {v.name} <span className="leise">{"beteiligter_id" in v ? "aus dem Verzeichnis" : "wird neu angelegt"}</span>
                   </span>
+                  <input
+                    className="funktion"
+                    list="vertreter-funktionen"
+                    aria-label={`Funktion von ${v.name}`}
+                    placeholder="Funktion, z. B. Geschäftsführerin"
+                    value={v.funktion}
+                    onChange={(e) => setVertreter(vertreter.map((w, j) => (j === i ? { ...w, funktion: e.target.value } : w)))}
+                  />
                   <button type="button" className="link gefahr" onClick={() => setVertreter(vertreter.filter((_, j) => j !== i))}>
                     Entfernen
                   </button>
@@ -723,6 +745,16 @@ function BeteiligterFormular({
             {(aktuell.beziehungen ?? []).map((b) => (
               <li key={`${b.von}-${b.zu}-${b.art}`}>
                 <span>{b.text}</span>
+                {b.art === "gesetzlicher_vertreter" && (
+                  <FunktionFeld
+                    wert={b.funktion ?? ""}
+                    onSpeichern={(f) =>
+                      void ausfuehren(() => kern<Beteiligter>("beteiligte.beziehung_setzen", { von: b.von, zu: b.zu, art: b.art, funktion: f })).then(
+                        async () => setAktuell(await kern<Beteiligter>("beteiligte.eintrag", { beteiligter_id: aktuell.id })),
+                      )
+                    }
+                  />
+                )}
                 <button
                   className="link gefahr"
                   onClick={() => void ausfuehren(() => kern<Beteiligter>("beteiligte.beziehung_setzen", { von: b.von, zu: b.zu, art: b.art, vorhanden: false })).then(async () => setAktuell(await kern<Beteiligter>("beteiligte.eintrag", { beteiligter_id: aktuell.id })))}
@@ -768,11 +800,14 @@ function BeteiligterFormular({
   );
 }
 
-type VertreterEntwurf = { beteiligter_id: number; name: string } | { daten: Record<string, string>; name: string };
+type VertreterEntwurf =
+  | { beteiligter_id: number; name: string; funktion: string }
+  | { daten: Record<string, string>; name: string; funktion: string };
 
 /** Eine Person direkt als gesetzlichen Vertreter anlegen, mit Hinweis, falls es sie schon gibt. */
 function NeuerVertreter({ onHinzu }: { onHinzu: (daten: Record<string, string>) => Promise<boolean> }) {
-  const [v, setV] = useState({ vorname: "", nachname: "" });
+  const leer = { anrede: "", titel: "", vorname: "", nachname: "", funktion: "" };
+  const [v, setV] = useState(leer);
   const [vorhanden, setVorhanden] = useState<Beteiligter[] | null>(null);
 
   async function hinzu(trotzdem = false) {
@@ -782,7 +817,7 @@ function NeuerVertreter({ onHinzu }: { onHinzu: (daten: Record<string, string>) 
       if (l.length > 0) return setVorhanden(l);
     }
     if (await onHinzu(v)) {
-      setV({ vorname: "", nachname: "" });
+      setV(leer);
       setVorhanden(null);
     }
   }
@@ -791,12 +826,29 @@ function NeuerVertreter({ onHinzu }: { onHinzu: (daten: Record<string, string>) 
     <div className="neuer-vertreter">
       <div className="formular-raster">
         <label className="feld">
+          Anrede
+          <select value={v.anrede} onChange={(e) => setV({ ...v, anrede: e.target.value })}>
+            <option value="">–</option>
+            <option>Frau</option>
+            <option>Herr</option>
+          </select>
+        </label>
+        <label className="feld">
+          Titel
+          <input value={v.titel} onChange={(e) => setV({ ...v, titel: e.target.value })} placeholder="z. B. Dr." />
+        </label>
+        <label className="feld">
           Vorname
           <input value={v.vorname} onChange={(e) => setV({ ...v, vorname: e.target.value })} />
         </label>
         <label className="feld">
           Nachname
           <input value={v.nachname} onChange={(e) => setV({ ...v, nachname: e.target.value })} />
+        </label>
+        <label className="feld">
+          Funktion
+          <input list="vertreter-funktionen" value={v.funktion} onChange={(e) => setV({ ...v, funktion: e.target.value })}
+            placeholder="z. B. Geschäftsführerin" />
         </label>
       </div>
       <div className="aktionen">
@@ -814,6 +866,23 @@ function NeuerVertreter({ onHinzu }: { onHinzu: (daten: Record<string, string>) 
         </div>
       )}
     </div>
+  );
+}
+
+/** Funktion eines gesetzlichen Vertreters, gespeichert beim Verlassen des Felds. */
+function FunktionFeld({ wert, onSpeichern }: { wert: string; onSpeichern: (f: string) => void }) {
+  const [f, setF] = useState(wert);
+  useEffect(() => setF(wert), [wert]);
+  return (
+    <input
+      className="funktion"
+      list="vertreter-funktionen"
+      aria-label="Funktion"
+      placeholder="Funktion"
+      value={f}
+      onChange={(e) => setF(e.target.value)}
+      onBlur={() => f.trim() !== wert && onSpeichern(f.trim())}
+    />
   );
 }
 
@@ -851,13 +920,51 @@ function KollisionsAnzeige({
     }
   }
 
+  // Nur aufklappen, wenn noch etwas zu entscheiden ist; sonst genügt eine Zeile.
+  const offen = !!pruefung && pruefung.ampel !== "gruen" && !pruefung.entscheidung;
+  const [details, setDetails] = useState(false);
+  const zeigen = offen || details;
+
+  if (!zeigen) {
+    return (
+      <div className="kollision kollision-kurz">
+        {pruefung ? (
+          <span className={`ampel ampel-${pruefung.ampel}`}>
+            <span className="ampel-punkt" aria-hidden="true" /> Kollisionsprüfung: {AMPEL_TEXT[pruefung.ampel]}
+          </span>
+        ) : (
+          <span className="leise">Kollisionsprüfung: läuft automatisch, sobald Mandant oder Gegner eingetragen sind.</span>
+        )}
+        {pruefung && (
+          <span className="leise">
+            {pruefung.entscheidung && ` · ${pruefung.entscheidung_text}`} · geprüft am{" "}
+            {new Date(pruefung.zeitpunkt).toLocaleString("de-DE")}
+          </span>
+        )}
+        <button className="link" onClick={() => setDetails(true)}>
+          Details
+        </button>
+        <button className="link" onClick={() => void pruefen()} disabled={laeuft}>
+          {pruefung ? "Erneut prüfen" : "Jetzt prüfen"}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="kollision">
       <div className="kopf">
         <h3>Kollisionsprüfung</h3>
-        <button className="zweitrangig" onClick={() => void pruefen()} disabled={laeuft}>
-          {pruefung ? "Erneut prüfen" : "Jetzt prüfen"}
-        </button>
+        <span className="aktionen">
+          {!offen && (
+            <button className="link" onClick={() => setDetails(false)}>
+              Einklappen
+            </button>
+          )}
+          <button className="zweitrangig" onClick={() => void pruefen()} disabled={laeuft}>
+            {pruefung ? "Erneut prüfen" : "Jetzt prüfen"}
+          </button>
+        </span>
       </div>
       {!pruefung && <p className="leer">Noch nicht geprüft. JuraBox prüft automatisch, sobald Mandant oder Gegner eingetragen werden.</p>}
       {pruefung && (

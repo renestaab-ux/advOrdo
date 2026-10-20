@@ -119,8 +119,8 @@ class Kern:
             "beteiligte.speichern": lambda art, daten, beteiligter_id=None, vertreter=None: beteiligte.speichern(
                 self.akten, art, daten, beteiligter_id, vertreter),
             "beteiligte.loeschen": lambda beteiligter_id: beteiligte.loeschen(self.akten, beteiligter_id),
-            "beteiligte.beziehung_setzen": lambda von, zu, art, vorhanden=True: beteiligte.beziehung_setzen(
-                self.akten, von, zu, art, vorhanden),
+            "beteiligte.beziehung_setzen": lambda von, zu, art, vorhanden=True, funktion=None: (
+                beteiligte.beziehung_setzen(self.akten, von, zu, art, vorhanden, funktion)),
             "akten.dokumente": lambda akte_id: akte.dokumente(self.akten, akte_id),
             "akten.loeschen": lambda akte_id: akte.akte_loeschen(self.akten, akte_id, self.ablage),
             "akten.importieren": lambda akte_id, pfad, tags=None, herkunft=None: akte.importiere(
@@ -217,7 +217,8 @@ class Kern:
             "seiten": stammdaten.SEITEN, "gruppen": stammdaten.GRUPPEN, "status": stammdaten.STATUS,
             "eigene_rollen": stammdaten.EIGENE_ROLLEN,
             "sachgebiete": stammdaten.SACHGEBIETE, "kategorien": beteiligte.KATEGORIEN,
-            "beziehungen": beteiligte.BEZIEHUNGEN, "entscheidungen": kollision.ENTSCHEIDUNGEN,
+            "beziehungen": beteiligte.BEZIEHUNGEN, "funktionen": beteiligte.FUNKTIONEN,
+            "entscheidungen": kollision.ENTSCHEIDUNGEN,
             "form": s["profil"]["form"],
             "sachbearbeiter": [{"id": p["id"], "name": eigene.anzeigename(p["daten"], "person_anwalt")}
                                for p in personen],

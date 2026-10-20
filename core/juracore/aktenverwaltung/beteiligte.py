@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS beteiligter_beziehung (
     von INTEGER NOT NULL REFERENCES beteiligter(id) ON DELETE CASCADE,
     zu  INTEGER NOT NULL REFERENCES beteiligter(id) ON DELETE CASCADE,
     art TEXT NOT NULL CHECK (art IN ('gesetzlicher_vertreter', 'verbunden')),
+    funktion TEXT,                          -- beim gesetzlichen Vertreter, z. B. "Geschäftsführerin"
     PRIMARY KEY (von, zu, art),
     CHECK (von <> zu)
 );
@@ -41,6 +42,11 @@ BEZIEHUNGEN = {
     "gesetzlicher_vertreter": "Gesetzlicher Vertreter",  # von = Person, zu = Organisation, die sie vertritt
     "verbunden": "Verbundene Organisation",  # Mutter-/Tochtergesellschaft; gilt in beide Richtungen
 }
+# Vorschläge für die Funktion eines gesetzlichen Vertreters; freie Eingabe bleibt möglich.
+FUNKTIONEN = (
+    "Geschäftsführer", "Geschäftsführerin", "Vorstand", "Vorstandsvorsitzender", "Vorstandsvorsitzende",
+    "Inhaber", "Inhaberin", "Komplementär", "Vorsitzender", "Vorsitzende", "Liquidator", "Insolvenzverwalter",
+)
 
 _GEMEINSAM = ["strasse", "plz", "ort", "land", "telefon", "email", "safe_id", "fruehere_namen", "notiz"]
 FELDER = {
@@ -51,6 +57,9 @@ FELDER = {
 
 def einrichten(con: sqlite3.Connection) -> None:
     con.executescript(_SCHEMA)
+    if "funktion" not in {z[1] for z in con.execute("PRAGMA table_info(beteiligter_beziehung)")}:
+        con.execute("ALTER TABLE beteiligter_beziehung ADD COLUMN funktion TEXT")
+        con.commit()
 
 
 def _jetzt() -> str:
@@ -126,6 +135,12 @@ def anzeigename(art: str, daten: dict) -> str:
     if rechtsform and schluessel(rechtsform) == "" and rechtsform.casefold() not in name.casefold():
         return f"{name} {rechtsform}"
     return name
+
+
+def briefname(daten: dict) -> str:
+    """Person mit Anrede und Titel, wie in einem Schreiben: "Frau Dr. Mira Lenz"."""
+    return " ".join(t for t in (daten.get("anrede"), daten.get("titel"), daten.get("vorname"), daten.get("nachname"))
+                    if t)
 
 
 def _bereinige(art: str, daten: dict | None) -> dict:
@@ -229,6 +244,9 @@ def speichern(con: sqlite3.Connection, art: str, daten: dict, beteiligter_id: in
         raise ValueError("Gesetzliche Vertreter gibt es nur bei einer Organisation.")
     neue_personen = [_bereinige("person", v) for v in vertreter if not v.get("beteiligter_id")]
     vorhandene = [int(v["beteiligter_id"]) for v in vertreter if v.get("beteiligter_id")]
+    # Reihenfolge wie unten: erst die vorhandenen, dann die neu angelegten Personen.
+    funktionen = [_funktion(v.get("funktion")) for v in vertreter if v.get("beteiligter_id")]
+    funktionen += [_funktion(v.get("funktion")) for v in vertreter if not v.get("beteiligter_id")]
     for vid in vorhandene:
         if eintrag(con, vid)["art"] != "person":
             raise ValueError("Ein gesetzlicher Vertreter ist eine Person.")
@@ -247,9 +265,8 @@ def speichern(con: sqlite3.Connection, art: str, daten: dict, beteiligter_id: in
             )
         for p in neue_personen:
             vorhandene.append(_einfuegen(con, "person", anzeigename("person", p), p, jetzt))
-        for vid in vorhandene:
-            con.execute("INSERT OR IGNORE INTO beteiligter_beziehung (von, zu, art) VALUES (?, ?, ?)",
-                        (vid, beteiligter_id, "gesetzlicher_vertreter"))
+        for vid, funktion in zip(vorhandene, funktionen, strict=True):
+            _verknuepfen(con, vid, beteiligter_id, "gesetzlicher_vertreter", funktion)
     return eintrag(con, beteiligter_id)
 
 
@@ -271,25 +288,46 @@ def loeschen(con: sqlite3.Connection, beteiligter_id: int) -> dict:
     return {"geloescht": beteiligter_id}
 
 
+def _funktion(text: str | None) -> str | None:
+    return " ".join(str(text or "").split()) or None
+
+
+def _verknuepfen(con: sqlite3.Connection, von: int, zu: int, art: str, funktion: str | None,
+                 ueberschreiben: bool = False) -> None:
+    """Legt die Beziehung an; eine bestehende behält ihre Funktion, außer ``ueberschreiben``."""
+    neu = "excluded.funktion" if ueberschreiben else "COALESCE(excluded.funktion, funktion)"
+    con.execute(f"""INSERT INTO beteiligter_beziehung (von, zu, art, funktion) VALUES (?, ?, ?, ?)
+                    ON CONFLICT (von, zu, art) DO UPDATE SET funktion = {neu}""", (von, zu, art, funktion))
+
+
 def beziehungen(con: sqlite3.Connection, beteiligter_id: int) -> list[dict]:
-    """Beziehungen aus Sicht dieses Eintrags, z. B. "Gesetzlicher Vertreter von …" oder "vertreten durch …"."""
+    """Beziehungen aus Sicht dieses Eintrags, z. B. "Geschäftsführerin von …" oder "vertreten durch Frau Dr. …"."""
     ergebnis = []
     for z in con.execute(
-        """SELECT r.von, r.zu, r.art, v.name AS von_name, z.name AS zu_name FROM beteiligter_beziehung r
-           JOIN beteiligter v ON v.id = r.von JOIN beteiligter z ON z.id = r.zu
+        """SELECT r.von, r.zu, r.art, r.funktion, v.name AS von_name, v.daten AS von_daten, z.name AS zu_name
+           FROM beteiligter_beziehung r JOIN beteiligter v ON v.id = r.von JOIN beteiligter z ON z.id = r.zu
            WHERE r.von = ? OR r.zu = ? ORDER BY r.art, r.von, r.zu""", (beteiligter_id, beteiligter_id)):
         eigen = z["von"] == beteiligter_id
         anderer, name = (z["zu"], z["zu_name"]) if eigen else (z["von"], z["von_name"])
         if z["art"] == "gesetzlicher_vertreter":
-            text = f"Gesetzlicher Vertreter von {name}" if eigen else f"vertreten durch {name}"
+            if eigen:
+                text = f"{z['funktion'] or 'Gesetzlicher Vertreter'} von {name}"
+            else:
+                text = f"vertreten durch {briefname(json.loads(z['von_daten'])) or name}"
+                text += f" ({z['funktion']})" if z["funktion"] else ""
         else:
             text = f"verbunden mit {name}"
         ergebnis.append({"von": z["von"], "zu": z["zu"], "art": z["art"], "anderer": anderer, "name": name,
-                         "text": text})
+                         "funktion": z["funktion"] or "", "text": text})
     return ergebnis
 
 
-def beziehung_setzen(con: sqlite3.Connection, von: int, zu: int, art: str, vorhanden: bool = True) -> dict:
+def beziehung_setzen(con: sqlite3.Connection, von: int, zu: int, art: str, vorhanden: bool = True,
+                     funktion: str | None = None) -> dict:
+    """Setzt oder löscht eine Beziehung; ``funktion`` (z. B. "Geschäftsführerin") nur beim gesetzlichen Vertreter.
+
+    Eine schon bestehende Beziehung behält ihre Funktion, wenn keine neue angegeben ist; "" löscht sie.
+    """
     if art not in BEZIEHUNGEN:
         raise ValueError(f"Unbekannte Beziehung: {art!r}")
     a, b = eintrag(con, von), eintrag(con, zu)
@@ -300,8 +338,9 @@ def beziehung_setzen(con: sqlite3.Connection, von: int, zu: int, art: str, vorha
     if art == "verbunden" and von > zu:
         von, zu = zu, von  # ungerichtet: nur einmal speichern
     with con:
-        if vorhanden:
-            con.execute("INSERT OR IGNORE INTO beteiligter_beziehung (von, zu, art) VALUES (?, ?, ?)", (von, zu, art))
-        else:
+        if not vorhanden:
             con.execute("DELETE FROM beteiligter_beziehung WHERE von = ? AND zu = ? AND art = ?", (von, zu, art))
+        else:
+            neu = _funktion(funktion) if art == "gesetzlicher_vertreter" else None
+            _verknuepfen(con, von, zu, art, neu, ueberschreiben=funktion is not None)
     return eintrag(con, a["id"])
