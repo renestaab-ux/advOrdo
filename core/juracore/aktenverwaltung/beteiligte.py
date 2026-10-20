@@ -214,7 +214,12 @@ def liste(con: sqlite3.Connection, suche: str = "", art: str | None = None, limi
         genau.append(e)
         if len(genau) >= limit:
             break
-    return (genau + ungefaehr)[:limit]
+    ergebnis = (genau + ungefaehr)[:limit]
+    anzahl = dict(con.execute("SELECT beteiligter_id, COUNT(DISTINCT akte_id) FROM akte_beteiligung "
+                              "WHERE beteiligter_id IS NOT NULL GROUP BY beteiligter_id").fetchall())
+    for e in ergebnis:
+        e["akten_anzahl"] = anzahl.get(e["id"], 0)
+    return ergebnis
 
 
 def aehnliche(con: sqlite3.Connection, art: str, daten: dict, ausser: int | None = None) -> list[dict]:

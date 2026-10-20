@@ -124,6 +124,8 @@ export interface Beteiligter {
   daten: Record<string, string | string[]>;
   geaendert_am: string;
   stufe?: "gleich" | "aehnlich";
+  /** Nur in der Liste: an wie vielen Akten beteiligt. */
+  akten_anzahl?: number;
   beziehungen?: { von: number; zu: number; art: string; anderer: number; name: string; funktion?: string; text: string }[];
   akten?: { akte_id: number; rolle: string; akte: string; aktenzeichen: string | null }[];
 }

@@ -70,6 +70,13 @@ def test_beteiligte_anlegen_suchen_dubletten(con):
         beteiligte.speichern(con, "person", {"nachname": "X", "geburtsdatum": "1.1.1980"})
 
 
+def test_liste_zaehlt_akten(con):
+    lena = person(con, "Lena", "Brückner")
+    stammdaten.beteiligung_hinzufuegen(con, neue_akte(con), "mandant", beteiligter_id=lena)
+    person(con, "Karl", "Ohneakte")
+    assert {e["name"]: e["akten_anzahl"] for e in beteiligte.liste(con)} == {"Lena Brückner": 1, "Karl Ohneakte": 0}
+
+
 def test_beziehungen_und_loeschschutz(con):
     gmbh = firma(con, "Autohaus Rehnfeld GmbH")
     gf = person(con, "Klaus", "Rehnfeld")

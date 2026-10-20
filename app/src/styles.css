@@ -495,3 +495,8 @@ input.betrag { text-align: right; }
 .kollision-kurz { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--linie); margin-top: 16px; padding-top: 10px; }
 .kollision-kurz .ampel { margin: 0; }
 input.funktion { font: inherit; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); width: 220px; margin-left: auto; margin-right: 8px; }
+.verzeichnis-filter { display: flex; gap: 8px; margin: 8px 0 12px; max-width: 720px; }
+.verzeichnis-filter input { flex: 1; font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.verzeichnis-filter select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
+.beteiligte-verzeichnis .karte { max-width: 980px; margin-bottom: 16px; }

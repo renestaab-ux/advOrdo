@@ -517,7 +517,7 @@ const FELDER_GEMEINSAM: [string, string][] = [
 ];
 
 /** Neuer oder bestehender Eintrag im Beteiligtenverzeichnis, mit Hinweis auf mögliche Dubletten. */
-function BeteiligterFormular({
+export function BeteiligterFormular({
   art,
   eintrag,
   vorbelegung,
@@ -527,6 +527,7 @@ function BeteiligterFormular({
   ausfuehren,
   onFertig,
   rolleText,
+  ohneAkte = false,
 }: {
   art: "person" | "organisation";
   eintrag?: Beteiligter;
@@ -537,6 +538,8 @@ function BeteiligterFormular({
   ausfuehren: Ausfuehren;
   onFertig: (neu: Beteiligter | null, uebernehmen: boolean) => void;
   rolleText: string;
+  /** Aufruf aus dem Beteiligtenverzeichnis: nur anlegen, nicht in eine Akte eintragen. */
+  ohneAkte?: boolean;
 }) {
   const start: Record<string, string> = {};
   if (eintrag) {
@@ -623,12 +626,21 @@ function BeteiligterFormular({
   const feld = (k: string, titel: string, breit = false) => (
     <label key={k} className={breit ? "feld feld-breit" : "feld"}>
       {titel}
+      {k === "anrede" ? (
+        <select value={werte[k] ?? ""} onChange={(ev) => setWerte({ ...werte, [k]: ev.target.value })}>
+          <option value="">–</option>
+          {["Frau", "Herr", ...(werte[k] && !["Frau", "Herr"].includes(werte[k]) ? [werte[k]] : [])].map((a) => (
+            <option key={a}>{a}</option>
+          ))}
+        </select>
+      ) : (
       <input
         type={k === "geburtsdatum" ? "date" : "text"}
         value={werte[k] ?? ""}
         onChange={(ev) => setWerte({ ...werte, [k]: ev.target.value })}
         onBlur={k === "name" || k === "nachname" || k === "vorname" ? () => void pruefeDubletten() : undefined}
       />
+      )}
     </label>
   );
 
@@ -717,7 +729,7 @@ function BeteiligterFormular({
                   </span>
                   {!aktuell && (
                     <button type="button" className="zweitrangig" onClick={() => onFertig(d, true)}>
-                      Vorhandenen nehmen
+                      {ohneAkte ? "Vorhandenen öffnen" : "Vorhandenen nehmen"}
                     </button>
                   )}
                 </li>
@@ -726,8 +738,8 @@ function BeteiligterFormular({
           </div>
         )}
         <div className="aktionen">
-          <button type="submit">{aktuell ? "Speichern" : `Anlegen und als ${rolleText} eintragen`}</button>
-          {!aktuell && (
+          <button type="submit">{aktuell ? "Speichern" : ohneAkte ? "Anlegen" : `Anlegen und als ${rolleText} eintragen`}</button>
+          {!aktuell && !ohneAkte && (
             <button type="button" className="zweitrangig" onClick={(e) => void speichern(e as unknown as FormEvent, false)}>
               Nur anlegen
             </button>
@@ -789,7 +801,7 @@ function BeteiligterFormular({
             ))}
           </ul>
           {aktuell.art === "organisation" && <NeuerVertreter onHinzu={vertreterNeu} />}
-          {(aktuell.akten ?? []).length > 0 && (
+          {!ohneAkte && (aktuell.akten ?? []).length > 0 && (
             <p className="leise">
               Beteiligt an: {(aktuell.akten ?? []).map((a) => `${a.aktenzeichen ?? a.akte}`).join(", ")}
             </p>

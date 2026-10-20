@@ -5,6 +5,7 @@ import EigeneDaten from "./EigeneDaten";
 import Einstellungen from "./Einstellungen";
 import Gesetze from "./Gesetze";
 import Rechtsprechung from "./Rechtsprechung";
+import Beteiligte from "./Beteiligte";
 import Start, { StartZiel } from "./Start";
 import Suche from "./Suche";
 import Toolbox from "./Toolbox";
@@ -12,11 +13,12 @@ import Vergleich from "./Vergleich";
 import { invoke } from "@tauri-apps/api/core";
 import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern } from "./kern";
 
-type Bereich = "start" | "eigene" | "toolbox" | "akte" | "suche" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
+type Bereich = "start" | "eigene" | "toolbox" | "akte" | "beteiligte" | "suche" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
 
 const BEREICHE: { id: Bereich; titel: string; bald?: boolean }[] = [
   { id: "start", titel: "Start" },
   { id: "akte", titel: "Akte" },
+  { id: "beteiligte", titel: "Beteiligte" },
   { id: "suche", titel: "Suche" },
   { id: "vergleich", titel: "Vergleich" },
   { id: "analyse", titel: "Analyse" },
@@ -126,6 +128,14 @@ export default function App() {
           <Suche
             akteId={akteId}
             setAkteId={setAkteId}
+            onAkte={(id) => {
+              setAkteId(id);
+              setBereich("akte");
+            }}
+          />
+        )}
+        {bereich === "beteiligte" && (
+          <Beteiligte
             onAkte={(id) => {
               setAkteId(id);
               setBereich("akte");

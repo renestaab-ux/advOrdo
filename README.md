@@ -215,13 +215,17 @@ Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1 (Datenteil). In der Akte 
   (mit gerichtlichem Aktenzeichen), Sachverständiger, Zeuge, Streitverkündeter. Personen und Organisationen stehen
   einmal im **Beteiligtenverzeichnis** und werden in jeder Akte wiederverwendet; beim Anlegen weist die App auf
   gleiche oder ähnliche Namen hin. Zu einem Eintrag lassen sich frühere Namen, gesetzliche Vertreter und verbundene
-  Organisationen (Mutter, Tochter) erfassen. Bei einer Rechtsabteilung ist die Konzerngesellschaft aus „Eigene
-  Daten“ der Mandant, dazu kommt der vertretende Anwalt.
+  Organisationen (Mutter, Tochter) erfassen; gesetzliche Vertreter mit Anrede, Titel und Funktion („vertreten durch
+  Frau Dr. Mira Lenz (Geschäftsführerin)“) auch direkt beim Anlegen der Organisation. Bei einer Rechtsabteilung ist
+  die Konzerngesellschaft aus „Eigene Daten“ der Mandant, dazu kommt der vertretende Anwalt.
+- Der Bereich **Beteiligte** in der linken Leiste zeigt das ganze Verzeichnis mit Suche: Einträge bearbeiten, neu
+  anlegen, löschen (nur ohne Akte) und von dort in die Akten springen, an denen jemand beteiligt ist.
 - **Kollisionsprüfung** (§ 43a Abs. 4 BRAO, § 3 BORA): Sobald Mandant oder Gegner eingetragen werden, sucht die App in
   allen Akten, auch abgeschlossenen, ob dieselbe Partei anderswo auf der anderen Seite steht. Verglichen werden Namen
   ohne Rechtsform und Titel (auch frühere Namen), Geburtsdatum bzw. Registernummer, gesetzliche Vertreter und
-  verbundene Organisationen. **Rot**: dieselbe Partei; **Gelb**: ähnlicher Name, Vertreter, verbundene Organisation
-  oder (Rechtsabteilung) eine eigene Konzerngesellschaft als Gegner. Die anderen Arbeitsumgebungen auf dem Gerät
+  verbundene Organisationen. **Rot**: dieselbe Partei; **Gelb**: ähnlicher Name (auch Nachname allein oder ein
+  Tippfehler), Vertreter, verbundene Organisation oder (Rechtsabteilung) eine eigene Konzerngesellschaft als Gegner.
+  Schon die Suchtreffer beim Hinzufügen zeigen einen möglichen Konflikt, bevor jemand eingetragen ist. Die anderen Arbeitsumgebungen auf dem Gerät
   durchsucht die App mit, aber nur lesend, etwa bei Doppelzulassung; Testumgebungen lassen sich unter Einstellungen
   ausnehmen. Ob ein Konflikt besteht, entscheidet der Anwalt; Prüfung, Treffer und Entscheidung mit Begründung
   bleiben in der Akte dokumentiert.
