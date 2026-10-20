@@ -5,7 +5,10 @@ import {
   AktenOptionen,
   Beteiligter,
   Beteiligung,
+  KollisionVorab,
   Kollisionspruefung,
+  betragAnzeige,
+  betragNormalisieren,
   kern,
 } from "./kern";
 
@@ -18,7 +21,12 @@ type Entwurf = Record<(typeof AKTE_FELDER)[number], string>;
 function entwurfAus(s: Stammdaten): Entwurf {
   const e = {} as Entwurf;
   for (const k of AKTE_FELDER) e[k] = s[k] == null ? "" : String(s[k]);
+  e.gegenstandswert = betragAnzeige(e.gegenstandswert);
   return e;
+}
+
+function entwurfWerte(entwurf: Entwurf): Record<string, unknown> {
+  return { ...entwurf, sachbearbeiter_id: entwurf.sachbearbeiter_id ? Number(entwurf.sachbearbeiter_id) : null };
 }
 
 /**
@@ -63,26 +71,35 @@ export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number
     });
   }, [akteId, ausfuehren, uebernehmen]);
 
-  async function geaendert(s: Stammdaten | undefined, text?: string) {
+  /** Neue Daten aus dem Kern; ungespeicherte Eingaben im Formular bleiben dabei stehen. */
+  function geaendert(s: Stammdaten | undefined) {
     if (!s) return;
+    setDaten(s);
+    onGeaendert();
+  }
+
+  const ungespeichert = !!(daten && entwurf) && JSON.stringify(entwurf) !== JSON.stringify(entwurfAus(daten));
+
+  /** Speichert die Stammdaten, falls im Formular etwas geändert wurde; false, wenn das Speichern scheitert. */
+  async function sichern(text?: string): Promise<boolean> {
+    if (!entwurf || (!ungespeichert && !text)) return true;
+    const s = await ausfuehren(() =>
+      kern<Stammdaten>("akten.stammdaten_speichern", { akte_id: akteId, daten: entwurfWerte(entwurf) }),
+    );
+    if (!s) return false;
     uebernehmen(s);
     if (text) setMeldung(text);
     onGeaendert();
+    return true;
   }
 
   async function speichern(e: FormEvent) {
     e.preventDefault();
-    if (!entwurf) return;
-    const werte: Record<string, unknown> = { ...entwurf };
-    werte.sachbearbeiter_id = entwurf.sachbearbeiter_id ? Number(entwurf.sachbearbeiter_id) : null;
-    await geaendert(
-      await ausfuehren(() => kern<Stammdaten>("akten.stammdaten_speichern", { akte_id: akteId, daten: werte })),
-      "Gespeichert.",
-    );
+    await sichern("Gespeichert.");
   }
 
   async function vergeben() {
-    await geaendert(
+    geaendert(
       await ausfuehren(() =>
         kern<Stammdaten>("akten.aktenzeichen_vergeben", { akte_id: akteId, aktenzeichen: azEingabe.trim() || null }),
       ),
@@ -183,8 +200,14 @@ export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number
             <input type="date" {...feld("mandat_seit")} />
           </label>
           <label className="feld">
-            Gegenstandswert
-            <input {...feld("gegenstandswert")} placeholder="z. B. 18.450,00 €" />
+            Gegenstandswert in €
+            <input
+              {...feld("gegenstandswert")}
+              inputMode="decimal"
+              className="betrag"
+              placeholder="z. B. 18.450,00"
+              onBlur={() => setEntwurf({ ...entwurf, gegenstandswert: betragNormalisieren(entwurf.gegenstandswert) })}
+            />
           </label>
           <label className="feld feld-breit">
             Notiz
@@ -195,6 +218,7 @@ export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number
           <button type="submit" disabled={laeuft}>
             Speichern
           </button>
+          {ungespeichert && <span className="leise">Ungespeicherte Änderungen; sie werden beim Eintragen eines Beteiligten mitgespeichert.</span>}
         </div>
       </form>
 
@@ -204,7 +228,8 @@ export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number
         optionen={optionen}
         laeuft={laeuft}
         ausfuehren={ausfuehren}
-        onGeaendert={(s) => void geaendert(s)}
+        vorher={() => sichern()}
+        onGeaendert={geaendert}
       />
 
       <KollisionsAnzeige
@@ -213,7 +238,7 @@ export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number
         optionen={optionen}
         laeuft={laeuft}
         ausfuehren={ausfuehren}
-        onGeaendert={(k) => uebernehmen({ ...daten, kollision: k })}
+        onGeaendert={(k) => setDaten({ ...daten, kollision: k })}
       />
 
       {laeuft && <p className="status">Einen Moment …</p>}
@@ -225,7 +250,10 @@ export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number
 
 type Ausfuehren = <T>(f: () => Promise<T>) => Promise<T | undefined>;
 
-const SEITEN_REIHE = ["eigene", "gegen", "neutral"] as const;
+const GRUPPEN_REIHE = ["eigene", "gegen", "gericht", "neutral"] as const;
+const PARTEIROLLEN = ["mandant", "gegner"];
+
+const gleicherName = (a: string, b: string) => a.trim().toLocaleLowerCase("de") === b.trim().toLocaleLowerCase("de");
 
 function BeteiligteDerAkte({
   akteId,
@@ -233,6 +261,7 @@ function BeteiligteDerAkte({
   optionen,
   laeuft,
   ausfuehren,
+  vorher,
   onGeaendert,
 }: {
   akteId: number;
@@ -240,20 +269,28 @@ function BeteiligteDerAkte({
   optionen: AktenOptionen;
   laeuft: boolean;
   ausfuehren: Ausfuehren;
+  /** Läuft vor jeder Änderung an den Beteiligten: speichert offene Stammdaten. */
+  vorher: () => Promise<boolean>;
   onGeaendert: (s: Stammdaten | undefined) => void;
 }) {
   const [rolle, setRolle] = useState("mandant");
   const [suche, setSuche] = useState("");
   const [treffer, setTreffer] = useState<Beteiligter[]>([]);
   const [azZusatz, setAzZusatz] = useState("");
-  const [formular, setFormular] = useState<{ art: "person" | "organisation"; eintrag?: Beteiligter } | null>(null);
+  const [vorab, setVorab] = useState<KollisionVorab>({});
+  // nr: jedes Öffnen ist ein neues Formular, auch wenn eines offen war.
+  const [formular, setFormular] = useState<{ art: "person" | "organisation"; eintrag?: Beteiligter; nr: number } | null>(null);
+  const oeffnen = (art: "person" | "organisation", eintrag?: Beteiligter) => setFormular({ art, eintrag, nr: Date.now() });
 
   const eigeneWahl =
     (rolle === "mandant" && optionen.form === "rechtsabteilung" && optionen.konzerngesellschaften.length > 0) ||
     rolle === "vertretender_anwalt";
 
   useEffect(() => {
-    if (eigeneWahl) return;
+    if (eigeneWahl || !suche.trim()) {
+      setTreffer([]);
+      return;
+    }
     let aktuell = true;
     const t = setTimeout(() => {
       void kern<Beteiligter[]>("beteiligte.liste", { suche }).then((l) => {
@@ -268,7 +305,23 @@ function BeteiligteDerAkte({
     };
   }, [suche, eigeneWahl, daten]);
 
+  // Möglichen Konflikt schon an den Suchtreffern zeigen, bevor jemand Mandant oder Gegner wird.
+  useEffect(() => {
+    if (!PARTEIROLLEN.includes(rolle) || treffer.length === 0) {
+      setVorab({});
+      return;
+    }
+    let aktuell = true;
+    void kern<KollisionVorab>("akten.kollision_vorab", { akte_id: akteId, rolle, beteiligter_ids: treffer.map((t) => t.id) })
+      .then((v) => aktuell && setVorab(v))
+      .catch(() => aktuell && setVorab({}));
+    return () => {
+      aktuell = false;
+    };
+  }, [treffer, rolle, akteId]);
+
   async function hinzufuegen(verweis: Record<string, number>) {
+    if (!(await vorher())) return;
     const s = await ausfuehren(() =>
       kern<Stammdaten>("akten.beteiligung_hinzufuegen", { akte_id: akteId, rolle, aktenzeichen: azZusatz, ...verweis }),
     );
@@ -280,24 +333,25 @@ function BeteiligteDerAkte({
   }
 
   async function entfernen(b: Beteiligung) {
+    if (!(await vorher())) return;
     onGeaendert(await ausfuehren(() => kern<Stammdaten>("akten.beteiligung_entfernen", { beteiligung_id: b.id })));
   }
 
   async function eintragOeffnen(id: number) {
     const e = await ausfuehren(() => kern<Beteiligter>("beteiligte.eintrag", { beteiligter_id: id }));
-    if (e) setFormular({ art: e.art, eintrag: e });
+    if (e) oeffnen(e.art, e);
   }
 
   return (
     <div className="beteiligte-akte">
       <h3>Beteiligte</h3>
       {daten.beteiligte.length === 0 && <p className="leer">Noch keine Beteiligten. Beginne mit Mandant und Gegner.</p>}
-      {SEITEN_REIHE.map((seite) => {
-        const liste = daten.beteiligte.filter((b) => b.seite === seite);
+      {GRUPPEN_REIHE.map((gruppe) => {
+        const liste = daten.beteiligte.filter((b) => (b.gruppe ?? b.seite) === gruppe);
         if (liste.length === 0) return null;
         return (
-          <div key={seite} className={`seite seite-${seite}`}>
-            <div className="leise">{optionen.seiten[seite]}</div>
+          <div key={gruppe} className={`seite seite-${gruppe}`}>
+            <div className="leise">{optionen.gruppen?.[gruppe] ?? optionen.seiten[gruppe]}</div>
             <ul className="eintraege">
               {liste.map((b) => (
                 <li key={b.id}>
@@ -325,7 +379,8 @@ function BeteiligteDerAkte({
         );
       })}
 
-      <div className="eintrag-formular">
+      <div className="eintrag-formular beteiligte-hinzufuegen">
+        <h4>Beteiligten hinzufügen</h4>
         <div className="beteiligte-neu">
           <label className="feld">
             Rolle
@@ -384,23 +439,41 @@ function BeteiligteDerAkte({
         {!eigeneWahl && (
           <>
             <ul className="eintraege">
-              {treffer.map((t) => (
-                <li key={t.id}>
-                  <span>
-                    {t.name} <span className="leise">{t.art === "person" ? "Person" : (t.daten.kategorie as string) || "Organisation"}</span>
-                  </span>
-                  <button className="zweitrangig" onClick={() => void hinzufuegen({ beteiligter_id: t.id })} disabled={laeuft}>
-                    Als {optionen.rollen[rolle].text} eintragen
-                  </button>
-                </li>
-              ))}
+              {treffer.map((t) => {
+                const k = vorab[String(t.id)];
+                const namensgleich = daten.beteiligte.find((b) => gleicherName(b.name, t.name));
+                return (
+                  <li key={t.id} className={k ? `vorab vorab-${k.ampel}` : undefined}>
+                    <span>
+                      {t.name}{" "}
+                      <span className="leise">
+                        {t.art === "person" ? "Person" : `Organisation${t.daten.kategorie ? ` · ${t.daten.kategorie}` : ""}`}
+                      </span>
+                      {namensgleich && (
+                        <span className="hinweis-zeile">
+                          Gleicher Name wie {namensgleich.rolle_text} dieser Akte; vielleicht doppelt im Verzeichnis.
+                        </span>
+                      )}
+                      {k && (
+                        <span className="hinweis-zeile">
+                          <span className={`ampel-punkt ampel-${k.ampel}`} aria-hidden="true" /> Möglicher Konflikt:{" "}
+                          {k.texte.join(" ")}
+                        </span>
+                      )}
+                    </span>
+                    <button className="zweitrangig" onClick={() => void hinzufuegen({ beteiligter_id: t.id })} disabled={laeuft}>
+                      Als {optionen.rollen[rolle].text} eintragen
+                    </button>
+                  </li>
+                );
+              })}
               {treffer.length === 0 && suche.trim() && <li className="leer">Kein Eintrag gefunden.</li>}
             </ul>
             <div className="aktionen">
-              <button className="zweitrangig" onClick={() => setFormular({ art: "person" })}>
+              <button className="zweitrangig" onClick={() => oeffnen("person")}>
                 Neue Person …
               </button>
-              <button className="zweitrangig" onClick={() => setFormular({ art: "organisation" })}>
+              <button className="zweitrangig" onClick={() => oeffnen("organisation")}>
                 Neue Organisation …
               </button>
             </div>
@@ -410,6 +483,7 @@ function BeteiligteDerAkte({
 
       {formular && (
         <BeteiligterFormular
+          key={formular.nr}
           art={formular.art}
           eintrag={formular.eintrag}
           vorbelegung={suche}
@@ -419,7 +493,7 @@ function BeteiligteDerAkte({
           onFertig={(neu, uebernehmen) => {
             setFormular(null);
             if (neu && uebernehmen) void hinzufuegen({ beteiligter_id: neu.id });
-            else void ausfuehren(() => kern<Stammdaten>("akten.stammdaten", { akte_id: akteId })).then(onGeaendert);
+            else void ausfuehren(() => kern<Stammdaten>("akten.stammdaten", { akte_id: akteId })).then((s) => s && onGeaendert(s));
           }}
           rolleText={optionen.rollen[rolle].text}
         />
@@ -472,7 +546,10 @@ function BeteiligterFormular({
   const [bezSuche, setBezSuche] = useState("");
   const [bezTreffer, setBezTreffer] = useState<Beteiligter[]>([]);
   const [aktuell, setAktuell] = useState<Beteiligter | undefined>(eintrag);
+  // Gesetzliche Vertreter einer neuen Organisation: werden beim Speichern mit angelegt und verknüpft.
+  const [vertreter, setVertreter] = useState<VertreterEntwurf[]>([]);
   const felder = art === "person" ? FELDER_PERSON : FELDER_ORG;
+  const vertreterBereich = art === "organisation";
 
   async function pruefeDubletten() {
     const name = art === "person" ? werte.nachname : werte.name;
@@ -482,26 +559,49 @@ function BeteiligterFormular({
   }
 
   useEffect(() => {
-    if (!aktuell || !bezSuche.trim()) return setBezTreffer([]);
+    if ((!aktuell && !vertreterBereich) || !bezSuche.trim()) return setBezTreffer([]);
     const t = setTimeout(() => {
       void kern<Beteiligter[]>("beteiligte.liste", { suche: bezSuche }).then((l) =>
-        setBezTreffer(l.filter((b) => b.id !== aktuell.id).slice(0, 6)),
+        setBezTreffer(l.filter((b) => b.id !== aktuell?.id && (aktuell || b.art === "person")).slice(0, 6)),
       );
     }, 200);
     return () => clearTimeout(t);
-  }, [bezSuche, aktuell]);
+  }, [bezSuche, aktuell, vertreterBereich]);
 
   async function speichern(e: FormEvent, uebernehmen: boolean) {
     e.preventDefault();
     const daten = { ...werte, fruehere_namen: (werte.fruehere_namen ?? "").split("\n") };
     const neu = await ausfuehren(() =>
-      kern<Beteiligter>("beteiligte.speichern", { art, daten, beteiligter_id: aktuell?.id ?? null }),
+      kern<Beteiligter>("beteiligte.speichern", {
+        art,
+        daten,
+        beteiligter_id: aktuell?.id ?? null,
+        vertreter: vertreter.map((v) => ("beteiligter_id" in v ? { beteiligter_id: v.beteiligter_id } : v.daten)),
+      }),
     );
     if (neu) onFertig(neu, uebernehmen && !aktuell);
   }
 
+  /** Neue Person als gesetzlichen Vertreter: bei einer bestehenden Organisation sofort, sonst beim Speichern. */
+  async function vertreterNeu(v: Record<string, string>) {
+    if (!aktuell) {
+      setVertreter([...vertreter, { daten: v, name: [v.vorname, v.nachname].filter(Boolean).join(" ") }]);
+      return true;
+    }
+    const p = await ausfuehren(() => kern<Beteiligter>("beteiligte.speichern", { art: "person", daten: v }));
+    if (!p) return false;
+    await beziehung(p, "gesetzlicher_vertreter");
+    return true;
+  }
+
   async function beziehung(anderer: Beteiligter, bezArt: string, vorhanden = true) {
-    if (!aktuell) return;
+    if (!aktuell) {
+      if (bezArt === "gesetzlicher_vertreter" && !vertreter.some((v) => "beteiligter_id" in v && v.beteiligter_id === anderer.id)) {
+        setVertreter([...vertreter, { beteiligter_id: anderer.id, name: anderer.name }]);
+      }
+      setBezSuche("");
+      return;
+    }
     // Gesetzlicher Vertreter: die Person vertritt die Organisation.
     const [von, zu] = bezArt === "gesetzlicher_vertreter" && aktuell.art === "organisation" ? [anderer.id, aktuell.id] : [aktuell.id, anderer.id];
     const neu = await ausfuehren(() => kern<Beteiligter>("beteiligte.beziehung_setzen", { von, zu, art: bezArt, vorhanden }));
@@ -551,6 +651,39 @@ function BeteiligterFormular({
             <textarea rows={2} value={werte.notiz ?? ""} onChange={(ev) => setWerte({ ...werte, notiz: ev.target.value })} />
           </label>
         </div>
+        {vertreterBereich && !aktuell && (
+          <div className="beziehungen">
+            <h4>Gesetzliche Vertreter (z. B. Geschäftsführer)</h4>
+            <ul className="eintraege">
+              {vertreter.map((v, i) => (
+                <li key={i}>
+                  <span>
+                    {v.name} <span className="leise">{"beteiligter_id" in v ? "aus dem Verzeichnis" : "wird neu angelegt"}</span>
+                  </span>
+                  <button type="button" className="link gefahr" onClick={() => setVertreter(vertreter.filter((_, j) => j !== i))}>
+                    Entfernen
+                  </button>
+                </li>
+              ))}
+              {vertreter.length === 0 && <li className="leer">Noch keiner.</li>}
+            </ul>
+            <label className="feld">
+              Im Beteiligtenverzeichnis suchen
+              <input value={bezSuche} onChange={(e) => setBezSuche(e.target.value)} placeholder="Name der Person" />
+            </label>
+            <ul className="eintraege">
+              {bezTreffer.map((t) => (
+                <li key={t.id}>
+                  <span>{t.name}</span>
+                  <button type="button" className="zweitrangig" onClick={() => void beziehung(t, "gesetzlicher_vertreter")}>
+                    Als Vertreter
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <NeuerVertreter onHinzu={vertreterNeu} />
+          </div>
+        )}
         {dubletten.length > 0 && (
           <div className="hinweis-box">
             <strong>Diesen Namen gibt es schon:</strong>
@@ -623,11 +756,61 @@ function BeteiligterFormular({
               </li>
             ))}
           </ul>
+          {aktuell.art === "organisation" && <NeuerVertreter onHinzu={vertreterNeu} />}
           {(aktuell.akten ?? []).length > 0 && (
             <p className="leise">
               Beteiligt an: {(aktuell.akten ?? []).map((a) => `${a.aktenzeichen ?? a.akte}`).join(", ")}
             </p>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type VertreterEntwurf = { beteiligter_id: number; name: string } | { daten: Record<string, string>; name: string };
+
+/** Eine Person direkt als gesetzlichen Vertreter anlegen, mit Hinweis, falls es sie schon gibt. */
+function NeuerVertreter({ onHinzu }: { onHinzu: (daten: Record<string, string>) => Promise<boolean> }) {
+  const [v, setV] = useState({ vorname: "", nachname: "" });
+  const [vorhanden, setVorhanden] = useState<Beteiligter[] | null>(null);
+
+  async function hinzu(trotzdem = false) {
+    if (!v.nachname.trim()) return;
+    if (!trotzdem) {
+      const l = await kern<Beteiligter[]>("beteiligte.aehnliche", { art: "person", daten: v });
+      if (l.length > 0) return setVorhanden(l);
+    }
+    if (await onHinzu(v)) {
+      setV({ vorname: "", nachname: "" });
+      setVorhanden(null);
+    }
+  }
+
+  return (
+    <div className="neuer-vertreter">
+      <div className="formular-raster">
+        <label className="feld">
+          Vorname
+          <input value={v.vorname} onChange={(e) => setV({ ...v, vorname: e.target.value })} />
+        </label>
+        <label className="feld">
+          Nachname
+          <input value={v.nachname} onChange={(e) => setV({ ...v, nachname: e.target.value })} />
+        </label>
+      </div>
+      <div className="aktionen">
+        <button type="button" className="zweitrangig" onClick={() => void hinzu()} disabled={!v.nachname.trim()}>
+          Neue Person als Vertreter
+        </button>
+      </div>
+      {vorhanden && (
+        <div className="hinweis-box">
+          <strong>Diesen Namen gibt es schon im Verzeichnis:</strong> {vorhanden.map((p) => p.name).join(", ")}. Über
+          die Suche oben lässt sich der vorhandene Eintrag nehmen.{" "}
+          <button type="button" className="link" onClick={() => void hinzu(true)}>
+            Trotzdem neu anlegen
+          </button>
         </div>
       )}
     </div>

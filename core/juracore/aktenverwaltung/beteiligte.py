@@ -90,19 +90,25 @@ def schluessel(name: str) -> str:
     return " ".join(sorted(woerter))
 
 
+def _wort_passt(w: str, v: str) -> bool:
+    """Gleiches Wort oder ein kleiner Tippfehler darin ("joanas" ↔ "jonas"); kurze Wörter nur exakt."""
+    return w == v or (min(len(w), len(v)) >= 4 and SequenceMatcher(None, w, v).ratio() >= 0.8)
+
+
 def aehnlichkeit(a: str, b: str) -> str | None:
     """Vergleicht zwei Schlüssel: "gleich", "aehnlich" oder None.
 
-    Ähnlich ist ein Name mit kleinem Tippfehler oder einer, der den anderen ganz enthält ("Müller Bau GmbH" ↔
-    "Müller Bau Holding GmbH"). Ein einzelnes gemeinsames Wort ("Müller") reicht dafür nicht.
+    Ähnlich ist ein Name mit kleinem Tippfehler oder einer, dessen Wörter alle im anderen vorkommen: "Reiter" ↔
+    "Jonas Reiter", "Müller Bau GmbH" ↔ "Müller Bau Holding GmbH". Zwei vollständige Namen, die nur ein Wort teilen
+    ("Anna Reiter" ↔ "Jonas Reiter"), gelten nicht als ähnlich.
     """
     if not a or not b:
         return None
     if a == b:
         return "gleich"
-    wa, wb = set(a.split()), set(b.split())
-    kleiner = wa if len(wa) <= len(wb) else wb
-    if len(kleiner) >= 2 and (wa <= wb or wb <= wa):
+    wa, wb = a.split(), b.split()
+    kleiner, groesser = (wa, wb) if len(wa) <= len(wb) else (wb, wa)
+    if all(any(_wort_passt(w, v) for v in groesser) for w in kleiner):
         return "aehnlich"
     if SequenceMatcher(None, a, b).ratio() >= 0.88:
         return "aehnlich"
@@ -169,22 +175,31 @@ def eintrag(con: sqlite3.Connection, beteiligter_id: int) -> dict:
     return e
 
 
+def _suchwort_passt(w: str, t: str) -> bool:
+    """Wortanfang ("Reit" findet "Reiter") oder ein Tippfehler im Wort ("Joanas" findet "Jonas")."""
+    return t.startswith(w) or (len(w) >= 4 and SequenceMatcher(None, w, t[: len(w) + 1]).ratio() >= 0.8)
+
+
 def liste(con: sqlite3.Connection, suche: str = "", art: str | None = None, limit: int = 200) -> list[dict]:
-    """Einträge, deren Name (auch ein früherer) die Suchwörter enthält; ohne Suche alle, zuletzt geänderte zuerst."""
+    """Einträge, deren Name (auch ein früherer) die Suchwörter enthält, auch mit kleinem Tippfehler; genaue Treffer
+    zuerst. Ohne Suche alle, zuletzt geänderte zuerst."""
     woerter = schluessel(suche).split() if suche.strip() else []
-    ergebnis = []
+    genau, ungefaehr = [], []
     for z in con.execute("SELECT * FROM beteiligter ORDER BY geaendert_am DESC, id DESC"):
         if art and z["art"] != art:
             continue
         e = _eintrag(z)
         if woerter:
-            text = " ".join([z["schluessel"], *(schluessel(n) for n in e["daten"].get("fruehere_namen", []))])
-            if not all(any(t.startswith(w) for t in text.split()) for w in woerter):
-                continue
-        ergebnis.append(e)
-        if len(ergebnis) >= limit:
+            text = " ".join([z["schluessel"], *(schluessel(n) for n in e["daten"].get("fruehere_namen", []))]).split()
+            if all(any(t.startswith(w) for t in text) for w in woerter):
+                genau.append(e)
+            elif all(any(_suchwort_passt(w, t) for t in text) for w in woerter):
+                ungefaehr.append(e)
+            continue
+        genau.append(e)
+        if len(genau) >= limit:
             break
-    return ergebnis
+    return (genau + ungefaehr)[:limit]
 
 
 def aehnliche(con: sqlite3.Connection, art: str, daten: dict, ausser: int | None = None) -> list[dict]:
@@ -201,17 +216,27 @@ def aehnliche(con: sqlite3.Connection, art: str, daten: dict, ausser: int | None
     return sorted(treffer, key=lambda t: t["stufe"] != "gleich")
 
 
-def speichern(con: sqlite3.Connection, art: str, daten: dict, beteiligter_id: int | None = None) -> dict:
+def speichern(con: sqlite3.Connection, art: str, daten: dict, beteiligter_id: int | None = None,
+              vertreter: list[dict] | None = None) -> dict:
+    """Legt einen Eintrag an oder ändert ihn.
+
+    ``vertreter`` (nur Organisationen): gesetzliche Vertreter, die gleich mit verknüpft werden, je als
+    {"beteiligter_id": …} für einen vorhandenen Eintrag oder mit Personenfeldern für einen neuen.
+    """
     daten = _bereinige(art, daten)
+    vertreter = [v for v in (vertreter or []) if v]
+    if vertreter and art != "organisation":
+        raise ValueError("Gesetzliche Vertreter gibt es nur bei einer Organisation.")
+    neue_personen = [_bereinige("person", v) for v in vertreter if not v.get("beteiligter_id")]
+    vorhandene = [int(v["beteiligter_id"]) for v in vertreter if v.get("beteiligter_id")]
+    for vid in vorhandene:
+        if eintrag(con, vid)["art"] != "person":
+            raise ValueError("Ein gesetzlicher Vertreter ist eine Person.")
     name = anzeigename(art, daten)
     jetzt = _jetzt()
     with con:
         if beteiligter_id is None:
-            beteiligter_id = con.execute(
-                """INSERT INTO beteiligter (art, name, schluessel, daten, angelegt_am, geaendert_am)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (art, name, schluessel(name), json.dumps(daten, ensure_ascii=False), jetzt, jetzt),
-            ).lastrowid
+            beteiligter_id = _einfuegen(con, art, name, daten, jetzt)
         else:
             alt = eintrag(con, beteiligter_id)
             if alt["art"] != art:
@@ -220,7 +245,20 @@ def speichern(con: sqlite3.Connection, art: str, daten: dict, beteiligter_id: in
                 "UPDATE beteiligter SET name = ?, schluessel = ?, daten = ?, geaendert_am = ? WHERE id = ?",
                 (name, schluessel(name), json.dumps(daten, ensure_ascii=False), jetzt, beteiligter_id),
             )
+        for p in neue_personen:
+            vorhandene.append(_einfuegen(con, "person", anzeigename("person", p), p, jetzt))
+        for vid in vorhandene:
+            con.execute("INSERT OR IGNORE INTO beteiligter_beziehung (von, zu, art) VALUES (?, ?, ?)",
+                        (vid, beteiligter_id, "gesetzlicher_vertreter"))
     return eintrag(con, beteiligter_id)
+
+
+def _einfuegen(con: sqlite3.Connection, art: str, name: str, daten: dict, jetzt: str) -> int:
+    return con.execute(
+        """INSERT INTO beteiligter (art, name, schluessel, daten, angelegt_am, geaendert_am)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (art, name, schluessel(name), json.dumps(daten, ensure_ascii=False), jetzt, jetzt),
+    ).lastrowid
 
 
 def loeschen(con: sqlite3.Connection, beteiligter_id: int) -> dict:

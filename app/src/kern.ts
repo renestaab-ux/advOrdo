@@ -134,6 +134,8 @@ export interface Beteiligung {
   rolle: string;
   rolle_text: string;
   seite: "eigene" | "gegen" | "neutral";
+  /** Gruppe in der Liste: wie die Seite, nur steht das Gericht für sich. */
+  gruppe: "eigene" | "gegen" | "gericht" | "neutral";
   name: string;
   quelle: "verzeichnis" | "eigene_organisation" | "eigene_person";
   beteiligter_id: number | null;
@@ -180,6 +182,7 @@ export interface AkteStammdaten {
 export interface AktenOptionen {
   rollen: Record<string, { seite: "eigene" | "gegen" | "neutral"; text: string }>;
   seiten: Record<string, string>;
+  gruppen: Record<string, string>;
   status: Record<string, string>;
   eigene_rollen: string[];
   sachgebiete: string[];
@@ -190,6 +193,25 @@ export interface AktenOptionen {
   sachbearbeiter: { id: number; name: string }[];
   konzerngesellschaften: { id: number; name: string }[];
   anwaelte: { id: number; name: string; kanzlei: string }[];
+}
+
+/** Möglicher Konflikt eines Suchtreffers, bevor er eingetragen ist; je Beteiligten-ID. */
+export type KollisionVorab = Record<string, { ampel: "rot" | "gelb"; texte: string[] }>;
+
+/** Gegenstandswert aus dem Kern ("250000.00") in deutscher Schreibweise ("250.000,00"); Freitext bleibt. */
+export function betragAnzeige(wert: string | null | undefined): string {
+  if (!wert) return "";
+  if (!/^\d+(\.\d{1,2})?$/.test(wert)) return wert;
+  return Number(wert).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Eingabe wie "250.000" oder "18450,5 €" in die Anzeige "250.000,00"; was kein Betrag ist, bleibt stehen. */
+export function betragNormalisieren(text: string): string {
+  let z = text.replace(/[\s€']|EUR/gi, "");
+  if (!z) return "";
+  if (z.includes(",")) z = z.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(z)) z = z.replace(/\./g, "");
+  return /^\d+(\.\d+)?$/.test(z) ? betragAnzeige(Number(z).toFixed(2)) : text;
 }
 
 export interface AktenEinstellungen {

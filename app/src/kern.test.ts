@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   FeldDef,
   akteTitel,
+  betragAnzeige,
+  betragNormalisieren,
   aktiveUmgebung,
   feldText,
   personName,
@@ -277,5 +279,24 @@ describe("akteTitel", () => {
   it("zeigt das Aktenzeichen vor dem Namen", () => {
     expect(akteTitel({ name: "Brückner ./. Autohaus", aktenzeichen: "12/26" })).toBe("12/26 · Brückner ./. Autohaus");
     expect(akteTitel({ name: "Testakte Ordner", aktenzeichen: null })).toBe("Testakte Ordner");
+  });
+});
+
+describe("betragAnzeige", () => {
+  it("zeigt den Gegenstandswert deutsch, Freitext unverändert", () => {
+    expect(betragAnzeige("250000.00")).toBe("250.000,00");
+    expect(betragAnzeige("18450.5")).toBe("18.450,50");
+    expect(betragAnzeige(null)).toBe("");
+    expect(betragAnzeige("ca. 5.000")).toBe("ca. 5.000");
+  });
+});
+
+describe("betragNormalisieren", () => {
+  it("liest deutsche Schreibweisen", () => {
+    expect(betragNormalisieren("250.000")).toBe("250.000,00");
+    expect(betragNormalisieren("18450,5 €")).toBe("18.450,50");
+    expect(betragNormalisieren("1500")).toBe("1.500,00");
+    expect(betragNormalisieren("viel")).toBe("viel");
+    expect(betragNormalisieren(" ")).toBe("");
   });
 });

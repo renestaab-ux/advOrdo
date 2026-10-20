@@ -10,6 +10,7 @@ import json
 import re
 import sqlite3
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 
 from . import beteiligte
 
@@ -65,6 +66,8 @@ ROLLEN = {
     "sonstiger": ("neutral", "Sonstiger Beteiligter"),
 }
 SEITEN = {"eigene": "Eigene Seite", "gegen": "Gegenseite", "neutral": "Neutral / Dritte"}
+# Gruppen der Beteiligtenliste: wie die Seiten, nur steht das Gericht für sich.
+GRUPPEN = {"eigene": "Eigene Seite", "gegen": "Gegenseite", "gericht": "Gericht", "neutral": "Neutral / Dritte"}
 STATUS = {"laufend": "laufend", "ruhend": "ruhend", "abgeschlossen": "abgeschlossen"}
 EIGENE_ROLLEN = (
     "Prozessbevollmächtigter des Klägers", "Prozessbevollmächtigter des Beklagten", "Außergerichtliche Vertretung",
@@ -78,6 +81,27 @@ SACHGEBIETE = (
 FELDER = ("name", "gegenstand", "sachgebiet", "eigene_rolle", "status", "sachbearbeiter_id", "mandat_seit",
           "gegenstandswert", "notiz")  # fmt: skip
 
+_BETRAG_TAUSENDER = re.compile(r"^\d{1,3}(\.\d{3})+$")
+
+
+def betrag(text: str) -> str:
+    """Gegenstandswert in Euro als "250000.00"; liest deutsche Schreibweisen wie "250.000", "18.450,50 €"."""
+    t = re.sub(r"[\s€']|EUR", "", str(text or ""), flags=re.IGNORECASE)
+    if not t:
+        return ""
+    if "," in t:
+        t = t.replace(".", "").replace(",", ".")
+    elif _BETRAG_TAUSENDER.match(t):
+        t = t.replace(".", "")
+    try:
+        wert = Decimal(t)
+    except InvalidOperation as fehler:
+        raise ValueError(f"Gegenstandswert: „{text}“ ist kein Betrag, z. B. 18.450,00.") from fehler
+    if wert < 0 or not wert.is_finite():
+        raise ValueError("Gegenstandswert: bitte einen Betrag ab 0 angeben.")
+    return f"{wert.quantize(Decimal('0.01')):f}"
+
+
 _AZ = re.compile(r"^\s*(\d{1,6})\s*/\s*(\d{2})\s*(.*)$")
 
 
@@ -87,6 +111,14 @@ def einrichten(con: sqlite3.Connection) -> None:
         if spalte not in vorhanden:
             con.execute(f"ALTER TABLE akte ADD COLUMN {spalte} {typ}")
     con.executescript(_SCHEMA)
+    # Frühere Freitext-Gegenstandswerte ("250.000") in die Zahlform bringen; was sich nicht lesen lässt, bleibt.
+    for z in con.execute("SELECT id, gegenstandswert FROM akte WHERE gegenstandswert IS NOT NULL").fetchall():
+        try:
+            neu = betrag(z["gegenstandswert"]) or None
+        except ValueError:
+            continue
+        if neu != z["gegenstandswert"]:
+            con.execute("UPDATE akte SET gegenstandswert = ? WHERE id = ?", (neu, z["id"]))
     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS akte_aktenzeichen ON akte (aktenzeichen COLLATE NOCASE) "
                 "WHERE aktenzeichen IS NOT NULL")
     con.commit()
@@ -234,6 +266,7 @@ def beteiligungen(con: sqlite3.Connection, akte_id: int) -> list[dict]:
             name, quelle = _eigene_name(con, "eigene_person", z["eigene_person_id"]), "eigene_person"
         ergebnis.append({
             "id": z["id"], "rolle": z["rolle"], "rolle_text": rolle_text, "seite": seite, "name": name,
+            "gruppe": "gericht" if z["rolle"] == "gericht" else seite,
             "quelle": quelle, "beteiligter_id": z["beteiligter_id"], "art": z["t_art"],
             "eigene_organisation_id": z["eigene_organisation_id"], "eigene_person_id": z["eigene_person_id"],
             "aktenzeichen": z["aktenzeichen"] or "",
@@ -266,6 +299,8 @@ def speichern(con: sqlite3.Connection, akte_id: int, daten: dict) -> dict:
             raise ValueError("Die Akte braucht eine Kurzbezeichnung.")
         if k == "status" and text not in STATUS:
             raise ValueError(f"Unbekannter Status: {text!r}")
+        if k == "gegenstandswert":
+            text = betrag(text)
         if k == "mandat_seit" and text:
             try:
                 date.fromisoformat(text)

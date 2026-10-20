@@ -58,6 +58,22 @@ def _person_aus(name: str, daten: dict, **weiter) -> dict:
             "register": _register(daten), **weiter}
 
 
+def _mit_umfeld(con: sqlite3.Connection, t: sqlite3.Row, basis: dict) -> list[dict]:
+    """Ein Eintrag des Beteiligtenverzeichnisses samt gesetzlicher Vertreter und verbundener Organisationen."""
+    ergebnis = [_person_aus(t["name"], json.loads(t["daten"]), beteiligter_id=t["id"], via=None, **basis)]
+    for r in con.execute(
+        """SELECT b.*, r.art AS r_art FROM beteiligter_beziehung r JOIN beteiligter b
+           ON b.id = CASE WHEN r.von = ? THEN r.zu ELSE r.von END
+           WHERE (r.art = 'gesetzlicher_vertreter' AND r.zu = ?)
+              OR (r.art = 'verbunden' AND ? IN (r.von, r.zu))""",
+        (t["id"], t["id"], t["id"]),
+    ):
+        via = (f"gesetzlicher Vertreter von {t['name']}" if r["r_art"] == "gesetzlicher_vertreter"
+               else f"verbunden mit {t['name']}")
+        ergebnis.append(_person_aus(r["name"], json.loads(r["daten"]), beteiligter_id=r["id"], via=via, **basis))
+    return ergebnis
+
+
 def _parteien(con: sqlite3.Connection, akte_id: int | None = None) -> list[dict]:
     """Mandanten und Gegner (einer oder aller Akten) samt gesetzlicher Vertreter und verbundener Organisationen."""
     if not _hat_tabelle(con, "akte_beteiligung"):
@@ -70,20 +86,8 @@ def _parteien(con: sqlite3.Connection, akte_id: int | None = None) -> list[dict]
         basis = {"akte_id": z["akte_id"], "rolle": z["rolle"], "seite": ROLLEN[z["rolle"]][0]}
         if z["beteiligter_id"] is not None:
             t = con.execute("SELECT * FROM beteiligter WHERE id = ?", (z["beteiligter_id"],)).fetchone()
-            if t is None:
-                continue
-            ergebnis.append(_person_aus(t["name"], json.loads(t["daten"]), beteiligter_id=t["id"], via=None, **basis))
-            for r in con.execute(
-                """SELECT b.*, r.art AS r_art FROM beteiligter_beziehung r JOIN beteiligter b
-                   ON b.id = CASE WHEN r.von = ? THEN r.zu ELSE r.von END
-                   WHERE (r.art = 'gesetzlicher_vertreter' AND r.zu = ?)
-                      OR (r.art = 'verbunden' AND ? IN (r.von, r.zu))""",
-                (t["id"], t["id"], t["id"]),
-            ):
-                via = (f"gesetzlicher Vertreter von {t['name']}" if r["r_art"] == "gesetzlicher_vertreter"
-                       else f"verbunden mit {t['name']}")
-                ergebnis.append(_person_aus(r["name"], json.loads(r["daten"]), beteiligter_id=r["id"], via=via,
-                                            **basis))
+            if t is not None:
+                ergebnis += _mit_umfeld(con, t, basis)
         elif z["eigene_organisation_id"] is not None:
             o = con.execute("SELECT daten FROM eigene_organisation WHERE id = ?",
                             (z["eigene_organisation_id"],)).fetchone()
@@ -124,12 +128,9 @@ def _beschreibe(p: dict) -> dict:
     return {"name": p["name"], "rolle": p["rolle"], "rolle_text": ROLLEN[p["rolle"]][1], "via": p["via"]}
 
 
-def ermitteln(con: sqlite3.Connection, akte_id: int, andere: list[tuple[str, sqlite3.Connection]] | None = None,
-              umgebung: str = "diese Umgebung") -> dict:
-    """Treffer für eine Akte, ohne zu speichern. ``andere``: (Name, Verbindung) weiterer Umgebungen, nur lesend."""
-    hier = _parteien(con, akte_id)
+def _treffer(con: sqlite3.Connection, akte_id: int, hier: list[dict],
+             quellen: list[tuple[str, sqlite3.Connection, bool]], umgebung: str) -> list[dict]:
     treffer: list[dict] = []
-    quellen = [(umgebung, con, True), *((n, c, False) for n, c in (andere or []))]
     for name, quelle, gleiche_db in quellen:
         info = _akten_info(quelle)
         for dort in _parteien(quelle):
@@ -139,7 +140,7 @@ def ermitteln(con: sqlite3.Connection, akte_id: int, andere: list[tuple[str, sql
             for p in hier:
                 if p["seite"] == dort["seite"]:
                     continue
-                if fuer_dieselbe_akte and p["seite"] == "gegen":
+                if fuer_dieselbe_akte and p["seite"] == "gegen" and not p.get("vorab"):
                     continue  # innerhalb der Akte jedes Paar nur einmal, aus Sicht der eigenen Seite
                 stufe = _vergleiche(p, dort, gleiche_db)
                 if not stufe:
@@ -171,9 +172,42 @@ def ermitteln(con: sqlite3.Connection, akte_id: int, andere: list[tuple[str, sql
     for t in treffer:
         t["text"] = _text(t)
     treffer.sort(key=lambda t: (t["ampel"] != "rot", t["dort"]["andere_umgebung"], t["text"]))
-    ampel = "rot" if any(t["ampel"] == "rot" for t in treffer) else "gelb" if treffer else "gruen"
-    return {"ampel": ampel, "treffer": treffer, "umgebungen": [q[0] for q in quellen],
+    return treffer
+
+
+def _ampel(treffer: list[dict]) -> str:
+    return "rot" if any(t["ampel"] == "rot" for t in treffer) else "gelb" if treffer else "gruen"
+
+
+def ermitteln(con: sqlite3.Connection, akte_id: int, andere: list[tuple[str, sqlite3.Connection]] | None = None,
+              umgebung: str = "diese Umgebung") -> dict:
+    """Treffer für eine Akte, ohne zu speichern. ``andere``: (Name, Verbindung) weiterer Umgebungen, nur lesend."""
+    hier = _parteien(con, akte_id)
+    quellen = [(umgebung, con, True), *((n, c, False) for n, c in (andere or []))]
+    treffer = _treffer(con, akte_id, hier, quellen, umgebung)
+    return {"ampel": _ampel(treffer), "treffer": treffer, "umgebungen": [q[0] for q in quellen],
             "parteien": len([p for p in hier if not p["via"]])}
+
+
+def vorab(con: sqlite3.Connection, akte_id: int, rolle: str, beteiligter_ids: list[int],
+          andere: list[tuple[str, sqlite3.Connection]] | None = None, umgebung: str = "diese Umgebung") -> dict:
+    """Was die Prüfung meldete, wenn ein Eintrag in dieser Rolle hinzukäme; je Eintrag Ampel und Treffertexte.
+
+    Damit zeigen die Suchtreffer einen möglichen Konflikt, bevor jemand als Mandant oder Gegner eingetragen ist.
+    """
+    if rolle not in PARTEIROLLEN:
+        return {}
+    quellen = [(umgebung, con, True), *((n, c, False) for n, c in (andere or []))]
+    basis = {"akte_id": akte_id, "rolle": rolle, "seite": ROLLEN[rolle][0], "vorab": True}
+    ergebnis = {}
+    for bid in beteiligter_ids:
+        t = con.execute("SELECT * FROM beteiligter WHERE id = ?", (bid,)).fetchone()
+        if t is None:
+            continue
+        treffer = _treffer(con, akte_id, _mit_umfeld(con, t, basis), quellen, umgebung)
+        if treffer:
+            ergebnis[str(bid)] = {"ampel": _ampel(treffer), "texte": [x["text"] for x in treffer]}
+    return ergebnis
 
 
 def _text(t: dict) -> str:

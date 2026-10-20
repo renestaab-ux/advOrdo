@@ -108,6 +108,7 @@ class Kern:
             "akten.beteiligung_entfernen": lambda beteiligung_id: self._nach_aenderung(
                 stammdaten.beteiligung_entfernen(self.akten, beteiligung_id), "mandant"),
             "akten.kollision_pruefen": self.kollision_pruefen,
+            "akten.kollision_vorab": self.kollision_vorab,
             "akten.kollision_entscheiden": lambda pruefung_id, entscheidung, begruendung="": kollision.entscheiden(
                 self.akten, pruefung_id, entscheidung, begruendung),
             "akten.kollision_verlauf": lambda akte_id: kollision.verlauf(self.akten, akte_id),
@@ -115,8 +116,8 @@ class Kern:
             "beteiligte.eintrag": lambda beteiligter_id: beteiligte.eintrag(self.akten, beteiligter_id),
             "beteiligte.aehnliche": lambda art, daten, ausser=None: beteiligte.aehnliche(
                 self.akten, art, daten, ausser),
-            "beteiligte.speichern": lambda art, daten, beteiligter_id=None: beteiligte.speichern(
-                self.akten, art, daten, beteiligter_id),
+            "beteiligte.speichern": lambda art, daten, beteiligter_id=None, vertreter=None: beteiligte.speichern(
+                self.akten, art, daten, beteiligter_id, vertreter),
             "beteiligte.loeschen": lambda beteiligter_id: beteiligte.loeschen(self.akten, beteiligter_id),
             "beteiligte.beziehung_setzen": lambda von, zu, art, vorhanden=True: beteiligte.beziehung_setzen(
                 self.akten, von, zu, art, vorhanden),
@@ -213,7 +214,8 @@ class Kern:
                 s["inhaber"]["daten"], "person_rechtsabteilung"), "kanzlei": "selbst (Rechtsabteilung)"})
         return {
             "rollen": {k: {"seite": v[0], "text": v[1]} for k, v in stammdaten.ROLLEN.items()},
-            "seiten": stammdaten.SEITEN, "status": stammdaten.STATUS, "eigene_rollen": stammdaten.EIGENE_ROLLEN,
+            "seiten": stammdaten.SEITEN, "gruppen": stammdaten.GRUPPEN, "status": stammdaten.STATUS,
+            "eigene_rollen": stammdaten.EIGENE_ROLLEN,
             "sachgebiete": stammdaten.SACHGEBIETE, "kategorien": beteiligte.KATEGORIEN,
             "beziehungen": beteiligte.BEZIEHUNGEN, "entscheidungen": kollision.ENTSCHEIDUNGEN,
             "form": s["profil"]["form"],
@@ -238,6 +240,14 @@ class Kern:
 
     def kollision_pruefen(self, akte_id: int) -> dict:
         """Prüft in der aktiven Umgebung und, nur lesend, in den anderen Umgebungen (außer den ausgenommenen)."""
+        return self._mit_anderen_umgebungen(lambda andere, name: kollision.pruefen(self.akten, akte_id, andere, name))
+
+    def kollision_vorab(self, akte_id: int, rolle: str, beteiligter_ids: list[int]) -> dict:
+        """Hinweis für Suchtreffer, bevor sie als Mandant oder Gegner eingetragen werden."""
+        return self._mit_anderen_umgebungen(
+            lambda andere, name: kollision.vorab(self.akten, akte_id, rolle, beteiligter_ids, andere, name))
+
+    def _mit_anderen_umgebungen(self, f):
         liste = self.umgebungen.liste()
         aktiv = next(u for u in liste["umgebungen"] if u["aktiv"])
         ausgenommen = set(stammdaten.einstellungen(self.akten)["kollision_ausgenommen"])
@@ -255,7 +265,7 @@ class Kern:
                     log.warning("Umgebung %s für die Kollisionsprüfung nicht lesbar: %s", u["name"], fehler)
                     continue
                 andere.append((u["name"], c))
-            return kollision.pruefen(self.akten, akte_id, andere, aktiv["name"])
+            return f(andere, aktiv["name"])
         finally:
             for _, c in andere:
                 c.close()

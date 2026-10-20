@@ -47,8 +47,11 @@ def test_aehnlichkeit():
     assert beteiligte.aehnlichkeit("brueckner lena", "brueckner lena") == "gleich"
     assert beteiligte.aehnlichkeit("bau mueller", "bau holding mueller") == "aehnlich"
     assert beteiligte.aehnlichkeit("brueckner lena", "brueckner lenna") == "aehnlich"  # Tippfehler
-    assert beteiligte.aehnlichkeit("mueller", "bau mueller") is None  # ein gemeinsames Wort reicht nicht
-    assert beteiligte.aehnlichkeit("mueller peter", "mueller karin") is None
+    assert beteiligte.aehnlichkeit("reiter", "jonas reiter") == "aehnlich"  # nur der Nachname
+    assert beteiligte.aehnlichkeit("joanas reiter", "jonas reiter") == "aehnlich"
+    assert beteiligte.aehnlichkeit("reiter", "jonas reitter") == "aehnlich"
+    assert beteiligte.aehnlichkeit("mueller peter", "mueller karin") is None  # zwei volle Namen, ein Wort gleich
+    assert beteiligte.aehnlichkeit("ost", "west") is None
 
 
 def test_beteiligte_anlegen_suchen_dubletten(con):
@@ -57,6 +60,8 @@ def test_beteiligte_anlegen_suchen_dubletten(con):
     assert beteiligte.eintrag(con, lena)["name"] == "Dr. Lena Brückner"
     assert [e["name"] for e in beteiligte.liste(con, "rehn")] == ["Autohaus Rehnfeld GmbH"]
     assert [e["name"] for e in beteiligte.liste(con, "kaiser")] == ["Dr. Lena Brückner"]  # früherer Name
+    assert [e["name"] for e in beteiligte.liste(con, "Leena Brückner")] == ["Dr. Lena Brückner"]  # Tippfehler
+    assert [e["name"] for e in beteiligte.liste(con, "Brükner")] == ["Dr. Lena Brückner"]
     dubletten = beteiligte.aehnliche(con, "organisation", {"name": "Autohaus Rehnfeld Gesellschaft mbH"})
     assert [(d["name"], d["stufe"]) for d in dubletten] == [("Autohaus Rehnfeld GmbH", "gleich")]
     with pytest.raises(ValueError, match="Nachnamen"):
@@ -68,6 +73,16 @@ def test_beteiligte_anlegen_suchen_dubletten(con):
 def test_beziehungen_und_loeschschutz(con):
     gmbh = firma(con, "Autohaus Rehnfeld GmbH")
     gf = person(con, "Klaus", "Rehnfeld")
+    # Vertreter gleich beim Anlegen der Organisation: ein vorhandener und ein neuer.
+    neu = beteiligte.speichern(con, "organisation", {"name": "Rehnfeld Leasing GmbH"},
+                               vertreter=[{"beteiligter_id": gf}, {"vorname": "Iris", "nachname": "Brandt"}])
+    assert sorted(b["text"] for b in neu["beziehungen"]) == ["vertreten durch Iris Brandt",
+                                                             "vertreten durch Klaus Rehnfeld"]
+    with pytest.raises(ValueError, match="Nachnamen"):
+        beteiligte.speichern(con, "organisation", {"name": "X GmbH"}, vertreter=[{"vorname": "Ohne"}])
+    with pytest.raises(ValueError, match="ist eine Person"):
+        beteiligte.speichern(con, "organisation", {"name": "Y GmbH"}, vertreter=[{"beteiligter_id": neu["id"]}])
+    assert not beteiligte.liste(con, "X GmbH") and not beteiligte.liste(con, "Y GmbH")
     beteiligte.beziehung_setzen(con, gf, gmbh, "gesetzlicher_vertreter")
     assert [b["text"] for b in beteiligte.eintrag(con, gmbh)["beziehungen"]] == ["vertreten durch Klaus Rehnfeld"]
     with pytest.raises(ValueError, match="Organisation"):
@@ -121,6 +136,21 @@ def test_stammdaten_speichern(con):
         stammdaten.speichern(con, a, {"name": " "})
 
 
+def test_gegenstandswert_als_zahl(con):
+    for eingabe, gespeichert in (("250.000", "250000.00"), ("18.450,50 €", "18450.50"), ("1.234.567", "1234567.00"),
+                                 ("1500", "1500.00"), ("99.5", "99.50"), ("  ", "")):
+        assert stammdaten.betrag(eingabe) == gespeichert
+    a = neue_akte(con)
+    assert stammdaten.speichern(con, a, {"gegenstandswert": "250.000"})["gegenstandswert"] == "250000.00"
+    assert stammdaten.speichern(con, a, {"gegenstandswert": ""})["gegenstandswert"] is None
+    with pytest.raises(ValueError, match="kein Betrag"):
+        stammdaten.speichern(con, a, {"gegenstandswert": "viel"})
+    # Ein früher frei eingegebener Wert wird beim Öffnen umgestellt.
+    con.execute("UPDATE akte SET gegenstandswert = '12.000,00 EUR' WHERE id = ?", (a,))
+    stammdaten.einrichten(con)
+    assert stammdaten.stammdaten(con, a)["gegenstandswert"] == "12000.00"
+
+
 def test_bestehende_akte_ohne_aktenzeichen_bleibt_erhalten(tmp_path):
     alt = akte.oeffne(tmp_path / "akten.sqlite")
     akte.akte_anlegen(alt, "Testakte Ordner")
@@ -146,6 +176,7 @@ def test_beteiligte_der_akte_und_uebersicht(con):
     assert [(b["rolle_text"], b["seite"], b["name"]) for b in s["beteiligte"]] == [
         ("Mandant", "eigene", "Lena Brückner"), ("Gegner", "gegen", "Autohaus Rehnfeld GmbH"),
         ("Gericht", "neutral", "Landgericht Freiburg im Breisgau")]
+    assert [b["gruppe"] for b in s["beteiligte"]] == ["eigene", "gegen", "gericht"]
     with pytest.raises(ValueError, match="schon eingetragen"):
         stammdaten.beteiligung_hinzufuegen(con, a, "mandant", beteiligter_id=lena)
     [u] = stammdaten.uebersicht(con)
@@ -188,6 +219,34 @@ def test_kollision_mandant_war_gegner(con):
     kollision.entscheiden(con, p["id"], "kein_konflikt", "Andere Rechtssache, Mandat Sattler beendet.")
     assert kollision.pruefen(con, neu)["entscheidung"] == "kein_konflikt"
     assert len(kollision.verlauf(con, neu)) == 2
+
+
+def test_kollision_nachname_und_tippfehler(con):
+    alt = neue_akte(con, "Reiter ./. Nordstern")
+    stammdaten.beteiligung_hinzufuegen(con, alt, "gegner", beteiligter_id=person(con, "Jonas", "Reiter"))
+    for vorname in ("", "Joanas"):
+        neu = neue_akte(con, f"{vorname} Reiter")
+        stammdaten.beteiligung_hinzufuegen(con, neu, "mandant", beteiligter_id=person(con, vorname, "Reiter"))
+        assert kollision.ermitteln(con, neu)["ampel"] == "gelb"
+    anna = neue_akte(con, "Anna Reiter")
+    stammdaten.beteiligung_hinzufuegen(con, anna, "mandant", beteiligter_id=person(con, "Anna", "Reiter"))
+    assert kollision.ermitteln(con, anna)["ampel"] == "gruen"  # andere Vornamen: kein Treffer
+
+
+def test_kollision_vorab_fuer_suchtreffer(con):
+    alt = neue_akte(con, "Reiter ./. Nordstern")
+    jonas, nordstern = person(con, "Jonas", "Reiter"), firma(con, "Nordstern Social GmbH")
+    stammdaten.beteiligung_hinzufuegen(con, alt, "gegner", beteiligter_id=jonas)
+    stammdaten.beteiligung_hinzufuegen(con, alt, "mandant", beteiligter_id=nordstern)
+    neu = neue_akte(con, "Neu")
+    v = kollision.vorab(con, neu, "mandant", [jonas, nordstern])
+    assert list(v) == [str(jonas)] and v[str(jonas)]["ampel"] == "rot"
+    assert v[str(jonas)]["texte"] == ["Jonas Reiter ist hier Mandant; Jonas Reiter ist in Akte 1/26 Gegner."]
+    assert kollision.vorab(con, neu, "zeuge", [jonas]) == {}
+    # In derselben Akte: wer schon Mandant ist, ist als Gegner verdächtig.
+    v = kollision.vorab(con, alt, "gegner", [nordstern])
+    assert v[str(nordstern)]["ampel"] == "rot" and "in dieser Akte" in v[str(nordstern)]["texte"][0]
+    assert kollision.letzte(con, neu) is None  # die Vorab-Prüfung speichert nichts
 
 
 def test_kollision_gleiche_seite_ist_kein_treffer(con):
@@ -275,3 +334,7 @@ def test_rpc_und_andere_umgebung(tmp_path):
     assert kern.methoden["akten.kollision_pruefen"](akte_id=a2["id"])["ampel"] == "gruen"
     optionen = kern.methoden["akten.optionen"]()
     assert optionen["rollen"]["gericht"] == {"seite": "neutral", "text": "Gericht"}
+    assert optionen["gruppen"]["gericht"] == "Gericht"
+    kern.methoden["akten.einstellungen_setzen"](kollision_ausgenommen=[])
+    v = kern.methoden["akten.kollision_vorab"](akte_id=a2["id"], rolle="gegner", beteiligter_ids=[b2["id"]])
+    assert v[str(b2["id"])]["ampel"] == "rot"  # hier selbst Mandant
