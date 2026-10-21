@@ -1,26 +1,25 @@
 import {
   CSSProperties,
-  Dispatch,
-  FormEvent,
   PointerEvent as ReactPointerEvent,
-  SetStateAction,
+  ReactNode,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import AkteStammdaten from "./AkteStammdaten";
 import Chat from "./Chat";
 import { BelegAnsicht } from "./Gesetze";
+import { gemerkt, merke } from "./merken";
+import Zeichen from "./Symbole";
 import {
   Abschnitt,
   Akte as AkteTyp,
-  akteTitel,
   AktenDokument,
   AktenImport,
   BETEILIGTE,
   Beleg,
+  Beteiligung,
   DokumentInhalt,
   Loeschergebnis,
   NormEintrag,
@@ -86,7 +85,7 @@ interface OrdnerFrage {
   tags: Record<string, string>;
 }
 
-type Loeschfrage = { art: "akte"; id: number } | { art: "dokument"; id: number } | { art: "urteil"; id: number; name: string };
+type Loeschfrage = { art: "dokument"; id: number } | { art: "urteil"; id: number; name: string };
 
 /** Angaben zu einer Entscheidung, die aus einer eigenen Datei ergänzt wird. */
 interface Ergaenzung {
@@ -105,34 +104,59 @@ interface Auswahl {
   beleg: Beleg | null;
 }
 
+/** Reiter der Akte, die diese Komponente zeigt; die übrigen (Beteiligte, Vergleich, Analyse) zeigt der Aktenrahmen. */
+export type AkteReiter = "dokumente" | "normen" | "rechtsprechung" | "chat";
+
+const FILTER_SCHLUESSEL = "akte.filter.eingeklappt";
+
+/** Filter der Dokumentliste; alle gesetzten gelten zusammen. */
+interface Filter {
+  /** Oberster Ordner aus dem Ordner-Import; "" = Dokumente ohne Ordner. */
+  ordner: string | null;
+  /** Partei- oder anderer Tag; "" = Dokumente ohne Tag. */
+  tag: string | null;
+  /** Nur Dokumente mit Zitaten, die nicht belegt sind. */
+  unbelegt: boolean;
+}
+
+const KEIN_FILTER: Filter = { ordner: null, tag: null, unbelegt: false };
+
+const oberordner = (d: AktenDokument) => (d.herkunft ? d.herkunft.split(/[\\/]/)[0] : "");
+const unbelegt = (d: AktenDokument) => !!(d.zitate.nicht_gefunden || d.zitate.unbekanntes_gesetz);
+
+function zaehle<T>(werte: T[]): Map<T, number> {
+  const m = new Map<T, number>();
+  for (const w of werte) m.set(w, (m.get(w) ?? 0) + 1);
+  return m;
+}
+
+/**
+ * Inhalt einer geöffneten Akte: Dokumente (Filter, Liste, geöffnetes Dokument) sowie Normen, Rechtsprechung und
+ * Chat der ganzen Akte. Kopf, Reiter und Stammdaten liegen im Aktenrahmen.
+ */
 export default function Akte({
-  akteId,
-  setAkteId,
-  onVergleich,
+  akte,
+  reiter,
+  onReiter,
+  onGeaendert,
+  onBeteiligte,
   onEinstellungen,
-  neueAkte = 0,
 }: {
-  /** Zählt hoch, wenn „Akte anlegen“ gewählt wurde; dann bekommt das Namensfeld den Fokus. */
-  neueAkte?: number;
-  akteId: number | null;
-  setAkteId: Dispatch<SetStateAction<number | null>>;
-  onVergleich: () => void;
+  akte: AkteTyp;
+  reiter: AkteReiter;
+  onReiter: (r: AkteReiter) => void;
+  /** Dokumente kamen hinzu oder wurden entfernt; die Aktenliste (Zähler, „bearbeitet“) neu laden. */
+  onGeaendert: () => void;
+  /** Ein Beteiligter in der Filterspalte wurde angeklickt. */
+  onBeteiligte: () => void;
   onEinstellungen?: () => void;
 }) {
-  const [akten, setAkten] = useState<AkteTyp[]>([]);
-  const [neuerName, setNeuerName] = useState("");
-  const [neuesAz, setNeuesAz] = useState("");
-  const [azVorschlag, setAzVorschlag] = useState("");
-  const [stammdatenOffen, setStammdatenOffen] = useState(false);
-  const neuerNameFeld = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (neueAkte > 0) neuerNameFeld.current?.focus();
-  }, [neueAkte]);
+  const akteId = akte.id;
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
+  const [beteiligte, setBeteiligte] = useState<Beteiligung[]>([]);
   const [inhalt, setInhalt] = useState<DokumentInhalt | null>(null);
   const [normen, setNormen] = useState<NormEintrag[] | null>(null);
   const [urteile, setUrteile] = useState<UrteilEintrag[] | null>(null);
-  const [ansicht, setAnsicht] = useState<Ansicht>("dokument");
   const [dokModus, setDokModus] = useState<DokModus>("text");
   const [auswahl, setAuswahl] = useState<Auswahl | null>(null);
   const [ziel, setZiel] = useState<number | null>(null);
@@ -145,14 +169,16 @@ export default function Akte({
   const [meldung, setMeldung] = useState<string | null>(null);
   const [ordnerFrage, setOrdnerFrage] = useState<OrdnerFrage | null>(null);
   const [loeschfrage, setLoeschfrage] = useState<Loeschfrage | null>(null);
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [nachDatum, setNachDatum] = useState(false);
+  const [filter, setFilter] = useState<Filter>(KEIN_FILTER);
+  const [filterZu, setFilterZu] = useState(() => gemerkt(FILTER_SCHLUESSEL));
+  const [nachDatum, setNachDatum] = useState(true);
   const [tagEdit, setTagEdit] = useState<{ id: number; text: string } | null>(null);
   const [ergaenzung, setErgaenzung] = useState<Ergaenzung | null>(null);
   const [volltext, setVolltext] = useState<UrteilVolltext | null>(null);
   const [volltextRn, setVolltextRn] = useState<number | null>(null);
   const [seitenbreite, setSeitenbreite] = useState(gespeicherteBreite);
   const flaeche = useRef<HTMLDivElement>(null);
+  const ansicht: Ansicht = reiter === "dokumente" ? "dokument" : reiter;
 
   function setzeSeitenbreite(breite: number) {
     setSeitenbreite(breite);
@@ -169,7 +195,7 @@ export default function Akte({
     if (rechts == null || gesamt == null) return;
     e.preventDefault();
     const bewegen = (ev: PointerEvent) => {
-      // Die Liste links behält mindestens 320 px.
+      // Der Text links behält mindestens 320 px.
       setSeitenbreite(Math.round(Math.min(Math.max(rechts - ev.clientX, SEITE_MIN), gesamt - 320)));
     };
     const loslassen = (ev: PointerEvent) => {
@@ -179,6 +205,11 @@ export default function Akte({
     };
     window.addEventListener("pointermove", bewegen);
     window.addEventListener("pointerup", loslassen);
+  }
+
+  function filterUmschalten() {
+    setFilterZu(!filterZu);
+    merke(FILTER_SCHLUESSEL, !filterZu);
   }
 
   const ausfuehren = useCallback(async <T,>(was: string, f: () => Promise<T>) => {
@@ -194,41 +225,29 @@ export default function Akte({
     }
   }, []);
 
-  const ladeAkten = useCallback(async () => {
-    const liste = await kern<AkteTyp[]>("akten.liste");
-    setAkten(liste);
-    setAzVorschlag((await kern<{ aktenzeichen: string }>("akten.aktenzeichen_vorschlag")).aktenzeichen);
-    setAkteId((aktuell) => (aktuell != null && liste.some((a) => a.id === aktuell) ? aktuell : (liste[0]?.id ?? null)));
-  }, [setAkteId]);
-
-  const ladeDokumente = useCallback(async (id: number) => {
-    setDokumente(await kern<AktenDokument[]>("akten.dokumente", { akte_id: id }));
-  }, []);
+  const ladeDokumente = useCallback(async () => {
+    setDokumente(await kern<AktenDokument[]>("akten.dokumente", { akte_id: akteId }));
+  }, [akteId]);
 
   useEffect(() => {
     if (!istDesktop) return;
-    void ausfuehren("Lade Akten …", async () => {
-      await ladeAkten();
+    void ausfuehren("Lade Dokumente …", async () => {
+      await ladeDokumente();
+      setBeteiligte((await kern<{ beteiligte: Beteiligung[] }>("akten.stammdaten", { akte_id: akteId })).beteiligte);
       setOcr(await kern<OcrStatus>("ocr.status"));
       setGesetzeGeladen((await kern<unknown[]>("gesetze.liste")).length);
     });
-  }, [ausfuehren, ladeAkten]);
-
-  useEffect(() => {
-    setInhalt(null);
-    setNormen(null);
-    setUrteile(null);
-    setAuswahl(null);
-    setTagFilter(null);
-    setTagEdit(null);
-    setOrdnerFrage(null);
-    setLoeschfrage(null);
-    setErgaenzung(null);
-    setVolltext(null);
-    if (akteId == null) setDokumente([]);
-    setStammdatenOffen(false);
-    if (akteId != null) void ausfuehren("Lade Dokumente …", () => ladeDokumente(akteId));
   }, [akteId, ausfuehren, ladeDokumente]);
+
+  // Ein Reiter der ganzen Akte lädt seine Liste beim Öffnen.
+  useEffect(() => {
+    if (!istDesktop) return;
+    if (reiter === "normen") void ladeNormen(null);
+    if (reiter === "rechtsprechung") void ladeUrteile(null);
+    if (reiter === "dokumente" && inhalt) void waehleDokModus(dokModus);
+    // Nur beim Wechsel des Reiters; die Ladefunktionen ändern sich mit jedem Rendern.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reiter]);
 
   // Nach dem Öffnen eines Dokuments zur gewünschten Fundstelle scrollen.
   useEffect(() => {
@@ -237,23 +256,7 @@ export default function Akte({
     setZiel(null);
   }, [ziel, inhalt]);
 
-  async function anlegen(e: FormEvent) {
-    e.preventDefault();
-    const name = neuerName.trim();
-    if (!name) return;
-    await ausfuehren("Lege Akte an …", async () => {
-      const a = await kern<AkteTyp>("akten.anlegen", { name, aktenzeichen: neuesAz.trim() || null });
-      setNeuerName("");
-      setNeuesAz("");
-      await ladeAkten();
-      setAkteId(a.id);
-      // Eine neue Akte braucht zuerst Mandant und Gegner; dabei läuft gleich die Kollisionsprüfung.
-      setStammdatenOffen(true);
-    });
-  }
-
   async function hinzufuegen() {
-    if (akteId == null) return;
     const gewaehlt = await open({
       multiple: true,
       title: "Dokumente zur Akte hinzufügen",
@@ -264,7 +267,6 @@ export default function Akte({
   }
 
   async function ordnerHinzufuegen() {
-    if (akteId == null) return;
     const gewaehlt = await open({ directory: true, title: "Ordner mit Unterordnern zur Akte hinzufügen" });
     if (typeof gewaehlt !== "string") return;
     const funde = await ausfuehren("Durchsuche Ordner …", () => kern<OrdnerFunde>("akten.ordner_pruefen", { pfad: gewaehlt }));
@@ -296,7 +298,7 @@ export default function Akte({
   }
 
   async function einlesen(dateien: Einzulesen[]) {
-    if (akteId == null || dateien.length === 0) return;
+    if (dateien.length === 0) return;
     const fehlschlaege: string[] = [];
     let letztes: AktenImport | null = null;
     let schonDa = 0;
@@ -320,10 +322,8 @@ export default function Akte({
       }
     }
     setLaeuft(null);
-    await ausfuehren("Lade Dokumente …", async () => {
-      await ladeDokumente(akteId);
-      await ladeAkten();
-    });
+    await ausfuehren("Lade Dokumente …", ladeDokumente);
+    onGeaendert();
     if (dateien.length === 1 && letztes) await oeffneDokument(letztes.dokument_id);
     const gelesen = dateien.length - fehlschlaege.length;
     if (dateien.length > 1)
@@ -347,26 +347,23 @@ export default function Akte({
       setMeldung(`„${frage.name}“ wurde aus der Akte entfernt.${weg.hinweis ? ` ${weg.hinweis}` : ""}`);
       return;
     }
-    const methode = frage.art === "akte" ? "akten.loeschen" : "akten.dokument_loeschen";
-    const params = frage.art === "akte" ? { akte_id: frage.id } : { dokument_id: frage.id };
-    const ergebnis = await ausfuehren("Entferne …", () => kern<Loeschergebnis>(methode, params));
+    const ergebnis = await ausfuehren("Entferne …", () =>
+      kern<Loeschergebnis>("akten.dokument_loeschen", { dokument_id: frage.id }),
+    );
     if (!ergebnis) return;
-    if (frage.art === "dokument" && inhalt?.dokument.id === frage.id) {
+    if (inhalt?.dokument.id === frage.id) {
       setInhalt(null);
       setAuswahl(null);
     }
-    await ausfuehren("Lade Akten …", async () => {
-      await ladeAkten();
-      if (frage.art === "dokument" && akteId != null) await ladeDokumente(akteId);
-    });
-    if (ansicht === "normen" && frage.art === "dokument") await zeigeNormen();
+    await ausfuehren("Lade Dokumente …", ladeDokumente);
+    onGeaendert();
     setMeldung(`„${ergebnis.name ?? ergebnis.dateiname}“ wurde entfernt.${ergebnis.hinweis ? ` ${ergebnis.hinweis}` : ""}`);
   }
 
   async function tagsSpeichern(dokumentId: number, tags: string[]) {
     await ausfuehren("Speichere Tags …", () => kern("akten.tags_setzen", { dokument_id: dokumentId, tags }));
     setTagEdit(null);
-    if (akteId != null) await ladeDokumente(akteId);
+    await ladeDokumente();
     if (inhalt?.dokument.id === dokumentId) await oeffneDokument(dokumentId);
   }
 
@@ -374,19 +371,20 @@ export default function Akte({
     const d = await ausfuehren("Lade Dokument …", () => kern<DokumentInhalt>("akten.dokument", { dokument_id: id }));
     if (!d) return;
     setInhalt(d);
-    setAnsicht("dokument");
     setAuswahl(null);
     // Eine Fundstelle zeigt immer den Text; sonst bleibt die gewählte Darstellung, soweit es sie für das Dokument gibt.
     const modus: DokModus = abschnitt != null || (dokModus === "original" && d.dokument.format !== "pdf") ? "text" : dokModus;
     setDokModus(modus);
-    if (modus === "normen") await ladeNormen(id);
-    if (modus === "rechtsprechung") await ladeUrteile(id);
+    if (reiter !== "dokumente") onReiter("dokumente");
+    else {
+      if (modus === "normen") await ladeNormen(id);
+      if (modus === "rechtsprechung") await ladeUrteile(id);
+    }
     if (abschnitt != null) setZiel(abschnitt);
     setMarkiert(abschnitt ?? null);
   }
 
   async function ladeNormen(dokumentId: number | null) {
-    if (akteId == null) return;
     const n = await ausfuehren("Sammle Normen …", () =>
       kern<NormEintrag[]>("akten.normen", { akte_id: akteId, dokument_id: dokumentId }),
     );
@@ -394,7 +392,6 @@ export default function Akte({
   }
 
   async function ladeUrteile(dokumentId: number | null) {
-    if (akteId == null) return;
     const u = await ausfuehren("Sammle Rechtsprechung …", () =>
       kern<UrteilEintrag[]>("akten.rechtsprechung", { akte_id: akteId, dokument_id: dokumentId }),
     );
@@ -404,21 +401,6 @@ export default function Akte({
   /** Lädt die gerade sichtbare Rechtsprechungsliste neu: die der Akte oder die des geöffneten Dokuments. */
   async function aktualisiereUrteile() {
     await ladeUrteile(ansicht === "dokument" && inhalt ? inhalt.dokument.id : null);
-  }
-
-  async function zeigeNormen() {
-    setAnsicht("normen");
-    await ladeNormen(null);
-  }
-
-  async function zeigeRechtsprechung() {
-    setAnsicht("rechtsprechung");
-    await ladeUrteile(null);
-  }
-
-  async function zeigeDokument() {
-    setAnsicht("dokument");
-    await waehleDokModus(dokModus);
   }
 
   async function waehleDokModus(modus: DokModus) {
@@ -449,7 +431,7 @@ export default function Akte({
   }
 
   async function ergaenzungSpeichern() {
-    if (akteId == null || !ergaenzung) return;
+    if (!ergaenzung) return;
     const e = ergaenzung;
     const ergebnis = await ausfuehren(`Lese ${e.name} …`, () =>
       kern<{ urteil_id: number; neu: boolean }>("akten.urteil_ergaenzen", {
@@ -477,7 +459,6 @@ export default function Akte({
   }
 
   async function volltexteLaden(zitat?: string) {
-    if (akteId == null) return;
     const e = await ausfuehren(`Lade ${zitat ? "Volltext" : "Volltexte"} aus den öffentlichen Quellen …`, () =>
       kern<{ geladen: string[]; fehler: { zitat: string; fehler: string }[] }>("akten.volltexte_laden", {
         akte_id: akteId,
@@ -493,7 +474,6 @@ export default function Akte({
   }
 
   async function onlinePruefen() {
-    if (akteId == null) return;
     const e = await ausfuehren("Suche zitierte Entscheidungen bei gesetze-bayern.de bzw. NeuRIS …", () =>
       kern<{ geprueft: { zitat: string; quelle: string; status: UrteilStatus }[]; fehler: { zitat: string; quelle: string; fehler: string }[] }>(
         "akten.online_pruefen",
@@ -510,12 +490,11 @@ export default function Akte({
   }
 
   async function neuPruefen() {
-    if (akteId == null) return;
     await ausfuehren("Prüfe Zitate gegen die Wissensbasis …", () => kern("akten.zitate_pruefen", { akte_id: akteId }));
-    await ladeDokumente(akteId);
+    await ladeDokumente();
     if (inhalt) await oeffneDokument(inhalt.dokument.id);
-    if (ansicht === "normen") await zeigeNormen();
-    if (ansicht === "rechtsprechung") await zeigeRechtsprechung();
+    if (ansicht === "normen") await ladeNormen(null);
+    if (ansicht === "rechtsprechung") await ladeUrteile(null);
     if (ansicht === "dokument" && inhalt) await waehleDokModus(dokModus);
   }
 
@@ -538,121 +517,58 @@ export default function Akte({
     );
   }
 
-  const akte = akten.find((a) => a.id === akteId) ?? null;
+  // Filterspalte: Ordner, Parteien (übliche Beteiligten-Tags), übrige Tags und Prüfstand der Zitate.
+  const ordner = [...zaehle(dokumente.map(oberordner)).entries()].sort((a, b) => a[0].localeCompare(b[0], "de"));
   const tags = tagUebersicht(dokumente);
+  const parteien = tags.filter((t) => BETEILIGTE.includes(t.name));
+  const weitereTags = tags.filter((t) => !BETEILIGTE.includes(t.name));
   const ohneTag = dokumente.filter((d) => d.tags.length === 0).length;
-  const gefiltert =
-    tagFilter == null
-      ? dokumente
-      : dokumente.filter((d) => (tagFilter === "" ? d.tags.length === 0 : d.tags.some((t) => t.name === tagFilter)));
-  // Zeitlich geordnet: älteste zuerst, Dokumente ohne Datum am Ende.
+  const mitUnbelegt = dokumente.filter(unbelegt).length;
+  const gefiltert = dokumente.filter(
+    (d) =>
+      (filter.ordner == null || oberordner(d) === filter.ordner) &&
+      (filter.tag == null || (filter.tag === "" ? d.tags.length === 0 : d.tags.some((t) => t.name === filter.tag))) &&
+      (!filter.unbelegt || unbelegt(d)),
+  );
+  // Zeitlich geordnet: neueste zuerst wie in einer Papierakte von oben; Dokumente ohne Datum am Ende.
   const sichtbar = nachDatum
-    ? [...gefiltert].sort((a, b) => (a.datum ?? "9999").localeCompare(b.datum ?? "9999"))
+    ? [...gefiltert].sort((a, b) => (b.datum ?? "").localeCompare(a.datum ?? "") || a.dateiname.localeCompare(b.dateiname, "de"))
     : gefiltert;
-
+  const gefiltertAktiv = filter.ordner != null || filter.tag != null || filter.unbelegt;
+  const mitOrdnern = ordner.some(([o]) => o !== "");
 
   const zeigeVolltextSeite =
     !!volltext && (ansicht === "rechtsprechung" || (ansicht === "dokument" && dokModus === "rechtsprechung"));
   const zeigeBelegSeite = !!auswahl && ansicht === "dokument" && (dokModus === "text" || dokModus === "original");
-  return (
-    <div className="akte">
-      <header className="kopf">
-        <h1>Akte</h1>
-        <div className="aktionen">
-          {akte && (
-            <>
-              <button onClick={hinzufuegen} disabled={!!laeuft}>
-                Dokumente hinzufügen …
-              </button>
-              <button onClick={ordnerHinzufuegen} disabled={!!laeuft} title="Liest auch alle Unterordner ein">
-                Ordner hinzufügen …
-              </button>
-              {dokumente.length > 1 && (
-                <button className="zweitrangig" onClick={onVergleich} disabled={!!laeuft} title="Angaben der Dokumente gegenüberstellen">
-                  Abgleichen
-                </button>
-              )}
-              {dokumente.length > 0 && (
-                <button className="zweitrangig" onClick={neuPruefen} disabled={!!laeuft} title="Nach dem Laden weiterer Gesetze sinnvoll">
-                  Zitate neu prüfen
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </header>
 
-      <div className="akten-wahl">
-        {akten.length > 0 && (
-          <select value={akteId ?? ""} onChange={(e) => {
-              setMeldung(null);
-              setAkteId(Number(e.target.value));
-            }} aria-label="Akte wählen">
-            {akten.map((a) => (
-              <option key={a.id} value={a.id}>
-                {akteTitel(a)} ({a.dokumente} Dokumente)
-              </option>
-            ))}
-          </select>
-        )}
-        {akte && (
-          <button
-            className={stammdatenOffen ? "reiter-aktiv" : "zweitrangig"}
-            onClick={() => setStammdatenOffen(!stammdatenOffen)}
-            title="Aktenzeichen, Gegenstand, Beteiligte und Kollisionsprüfung"
-          >
-            Stammdaten und Beteiligte
-            {!akte.aktenzeichen && <span className={stammdatenOffen ? undefined : "hinweis"}> · Aktenzeichen fehlt</span>}
-          </button>
-        )}
-        {akte && (
-          <button className="zweitrangig gefahr" onClick={() => setLoeschfrage({ art: "akte", id: akte.id })} disabled={!!laeuft}>
-            Akte entfernen …
-          </button>
-        )}
-        <form className="weiteres" onSubmit={anlegen}>
-          <input
-            ref={neuerNameFeld}
-            value={neuerName}
-            onChange={(e) => setNeuerName(e.target.value)}
-            placeholder="Neue Akte, z. B. Brückner ./. Autohaus Rehnfeld"
-            aria-label="Name der neuen Akte"
-          />
-          <input
-            value={neuesAz}
-            onChange={(e) => setNeuesAz(e.target.value)}
-            placeholder={azVorschlag ? `Az. ${azVorschlag}` : "Az. Nummer/Jahr"}
-            aria-label="Aktenzeichen der neuen Akte (leer: Vorschlag)"
-            title="Leer lassen für das vorgeschlagene Aktenzeichen"
-            size={10}
-          />
-          <button type="submit" className="zweitrangig" disabled={!!laeuft || !neuerName.trim()}>
-            Anlegen
-          </button>
-        </form>
-      </div>
+  const filterKnopf = (aktiv: boolean, text: string, anzahl: number, onClick: () => void, klasse = "") => (
+    <button key={text} className={`filter-eintrag ${klasse}${aktiv ? " aktiv" : ""}`} aria-pressed={aktiv} onClick={onClick}>
+      <span>{text}</span>
+      <span className="anzahl">{anzahl}</span>
+    </button>
+  );
 
-      {akte && stammdatenOffen && (
-        <AkteStammdaten key={akte.id} akteId={akte.id} onGeaendert={() => void ladeAkten()} />
-      )}
-
+  const meldungen = (
+    <>
       {ocr && !ocr.verfuegbar && (
-        <p className="hinweis">Texterkennung nicht verfügbar: {ocr.hinweis} PDFs mit Text und Word-Dateien lassen sich trotzdem lesen.</p>
+        <details className="hinweis kurz-hinweis">
+          <summary>Texterkennung nicht verfügbar</summary>
+          {ocr.hinweis} PDFs mit Text und Word-Dateien lassen sich trotzdem lesen.
+        </details>
       )}
       {gesetzeGeladen === 0 && (
-        <p className="hinweis">
-          Die Wissensbasis ist noch leer. Lade unter „Gesetze“ die Voreinstellung, damit zitierte Normen geprüft werden
-          können; danach hier „Zitate neu prüfen“.
-        </p>
+        <details className="hinweis kurz-hinweis">
+          <summary>Die Wissensbasis ist noch leer</summary>
+          Lade unter „Gesetze“ die Voreinstellung, damit zitierte Normen geprüft werden können; danach hier „Zitate neu
+          prüfen“.
+        </details>
       )}
       {loeschfrage && (
         <Rueckfrage
           frage={
-            loeschfrage.art === "akte"
-              ? `Akte „${akte?.name}“ mit ${akte?.dokumente ?? 0} Dokumenten entfernen?`
-              : loeschfrage.art === "urteil"
-                ? `Ergänztes Urteil „${loeschfrage.name}“ aus der Akte entfernen?`
-                : `Dokument „${dokumente.find((d) => d.id === loeschfrage.id)?.dateiname}“ aus der Akte entfernen?`
+            loeschfrage.art === "urteil"
+              ? `Ergänztes Urteil „${loeschfrage.name}“ aus der Akte entfernen?`
+              : `Dokument „${dokumente.find((d) => d.id === loeschfrage.id)?.dateiname}“ aus der Akte entfernen?`
           }
           erklaerung={
             loeschfrage.art === "urteil"
@@ -686,213 +602,266 @@ export default function Akte({
       {laeuft && <p className="status">{laeuft}</p>}
       {meldung && !laeuft && <p className="meldung">{meldung}</p>}
       {fehler && <p className="fehler">{fehler}</p>}
+    </>
+  );
 
-      {akte && dokumente.length === 0 && !laeuft && (
-        <p className="leer">Noch keine Dokumente in dieser Akte. Füge PDF-, Word- oder Textdateien hinzu.</p>
+  const rechtsprechungAnsicht = (leer?: string) =>
+    urteile && (
+      <RechtsprechungAnsicht
+        urteile={urteile}
+        offen={volltext?.id ?? null}
+        laeuft={!!laeuft}
+        leer={leer}
+        onFundstelle={oeffneDokument}
+        onErgaenzen={urteilWaehlen}
+        onVolltexteLaden={volltexteLaden}
+        onOnlinePruefen={onlinePruefen}
+        onVolltext={(id, rn) => (volltext?.id === id && rn == null ? setVolltext(null) : zeigeVolltext(id, rn))}
+        onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
+      />
+    );
+
+  // Hauptinhalt mit Seitenleiste (Wortlaut einer Norm, Volltext einer Entscheidung) und verschiebbarem Trenner.
+  const arbeitsflaeche = (haupt: ReactNode) => (
+    <div className="akte-arbeitsflaeche" ref={flaeche} style={{ "--seite-breite": `${seitenbreite}px` } as CSSProperties}>
+      <div className="akte-haupt">{haupt}</div>
+      {(zeigeVolltextSeite || zeigeBelegSeite) && (
+        <div
+          className="trenner"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Breite der Seitenleiste"
+          title="Ziehen, um die Breite zu ändern; Doppelklick setzt sie zurück"
+          onPointerDown={breiteZiehen}
+          onDoubleClick={() => setzeSeitenbreite(SEITE_STANDARD)}
+        />
       )}
-
-      {tags.length > 0 && (
-        <div className="tag-filter" role="group" aria-label="Nach Tag filtern">
-          <button className={tagFilter == null ? "tag-wahl aktiv" : "tag-wahl"} onClick={() => setTagFilter(null)}>
-            Alle ({dokumente.length})
-          </button>
-          {tags.map((t) => (
-            <button
-              key={t.name}
-              className={tagFilter === t.name ? "tag-wahl aktiv" : "tag-wahl"}
-              onClick={() => setTagFilter(tagFilter === t.name ? null : t.name)}
-            >
-              {t.name} ({t.anzahl})
-            </button>
-          ))}
-          {ohneTag > 0 && (
-            <button className={tagFilter === "" ? "tag-wahl aktiv" : "tag-wahl"} onClick={() => setTagFilter(tagFilter === "" ? null : "")}>
-              ohne Tag ({ohneTag})
-            </button>
-          )}
-        </div>
+      {zeigeVolltextSeite && volltext && (
+        <VolltextAnsicht volltext={volltext} rn={volltextRn} onSchliessen={() => setVolltext(null)} />
       )}
-
-      {dokumente.length > 0 && (
-        <table className="dokumente">
-          <thead>
-            <tr>
-              <th>Dokument</th>
-              <th>
-                <button
-                  className="link spaltenkopf"
-                  onClick={() => setNachDatum(!nachDatum)}
-                  aria-pressed={nachDatum}
-                  title={nachDatum ? "Wieder nach Ordner und Dateiname ordnen" : "Nach Datum ordnen, älteste zuerst"}
-                >
-                  Datum {nachDatum ? "▲" : "↕"}
-                </button>
-              </th>
-              <th>Beteiligte / Tags</th>
-              <th>Gelesen als</th>
-              <th>Seiten</th>
-              <th>Rn.</th>
-              <th>Normzitate</th>
-              <th>
-                <span className="unsichtbar">Aktionen</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sichtbar.map((d) => (
-              <tr key={d.id} className={inhalt?.dokument.id === d.id && ansicht === "dokument" ? "aktiv" : undefined}>
-                <td>
-                  <button className="link" onClick={() => oeffneDokument(d.id)}>
-                    {d.dateiname}
-                  </button>
-                  {d.herkunft && <div className="herkunft">{d.herkunft}</div>}
-                </td>
-                <td>
-                  <DokumentDatum d={d} onFundstelle={() => oeffneDokument(d.id, d.datum_abschnitt ?? undefined)} />
-                </td>
-                <td>
-                  {tagEdit?.id === d.id ? (
-                    <TagEditor
-                      text={tagEdit.text}
-                      onText={(text) => setTagEdit({ id: d.id, text })}
-                      onSpeichern={() => tagsSpeichern(d.id, tagsAusText(tagEdit.text))}
-                      onAbbrechen={() => setTagEdit(null)}
-                    />
-                  ) : (
-                    <div className="tags">
-                      {sortiereTags(d.tags).map((t) => (
-                        <span
-                          key={t.name}
-                          className={`tag ${t.quelle}`}
-                          title={t.quelle === "ordner" ? "Aus dem Ordnernamen übernommen" : "Von Hand gesetzt"}
-                        >
-                          {t.name}
-                        </span>
-                      ))}
-                      <button
-                        className="link klein"
-                        onClick={() => setTagEdit({ id: d.id, text: d.tags.map((t) => t.name).join(", ") })}
-                        disabled={!!laeuft}
-                      >
-                        {d.tags.length ? "ändern" : "+ Tag"}
-                      </button>
-                    </div>
-                  )}
-                </td>
-                <td>{lesartText(d)}</td>
-                <td>{d.seiten ?? "–"}</td>
-                <td>{d.randnummern || "–"}</td>
-                <td>
-                  <ZitatZaehlung zitate={d.zitate} />
-                </td>
-                <td>
-                  <button
-                    className="link klein gefahr"
-                    onClick={() => setLoeschfrage({ art: "dokument", id: d.id })}
-                    disabled={!!laeuft}
-                    title="Dokument aus der Akte entfernen"
-                  >
-                    entfernen
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {zeigeBelegSeite && auswahl && (
+        <aside className="akte-seite">
+          <p className="fundort">Zitiert in {auswahl.ort}</p>
+          {auswahl.beleg ? <BelegAnsicht beleg={auswahl.beleg} /> : <p className="status">Lade Wortlaut …</p>}
+        </aside>
       )}
+    </div>
+  );
 
-      {dokumente.length > 0 && (
-        <nav className="reiter" aria-label="Ansicht">
-          <button className={ansicht === "dokument" ? "reiter-aktiv" : "zweitrangig"} onClick={zeigeDokument}>
-            Dokument
-          </button>
-          <button className={ansicht === "normen" ? "reiter-aktiv" : "zweitrangig"} onClick={zeigeNormen}>
-            Normen der Akte
-          </button>
-          <button className={ansicht === "rechtsprechung" ? "reiter-aktiv" : "zweitrangig"} onClick={zeigeRechtsprechung}>
-            Rechtsprechung der Akte
-          </button>
-          <button className={ansicht === "chat" ? "reiter-aktiv" : "zweitrangig"} onClick={() => setAnsicht("chat")}>
-            Chat mit der Akte
-          </button>
-        </nav>
-      )}
-
-      <div
-        className="akte-arbeitsflaeche"
-        ref={flaeche}
-        style={{ "--seite-breite": `${seitenbreite}px` } as CSSProperties}
-      >
-        <div className="akte-haupt">
-          {ansicht === "dokument" && inhalt && (
-            <DokModusLeiste dokument={inhalt.dokument} modus={dokModus} onModus={waehleDokModus} />
-          )}
-          {ansicht === "dokument" && inhalt && dokModus === "text" && (
-            <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} markiert={markiert ?? undefined} />
-          )}
-          {ansicht === "dokument" && inhalt && dokModus === "original" && (
-            <OriginalAnsicht key={inhalt.dokument.id} dokument={inhalt.dokument} startSeite={auswahl?.zitat.seite ?? null} />
-          )}
-          {ansicht === "dokument" && inhalt && dokModus === "normen" && normen && (
-            <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} leer="In diesem Dokument wurden keine Normzitate erkannt." />
-          )}
-          {ansicht === "dokument" && inhalt && dokModus === "rechtsprechung" && urteile && (
-            <RechtsprechungAnsicht
-              urteile={urteile}
-              offen={volltext?.id ?? null}
-              laeuft={!!laeuft}
-              leer="In diesem Dokument wurden keine Rechtsprechungszitate erkannt."
-              onFundstelle={oeffneDokument}
-              onErgaenzen={urteilWaehlen}
-              onVolltexteLaden={volltexteLaden}
-              onOnlinePruefen={onlinePruefen}
-              onVolltext={(id, rn) => (volltext?.id === id && rn == null ? setVolltext(null) : zeigeVolltext(id, rn))}
-              onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
-            />
-          )}
-          {ansicht === "dokument" && inhalt && dokModus === "chat" && akteId != null && (
-            <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />
-          )}
-          {ansicht === "chat" && akteId != null && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
-          {ansicht === "dokument" && !inhalt && dokumente.length > 0 && (
-            <p className="leer">Wähle oben ein Dokument, um Text und Normzitate zu sehen.</p>
-          )}
-          {ansicht === "normen" && normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} />}
-          {ansicht === "rechtsprechung" && urteile && (
-            <RechtsprechungAnsicht
-              urteile={urteile}
-              offen={volltext?.id ?? null}
-              laeuft={!!laeuft}
-              onFundstelle={oeffneDokument}
-              onErgaenzen={urteilWaehlen}
-              onVolltexteLaden={volltexteLaden}
-              onOnlinePruefen={onlinePruefen}
-              onVolltext={(id, rn) => (volltext?.id === id && rn == null ? setVolltext(null) : zeigeVolltext(id, rn))}
-              onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
-            />
-          )}
-        </div>
-        {(zeigeVolltextSeite || zeigeBelegSeite) && (
-          <div
-            className="trenner"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Breite der Seitenleiste"
-            title="Ziehen, um die Breite zu ändern; Doppelklick setzt sie zurück"
-            onPointerDown={breiteZiehen}
-            onDoubleClick={() => setzeSeitenbreite(SEITE_STANDARD)}
-          />
-        )}
-        {zeigeVolltextSeite && volltext && (
-          <VolltextAnsicht volltext={volltext} rn={volltextRn} onSchliessen={() => setVolltext(null)} />
-        )}
-        {zeigeBelegSeite && auswahl && (
-          <aside className="akte-seite">
-            <p className="fundort">Zitiert in {auswahl.ort}</p>
-            {auswahl.beleg ? <BelegAnsicht beleg={auswahl.beleg} /> : <p className="status">Lade Wortlaut …</p>}
-          </aside>
-        )}
+  if (reiter !== "dokumente") {
+    return (
+      <div className="akte-reiterinhalt">
+        {meldungen}
+        {reiter === "normen" &&
+          arbeitsflaeche(normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} />)}
+        {reiter === "rechtsprechung" && arbeitsflaeche(rechtsprechungAnsicht())}
+        {reiter === "chat" && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
       </div>
+    );
+  }
+
+  return (
+    <div className={filterZu ? "akte-dokumente filter-zu" : "akte-dokumente"}>
+      <aside className="akte-filter" aria-label="Filter">
+        <button
+          className="leisten-knopf"
+          onClick={filterUmschalten}
+          title={filterZu ? "Filter ausklappen" : "Filter einklappen"}
+          aria-label={filterZu ? "Filter ausklappen" : "Filter einklappen"}
+          aria-expanded={!filterZu}
+        >
+          <Zeichen name={filterZu ? "ausklappen" : "einklappen"} groesse={18} />
+          {filterZu && gefiltertAktiv && <span className="filter-punkt" title="Ein Filter ist gesetzt" />}
+        </button>
+        {!filterZu && (
+          <>
+            <h3>Dokumente</h3>
+            {filterKnopf(!gefiltertAktiv, "Alle Dokumente", dokumente.length, () => setFilter(KEIN_FILTER))}
+            {mitOrdnern && (
+              <>
+                <h3>Ordner</h3>
+                {ordner.map(([o, n]) =>
+                  filterKnopf(filter.ordner === o, o || "ohne Ordner", n, () =>
+                    setFilter({ ...filter, ordner: filter.ordner === o ? null : o }),
+                  ),
+                )}
+              </>
+            )}
+            {(parteien.length > 0 || weitereTags.length > 0) && (
+              <>
+                <h3>Partei und Tags</h3>
+                {[...parteien, ...weitereTags].map((t) =>
+                  filterKnopf(filter.tag === t.name, t.name, t.anzahl, () =>
+                    setFilter({ ...filter, tag: filter.tag === t.name ? null : t.name }),
+                  ),
+                )}
+                {ohneTag > 0 &&
+                  filterKnopf(filter.tag === "", "ohne Tag", ohneTag, () =>
+                    setFilter({ ...filter, tag: filter.tag === "" ? null : "" }),
+                  )}
+              </>
+            )}
+            {mitUnbelegt > 0 && (
+              <>
+                <h3>Prüfung</h3>
+                {filterKnopf(filter.unbelegt, "Zitate nicht belegt", mitUnbelegt, () =>
+                  setFilter({ ...filter, unbelegt: !filter.unbelegt }),
+                )}
+              </>
+            )}
+            {beteiligte.length > 0 && (
+              <>
+                <h3>Beteiligte</h3>
+                <ul className="filter-beteiligte">
+                  {beteiligte.map((b) => (
+                    <li key={b.id}>
+                      <button className="link" onClick={onBeteiligte} title="Beteiligte der Akte öffnen">
+                        <span className={`punkt ${b.gruppe}`} aria-hidden />
+                        {b.name}
+                      </button>
+                      <span className="leise">{b.rolle_text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </>
+        )}
+      </aside>
+
+      <section className="akte-liste" aria-label="Dokumente der Akte">
+        <div className="leiste">
+          <button onClick={hinzufuegen} disabled={!!laeuft}>
+            + Dokumente
+          </button>
+          <button className="zweitrangig" onClick={ordnerHinzufuegen} disabled={!!laeuft} title="Liest auch alle Unterordner ein">
+            + Ordner
+          </button>
+          {dokumente.length > 0 && (
+            <button className="zweitrangig rechts" onClick={neuPruefen} disabled={!!laeuft} title="Nach dem Laden weiterer Gesetze sinnvoll">
+              Zitate neu prüfen
+            </button>
+          )}
+        </div>
+        {meldungen}
+        {dokumente.length === 0 && !laeuft && (
+          <p className="leer">Noch keine Dokumente in dieser Akte. Füge PDF-, Word- oder Textdateien hinzu.</p>
+        )}
+        {dokumente.length > 0 && (
+          <table className="dokumente kompakt">
+            <thead>
+              <tr>
+                <th>
+                  <button
+                    className="link spaltenkopf"
+                    onClick={() => setNachDatum(!nachDatum)}
+                    aria-pressed={nachDatum}
+                    title={nachDatum ? "Nach Ordner und Dateiname ordnen" : "Nach Datum ordnen, neueste zuerst"}
+                  >
+                    Datum {nachDatum ? "▼" : "↕"}
+                  </button>
+                </th>
+                <th>Dokument</th>
+                <th title="Normzitate: belegt / nicht belegt / Gesetz unbekannt">Zitate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sichtbar.map((d) => (
+                <tr
+                  key={d.id}
+                  className={inhalt?.dokument.id === d.id ? "aktiv" : undefined}
+                  onClick={(e) => {
+                    // Die ganze Zeile öffnet das Dokument; Knöpfe und Eingaben in der Zeile behalten ihre eigene Wirkung.
+                    if (!(e.target as HTMLElement).closest("button, input")) void oeffneDokument(d.id);
+                  }}
+                >
+                  <td>
+                    <DokumentDatum d={d} onFundstelle={() => oeffneDokument(d.id, d.datum_abschnitt ?? undefined)} />
+                  </td>
+                  <td>
+                    <button className="link" onClick={() => oeffneDokument(d.id)}>
+                      {d.dateiname}
+                    </button>
+                    <div className="herkunft">
+                      {lesartText(d)}
+                      {d.seiten != null && <> · {d.seiten} S.</>}
+                      {d.randnummern > 0 && <> · {d.randnummern} Rn.</>}
+                      {d.herkunft && <> · {d.herkunft}</>}
+                    </div>
+                    {tagEdit?.id === d.id ? (
+                      <TagEditor
+                        text={tagEdit.text}
+                        onText={(text) => setTagEdit({ id: d.id, text })}
+                        onSpeichern={() => tagsSpeichern(d.id, tagsAusText(tagEdit.text))}
+                        onAbbrechen={() => setTagEdit(null)}
+                      />
+                    ) : (
+                      <div className="tags">
+                        {sortiereTags(d.tags).map((t) => (
+                          <span
+                            key={t.name}
+                            className={`tag ${t.quelle}`}
+                            title={t.quelle === "ordner" ? "Aus dem Ordnernamen übernommen" : "Von Hand gesetzt"}
+                          >
+                            {t.name}
+                          </span>
+                        ))}
+                        <span className="zeilen-aktionen">
+                          <button
+                            className="link klein"
+                            onClick={() => setTagEdit({ id: d.id, text: d.tags.map((t) => t.name).join(", ") })}
+                            disabled={!!laeuft}
+                          >
+                            {d.tags.length ? "Tags ändern" : "+ Tag"}
+                          </button>
+                          <button
+                            className="link klein gefahr"
+                            onClick={() => setLoeschfrage({ art: "dokument", id: d.id })}
+                            disabled={!!laeuft}
+                            title="Dokument aus der Akte entfernen"
+                          >
+                            entfernen
+                          </button>
+                        </span>
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <ZitatZaehlung zitate={d.zitate} kurz />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {dokumente.length > 0 && sichtbar.length === 0 && <p className="leer">Kein Dokument passt zu diesem Filter.</p>}
+      </section>
+
+      <section className="akte-offen" aria-label="Geöffnetes Dokument">
+        {inhalt ? (
+          <>
+            <DokModusLeiste dokument={inhalt.dokument} modus={dokModus} onModus={waehleDokModus} />
+            {arbeitsflaeche(
+              <>
+                {dokModus === "text" && (
+                  <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} markiert={markiert ?? undefined} />
+                )}
+                {dokModus === "original" && (
+                  <OriginalAnsicht key={inhalt.dokument.id} dokument={inhalt.dokument} startSeite={auswahl?.zitat.seite ?? null} />
+                )}
+                {dokModus === "normen" && normen && (
+                  <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} leer="In diesem Dokument wurden keine Normzitate erkannt." />
+                )}
+                {dokModus === "rechtsprechung" &&
+                  rechtsprechungAnsicht("In diesem Dokument wurden keine Rechtsprechungszitate erkannt.")}
+                {dokModus === "chat" && <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />}
+              </>,
+            )}
+          </>
+        ) : (
+          <p className="leer">{dokumente.length > 0 ? "Wähle links ein Dokument, um Text und Normzitate zu sehen." : ""}</p>
+        )}
+      </section>
     </div>
   );
 }
@@ -1057,18 +1026,19 @@ function DokumentDatum({ d, onFundstelle }: { d: AktenDokument; onFundstelle: ()
   );
 }
 
-function ZitatZaehlung({ zitate }: { zitate: Partial<Record<ZitatStatus, number>> }) {
+/** Zahl der Normzitate je Prüfstand; „kurz“ zeigt nur die Zahlen, der Text steht im Tooltip. */
+function ZitatZaehlung({ zitate, kurz = false }: { zitate: Partial<Record<ZitatStatus, number>>; kurz?: boolean }) {
   const reihenfolge: ZitatStatus[] = ["belegt", "nicht_gefunden", "unbekanntes_gesetz"];
   const teile = reihenfolge.filter((s) => zitate[s]);
-  if (teile.length === 0) return <span className="leer">keine</span>;
+  if (teile.length === 0) return <span className="leer">{kurz ? "–" : "keine"}</span>;
   return (
-    <>
+    <span className={kurz ? "zitat-kurz" : undefined}>
       {teile.map((s) => (
-        <span key={s} className={`zitat-zahl ${s}`}>
-          {zitate[s]} {STATUS_TEXT[s]}
+        <span key={s} className={`zitat-zahl ${s}`} title={kurz ? `${zitate[s]} ${STATUS_TEXT[s]}` : undefined}>
+          {kurz ? zitate[s] : `${zitate[s]} ${STATUS_TEXT[s]}`}
         </span>
       ))}
-    </>
+    </span>
   );
 }
 

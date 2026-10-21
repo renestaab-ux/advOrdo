@@ -8,6 +8,15 @@
   --gut: #2f6b3a;
   --warnung: #8a5a00;
   --fehler: #9b2c2c;
+  /* Gefüllte Knöpfe, Eingabefelder und das dunkle Kopfband; im Dunkelmodus eigene Werte für guten Kontrast. */
+  --knopf: #24476b;
+  --knopf-text: #ffffff;
+  --feld: #ffffff;
+  --band: linear-gradient(100deg, #1b3550, #27507a);
+  --band-text: #f3f6fa;
+  --band-leise: #b9c8d8;
+  --gefahr: #b3261e;
+  color-scheme: light dark;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 15px;
   color: var(--text);
@@ -25,20 +34,40 @@
     --gut: #7cc08a;
     --warnung: #e0b45a;
     --fehler: #e38787;
+    --knopf: #3a6794;
+    --knopf-text: #ffffff;
+    --feld: #2c2d31;
+    --band: linear-gradient(100deg, #15283c, #1d3a57);
+    --band-text: #eef2f6;
+    --band-leise: #9fb3c7;
+    --gefahr: #f2b8b5;
   }
 }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--hintergrund); }
 
-.rahmen { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
-.navigation { border-right: 1px solid var(--linie); padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; }
-.marke { font-weight: 600; margin-bottom: 16px; }
-.nav-eintrag { text-align: left; background: none; border: none; padding: 8px 10px; border-radius: 6px; color: var(--text); cursor: pointer; font: inherit; }
-.nav-eintrag.aktiv { background: var(--flaeche); box-shadow: 0 0 0 1px var(--linie); }
-.nav-eintrag:disabled { color: var(--text-leise); cursor: default; }
+.rahmen { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: 100vh; }
+.rahmen.eingeklappt { grid-template-columns: 60px minmax(0, 1fr); }
+.navigation { border-right: 1px solid var(--linie); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; overflow: hidden auto; }
+.marke { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; margin: 0 0 14px 4px; white-space: nowrap; }
+.marke-zeichen { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; background: var(--knopf); color: var(--knopf-text); font-size: 16px; }
+.nav-eintrag { display: flex; align-items: center; gap: 12px; text-align: left; background: none; border: none; border-left: 3px solid transparent; padding: 8px 10px 8px 9px; border-radius: 6px; color: var(--text); cursor: pointer; font: inherit; white-space: nowrap; }
+.nav-eintrag .symbol { flex: none; color: var(--text-leise); }
+.nav-eintrag:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+.nav-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 14%, transparent); border-left-color: var(--akzent); font-weight: 600; }
+.nav-eintrag.aktiv .symbol { color: var(--akzent); }
+.nav-fuss { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--linie); }
+.nav-eintrag.einklappen { color: var(--text-leise); font-size: 13px; margin-top: 4px; }
+.eingeklappt .nav-text { display: none; }
+.eingeklappt .marke { margin-left: 5px; }
+.eingeklappt .nav-eintrag { justify-content: center; padding: 8px 0; }
+.eingeklappt .modus, .eingeklappt .umgebung-anzeige { justify-content: center; padding-left: 0; padding-right: 0; }
 .bald { font-size: 11px; margin-left: 6px; color: var(--text-leise); }
-.modus { margin-top: auto; font-size: 12px; color: var(--gut); }
+.modus { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--gut); padding: 4px 6px; white-space: nowrap; }
+.modus-punkt { flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+[hidden] { display: none !important; }
+.symbol { vertical-align: middle; }
 
 .inhalt { overflow: auto; padding: 24px 32px; }
 .kopf { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -46,7 +75,11 @@ h1 { font-size: 22px; margin: 0; }
 h2 { font-size: 18px; margin: 4px 0 12px; }
 .aktionen { display: flex; gap: 8px; }
 
-button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--akzent); background: var(--akzent); color: var(--flaeche); cursor: pointer; }
+button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--knopf); background: var(--knopf); color: var(--knopf-text); cursor: pointer; }
+input, select, textarea { font: inherit; color: var(--text); background: var(--feld); border: 1px solid var(--linie); border-radius: 6px; padding: 5px 9px; }
+input[type="checkbox"], input[type="radio"] { padding: 0; accent-color: var(--knopf); }
+input::placeholder, textarea::placeholder { color: var(--text-leise); opacity: 0.8; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--akzent); outline-offset: 1px; }
 button.zweitrangig { background: none; color: var(--akzent); }
 button:disabled { opacity: 0.5; cursor: default; }
 button.link { background: none; border: none; padding: 0; color: var(--akzent); font-weight: 600; }
@@ -174,22 +207,20 @@ button.zitat.gewaehlt, button.zitat:hover { background: color-mix(in srgb, var(-
 .tag.manuell { border-style: dashed; }
 .tag-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
 button.tag-wahl { background: none; color: var(--text); border: 1px solid var(--linie); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 400; }
-button.tag-wahl.aktiv { background: var(--akzent); border-color: var(--akzent); color: #fff; }
+button.tag-wahl.aktiv { background: var(--knopf); border-color: var(--knopf); color: var(--knopf-text); }
 .tag-eingabe { font: inherit; width: 100%; min-width: 180px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 .tag-editor { display: grid; gap: 6px; min-width: 240px; }
 .tag-editor .aktionen button { padding: 4px 10px; }
 .herkunft { color: var(--text-leise); font-size: 12px; }
 button.link.klein { font-size: 12px; font-weight: 400; }
-button.gefahr, button.link.gefahr { color: #b3261e; }
+button.gefahr, button.link.gefahr { color: var(--gefahr); background: none; border-color: currentColor; }
+button.link.gefahr { border: none; }
 button.gefahr-voll { background: #b3261e; border-color: #b3261e; color: #fff; }
 .rueckfrage { margin: 12px 0; padding: 12px 16px; border: 1px solid var(--linie); border-left: 4px solid var(--akzent); border-radius: 8px; background: var(--flaeche); }
 .rueckfrage p { margin: 6px 0 10px; }
 .rueckfrage .dokumente { margin: 8px 0; }
 .meldung { color: var(--text-leise); }
 .unsichtbar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-@media (prefers-color-scheme: dark) {
-  button.gefahr, button.link.gefahr { color: #f2b8b5; }
-}
 .dokumente button.link { text-align: left; }
 .dokumente button.link.spaltenkopf { font: inherit; color: inherit; }
 .dok-datum { white-space: nowrap; }
@@ -301,7 +332,7 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .such-fundstelle.gewaehlt { background: color-mix(in srgb, var(--akzent) 12%, transparent); }
 .such-fundstelle:focus-visible { outline: 2px solid var(--akzent); }
 .such-ort { font-size: 13px; }
-.such-rang { font-size: 11px; color: var(--flaeche); background: var(--gut); border-radius: 4px; padding: 1px 6px; align-self: center; }
+.such-rang { font-size: 11px; color: var(--hintergrund); background: var(--gut); border-radius: 4px; padding: 1px 6px; align-self: center; }
 .such-fundstelle .ausschnitt { grid-column: 1 / -1; margin-top: 0; }
 .such-dokument-ansicht { overflow: auto; min-width: 0; padding-right: 4px; }
 .such-dokument-titel { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--linie); }
@@ -349,15 +380,16 @@ button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var
 }
 
 /* Startbildschirm */
-.start { max-width: 860px; margin: 0 auto; padding: 8px 0 32px; }
-.start h1 { font-weight: 600; margin: 0 0 24px; }
+.start { margin: -24px -32px 0; }
+.start-inhalt { max-width: 1040px; padding: 20px 32px 32px; }
+.start-inhalt > .erklaerung { margin: 0 0 18px; }
 .kacheln { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 @media (max-width: 760px) { .kacheln { grid-template-columns: 1fr; } }
 .kachel { display: grid; grid-template-columns: 72px 1fr; grid-template-rows: auto auto; column-gap: 18px; align-items: center; text-align: left;
   min-height: 132px; padding: 22px 24px; border-radius: 12px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 .kachel:hover:not(:disabled) { border-color: var(--akzent); box-shadow: 0 0 0 1px var(--akzent); }
-.kachel-symbol { grid-row: 1 / 3; width: 64px; height: 64px; color: var(--akzent); }
-.kachel-symbol svg { width: 100%; height: 100%; }
+.kachel-symbol { grid-row: 1 / 4; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 12px; color: var(--akzent);
+  background: color-mix(in srgb, var(--akzent) 12%, transparent); }
 .kachel-titel { font-size: 19px; font-weight: 600; align-self: end; }
 .kachel-text { font-size: 13px; color: var(--text-leise); align-self: start; margin-top: 4px; }
 
@@ -413,7 +445,6 @@ button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var
 .marke-aktiv { margin-left: 8px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; color: var(--gut); border: 1px solid var(--gut); }
 .umgebung-anzeige { font-size: 12px; color: var(--text-leise); text-align: left; background: none; border: none; padding: 0; margin-top: 6px; cursor: pointer; }
 .umgebung-anzeige strong { color: var(--text); }
-.start .umgebung-zeile { margin: -16px 0 20px; color: var(--text-leise); }
 
 /* Eigene Daten */
 .eigene { max-width: 860px; }
@@ -500,3 +531,122 @@ input.funktion { font: inherit; padding: 3px 8px; border-radius: 6px; border: 1p
 .verzeichnis-filter select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
 .beteiligte-verzeichnis .karte { max-width: 980px; margin-bottom: 16px; }
+
+/* Kopfband: Startseite und geöffnete Akte */
+.kopfband { display: flex; align-items: center; gap: 28px; padding: 18px 32px; background: var(--band); color: var(--band-text); }
+.kopfband h1 { font-size: 22px; margin: 0; color: var(--band-text); }
+.kopfband-ueber { margin: 0 0 2px; font-size: 12px; color: var(--band-leise); letter-spacing: 0.02em; }
+.kopfband > div:first-child { flex: 1; min-width: 0; }
+.modus-pille { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 13px;
+  background: rgb(255 255 255 / 12%); color: var(--band-text); white-space: nowrap; }
+.modus-pille .modus-punkt { background: #7cd38e; }
+.modus-pille.extern .modus-punkt { background: #f0c060; }
+
+/* Startseite */
+.kachel { grid-template-rows: auto auto auto; }
+.kachel-stand { grid-column: 2; }
+.kachel-liste, .kachel-info { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; cursor: default; }
+.kachel-liste h2, .kachel-info h2 { font-size: 16px; margin: 0 0 4px; }
+.kachel-liste ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.kachel-liste li { display: flex; flex-direction: column; }
+.kachel-liste .link { text-align: left; }
+.kachel-liste > .link.klein, .kachel-info > .link.klein { margin-top: auto; }
+.kachel-info { background: color-mix(in srgb, var(--akzent) 6%, var(--flaeche)); }
+.kachel-info dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; }
+.kachel-info dt { color: var(--text-leise); }
+.kachel-info dd { margin: 0; }
+.gut { color: var(--gut); }
+
+/* Aktenübersicht */
+.akten-uebersicht { max-width: 1500px; }
+.akten-suche { width: 100%; margin: 14px 0 10px; padding: 9px 12px; }
+.filterleiste { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.filterleiste select { padding: 4px 8px; font-size: 13px; }
+.rechts { margin-left: auto; }
+button.chip { background: none; color: var(--text); border: 1px solid var(--linie); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
+button.chip.aktiv { background: var(--knopf); border-color: var(--knopf); color: var(--knopf-text); }
+.abschnitt-titel { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-leise); margin: 6px 0 8px; }
+.zuletzt { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.zuletzt-karte { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; min-width: 220px; max-width: 340px;
+  background: var(--flaeche); color: var(--text); border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; }
+.zuletzt-karte:hover { border-color: var(--akzent); }
+.akten-tabelle { font-size: 14px; }
+.akten-tabelle th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+.akten-tabelle td { padding: 9px 10px; }
+.akten-tabelle .az { font-weight: 600; white-space: nowrap; }
+tr.klickbar { cursor: pointer; }
+tr.klickbar:hover { background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+button.marke-fehlt { display: block; margin-top: 4px; padding: 0 8px; font-size: 12px; border-radius: 999px; font-weight: 600;
+  color: var(--warnung); background: color-mix(in srgb, var(--warnung) 15%, transparent); border: 1px solid transparent; }
+button.marke-fehlt:hover { border-color: var(--warnung); }
+.status-marke { font-size: 12px; padding: 1px 8px; border-radius: 999px; color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 15%, transparent); }
+.status-marke.laufend { color: var(--gut); background: color-mix(in srgb, var(--gut) 15%, transparent); }
+.neue-akte { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; max-width: 900px; }
+.neue-akte .feld:first-child { flex: 1; min-width: 260px; }
+.neue-akte .feld.az input { width: 160px; }
+.neue-akte .fehler { flex-basis: 100%; margin: 0; }
+
+/* Geöffnete Akte: Kopf, Reiter, Fläche */
+.inhalt.ohne-rand { padding: 0; overflow: hidden; }
+.akte-rahmen { display: flex; flex-direction: column; height: 100%; }
+.akte-kopf { flex-wrap: wrap; gap: 14px 32px; padding: 14px 24px; }
+.akte-kopf h1 { font-size: 21px; }
+.akte-kopf-angabe strong { font-weight: 600; }
+.kopfband button.zurueck, .kopfband button.kopf-knopf { display: inline-flex; align-items: center; gap: 6px; background: rgb(255 255 255 / 10%);
+  border: 1px solid rgb(255 255 255 / 35%); color: var(--band-text); padding: 5px 12px; position: relative; }
+.kopfband button.zurueck:hover, .kopfband button.kopf-knopf:hover, .kopfband button.kopf-knopf.aktiv { background: rgb(255 255 255 / 22%); }
+.fehlt-punkt { width: 8px; height: 8px; border-radius: 50%; background: #f0c060; }
+.akte-reiter { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 24px 0; border-bottom: 1px solid var(--linie); background: var(--flaeche); }
+button.akte-reiter-knopf { display: inline-flex; align-items: center; gap: 7px; background: none; border: none; border-bottom: 3px solid transparent;
+  border-radius: 0; color: var(--text-leise); padding: 8px 12px 9px; }
+button.akte-reiter-knopf:hover { color: var(--text); }
+button.akte-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--akzent); font-weight: 600; }
+.akte-reiter-knopf .anzahl, .filter-eintrag .anzahl { font-size: 12px; color: var(--text-leise); font-weight: 400; }
+.akte-reiterflaeche { flex: 1; min-height: 0; overflow: auto; position: relative; padding: 16px 24px 24px; }
+.akte-reiterflaeche .karte { max-width: 1100px; }
+.gefahrenzone { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--linie); }
+
+/* Reiter Dokumente: Filter | Liste | geöffnetes Dokument, jede Spalte scrollt für sich */
+.akte-dokumente { position: absolute; inset: 0; display: grid; grid-template-columns: 210px minmax(360px, 1fr) minmax(0, 1.3fr); }
+.akte-dokumente.filter-zu { grid-template-columns: 40px minmax(340px, 1fr) minmax(0, 1.5fr); }
+.akte-dokumente > * { overflow: auto; min-height: 0; padding: 12px 16px; }
+.akte-filter { border-right: 1px solid var(--linie); display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; }
+.filter-zu .akte-filter { padding: 8px 4px; align-items: center; }
+.akte-filter h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-leise); margin: 12px 0 4px; }
+button.leisten-knopf { align-self: flex-end; background: none; border: none; color: var(--text-leise); padding: 4px; position: relative; }
+button.leisten-knopf:hover { color: var(--text); }
+.filter-punkt { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--akzent); }
+button.filter-eintrag { display: flex; justify-content: space-between; gap: 8px; text-align: left; background: none; border: none; color: var(--text);
+  padding: 4px 8px; border-radius: 5px; font-size: 13px; }
+button.filter-eintrag:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, transparent); font-weight: 600; }
+.filter-beteiligte { list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+.filter-beteiligte li { display: flex; flex-direction: column; }
+.filter-beteiligte .link { font-weight: 500; text-align: left; color: var(--text); }
+.filter-beteiligte .leise { padding-left: 16px; }
+.punkt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--text-leise); }
+.punkt.eigene { background: var(--akzent); }
+.punkt.gegen { background: var(--fehler); }
+.akte-liste { border-right: 1px solid var(--linie); }
+.akte-liste .leiste { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.akte-liste .leiste button { padding: 5px 12px; }
+.dokumente.kompakt { margin-top: 4px; }
+.dokumente.kompakt tbody tr { cursor: pointer; }
+.dokumente.kompakt tbody tr:hover { background: color-mix(in srgb, var(--akzent) 5%, transparent); }
+.dokumente.kompakt tr.aktiv { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+.zeilen-aktionen { display: inline-flex; gap: 8px; visibility: hidden; }
+.dokumente.kompakt tr:hover .zeilen-aktionen, .dokumente.kompakt tr.aktiv .zeilen-aktionen, .zeilen-aktionen:focus-within { visibility: visible; }
+.akte-offen .dok-modi { position: sticky; top: -12px; background: var(--hintergrund); z-index: 1; padding-top: 4px; }
+.akte-offen .akte-arbeitsflaeche { grid-template-columns: minmax(0, 1fr) auto auto; }
+.akte-offen .dokument { margin-top: 0; }
+@media (max-width: 1200px) {
+  .akte-dokumente { position: static; grid-template-columns: 1fr; }
+  .akte-dokumente > * { overflow: visible; border-right: none; }
+  .akte-filter { flex-direction: row; flex-wrap: wrap; align-items: center; }
+}
+.zitat-kurz { display: inline-flex; gap: 8px; font-variant-numeric: tabular-nums; }
+.zitat-kurz .zitat-zahl { margin: 0; font-weight: 600; }
+.dokumente.kompakt .tags { margin-top: 4px; }
+.dokumente.kompakt .dok-datum .herkunft { display: none; }
+details.kurz-hinweis { font-size: 13px; margin: 0 0 6px; }
+details.kurz-hinweis summary { cursor: pointer; }

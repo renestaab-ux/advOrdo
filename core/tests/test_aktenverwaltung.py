@@ -200,6 +200,11 @@ def test_beteiligte_der_akte_und_uebersicht(con):
     assert (u["mandanten"], u["gegner"], u["gerichte"]) == (
         ["Lena Brückner"], ["Autohaus Rehnfeld GmbH"],
         [{"name": "Landgericht Freiburg im Breisgau", "aktenzeichen": "3 O 412/25"}])
+    assert (u["sachbearbeiter"], u["geoeffnet_am"]) == (None, None)
+    vorher = u["geaendert_am"]
+    stammdaten.geoeffnet(con, a)
+    [u] = stammdaten.uebersicht(con)
+    assert u["geoeffnet_am"] and u["geaendert_am"] == vorher  # Öffnen gilt nicht als Bearbeiten
 
 
 def test_konzerngesellschaft_als_mandant(con):

@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   AMPEL_TEXT,
   AkteStammdaten as Stammdaten,
@@ -30,10 +30,25 @@ function entwurfWerte(entwurf: Entwurf): Record<string, unknown> {
 }
 
 /**
- * Stammdaten einer Akte: Aktenzeichen, Gegenstand, Status, die Beteiligten mit ihrer Rolle und die
- * Kollisionsprüfung. Beteiligte kommen aus dem Beteiligtenverzeichnis und werden dort nur einmal angelegt.
+ * Teil „stammdaten“: Aktenzeichen, Gegenstand, Status usw.; ungespeicherte Eingaben werden beim Verlassen gespeichert.
+ * Teil „beteiligte“: die Beteiligten mit ihrer Rolle und die Kollisionsprüfung. Beteiligte kommen aus dem
+ * Beteiligtenverzeichnis und werden dort nur einmal angelegt.
  */
-export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number; onGeaendert: () => void }) {
+export default function AkteStammdaten({
+  akteId,
+  teil,
+  onGeaendert,
+  onWeiter,
+  onEntfernen,
+}: {
+  akteId: number;
+  teil: "stammdaten" | "beteiligte";
+  onGeaendert: () => void;
+  /** Stammdaten: „Weiter zu den Beteiligten“. */
+  onWeiter?: () => void;
+  /** Stammdaten: „Akte entfernen …“. */
+  onEntfernen?: () => void;
+}) {
   const [daten, setDaten] = useState<Stammdaten | null>(null);
   const [optionen, setOptionen] = useState<AktenOptionen | null>(null);
   const [entwurf, setEntwurf] = useState<Entwurf | null>(null);
@@ -80,6 +95,23 @@ export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number
 
   const ungespeichert = !!(daten && entwurf) && JSON.stringify(entwurf) !== JSON.stringify(entwurfAus(daten));
 
+  // Beim Verlassen der Stammdaten (anderer Reiter, andere Akte) gehen Eingaben nicht verloren: sie werden gespeichert.
+  const offen = useRef<{ entwurf: Entwurf | null; ungespeichert: boolean }>({ entwurf: null, ungespeichert: false });
+  offen.current = { entwurf, ungespeichert };
+  const geaendertRef = useRef(onGeaendert);
+  geaendertRef.current = onGeaendert;
+  useEffect(
+    () => () => {
+      const { entwurf: e, ungespeichert: u } = offen.current;
+      if (!u || !e) return;
+      void kern("akten.stammdaten_speichern", { akte_id: akteId, daten: entwurfWerte(e) }).then(
+        () => geaendertRef.current(),
+        () => undefined,
+      );
+    },
+    [akteId],
+  );
+
   /** Speichert die Stammdaten, falls im Formular etwas geändert wurde; false, wenn das Speichern scheitert. */
   async function sichern(text?: string): Promise<boolean> {
     if (!entwurf || (!ungespeichert && !text)) return true;
@@ -114,10 +146,44 @@ export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number
     onChange: (ev: { target: { value: string } }) => setEntwurf({ ...entwurf, [k]: ev.target.value }),
   });
 
+  const meldungen = (
+    <>
+      {laeuft && <p className="status">Einen Moment …</p>}
+      {meldung && !laeuft && <p className="meldung">{meldung}</p>}
+      {fehler && <p className="fehler">{fehler}</p>}
+    </>
+  );
+
+  if (teil === "beteiligte") {
+    return (
+      <section className="karte stammdaten">
+        <BeteiligteDerAkte
+          akteId={akteId}
+          daten={daten}
+          optionen={optionen}
+          laeuft={laeuft}
+          ausfuehren={ausfuehren}
+          vorher={() => sichern()}
+          onGeaendert={geaendert}
+        />
+
+        <KollisionsAnzeige
+          akteId={akteId}
+          pruefung={daten.kollision}
+          optionen={optionen}
+          laeuft={laeuft}
+          ausfuehren={ausfuehren}
+          onGeaendert={(k) => setDaten({ ...daten, kollision: k })}
+        />
+        {meldungen}
+      </section>
+    );
+  }
+
   return (
     <section className="karte stammdaten">
       <div className="kopf">
-        <h2>Stammdaten und Beteiligte</h2>
+        <h2>Stammdaten</h2>
         <span className="leise">{daten.dokumente} Dokumente</span>
       </div>
 
@@ -218,32 +284,27 @@ export default function AkteStammdaten({ akteId, onGeaendert }: { akteId: number
           <button type="submit" disabled={laeuft}>
             Speichern
           </button>
-          {ungespeichert && <span className="leise">Ungespeicherte Änderungen; sie werden beim Eintragen eines Beteiligten mitgespeichert.</span>}
+          {onWeiter && (
+            <button
+              type="button"
+              className="zweitrangig"
+              disabled={laeuft}
+              onClick={() => void sichern().then((ok) => ok && onWeiter())}
+            >
+              Weiter zu den Beteiligten
+            </button>
+          )}
+          {ungespeichert && <span className="leise">Ungespeicherte Änderungen; sie werden beim Verlassen gespeichert.</span>}
         </div>
       </form>
-
-      <BeteiligteDerAkte
-        akteId={akteId}
-        daten={daten}
-        optionen={optionen}
-        laeuft={laeuft}
-        ausfuehren={ausfuehren}
-        vorher={() => sichern()}
-        onGeaendert={geaendert}
-      />
-
-      <KollisionsAnzeige
-        akteId={akteId}
-        pruefung={daten.kollision}
-        optionen={optionen}
-        laeuft={laeuft}
-        ausfuehren={ausfuehren}
-        onGeaendert={(k) => setDaten({ ...daten, kollision: k })}
-      />
-
-      {laeuft && <p className="status">Einen Moment …</p>}
-      {meldung && !laeuft && <p className="meldung">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {meldungen}
+      {onEntfernen && (
+        <div className="gefahrenzone">
+          <button className="zweitrangig gefahr" onClick={onEntfernen} disabled={laeuft}>
+            Akte entfernen …
+          </button>
+        </div>
+      )}
     </section>
   );
 }

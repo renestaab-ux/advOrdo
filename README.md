@@ -138,9 +138,12 @@ Linux: `sudo apt install tesseract-ocr tesseract-ocr-deu`. macOS: `brew install 
 
 ## Startbildschirm und Toolbox
 
-Die App öffnet mit einem Startbildschirm: **Akte anlegen** (springt in den Bereich Akte, das Namensfeld ist gleich
-bereit), **Mit Akte arbeiten**, **Eigene Daten** (folgt), **Toolbox** und **Einstellungen**. Über „Start“ in der
-Navigation geht es jederzeit zurück.
+Die App öffnet mit einem Startbildschirm: **Akte anlegen** (öffnet in den Akten das Feld für eine neue Akte),
+**Akten**, **Eigene Daten**, **Toolbox**, die **zuletzt geöffneten Akten** und **Ihr Arbeitsbereich** mit Modus
+(nur lokal oder externer Anbieter) und Arbeitsumgebung. Über „Start“ in der Navigation geht es jederzeit zurück.
+
+Die Navigation links zeigt Symbole und Namen; **Einklappen** (unten) lässt nur die Symbole stehen, mit dem Namen als
+Tooltip. Die App merkt sich die Wahl auf diesem Gerät. Vergleich und Analyse sind Reiter in der geöffneten Akte.
 
 Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern aus JuraBox Lite. Gerechnet wird im Kern, ohne Netz:
 
@@ -158,9 +161,25 @@ Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern aus JuraBox Lite. G
   katholische Gemeinden); hängt das Fristende davon ab, nennt ein Hinweis auch das Ende für die übrigen Gemeinden.
   Nur Vorwärtsfristen.
 
+## Akten: Übersicht und geöffnete Akte
+
+Der Bereich **Akten** zeigt zuerst die **Aktenübersicht**: Suche über Aktenzeichen, Kurzbezeichnung, Mandant, Gegner,
+Gegenstand, Gericht und gerichtliches Aktenzeichen; Filter nach Status (Vorgabe: laufend), Sachgebiet und
+Sachbearbeiter; darüber die zuletzt geöffneten Akten. Die Tabelle ist nach „zuletzt bearbeitet“ sortiert; Öffnen
+allein zählt nicht als Bearbeiten. Akten ohne Aktenzeichen tragen die Marke **Aktenzeichen fehlt**; ein Klick darauf
+öffnet die Stammdaten. **+ Neue Akte** legt eine Akte mit Kurzbezeichnung und Aktenzeichen an (leer: Vorschlag) und
+öffnet gleich ihre Stammdaten.
+
+Ein Klick auf eine Zeile öffnet die Akte. Der Kopf zeigt Aktenzeichen, Gegenstand, Kurzbezeichnung, Gericht mit
+Aktenzeichen und wen wir vertreten; **← Akten** führt zurück, **Stammdaten** öffnet Aktenzeichen, Gegenstand,
+Sachgebiet, Status usw. Darunter die Reiter **Dokumente**, **Beteiligte**, **Vergleich**, **Analyse**, **Normen**,
+**Rechtsprechung** und **Chat mit der Akte**. Im Reiter Dokumente stehen drei Spalten nebeneinander: Filter (Ordner,
+Partei und Tags, Zitate nicht belegt, Beteiligte), die Dokumentliste und das geöffnete Dokument. Die Filterspalte
+lässt sich einklappen; auch das merkt sich die App.
+
 ## Akte: Dokumente einlesen
 
-Im Bereich **Akte** legt man eine Akte an und fügt Schriftsätze, Schreiben und Urteile hinzu
+Im Reiter **Dokumente** einer Akte fügt man Schriftsätze, Schreiben und Urteile hinzu
 (PDF, DOCX, TXT, MD). Beim Einlesen
 
 - wird die Originaldatei unverändert unter ihrer SHA-256-Prüfsumme im Ordner der Akte abgelegt,
@@ -211,7 +230,7 @@ Ein geöffnetes Dokument lässt sich auf fünf Arten zeigen:
 - **Original** (nur PDF): die Seiten der abgelegten Originaldatei, wie sie gedruckt aussehen. Der Kern rendert sie
   auf dem Gerät mit PDFium; nichts verlässt den Rechner. Wurde vorher ein Zitat gewählt, springt die Ansicht auf
   dessen Seite, und der Wortlaut bleibt daneben stehen.
-- **Normen** und **Rechtsprechung**: wie die Reiter „Normen der Akte“ und „Rechtsprechung der Akte“, aber nur mit den
+- **Normen** und **Rechtsprechung**: wie die Reiter „Normen“ und „Rechtsprechung“ der Akte, aber nur mit den
   Zitaten aus diesem Dokument. Volltexte laden und Urteile ergänzen geht auch hier.
 - **Chat**: Fragen an dieses eine Dokument (siehe „Chat mit Akte und Dokument“).
 
@@ -223,16 +242,17 @@ Ein geöffnetes Dokument lässt sich auf fünf Arten zeigen:
   Dokument gehört: „01_Kläger“ und „Klägerin“ werden zu **Kläger**, „Beklagte“ zu **Beklagter**,
   „Landgericht“ zu **Gericht**, andere Namen bleiben, wie sie sind. Vor dem Einlesen fragt die App,
   ob die Tags übernommen werden sollen; die Vorschläge lassen sich dort ändern oder leeren.
-- In der Dokumentliste lassen sich Tags jederzeit von Hand setzen und ändern („+ Tag“ bzw. „ändern“).
-  Tags aus dem Ordnernamen sind durchgezogen umrandet, von Hand gesetzte gestrichelt. Über die
-  Tag-Leiste filtert man die Liste, z. B. alle Dokumente des Gerichts.
-- **entfernen** (je Dokument) und **Akte entfernen …** löschen nach einer Rückfrage den gelesenen
+- In der Dokumentliste lassen sich Tags jederzeit von Hand setzen und ändern („+ Tag“ bzw. „Tags ändern“, sichtbar
+  beim Zeigen auf die Zeile). Tags aus dem Ordnernamen sind durchgezogen umrandet, von Hand gesetzte gestrichelt.
+  Über die Filterspalte filtert man die Liste, z. B. alle Dokumente des Gerichts.
+- **entfernen** (je Dokument) und **Akte entfernen …** (in den Stammdaten) löschen nach einer Rückfrage den gelesenen
   Text, die Zitate, die Tags und die Kopie, die die App beim Einlesen abgelegt hat. Die
   Originaldatei am ursprünglichen Ort bleibt unverändert.
 
 ### Stammdaten, Beteiligte und Kollisionsprüfung
 
-Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1 (Datenteil). In der Akte öffnet **Stammdaten und Beteiligte**:
+Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1. In der Akte öffnen **Stammdaten** (Knopf im Kopf) und der Reiter
+**Beteiligte**; ungespeicherte Eingaben in den Stammdaten werden beim Verlassen gespeichert:
 
 - **Aktenzeichen** nach dem Schema Nummer/Jahr (102/26): Neue Akten bekommen die nächste freie Nummer des laufenden
   Jahres; beim Anlegen lässt sich auch ein eigenes eintragen. Ein vergebenes Aktenzeichen wird nie ein zweites Mal
@@ -280,7 +300,7 @@ aber nicht.
 
 ## Vergleich: Angaben abgleichen
 
-Der Bereich **Vergleich** (oder **Abgleichen** in der Akte) stellt dieselben Angaben aus den
+Der Reiter **Vergleich** einer Akte stellt dieselben Angaben aus den
 Dokumenten einer Akte nebeneinander, entweder aus allen Dokumenten oder aus zwei gewählten:
 
 - erkannt werden Daten, Beträge, Kilometerstände und Fehlercodes mit ihrem Bezug, z. B.
@@ -296,11 +316,11 @@ Dokumenten einer Akte nebeneinander, entweder aus allen Dokumenten oder aus zwei
 Erkannt wird bewusst zurückhaltend: Werte, die im Text verneint („betrug nicht 64.800 km“) oder
 bestritten werden, zählen nicht als eigene Angabe. „Mitte Juni 2025“ passt zu jedem Datum im
 Juni. Eine Abweichung ist ein Hinweis, keine Bewertung. Aussagen ohne Zahl oder Datum (etwa ob
-eine Nachbesserung angeboten oder abgelehnt wurde) prüft der Bereich **Analyse**.
+eine Nachbesserung angeboten oder abgelehnt wurde) prüft der Reiter **Analyse**.
 
 ## Analyse: lokales Sprachmodell
 
-Der Bereich **Analyse** fasst Dokumente und die ganze Akte zusammen und sucht inhaltliche
+Der Reiter **Analyse** einer Akte fasst Dokumente und die ganze Akte zusammen und sucht inhaltliche
 Widersprüche, auch solche ohne Zahl oder Datum („Nachbesserung abgelehnt“ gegenüber „Nachbesserung
 angeboten“). Dafür läuft ein Sprachmodell auf diesem Gerät, über Ollama oder LM Studio. Die App
 spricht nur mit Adressen auf diesem Gerät (`localhost`, `127.0.0.1`); andere lehnt sie ab.
@@ -371,7 +391,7 @@ dort fort, wo er stehen geblieben ist. Für einen Neuanfang den Ordner löschen.
 
 ## Chat mit Akte und Dokument
 
-Im Bereich „Akte“ stellt der Reiter **Chat mit der Akte** Fragen an alle Dokumente der Akte, der
+In einer geöffneten Akte stellt der Reiter **Chat mit der Akte** Fragen an alle Dokumente der Akte, der
 Modus **Chat** eines geöffneten Dokuments nur an dieses. Die Antwort besteht aus einzelnen Aussagen:
 
 - **Aus der Akte**: eine Tatsache mit Fundstelle. Das Modell nennt Dokument, Absatz und ein wörtliches

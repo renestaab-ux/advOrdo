@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  Akte,
   FeldDef,
+  bearbeitetText,
+  zuletztGeoeffnet,
   akteTitel,
   betragAnzeige,
   betragNormalisieren,
@@ -298,5 +301,22 @@ describe("betragNormalisieren", () => {
     expect(betragNormalisieren("1500")).toBe("1.500,00");
     expect(betragNormalisieren("viel")).toBe("viel");
     expect(betragNormalisieren(" ")).toBe("");
+  });
+});
+
+describe("Aktenübersicht", () => {
+  const jetzt = new Date("2026-10-21T15:00:00");
+  it("schreibt „bearbeitet“ als heute, gestern oder Datum", () => {
+    expect(bearbeitetText("2026-10-21T09:12:00", jetzt)).toBe("heute");
+    expect(bearbeitetText("2026-10-20T23:00:00", jetzt)).toBe("gestern");
+    expect(bearbeitetText("2026-10-02T10:00:00", jetzt)).toBe("02.10.");
+    expect(bearbeitetText("2025-12-30", jetzt)).toBe("30.12.2025");
+    expect(bearbeitetText(null, jetzt)).toBe("–");
+  });
+
+  it("listet zuletzt geöffnete Akten, neueste zuerst, ohne nie geöffnete", () => {
+    const akte = (id: number, geoeffnet_am: string | null) => ({ id, geoeffnet_am }) as Akte;
+    const liste = [akte(1, "2026-10-19T10:00:00"), akte(2, null), akte(3, "2026-10-21T08:00:00"), akte(4, "2026-10-20T08:00:00")];
+    expect(zuletztGeoeffnet(liste, 2).map((a) => a.id)).toEqual([3, 4]);
   });
 });

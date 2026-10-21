@@ -1,31 +1,22 @@
-import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
 import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
 import {
   Abgleich,
   AbgleichFundstelle,
   AbgleichMerkmal,
-  Akte as AkteTyp,
   AktenDokument,
   DokumentInhalt,
   EINORDNUNG_TEXT,
   abgleichZusammenfassung,
   istDesktop,
   kern,
-  akteTitel,
 } from "./kern";
 
 type Umfang = "alle" | "zwei";
 
 /** Gleicht die Angaben der Dokumente einer Akte ab: ganze Akte oder zwei gewählte Dokumente. */
-export default function Vergleich({
-  akteId,
-  setAkteId,
-}: {
-  akteId: number | null;
-  setAkteId: Dispatch<SetStateAction<number | null>>;
-}) {
-  const [akten, setAkten] = useState<AkteTyp[]>([]);
+export default function Vergleich({ akteId }: { akteId: number }) {
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [umfang, setUmfang] = useState<Umfang>("alle");
   const [paar, setPaar] = useState<[number | null, number | null]>([null, null]);
@@ -47,15 +38,6 @@ export default function Vergleich({
       setLaeuft(null);
     }
   }, []);
-
-  useEffect(() => {
-    if (!istDesktop) return;
-    void ausfuehren("Lade Akten …", async () => {
-      const liste = await kern<AkteTyp[]>("akten.liste");
-      setAkten(liste);
-      setAkteId((aktuell) => (aktuell != null && liste.some((a) => a.id === aktuell) ? aktuell : (liste[0]?.id ?? null)));
-    });
-  }, [ausfuehren, setAkteId]);
 
   useEffect(() => {
     setErgebnis(null);
@@ -115,9 +97,6 @@ export default function Vergleich({
 
   return (
     <div className="vergleich">
-      <header className="kopf">
-        <h1>Vergleich</h1>
-      </header>
       <p className="erklaerung">
         Stellt dieselben Angaben aus den Dokumenten nebeneinander: Daten, Beträge, Kilometerstände und Fehlercodes,
         jeweils mit Fundstelle. Eine Abweichung ist ein Hinweis, keine Bewertung. Ob ein Widerspruch vorliegt, entscheidest
@@ -125,17 +104,6 @@ export default function Vergleich({
       </p>
 
       <div className="akten-wahl">
-        {akten.length > 0 ? (
-          <select value={akteId ?? ""} onChange={(e) => setAkteId(Number(e.target.value))} aria-label="Akte wählen">
-            {akten.map((a) => (
-              <option key={a.id} value={a.id}>
-                {akteTitel(a)} ({a.dokumente} Dokumente)
-              </option>
-            ))}
-          </select>
-        ) : (
-          !laeuft && <p className="leer">Noch keine Akte. Lege unter „Akte“ eine an und füge Dokumente hinzu.</p>
-        )}
         {dokumente.length > 1 && (
           <div className="umfang" role="radiogroup" aria-label="Was abgleichen?">
             <label>
