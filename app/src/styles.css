@@ -589,15 +589,19 @@ button.marke-fehlt:hover { border-color: var(--warnung); }
 /* Geöffnete Akte: Kopf, Reiter, Fläche */
 .inhalt.ohne-rand { padding: 0; overflow: hidden; }
 .akte-rahmen { display: flex; flex-direction: column; height: 100%; }
-.akte-kopf { flex-wrap: wrap; gap: 14px 32px; padding: 14px 24px; }
-.akte-kopf h1 { font-size: 21px; }
-.akte-kopf-angabe strong { font-weight: 600; }
+.akte-kopf { gap: 10px 28px; padding: 14px 24px; }
+.akte-kopf h1 { font-size: 21px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akte-kopf .akte-kopf-titel { flex: 1 1 260px; min-width: 0; }
+.akte-kopf .kopfband-ueber { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akte-kopf-angabe { flex: 0 1 auto; min-width: 0; }
+.akte-kopf-angabe strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akte-kopf button { flex: none; }
 .kopfband button.zurueck, .kopfband button.kopf-knopf { display: inline-flex; align-items: center; gap: 6px; background: rgb(255 255 255 / 10%);
   border: 1px solid rgb(255 255 255 / 35%); color: var(--band-text); padding: 5px 12px; position: relative; }
 .kopfband button.zurueck:hover, .kopfband button.kopf-knopf:hover, .kopfband button.kopf-knopf.aktiv { background: rgb(255 255 255 / 22%); }
 .fehlt-punkt { width: 8px; height: 8px; border-radius: 50%; background: #f0c060; }
-.akte-reiter { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 24px 0; border-bottom: 1px solid var(--linie); background: var(--flaeche); }
-button.akte-reiter-knopf { display: inline-flex; align-items: center; gap: 7px; background: none; border: none; border-bottom: 3px solid transparent;
+.akte-reiter { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; gap: 4px; padding: 8px 24px 0; border-bottom: 1px solid var(--linie); background: var(--flaeche); }
+button.akte-reiter-knopf { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; background: none; border: none; border-bottom: 3px solid transparent;
   border-radius: 0; color: var(--text-leise); padding: 8px 12px 9px; }
 button.akte-reiter-knopf:hover { color: var(--text); }
 button.akte-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--akzent); font-weight: 600; }
@@ -639,10 +643,23 @@ button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, 
 .akte-offen .dok-modi { position: sticky; top: -12px; background: var(--hintergrund); z-index: 1; padding-top: 4px; }
 .akte-offen .akte-arbeitsflaeche { grid-template-columns: minmax(0, 1fr) auto auto; }
 .akte-offen .dokument { margin-top: 0; }
+/* Schmales Fenster: Filter bleiben links, Liste und geöffnetes Dokument stehen untereinander. */
 @media (max-width: 1200px) {
-  .akte-dokumente { position: static; grid-template-columns: 1fr; }
-  .akte-dokumente > * { overflow: visible; border-right: none; }
-  .akte-filter { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .akte-dokumente, .akte-dokumente.filter-zu { position: static; grid-template-columns: 190px minmax(0, 1fr);
+    grid-template-areas: "filter liste" "filter offen"; align-items: start; }
+  .akte-dokumente.filter-zu { grid-template-columns: 40px minmax(0, 1fr); }
+  .akte-dokumente > * { overflow: visible; }
+  .akte-filter { grid-area: filter; align-self: stretch; }
+  .akte-liste { grid-area: liste; border-right: none; border-bottom: 1px solid var(--linie); }
+  .akte-offen { grid-area: offen; }
+  .akte-reiterflaeche:has(.akte-dokumente) { padding: 0; }
+  .akte-offen .dok-modi { top: 0; }
+  .akte-liste, .akte-offen { min-width: 0; }
+  .dokumente.kompakt .link { overflow-wrap: anywhere; }
+}
+/* Sehr schmal: Angaben im Kopf weglassen, sie stehen auch in Stammdaten und Beteiligten. */
+@media (max-width: 900px) {
+  .akte-kopf-angabe { display: none; }
 }
 .zitat-kurz { display: inline-flex; gap: 8px; font-variant-numeric: tabular-nums; }
 .zitat-kurz .zitat-zahl { margin: 0; font-weight: 600; }
