@@ -12,6 +12,7 @@ import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
 import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern } from "./kern";
+import jurabox from "./bilder/jurabox-64.png";
 
 type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
 
@@ -88,9 +89,7 @@ export default function App() {
     <div className={eingeklappt ? "rahmen eingeklappt" : "rahmen"}>
       <nav className="navigation" aria-label="Bereiche">
         <div className="marke">
-          <span className="marke-zeichen" aria-hidden>
-            §
-          </span>
+          <img className="marke-zeichen" src={jurabox} alt="" aria-hidden />
           <span className="nav-text">JuraBox</span>
         </div>
         {BEREICHE.map((b) => (

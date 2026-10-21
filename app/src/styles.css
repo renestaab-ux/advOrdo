@@ -51,7 +51,7 @@ body { margin: 0; background: var(--hintergrund); }
 .rahmen.eingeklappt { grid-template-columns: 60px minmax(0, 1fr); }
 .navigation { border-right: 1px solid var(--linie); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; overflow: hidden auto; }
 .marke { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; margin: 0 0 14px 4px; white-space: nowrap; }
-.marke-zeichen { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; background: var(--knopf); color: var(--knopf-text); font-size: 16px; }
+.marke-zeichen { flex: none; display: block; width: 30px; height: 30px; }
 .nav-eintrag { display: flex; align-items: center; gap: 12px; text-align: left; background: none; border: none; border-left: 3px solid transparent; padding: 8px 10px 8px 9px; border-radius: 6px; color: var(--text); cursor: pointer; font: inherit; white-space: nowrap; }
 .nav-eintrag .symbol { flex: none; color: var(--text-leise); }
 .nav-eintrag:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
