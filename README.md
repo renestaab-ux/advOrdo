@@ -75,6 +75,36 @@ unter `~/.local/share/de.juristischer-datenabgleich.app`.
 Im Entwicklungsmodus nimmt die App den Interpreter aus `.venv` im Projektordner.
 `JURACORE_PYTHON` überschreibt das; ohne beides gilt `python` (Windows) bzw. `python3`.
 
+## Installer bauen (lokal, ohne GitHub Actions)
+
+Der Installer enthält die App und den Analysekern als eigenständiges Programm. Auf dem
+Zielrechner sind dann weder Python noch Node oder Rust nötig. Gebaut wird auf dem System,
+für das der Installer gedacht ist (Windows-Installer unter Windows, Linux-Pakete unter Linux).
+
+Windows 11 (PowerShell, im Projektordner):
+
+```powershell
+.venv\Scripts\pip install -e "core[paket]"
+.venv\Scripts\python core\kern_bauen.py
+cd app
+npm install
+npm run paket
+```
+
+Die Installer liegen danach unter `app\src-tauri\target\release\bundle\`: `nsis\JuraBox_0.1.0_x64-setup.exe`
+und `msi\JuraBox_0.1.0_x64_en-US.msi`. Beim ersten Bau lädt Tauri die Werkzeuge NSIS und WiX selbst
+herunter. Der Installer ist nicht signiert; Windows SmartScreen fragt deshalb einmal nach
+(„Weitere Informationen“, „Trotzdem ausführen“).
+
+Linux: `.venv/bin/pip install -e "core[paket]"`, `.venv/bin/python core/kern_bauen.py`, dann
+`cd app && npm install && npm run paket`. Ergebnis: `.deb`, `.rpm` und `.AppImage` unter
+`app/src-tauri/target/release/bundle/`.
+
+`core/kern_bauen.py` bündelt den Kern mit PyInstaller nach `app/src-tauri/binaries/`; `npm run paket`
+legt ihn als `juracore` neben die App. Die installierte App nutzt dasselbe Datenverzeichnis wie
+die Entwicklungsversion, vorhandene Akten und Gesetze bleiben also sichtbar. Tesseract und das
+lokale Sprachmodell werden wie bisher separat installiert.
+
 ## Texterkennung für Scans (Tesseract)
 
 PDFs mit Textebene, Word-, Text- und Markdown-Dateien liest die App ohne weitere

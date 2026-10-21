@@ -8,6 +8,8 @@ dependencies = ["pypdfium2>=4.30,<6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+# Bündeln des Kerns für den Installer (core/kern_bauen.py)
+paket = ["pyinstaller>=6"]
 
 [project.scripts]
 juracore = "juracore.__main__:main"
