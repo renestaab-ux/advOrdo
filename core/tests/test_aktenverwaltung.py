@@ -77,6 +77,20 @@ def test_liste_zaehlt_akten(con):
     assert {e["name"]: e["akten_anzahl"] for e in beteiligte.liste(con)} == {"Lena Brückner": 1, "Karl Ohneakte": 0}
 
 
+def test_liste_zeigt_rollen_und_funktionen(con):
+    lena = person(con, "Lena", "Brückner")
+    nordstern = beteiligte.speichern(con, "organisation", {"name": "Nordstern Social GmbH"}, vertreter=[
+        {"anrede": "Frau", "titel": "Dr.", "vorname": "Mira", "nachname": "Lenz", "funktion": "Geschäftsführerin"}])
+    stammdaten.beteiligung_hinzufuegen(con, neue_akte(con), "mandant", beteiligter_id=lena)
+    stammdaten.beteiligung_hinzufuegen(con, neue_akte(con, "Zweite"), "gegner", beteiligter_id=lena)
+    stammdaten.beteiligung_hinzufuegen(con, neue_akte(con, "Dritte"), "gegner", beteiligter_id=lena)
+    stammdaten.beteiligung_hinzufuegen(con, neue_akte(con, "Vierte"), "gegner", beteiligter_id=nordstern["id"])
+    rollen = {e["name"]: [r["text"] for r in e["rollen"]] for e in beteiligte.liste(con)}
+    assert rollen["Lena Brückner"] == ["Mandant", "Gegner · 2 Akten"]
+    assert rollen["Nordstern Social GmbH"] == ["Gegner"]
+    assert rollen["Dr. Mira Lenz"] == ["Geschäftsführerin von Nordstern Social GmbH"]
+
+
 def test_beziehungen_und_loeschschutz(con):
     gmbh = firma(con, "Autohaus Rehnfeld GmbH")
     gf = person(con, "Klaus", "Rehnfeld")

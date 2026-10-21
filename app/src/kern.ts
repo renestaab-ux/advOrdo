@@ -154,6 +154,8 @@ export interface Beteiligter {
   daten: Record<string, string | string[]>;
   geaendert_am: string;
   stufe?: "gleich" | "aehnlich";
+  /** Nur in der Liste: als wer der Eintrag vorkommt, z. B. "Mandant", "Gegner · 2 Akten", "Geschäftsführerin von …". */
+  rollen?: { text: string; gruppe: "eigene" | "gegen" | "gericht" | "neutral" | "funktion" }[];
   /** Nur in der Liste: an wie vielen Akten beteiligt. */
   akten_anzahl?: number;
   beziehungen?: { von: number; zu: number; art: string; anderer: number; name: string; funktion?: string; text: string }[];

@@ -268,7 +268,8 @@ Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1. In der Akte öffnen **St
   Organisationen (Mutter, Tochter) erfassen; gesetzliche Vertreter mit Anrede, Titel und Funktion („vertreten durch
   Frau Dr. Mira Lenz (Geschäftsführerin)“) auch direkt beim Anlegen der Organisation. Bei einer Rechtsabteilung ist
   die Konzerngesellschaft aus „Eigene Daten“ der Mandant, dazu kommt der vertretende Anwalt.
-- Der Bereich **Beteiligte** in der linken Leiste zeigt das ganze Verzeichnis mit Suche: Einträge bearbeiten, neu
+- Der Bereich **Beteiligte** in der linken Leiste zeigt das ganze Verzeichnis mit Suche und der Rolle je Eintrag (z. B.
+  „Mandant“, „Gegner · 2 Akten“, „Geschäftsführerin von …“): Einträge bearbeiten, neu
   anlegen, löschen (nur ohne Akte) und von dort in die Akten springen, an denen jemand beteiligt ist.
 - **Kollisionsprüfung** (§ 43a Abs. 4 BRAO, § 3 BORA): Sobald Mandant oder Gegner eingetragen werden, sucht die App in
   allen Akten, auch abgeschlossenen, ob dieselbe Partei anderswo auf der anderen Seite steht. Verglichen werden Namen

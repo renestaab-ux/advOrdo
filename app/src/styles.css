@@ -650,3 +650,9 @@ button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, 
 .dokumente.kompakt .dok-datum .herkunft { display: none; }
 details.kurz-hinweis { font-size: 13px; margin: 0 0 6px; }
 details.kurz-hinweis summary { cursor: pointer; }
+.rollen { display: flex; flex-wrap: wrap; gap: 4px; }
+.rolle-marke { font-size: 12px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; color: var(--text-leise);
+  background: color-mix(in srgb, var(--text-leise) 14%, transparent); }
+.rolle-marke.eigene { color: var(--akzent); background: color-mix(in srgb, var(--akzent) 15%, transparent); }
+.rolle-marke.gegen { color: var(--fehler); background: color-mix(in srgb, var(--fehler) 13%, transparent); }
+.rolle-marke.funktion { color: var(--text); background: none; border: 1px solid var(--linie); }
