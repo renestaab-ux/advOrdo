@@ -83,3 +83,12 @@ def ergebnisse(con: sqlite3.Connection, akte_id: int, modell: str) -> dict:
         elif z["aufgabe"] in aus and z["dokument_id"] is None:
             aus[z["aufgabe"]] = ergebnis
     return aus
+
+
+def vergessen(con: sqlite3.Connection, akte_id: int, dokument_id: int) -> int:
+    """Ein Dokument hat eine neue Fassung: Ergebnisse zu ihm und zur ganzen Akte passen nicht mehr zum Text."""
+    with con:
+        return con.execute(
+            "DELETE FROM ki_ergebnis WHERE dokument_id = ? OR (akte_id = ? AND dokument_id IS NULL)",
+            (dokument_id, akte_id),
+        ).rowcount
