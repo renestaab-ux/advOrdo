@@ -50,13 +50,15 @@ const bearbeitet = (a: AkteTyp) => a.geaendert_am ?? a.angelegt_am;
 export default function Akten({
   akteId,
   setAkteId,
-  neueAkte,
+  anlegen,
+  onAnlegen,
   onEinstellungen,
 }: {
   akteId: number | null;
   setAkteId: Dispatch<SetStateAction<number | null>>;
-  /** Zählt hoch, wenn „Akte anlegen“ gewählt wurde; dann öffnet sich das Anlegen-Feld. */
-  neueAkte: number;
+  /** „Akte anlegen“ (Startseite oder „+ Neue Akte“): statt der Übersicht der Anlegeprozess. */
+  anlegen: boolean;
+  onAnlegen: (an: boolean) => void;
   onEinstellungen: () => void;
 }) {
   const [akten, setAkten] = useState<AkteTyp[] | null>(null);
@@ -118,18 +120,111 @@ export default function Akten({
     );
   }
 
+  if (anlegen) {
+    return (
+      <AkteAnlegen
+        onAbbrechen={() => onAnlegen(false)}
+        onAngelegt={async (id) => {
+          await laden();
+          onAnlegen(false);
+          // Eine neue Akte braucht zuerst ihre Stammdaten, danach Mandant und Gegner (mit Kollisionsprüfung).
+          oeffnen(id, "stammdaten");
+        }}
+      />
+    );
+  }
+
+  return <AktenUebersicht akten={akten} fehler={fehler} onOeffnen={oeffnen} onNeu={() => onAnlegen(true)} />;
+}
+
+// --------------------------------------------------------------------------- Neue Akte anlegen
+
+const SCHRITTE = [
+  ["Kurzbezeichnung und Aktenzeichen", "Das Aktenzeichen schlägt JuraBox vor; ein eigenes geht auch."],
+  ["Stammdaten", "Gegenstand, Sachgebiet, Sachbearbeiter, Gegenstandswert."],
+  ["Beteiligte", "Mandant, Gegner, Gericht; die Kollisionsprüfung läuft dabei mit."],
+] as const;
+
+/** Erster Schritt einer neuen Akte als eigene Seite; danach geht es in der Akte mit Stammdaten und Beteiligten weiter. */
+function AkteAnlegen({ onAbbrechen, onAngelegt }: { onAbbrechen: () => void; onAngelegt: (id: number) => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [az, setAz] = useState("");
+  const [azVorschlag, setAzVorschlag] = useState("");
+  const [laeuft, setLaeuft] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  useEffect(() => {
+    void kern<{ aktenzeichen: string }>("akten.aktenzeichen_vorschlag").then((v) => setAzVorschlag(v.aktenzeichen), () => undefined);
+  }, []);
+
+  async function abschicken(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setLaeuft(true);
+    setFehler(null);
+    try {
+      const a = await kern<AkteTyp>("akten.anlegen", { name: name.trim(), aktenzeichen: az.trim() || null });
+      await onAngelegt(a.id);
+    } catch (f) {
+      setFehler(String(f));
+      setLaeuft(false);
+    }
+  }
+
   return (
-    <AktenUebersicht
-      akten={akten}
-      fehler={fehler}
-      neueAkte={neueAkte}
-      onOeffnen={oeffnen}
-      onAngelegt={async (id) => {
-        await laden();
-        // Eine neue Akte braucht zuerst ihre Stammdaten, danach Mandant und Gegner (mit Kollisionsprüfung).
-        oeffnen(id, "stammdaten");
-      }}
-    />
+    <div className="akte-rahmen">
+      <header className="kopfband akte-kopf">
+        <button className="zurueck" onClick={onAbbrechen} title="Zur Aktenübersicht, ohne anzulegen">
+          <Zeichen name="zurueck" groesse={16} /> Akten
+        </button>
+        <div className="akte-kopf-titel">
+          <p className="kopfband-ueber">Schritt 1 von 3</p>
+          <h1>Neue Akte anlegen</h1>
+        </div>
+      </header>
+      <div className="akte-anlegen">
+        <form className="karte akte-anlegen-form" onSubmit={abschicken}>
+          <label className="feld">
+            Kurzbezeichnung
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="z. B. Brückner ./. Autohaus Rehnfeld"
+            />
+          </label>
+          <label className="feld">
+            Aktenzeichen
+            <input
+              value={az}
+              onChange={(e) => setAz(e.target.value)}
+              placeholder={azVorschlag ? `${azVorschlag} (Vorschlag)` : "Nummer/Jahr"}
+              title="Leer lassen für das vorgeschlagene Aktenzeichen"
+            />
+            <small className="leise">
+              {azVorschlag ? `Leer lassen für den Vorschlag ${azVorschlag}.` : "Leer lassen für den Vorschlag."}
+            </small>
+          </label>
+          <span className="aktionen">
+            <button type="submit" disabled={laeuft || !name.trim()}>
+              Anlegen und weiter zu den Stammdaten
+            </button>
+            <button type="button" className="zweitrangig" onClick={onAbbrechen}>
+              Abbrechen
+            </button>
+          </span>
+          {fehler && <p className="fehler">{fehler}</p>}
+        </form>
+        <ol className="anlegen-schritte">
+          {SCHRITTE.map(([titel, text], i) => (
+            <li key={titel} className={i === 0 ? "aktiv" : undefined}>
+              <strong>{titel}</strong>
+              <span className="leise">{text}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
   );
 }
 
@@ -138,60 +233,23 @@ export default function Akten({
 function AktenUebersicht({
   akten,
   fehler,
-  neueAkte,
   onOeffnen,
-  onAngelegt,
+  onNeu,
 }: {
   akten: AkteTyp[] | null;
   fehler: string | null;
-  neueAkte: number;
   onOeffnen: (id: number, reiter?: Reiter) => void;
-  onAngelegt: (id: number) => Promise<void>;
+  onNeu: () => void;
 }) {
   const [optionen, setOptionen] = useState<AktenOptionen | null>(null);
   const [suche, setSuche] = useState("");
   const [status, setStatus] = useState<string | null>("laufend");
   const [sachgebiet, setSachgebiet] = useState("");
   const [sachbearbeiter, setSachbearbeiter] = useState("");
-  const [anlegen, setAnlegen] = useState(neueAkte > 0);
-  const [name, setName] = useState("");
-  const [az, setAz] = useState("");
-  const [azVorschlag, setAzVorschlag] = useState("");
-  const [laeuft, setLaeuft] = useState(false);
-  const [anlegeFehler, setAnlegeFehler] = useState<string | null>(null);
-  const nameFeld = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void kern<AktenOptionen>("akten.optionen").then(setOptionen, () => setOptionen(null));
   }, []);
-
-  useEffect(() => {
-    if (neueAkte > 0) setAnlegen(true);
-  }, [neueAkte]);
-
-  useEffect(() => {
-    if (!anlegen) return;
-    nameFeld.current?.focus();
-    void kern<{ aktenzeichen: string }>("akten.aktenzeichen_vorschlag").then((v) => setAzVorschlag(v.aktenzeichen), () => undefined);
-  }, [anlegen]);
-
-  async function anlegenAbschicken(e: FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setLaeuft(true);
-    setAnlegeFehler(null);
-    try {
-      const a = await kern<AkteTyp>("akten.anlegen", { name: name.trim(), aktenzeichen: az.trim() || null });
-      setName("");
-      setAz("");
-      setAnlegen(false);
-      await onAngelegt(a.id);
-    } catch (fehler) {
-      setAnlegeFehler(String(fehler));
-    } finally {
-      setLaeuft(false);
-    }
-  }
 
   const alle = akten ?? [];
   const begriffe = einfach(suche).split(/\s+/).filter(Boolean);
@@ -214,43 +272,12 @@ function AktenUebersicht({
       <header className="kopf">
         <h1>Akten</h1>
         <span className="aktionen">
-          <button onClick={() => setAnlegen(!anlegen)} aria-expanded={anlegen}>
+          <button onClick={onNeu}>
             + Neue Akte
           </button>
         </span>
       </header>
 
-      {anlegen && (
-        <form className="karte neue-akte" onSubmit={anlegenAbschicken}>
-          <label className="feld">
-            Kurzbezeichnung
-            <input
-              ref={nameFeld}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="z. B. Brückner ./. Autohaus Rehnfeld"
-            />
-          </label>
-          <label className="feld az">
-            Aktenzeichen
-            <input
-              value={az}
-              onChange={(e) => setAz(e.target.value)}
-              placeholder={azVorschlag ? `${azVorschlag} (Vorschlag)` : "Nummer/Jahr"}
-              title="Leer lassen für das vorgeschlagene Aktenzeichen"
-            />
-          </label>
-          <span className="aktionen">
-            <button type="submit" disabled={laeuft || !name.trim()}>
-              Anlegen
-            </button>
-            <button type="button" className="zweitrangig" onClick={() => setAnlegen(false)}>
-              Abbrechen
-            </button>
-          </span>
-          {anlegeFehler && <p className="fehler">{anlegeFehler}</p>}
-        </form>
-      )}
 
       <input
         type="search"

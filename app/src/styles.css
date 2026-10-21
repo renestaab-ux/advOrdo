@@ -51,7 +51,7 @@ body { margin: 0; background: var(--hintergrund); }
 .rahmen.eingeklappt { grid-template-columns: 60px minmax(0, 1fr); }
 .navigation { border-right: 1px solid var(--linie); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; overflow: hidden auto; }
 .marke { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; margin: 0 0 14px 4px; white-space: nowrap; }
-.marke-zeichen { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; background: var(--knopf); color: var(--knopf-text); font-size: 16px; }
+.marke-zeichen { flex: none; display: block; width: 30px; height: 30px; }
 .nav-eintrag { display: flex; align-items: center; gap: 12px; text-align: left; background: none; border: none; border-left: 3px solid transparent; padding: 8px 10px 8px 9px; border-radius: 6px; color: var(--text); cursor: pointer; font: inherit; white-space: nowrap; }
 .nav-eintrag .symbol { flex: none; color: var(--text-leise); }
 .nav-eintrag:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
@@ -581,10 +581,6 @@ button.marke-fehlt { display: block; margin-top: 4px; padding: 0 8px; font-size:
 button.marke-fehlt:hover { border-color: var(--warnung); }
 .status-marke { font-size: 12px; padding: 1px 8px; border-radius: 999px; color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 15%, transparent); }
 .status-marke.laufend { color: var(--gut); background: color-mix(in srgb, var(--gut) 15%, transparent); }
-.neue-akte { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; max-width: 900px; }
-.neue-akte .feld:first-child { flex: 1; min-width: 260px; }
-.neue-akte .feld.az input { width: 160px; }
-.neue-akte .fehler { flex-basis: 100%; margin: 0; }
 
 /* Geöffnete Akte: Kopf, Reiter, Fläche */
 .inhalt.ohne-rand { padding: 0; overflow: hidden; }
@@ -693,3 +689,14 @@ details.kurz-hinweis summary { cursor: pointer; }
 .programm-pfad { display: flex; align-items: center; gap: 10px; }
 .programm-pfad span { font-weight: 600; }
 .programm-voll { font-size: 12px; color: var(--text-leise); overflow-wrap: anywhere; }
+
+/* Neue Akte anlegen: eigene Seite, Schritt 1 von 3 */
+.akte-anlegen { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; padding: 24px 32px; }
+.akte-anlegen-form { display: grid; gap: 14px; flex: 1 1 420px; max-width: 620px; margin: 0; }
+.akte-anlegen-form .feld { display: grid; gap: 4px; }
+.akte-anlegen-form input { font-size: 16px; padding: 8px 12px; }
+.akte-anlegen-form .aktionen { display: flex; flex-wrap: wrap; gap: 10px; }
+.anlegen-schritte { flex: 0 1 320px; margin: 0; padding-left: 22px; display: grid; gap: 12px; color: var(--text-leise); }
+.anlegen-schritte li { padding-left: 4px; }
+.anlegen-schritte li span { display: block; font-size: 13px; }
+.anlegen-schritte li.aktiv strong { color: var(--text); }

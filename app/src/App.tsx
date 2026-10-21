@@ -12,6 +12,7 @@ import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
 import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern } from "./kern";
+import jurabox from "./bilder/jurabox-64.png";
 
 type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
 
@@ -53,8 +54,8 @@ export default function App() {
     }
   }
   const umgebung = aktiveUmgebung(umgebungen);
-  // „Akte anlegen“ vom Startbildschirm: Aktenübersicht mit dem Anlegen-Feld im Fokus.
-  const [neueAkte, setNeueAkte] = useState(0);
+  // „Akte anlegen“ (Startbildschirm oder „+ Neue Akte“): eigene Seite für den Anlegeprozess.
+  const [anlegen, setAnlegen] = useState(false);
 
   function einklappen() {
     setEingeklappt(!eingeklappt);
@@ -62,16 +63,16 @@ export default function App() {
   }
 
   function oeffneAkte(id: number | null) {
+    setAnlegen(false);
     setAkteId(id);
     setBereich("akten");
   }
 
   async function starte(ziel: StartZiel) {
     if (ziel === "anlegen") {
-      setNeueAkte((n) => n + 1);
       oeffneAkte(null);
+      setAnlegen(true);
     } else if (ziel === "akten") {
-      setNeueAkte(0);
       oeffneAkte(null);
     } else if (ziel === "eigene") {
       setBereich("eigene");
@@ -88,9 +89,7 @@ export default function App() {
     <div className={eingeklappt ? "rahmen eingeklappt" : "rahmen"}>
       <nav className="navigation" aria-label="Bereiche">
         <div className="marke">
-          <span className="marke-zeichen" aria-hidden>
-            §
-          </span>
+          <img className="marke-zeichen" src={jurabox} alt="" aria-hidden />
           <span className="nav-text">JuraBox</span>
         </div>
         {BEREICHE.map((b) => (
@@ -100,7 +99,10 @@ export default function App() {
             aria-current={b.id === bereich ? "page" : undefined}
             onClick={() => {
               // „Akten“ in der Leiste führt immer zur Übersicht, auch aus einer geöffneten Akte.
-              if (b.id === "akten") setAkteId(null);
+              if (b.id === "akten") {
+                setAkteId(null);
+                setAnlegen(false);
+              }
               setBereich(b.id);
             }}
             title={eingeklappt ? b.titel : undefined}
@@ -147,7 +149,7 @@ export default function App() {
           </button>
         </div>
       </nav>
-      <main className={bereich === "akten" && akteId != null ? "inhalt ohne-rand" : "inhalt"} key={stand}>
+      <main className={bereich === "akten" && (akteId != null || anlegen) ? "inhalt ohne-rand" : "inhalt"} key={stand}>
         {bereich === "start" && (
           <Start
             onWahl={(z) => void starte(z)}
@@ -160,7 +162,8 @@ export default function App() {
         {bereich === "eigene" && <EigeneDaten onZurueck={() => setBereich("start")} />}
         {bereich === "akten" && (
           <Akten
-            neueAkte={neueAkte}
+            anlegen={anlegen}
+            onAnlegen={setAnlegen}
             akteId={akteId}
             setAkteId={setAkteId}
             onEinstellungen={() => setBereich("einstellungen")}
