@@ -25,6 +25,7 @@ import os
 import re
 import shutil
 import sqlite3
+import stat
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -36,7 +37,7 @@ from . import datum, lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS akte (
@@ -68,6 +69,31 @@ CREATE TABLE IF NOT EXISTS dokument (
     gespeichert_am  TEXT,                   -- letztes Speichern (Word-Eigenschaften oder Dateidatum), ISO
     gespeichert_quelle TEXT,                -- word oder datei
     UNIQUE (akte_id, sha256)
+);
+
+-- Fassungen eines Dokuments (juracore.dokumente.fassungen): Nr. 1 ist die eingelesene Datei, jede in einem
+-- externen Programm bearbeitete und übernommene Datei kommt als neue Nummer hinzu. Die Dateien bleiben alle
+-- unverändert in der Ablage; die Zeile in ``dokument`` beschreibt die aktuelle Fassung.
+CREATE TABLE IF NOT EXISTS dokument_fassung (
+    id              INTEGER PRIMARY KEY,
+    dokument_id     INTEGER NOT NULL REFERENCES dokument(id) ON DELETE CASCADE,
+    nr              INTEGER NOT NULL,
+    dateiname       TEXT NOT NULL,
+    sha256          TEXT NOT NULL,
+    groesse         INTEGER NOT NULL,
+    original        TEXT NOT NULL,          -- Pfad der abgelegten Datei
+    erstellt_am     TEXT NOT NULL,
+    quelle          TEXT NOT NULL,          -- import oder bearbeitet
+    UNIQUE (dokument_id, nr)
+);
+
+-- Arbeitskopie zum Bearbeiten in einem externen Programm; höchstens eine je Dokument.
+CREATE TABLE IF NOT EXISTS arbeitskopie (
+    dokument_id     INTEGER PRIMARY KEY REFERENCES dokument(id) ON DELETE CASCADE,
+    pfad            TEXT NOT NULL,
+    basis_sha256    TEXT NOT NULL,          -- Prüfsumme beim Anlegen bzw. nach der letzten Übernahme
+    basis_nr        INTEGER NOT NULL,       -- Fassung, von der die Kopie ausging
+    angelegt_am     TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS tag (
@@ -201,6 +227,7 @@ def oeffne(pfad: str | Path) -> sqlite3.Connection:
         con.commit()
     _migriere(con)
     _daten_nachtragen(con)
+    _fassungen_nachtragen(con)
     con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return con
 
@@ -219,6 +246,16 @@ def _migriere(con: sqlite3.Connection) -> None:
                                  *(("dokument", s, t) for s, t in _DATUM_SPALTEN.items())):
         if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
             con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
+
+
+def _fassungen_nachtragen(con: sqlite3.Connection) -> None:
+    """Dokumente aus Version 6 und älter: die eingelesene Datei wird Fassung 1."""
+    with con:
+        con.execute(
+            """INSERT INTO dokument_fassung (dokument_id, nr, dateiname, sha256, groesse, original, erstellt_am, quelle)
+               SELECT id, 1, dateiname, sha256, groesse, original, importiert_am, 'import' FROM dokument d
+               WHERE NOT EXISTS (SELECT 1 FROM dokument_fassung f WHERE f.dokument_id = d.id)"""
+        )
 
 
 def _daten_nachtragen(con: sqlite3.Connection) -> None:
@@ -365,6 +402,18 @@ def _speichere(
             herkunft or None,
         ),
     ).lastrowid
+    con.execute(
+        """INSERT INTO dokument_fassung (dokument_id, nr, dateiname, sha256, groesse, original, erstellt_am, quelle)
+           SELECT id, 1, dateiname, sha256, groesse, original, importiert_am, 'import' FROM dokument WHERE id = ?""",
+        (dokument_id,),
+    )
+    inhalt_speichern(con, dokument_id, dok, fmt, original, pfad)
+    return dokument_id
+
+
+def inhalt_speichern(con: sqlite3.Connection, dokument_id: int, dok: Dokument, fmt: str, original: Path,
+                     pfad: Path) -> None:
+    """Seiten, Abschnitte und Datum eines gelesenen Dokuments; ``pfad`` ist die gelesene Datei (Dateidatum)."""
     con.executemany(
         "INSERT INTO seite (dokument_id, nr, quelle, konfidenz, text) VALUES (?, ?, ?, ?, ?)",
         [(dokument_id, s.nr, s.quelle, s.konfidenz, "\n".join(z for z in s.zeilen if z)) for s in dok.seiten],
@@ -379,7 +428,6 @@ def _speichere(
     )
     abschnitte = [(a.nr, a.seite, a.text) for a in dok.abschnitte]
     _datum_speichern(con, dokument_id, datum.ermitteln(abschnitte, fmt, original, pfad))
-    return dokument_id
 
 
 def _seite_an(seite: int | None, seitenwechsel: list, position: int) -> int | None:
@@ -387,6 +435,11 @@ def _seite_an(seite: int | None, seitenwechsel: list, position: int) -> int | No
         if position >= pos:
             seite = nr
     return seite
+
+
+def zitate_verknuepfen(con: sqlite3.Connection, wissen: sqlite3.Connection, dokument_id: int) -> None:
+    _verknuepfe_zitate(con, wissen, dokument_id)
+    _verknuepfe_urteile(con, wissen, dokument_id)
 
 
 def _verknuepfe_zitate(con: sqlite3.Connection, wissen: sqlite3.Connection, dokument_id: int) -> None:
@@ -543,6 +596,14 @@ def _dokument_info(con: sqlite3.Connection, zeile: sqlite3.Row) -> dict:
     info["randnummern"] = con.execute(
         "SELECT COUNT(*) FROM abschnitt WHERE dokument_id = ? AND rn IS NOT NULL", (zeile["id"],)
     ).fetchone()[0]
+    fassung = con.execute(
+        "SELECT nr, erstellt_am, quelle FROM dokument_fassung WHERE dokument_id = ? ORDER BY nr DESC LIMIT 1",
+        (zeile["id"],),
+    ).fetchone()
+    info["fassung"] = dict(fassung) if fassung else {"nr": 1, "erstellt_am": info["importiert_am"], "quelle": "import"}
+    info["arbeitskopie"] = con.execute(
+        "SELECT 1 FROM arbeitskopie WHERE dokument_id = ?", (zeile["id"],)
+    ).fetchone() is not None
     return info
 
 
@@ -631,19 +692,56 @@ def dokument_loeschen(con: sqlite3.Connection, dokument_id: int, ablage: Path | 
     zeile = con.execute("SELECT * FROM dokument WHERE id = ?", (dokument_id,)).fetchone()
     if zeile is None:
         raise LookupError(f"Dokument {dokument_id} gibt es nicht.")
+    fassungen = con.execute("SELECT original FROM dokument_fassung WHERE dokument_id = ?", (dokument_id,))
+    dateien = {zeile["original"]} | {f["original"] for f in fassungen}
     with con:
         con.execute("DELETE FROM dokument WHERE id = ?", (dokument_id,))
-    original = Path(zeile["original"])
-    hinweis = None
-    noch_genutzt = con.execute("SELECT 1 FROM dokument WHERE original = ?", (zeile["original"],)).fetchone()
-    if not noch_genutzt:
+    hinweise = []
+    for datei in sorted(dateien):
+        noch_genutzt = con.execute(
+            "SELECT 1 FROM dokument WHERE original = ? UNION SELECT 1 FROM dokument_fassung WHERE original = ?",
+            (datei, datei),
+        ).fetchone()
+        if noch_genutzt:
+            continue
         try:
-            if not _entferne_datei(original, ablage):
-                hinweis = f"Die Kopie liegt außerhalb der Ablage und wurde nicht entfernt: {original}"
+            if not _entferne_datei(Path(datei), ablage):
+                hinweise.append(f"Die Kopie liegt außerhalb der Ablage und wurde nicht entfernt: {datei}")
         except OSError as fehler:
             # Unter Windows kann ein anderes Programm die Datei geöffnet halten.
-            hinweis = f"Die abgelegte Kopie konnte nicht entfernt werden ({fehler}): {original}"
-    return {"dokument_id": dokument_id, "dateiname": zeile["dateiname"], "hinweis": hinweis}
+            hinweise.append(f"Die abgelegte Kopie konnte nicht entfernt werden ({fehler}): {datei}")
+    if ablage is not None:
+        # Arbeitskopie und schreibgeschützte Kopien zum Ansehen (juracore.dokumente.fassungen).
+        for ordner in dokument_ordner(ablage, zeile["akte_id"], dokument_id):
+            if fehler := entferne_ordner(ordner):
+                hinweise.append(fehler)
+    return {"dokument_id": dokument_id, "dateiname": zeile["dateiname"], "hinweis": " ".join(hinweise) or None}
+
+
+def dokument_ordner(ablage: Path, akte_id: int, dokument_id: int) -> tuple[Path, Path]:
+    """Ordner der Arbeitskopie und der Kopien zum Ansehen eines Dokuments."""
+    akte_ordner = Path(ablage) / f"akte-{akte_id}"
+    name = f"dokument-{dokument_id}"
+    return akte_ordner / "arbeitskopien" / name, akte_ordner / "ansicht" / name
+
+
+def entferne_ordner(ordner: Path) -> str | None:
+    """Entfernt einen Ordner samt schreibgeschützten Kopien; liefert einen Hinweis, wenn das nicht ganz gelingt."""
+    if not ordner.exists():
+        return None
+    # Windows löscht schreibgeschützte Dateien nicht; der Schreibschutz der Ansichtskopien wird vorher aufgehoben.
+    for datei in ordner.rglob("*"):
+        if datei.is_file():
+            try:
+                datei.chmod(stat.S_IREAD | stat.S_IWRITE)
+            except OSError:
+                pass
+    try:
+        shutil.rmtree(ordner)
+    except OSError as fehler:
+        # Unter Windows hält ein Programm, in dem die Datei noch offen ist, sie fest.
+        return f"Der Ordner konnte nicht vollständig entfernt werden ({fehler}): {ordner}"
+    return None
 
 
 def akte_loeschen(con: sqlite3.Connection, akte_id: int, ablage: Path) -> dict:
@@ -654,13 +752,7 @@ def akte_loeschen(con: sqlite3.Connection, akte_id: int, ablage: Path) -> dict:
     anzahl = con.execute("SELECT COUNT(*) FROM dokument WHERE akte_id = ?", (akte_id,)).fetchone()[0]
     with con:
         con.execute("DELETE FROM akte WHERE id = ?", (akte_id,))
-    ordner = Path(ablage) / f"akte-{akte_id}"
-    hinweis = None
-    if ordner.exists():
-        try:
-            shutil.rmtree(ordner)
-        except OSError as fehler:
-            hinweis = f"Der Ablageordner konnte nicht vollständig entfernt werden ({fehler}): {ordner}"
+    hinweis = entferne_ordner(Path(ablage) / f"akte-{akte_id}")
     return {"akte_id": akte_id, "name": zeile["name"], "dokumente": anzahl, "hinweis": hinweis}
 
 

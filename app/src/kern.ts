@@ -288,6 +288,59 @@ export interface AktenDokument {
   /** Letztes Speichern als ISO-Zeitpunkt (Word-Eigenschaften oder Dateidatum beim Einlesen). */
   gespeichert_am: string | null;
   gespeichert_quelle: "word" | "datei" | null;
+  /** Aktuelle Fassung: 1 ist die eingelesene Datei, jede übernommene Bearbeitung zählt hoch. */
+  fassung: { nr: number; erstellt_am: string; quelle: "import" | "bearbeitet" };
+  /** Ob es eine Arbeitskopie zum Bearbeiten in einem externen Programm gibt. */
+  arbeitskopie: boolean;
+}
+
+/** Eine Fassung eines Dokuments; die Dateien aller Fassungen bleiben unverändert abgelegt. */
+export interface DokumentFassung {
+  nr: number;
+  dateiname: string;
+  groesse: number;
+  erstellt_am: string;
+  quelle: "import" | "bearbeitet";
+  aktuell: boolean;
+}
+
+/** Arbeitskopie eines Dokuments; „geaendert“ heißt: im externen Programm gespeichert, noch nicht übernommen. */
+export interface Arbeitskopie {
+  dokument_id: number;
+  dateiname: string;
+  pfad: string;
+  basis_nr: number;
+  angelegt_am: string;
+  geaendert_am: string | null;
+  status: "unveraendert" | "geaendert" | "gesperrt" | "fehlt";
+}
+
+export type ProgrammArt = "pdf" | "text";
+
+/** Externes Programm je Art; leeres ``programm`` heißt Standardprogramm des Systems. */
+export interface ProgrammEinstellung {
+  titel: string;
+  programm: string;
+  parameter: string;
+}
+
+export function programmArt(format: AktenDokument["format"]): ProgrammArt {
+  return format === "pdf" ? "pdf" : "text";
+}
+
+/** Kurzer Name eines Programms aus seinem Pfad, z. B. „soffice“ oder „LibreOffice“. */
+export function programmName(pfad: string): string {
+  const name = pfad.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
+  return name.replace(/\.(exe|app|cmd|bat)$/i, "") || "Standardprogramm";
+}
+
+/** Geänderte Arbeitskopien, nach denen noch gefragt werden soll; „später“ gilt bis zur nächsten Änderung. */
+export function offeneUebernahmen(kopien: Arbeitskopie[], spaeter: ReadonlySet<string>): Arbeitskopie[] {
+  return kopien.filter((k) => k.status === "geaendert" && !spaeter.has(kopieSchluessel(k)));
+}
+
+export function kopieSchluessel(k: Arbeitskopie): string {
+  return `${k.dokument_id}|${k.geaendert_am ?? ""}`;
 }
 
 export type DatumQuelle = "dokument" | "word" | "datei" | "unbekannt";

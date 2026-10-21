@@ -18,11 +18,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, db, einstellungen
+from . import __version__, db, einstellungen, programme
 from .abgleich import abgleich
 from .aktenverwaltung import beteiligte, kollision, stammdaten
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
-from .dokumente import akte, ansicht, ocr, suche, urteile
+from .dokumente import akte, ansicht, fassungen, ocr, suche, urteile
 from .eigene import daten as eigene
 from .eigene.felder import FELDER, FORMEN
 from .gesetze import quelle, wissensbasis
@@ -48,6 +48,8 @@ class Kern:
         self.umgebungen = Umgebungen(Path(db_pfad).parent)
         self._oeffne_akten(self.umgebungen.ordner())
         self.ki_datei = Path(db_pfad).parent / "ki.json"
+        # Externe Programme gelten für das Gerät, nicht je Arbeitsumgebung.
+        self.programme_datei = Path(db_pfad).parent / "programme.json"
         self.schluessel_datei = Path(db_pfad).parent / "ki-schluessel.json"
         self.ki_fabrik = ki_anbieter.erzeuge_aktiv
         self.auftraege = Auftraege()
@@ -133,6 +135,17 @@ class Kern:
             ),
             "akten.tags_setzen": lambda dokument_id, tags: akte.tags_setzen(self.akten, dokument_id, tags),
             "akten.dokument": lambda dokument_id: akte.dokument(self.akten, dokument_id),
+            "programme.einstellungen": lambda: programme.lade(self.programme_datei),
+            "programme.setzen": lambda art, programm="", parameter="": programme.speichere(
+                self.programme_datei, art, programm, parameter),
+            "akten.fassungen": lambda dokument_id: fassungen.liste(self.akten, dokument_id),
+            "akten.extern_ansehen": self.extern_ansehen,
+            "akten.extern_bearbeiten": self.extern_bearbeiten,
+            "akten.im_ordner_zeigen": self.im_ordner_zeigen,
+            "akten.arbeitskopien": lambda akte_id: fassungen.arbeitskopien(self.akten, akte_id),
+            "akten.fassung_uebernehmen": self.fassung_uebernehmen,
+            "akten.arbeitskopie_verwerfen": lambda dokument_id: fassungen.verwerfen(
+                self.akten, self.ablage, dokument_id),
             "akten.normen": lambda akte_id, dokument_id=None: akte.normen(self.akten, akte_id, dokument_id),
             "akten.seitenbild": lambda dokument_id, seite, breite=1000, begriffe=None: ansicht.seitenbild(
                 self.akten, dokument_id, seite, breite, begriffe),
@@ -189,6 +202,39 @@ class Kern:
         eigene.einrichten(self.akten)
         # Aktenverwaltung: Beteiligte, Aktenzeichen, Kollisionsprüfung (verweist auf Akten und Eigene Daten).
         aktenverwaltung_einrichten(self.akten)
+
+    def _programm(self, dokument_id: int) -> dict:
+        fmt = akte.dokument(self.akten, dokument_id)["dokument"]["format"]
+        return programme.lade(self.programme_datei)[programme.art_fuer(fmt)]
+
+    def extern_ansehen(self, dokument_id: int, nr: int | None = None) -> dict:
+        """Schreibgeschützte Kopie im eingestellten Programm öffnen; das abgelegte Original bleibt unberührt."""
+        pfad = fassungen.ansichtskopie(self.akten, self.ablage, dokument_id, nr)
+        programm = self._programm(dokument_id)
+        programme.starten(pfad, programm)
+        return {"pfad": str(pfad), "programm": programm["programm"] or "Standardprogramm"}
+
+    def extern_bearbeiten(self, dokument_id: int) -> dict:
+        """Arbeitskopie anlegen (oder die vorhandene nehmen) und im eingestellten Programm öffnen."""
+        kopie = fassungen.arbeitskopie(self.akten, self.ablage, dokument_id)
+        programm = self._programm(dokument_id)
+        programme.starten(Path(kopie["pfad"]), programm)
+        return kopie | {"programm": programm["programm"] or "Standardprogramm"}
+
+    def im_ordner_zeigen(self, dokument_id: int) -> dict:
+        """Zeigt die Arbeitskopie, sonst eine Kopie zum Ansehen im Dateimanager, nie die Ablage selbst."""
+        kopie = self.akten.execute("SELECT pfad FROM arbeitskopie WHERE dokument_id = ?", (dokument_id,)).fetchone()
+        pfad = Path(kopie["pfad"]) if kopie and Path(kopie["pfad"]).is_file() else fassungen.ansichtskopie(
+            self.akten, self.ablage, dokument_id)
+        programme.im_ordner_zeigen(pfad)
+        return {"pfad": str(pfad)}
+
+    def fassung_uebernehmen(self, dokument_id: int) -> dict:
+        ergebnis = fassungen.uebernehmen(self.akten, self.con, self.ablage, dokument_id)
+        akte_id = self.akten.execute("SELECT akte_id FROM dokument WHERE id = ?", (dokument_id,)).fetchone()[0]
+        # Zusammenfassungen und Auswertungen beruhen auf dem alten Text.
+        ergebnis["ki_verworfen"] = ki_speicher.vergessen(self.akten, akte_id, dokument_id)
+        return ergebnis
 
     def akte_anlegen(self, name: str, aktenzeichen: str | None = None, ohne_aktenzeichen: bool = False) -> dict:
         """Neue Akte; sie bekommt das vorgeschlagene oder das eingegebene Aktenzeichen."""

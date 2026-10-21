@@ -673,3 +673,23 @@ details.kurz-hinweis summary { cursor: pointer; }
 .rolle-marke.eigene { color: var(--akzent); background: color-mix(in srgb, var(--akzent) 15%, transparent); }
 .rolle-marke.gegen { color: var(--fehler); background: color-mix(in srgb, var(--fehler) 13%, transparent); }
 .rolle-marke.funktion { color: var(--text); background: none; border: 1px solid var(--linie); }
+
+/* Externe Programme und Fassungen (Teil 3) */
+.dok-extern { margin: -4px 0 10px; }
+.dok-extern-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.dok-extern-leiste button.zweitrangig { padding: 3px 10px; font-size: 13px; }
+.dok-extern-leiste .dok-fassung { margin-left: auto; color: var(--text-leise); }
+.arbeitskopie-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); font-size: 13px; }
+.arbeitskopie-zeile > span { margin-right: auto; }
+.arbeitskopie-zeile.geaendert { border-left: 4px solid var(--akzent); }
+.arbeitskopie-zeile button:not(.link) { padding: 3px 10px; font-size: 13px; }
+.fassungen { list-style: none; margin: 8px 0 0; padding: 6px 10px; border: 1px solid var(--linie); border-radius: 6px; font-size: 13px; }
+.fassungen li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 3px 0; }
+.fassungen li .leise { margin-right: auto; }
+.programm-zeile { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--linie); }
+.programm-zeile:first-of-type { border-top: 0; }
+.programm-zeile label { display: grid; gap: 4px; max-width: 460px; }
+.programm-eigenes { display: grid; gap: 6px; padding-left: 12px; border-left: 2px solid var(--linie); }
+.programm-pfad { display: flex; align-items: center; gap: 10px; }
+.programm-pfad span { font-weight: 600; }
+.programm-voll { font-size: 12px; color: var(--text-leise); overflow-wrap: anywhere; }

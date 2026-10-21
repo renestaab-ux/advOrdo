@@ -33,6 +33,9 @@ import {
   tagsAusText,
   tagUebersicht,
   urteilHerkunft,
+  offeneUebernahmen,
+  programmName,
+  type Arbeitskopie,
 } from "./kern";
 
 describe("istZitat", () => {
@@ -318,5 +321,24 @@ describe("Aktenübersicht", () => {
     const akte = (id: number, geoeffnet_am: string | null) => ({ id, geoeffnet_am }) as Akte;
     const liste = [akte(1, "2026-10-19T10:00:00"), akte(2, null), akte(3, "2026-10-21T08:00:00"), akte(4, "2026-10-20T08:00:00")];
     expect(zuletztGeoeffnet(liste, 2).map((a) => a.id)).toEqual([3, 4]);
+  });
+});
+
+describe("externe Programme und Arbeitskopien", () => {
+  it("zeigt den Programmnamen ohne Pfad und Endung", () => {
+    expect(programmName("C:\\Program Files\\LibreOffice\\program\\soffice.exe")).toBe("soffice");
+    expect(programmName("/Applications/LibreOffice.app/")).toBe("LibreOffice");
+    expect(programmName("/usr/bin/okular")).toBe("okular");
+    expect(programmName("")).toBe("Standardprogramm");
+  });
+
+  it("fragt nach geänderten Kopien, bis „Später“ gewählt wurde, und wieder nach dem nächsten Speichern", () => {
+    const kopie = (id: number, status: Arbeitskopie["status"], geaendert_am: string): Arbeitskopie => ({
+      dokument_id: id, dateiname: `d${id}.docx`, pfad: "", basis_nr: 1, angelegt_am: "", geaendert_am, status,
+    });
+    const kopien = [kopie(1, "geaendert", "t1"), kopie(2, "unveraendert", "t1"), kopie(3, "gesperrt", "t1")];
+    expect(offeneUebernahmen(kopien, new Set()).map((k) => k.dokument_id)).toEqual([1]);
+    expect(offeneUebernahmen(kopien, new Set(["1|t1"]))).toEqual([]);
+    expect(offeneUebernahmen([kopie(1, "geaendert", "t2")], new Set(["1|t1"]))).toHaveLength(1);
   });
 });

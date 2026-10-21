@@ -234,6 +234,25 @@ Ein geöffnetes Dokument lässt sich auf fünf Arten zeigen:
   Zitaten aus diesem Dokument. Volltexte laden und Urteile ergänzen geht auch hier.
 - **Chat**: Fragen an dieses eine Dokument (siehe „Chat mit Akte und Dokument“).
 
+### In anderen Programmen öffnen und bearbeiten (Fassungen)
+
+Unter der Leiste des geöffneten Dokuments:
+
+- **Öffnen** übergibt eine schreibgeschützte Kopie an das PDF-Programm (PDF) bzw. die Textverarbeitung (Word, TXT,
+  MD). Die abgelegte Datei der Akte wird nie verändert.
+- **Bearbeiten** legt eine Arbeitskopie an und öffnet sie; eine vorhandene Arbeitskopie wird weiterverwendet. Nach dem
+  Speichern im anderen Programm fragt JuraBox, sobald man zur App zurückkehrt: **Als Fassung 2 übernehmen** legt die
+  Datei unverändert ab und liest Text, Normzitate und Datum neu ein; Tags, Chat und Fassung 1 bleiben. Gespeicherte
+  Ergebnisse des Sprachmodells zu dieser Akte werden dabei verworfen, weil sie auf dem alten Text beruhen. **Später**
+  fragt erst nach dem nächsten Speichern wieder; **Arbeitskopie verwerfen** entfernt die Kopie.
+- **Fassung n** zeigt alle Fassungen mit Datum; jede lässt sich schreibgeschützt öffnen. In der Dokumentliste steht
+  „Fassung 2“ bzw. „in Bearbeitung“ beim Dokument.
+- **Im Ordner zeigen** öffnet den Dateimanager bei der Arbeitskopie bzw. einer Kopie zum Ansehen.
+
+Welche Programme das sind, steht in **Einstellungen › Programme**: Voreinstellung ist das Standardprogramm des
+Systems; alternativ wählt man eine Programmdatei (LibreOffice, Microsoft Word, Okular, PDF-XChange …) und optional
+Aufrufparameter („{datei}“ steht für die Datei). JuraBox übergibt nur die Datei, unter Windows, macOS und Linux gleich.
+
 ### Ordner, Beteiligte und Entfernen
 
 - **Ordner hinzufügen …** liest einen ganzen Ordner samt Unterordnern ein (PDF, DOCX, TXT, MD;

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import Chat from "./Chat";
+import DokumentExtern, { UebernahmeFrage } from "./DokumentExtern";
 import { BelegAnsicht } from "./Gesetze";
 import { gemerkt, merke } from "./merken";
 import Zeichen from "./Symbole";
@@ -17,6 +18,7 @@ import {
   Akte as AkteTyp,
   AktenDokument,
   AktenImport,
+  Arbeitskopie,
   BETEILIGTE,
   Beleg,
   Beteiligung,
@@ -42,8 +44,10 @@ import {
   fundstelle,
   istDesktop,
   kern,
+  kopieSchluessel,
   lesartText,
   markiereBegriffe,
+  offeneUebernahmen,
   renderBreite,
   segmente,
   sortiereTags,
@@ -177,6 +181,9 @@ export default function Akte({
   const [volltext, setVolltext] = useState<UrteilVolltext | null>(null);
   const [volltextRn, setVolltextRn] = useState<number | null>(null);
   const [seitenbreite, setSeitenbreite] = useState(gespeicherteBreite);
+  const [kopien, setKopien] = useState<Arbeitskopie[]>([]);
+  // Geänderte Arbeitskopien, bei denen „Später“ gewählt wurde; gilt bis zum nächsten Speichern.
+  const [spaeter, setSpaeter] = useState<ReadonlySet<string>>(new Set());
   const flaeche = useRef<HTMLDivElement>(null);
   const ansicht: Ansicht = reiter === "dokumente" ? "dokument" : reiter;
 
@@ -228,6 +235,52 @@ export default function Akte({
   const ladeDokumente = useCallback(async () => {
     setDokumente(await kern<AktenDokument[]>("akten.dokumente", { akte_id: akteId }));
   }, [akteId]);
+
+  const ladeKopien = useCallback(async () => {
+    try {
+      setKopien(await kern<Arbeitskopie[]>("akten.arbeitskopien", { akte_id: akteId }));
+    } catch {
+      // Nur ein Hinweis; die Akte funktioniert auch ohne.
+    }
+  }, [akteId]);
+
+  // Ob eine Arbeitskopie im externen Programm gespeichert wurde: beim Zurückkehren in die App und, solange es
+  // Arbeitskopien gibt, regelmäßig.
+  const mitKopien = kopien.length > 0;
+  useEffect(() => {
+    if (!istDesktop) return;
+    void ladeKopien();
+    const pruefen = () => {
+      if (document.visibilityState === "visible") void ladeKopien();
+    };
+    window.addEventListener("focus", pruefen);
+    document.addEventListener("visibilitychange", pruefen);
+    const takt = mitKopien ? window.setInterval(pruefen, 10000) : undefined;
+    return () => {
+      window.removeEventListener("focus", pruefen);
+      document.removeEventListener("visibilitychange", pruefen);
+      window.clearInterval(takt);
+    };
+  }, [ladeKopien, mitKopien]);
+
+  async function fassungUebernehmen(dokumentId: number) {
+    const r = await ausfuehren("Übernehme neue Fassung und lese sie ein …", () =>
+      kern<{ dateiname: string; fassung: number; ki_verworfen: number }>("akten.fassung_uebernehmen", {
+        dokument_id: dokumentId,
+      }),
+    );
+    await ladeKopien();
+    if (!r) return;
+    await ladeDokumente();
+    if (inhalt?.dokument.id === dokumentId) await oeffneDokument(dokumentId);
+    onGeaendert();
+    setMeldung(
+      `„${r.dateiname}“ ist jetzt Fassung ${r.fassung}; Text, Normzitate und Datum sind neu eingelesen.` +
+        (r.ki_verworfen > 0
+          ? " Gespeicherte Ergebnisse des Sprachmodells zu dieser Akte passten nicht mehr zum Text und wurden verworfen."
+          : ""),
+    );
+  }
 
   useEffect(() => {
     if (!istDesktop) return;
@@ -563,6 +616,13 @@ export default function Akte({
           prüfen“.
         </details>
       )}
+      <UebernahmeFrage
+        kopien={offeneUebernahmen(kopien, spaeter)}
+        dokumente={dokumente}
+        laeuft={!!laeuft}
+        onUebernehmen={fassungUebernehmen}
+        onSpaeter={(k) => setSpaeter(new Set(spaeter).add(kopieSchluessel(k)))}
+      />
       {loeschfrage && (
         <Rueckfrage
           frage={
@@ -787,6 +847,8 @@ export default function Akte({
                       {d.seiten != null && <> · {d.seiten} S.</>}
                       {d.randnummern > 0 && <> · {d.randnummern} Rn.</>}
                       {d.herkunft && <> · {d.herkunft}</>}
+                      {d.fassung.nr > 1 && <> · Fassung {d.fassung.nr}</>}
+                      {kopien.some((k) => k.dokument_id === d.id) && <> · in Bearbeitung</>}
                     </div>
                     {tagEdit?.id === d.id ? (
                       <TagEditor
@@ -841,6 +903,17 @@ export default function Akte({
         {inhalt ? (
           <>
             <DokModusLeiste dokument={inhalt.dokument} modus={dokModus} onModus={waehleDokModus} />
+            <DokumentExtern
+              key={`${inhalt.dokument.id}-${inhalt.dokument.fassung.nr}`}
+              dokument={inhalt.dokument}
+              kopie={kopien.find((k) => k.dokument_id === inhalt.dokument.id)}
+              gefragt={offeneUebernahmen(kopien, spaeter).some((k) => k.dokument_id === inhalt.dokument.id)}
+              laeuft={!!laeuft}
+              ausfuehren={ausfuehren}
+              onKopien={ladeKopien}
+              onUebernehmen={fassungUebernehmen}
+              onMeldung={setMeldung}
+            />
             {arbeitsflaeche(
               <>
                 {dokModus === "text" && (
