@@ -167,8 +167,9 @@ Der Bereich **Akten** zeigt zuerst die **Aktenübersicht**: Suche über Aktenzei
 Gegenstand, Gericht und gerichtliches Aktenzeichen; Filter nach Status (Vorgabe: laufend), Sachgebiet und
 Sachbearbeiter; darüber die zuletzt geöffneten Akten. Die Tabelle ist nach „zuletzt bearbeitet“ sortiert; Öffnen
 allein zählt nicht als Bearbeiten. Akten ohne Aktenzeichen tragen die Marke **Aktenzeichen fehlt**; ein Klick darauf
-öffnet die Stammdaten. **+ Neue Akte** legt eine Akte mit Kurzbezeichnung und Aktenzeichen an (leer: Vorschlag) und
-öffnet gleich ihre Stammdaten.
+öffnet die Stammdaten. **+ Neue Akte** (wie die Kachel „Akte anlegen“ auf der
+Startseite) öffnet eine eigene Seite: Kurzbezeichnung und Aktenzeichen (leer: Vorschlag), danach geht es mit den
+Stammdaten und den Beteiligten der neuen Akte weiter.
 
 Ein Klick auf eine Zeile öffnet die Akte. Der Kopf zeigt Aktenzeichen, Gegenstand, Kurzbezeichnung, Gericht mit
 Aktenzeichen und wen wir vertreten; **← Akten** führt zurück, **Stammdaten** öffnet Aktenzeichen, Gegenstand,
