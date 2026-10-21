@@ -140,6 +140,7 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
           <tr>
             <th>Name</th>
             <th>Art</th>
+            <th>Rolle</th>
             <th>Ort</th>
             <th>Akten</th>
             <th />
@@ -155,6 +156,19 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
               </td>
               <td className="leise">
                 {b.art === "person" ? "Person" : `Organisation${b.daten.kategorie ? ` · ${b.daten.kategorie}` : ""}`}
+              </td>
+              <td>
+                {(b.rollen ?? []).length > 0 ? (
+                  <span className="rollen">
+                    {(b.rollen ?? []).map((r) => (
+                      <span key={r.text} className={`rolle-marke ${r.gruppe}`}>
+                        {r.text}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="leise">–</span>
+                )}
               </td>
               <td>{(b.daten.ort as string) || "–"}</td>
               <td>{b.akten_anzahl ?? 0}</td>

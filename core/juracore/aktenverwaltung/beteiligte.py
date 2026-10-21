@@ -219,7 +219,37 @@ def liste(con: sqlite3.Connection, suche: str = "", art: str | None = None, limi
                               "WHERE beteiligter_id IS NOT NULL GROUP BY beteiligter_id").fetchall())
     for e in ergebnis:
         e["akten_anzahl"] = anzahl.get(e["id"], 0)
+    _rollen_ergaenzen(con, ergebnis)
     return ergebnis
+
+
+def _rollen_ergaenzen(con: sqlite3.Connection, eintraege: list[dict]) -> None:
+    """Je Eintrag kurz, als wer er vorkommt: Rollen in den Akten ("Mandant", "Gegner · 2 Akten") und Funktionen
+    ("Geschäftsführerin von Nordstern Social GmbH"); für die Spalte „Rolle“ im Beteiligtenverzeichnis."""
+    from .stammdaten import ROLLEN  # stammdaten nutzt dieses Modul; erst hier laden, sonst Ringimport
+
+    ids = [e["id"] for e in eintraege]
+    if not ids:
+        return
+    marken = ",".join("?" * len(ids))
+    rollen: dict[int, list[dict]] = {i: [] for i in ids}
+    for z in con.execute(
+        f"""SELECT beteiligter_id, rolle, COUNT(DISTINCT akte_id) AS n FROM akte_beteiligung
+            WHERE beteiligter_id IN ({marken}) GROUP BY beteiligter_id, rolle""", ids):
+        seite, text = ROLLEN.get(z["rolle"], ("neutral", z["rolle"]))
+        rolle = z["rolle"]
+        rollen[z["beteiligter_id"]].append({
+            "text": text + (f" · {z['n']} Akten" if z["n"] > 1 else ""),
+            "gruppe": "gericht" if rolle == "gericht" else seite,
+            "rang": list(ROLLEN).index(rolle) if rolle in ROLLEN else 99})
+    for z in con.execute(
+        f"""SELECT r.von, r.funktion, o.name FROM beteiligter_beziehung r JOIN beteiligter o ON o.id = r.zu
+            WHERE r.art = 'gesetzlicher_vertreter' AND r.von IN ({marken})""", ids):
+        rollen[z["von"]].append({"text": f"{z['funktion'] or 'Gesetzlicher Vertreter'} von {z['name']}",
+                                 "gruppe": "funktion", "rang": 100})
+    for e in eintraege:
+        e["rollen"] = [{"text": r["text"], "gruppe": r["gruppe"]}
+                       for r in sorted(rollen[e["id"]], key=lambda r: (r["rang"], r["text"]))]
 
 
 def aehnliche(con: sqlite3.Connection, art: str, daten: dict, ausser: int | None = None) -> list[dict]:
