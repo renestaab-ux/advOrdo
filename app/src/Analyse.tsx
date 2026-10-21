@@ -1,9 +1,8 @@
-import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
 import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
 import {
   ART_TEXT,
-  Akte as AkteTyp,
   EREIGNIS_ART_TEXT,
   AktenDokument,
   DokumentInhalt,
@@ -23,7 +22,6 @@ import {
   kern,
   veraltet,
   zeitpunkt,
-  akteTitel,
 } from "./kern";
 
 type Ansicht = "widersprueche" | "chronologie" | "akte" | "dokumente";
@@ -32,16 +30,7 @@ export type Offen = { inhalt: DokumentInhalt; abschnitt: number } | null;
 const LEER: KiErgebnisse = { zusammenfassung_akte: null, widersprueche: null, chronologie: null, dokumente: {} };
 
 /** Zusammenfassungen und inhaltliche Widersprüche mit dem lokalen Sprachmodell, jede Aussage mit Fundstelle. */
-export default function Analyse({
-  akteId,
-  setAkteId,
-  onEinstellungen,
-}: {
-  akteId: number | null;
-  setAkteId: Dispatch<SetStateAction<number | null>>;
-  onEinstellungen: () => void;
-}) {
-  const [akten, setAkten] = useState<AkteTyp[]>([]);
+export default function Analyse({ akteId, onEinstellungen }: { akteId: number; onEinstellungen: () => void }) {
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [status, setStatus] = useState<KiStatus | null>(null);
   const [ergebnisse, setErgebnisse] = useState<KiErgebnisse>(LEER);
@@ -59,16 +48,13 @@ export default function Analyse({
     if (!istDesktop) return;
     void (async () => {
       try {
-        const liste = await kern<AkteTyp[]>("akten.liste");
-        setAkten(liste);
-        setAkteId((a) => (a != null && liste.some((x) => x.id === a) ? a : (liste[0]?.id ?? null)));
         setAuftrag(await kern<KiAuftrag | null>("ki.laufend"));
         setStatus(await kern<KiStatus>("ki.status"));
       } catch (e) {
         setFehler(String(e));
       }
     })();
-  }, [setAkteId]);
+  }, []);
 
   useEffect(() => {
     setErgebnisse(LEER);
@@ -153,9 +139,6 @@ export default function Analyse({
 
   return (
     <div className="analyse">
-      <header className="kopf">
-        <h1>Analyse</h1>
-      </header>
       <p className="erklaerung">
         Fasst Dokumente und die Akte zusammen, sucht inhaltliche Widersprüche und erstellt eine Chronologie mit dem
         gewählten Sprachmodell. Jede
@@ -178,17 +161,6 @@ export default function Analyse({
       </p>
 
       <div className="akten-wahl">
-        {akten.length > 0 ? (
-          <select value={akteId ?? ""} onChange={(e) => setAkteId(Number(e.target.value))} aria-label="Akte wählen">
-            {akten.map((a) => (
-              <option key={a.id} value={a.id}>
-                {akteTitel(a)} ({a.dokumente} Dokumente)
-              </option>
-            ))}
-          </select>
-        ) : (
-          <p className="leer">Noch keine Akte. Lege unter „Akte“ eine an und füge Dokumente hinzu.</p>
-        )}
         <button onClick={() => starte("widersprueche", { akte_id: akteId, neu: w != null })} disabled={!kannStarten}>
           {w ? "Widersprüche neu suchen" : "Widersprüche suchen"}
         </button>

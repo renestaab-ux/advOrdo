@@ -51,6 +51,7 @@ _AKTE_SPALTEN = {
     "aktenzeichen": "TEXT", "az_jahr": "INTEGER", "az_nummer": "INTEGER", "gegenstand": "TEXT", "sachgebiet": "TEXT",
     "eigene_rolle": "TEXT", "status": "TEXT NOT NULL DEFAULT 'laufend'", "sachbearbeiter_id": "INTEGER",
     "mandat_seit": "TEXT", "gegenstandswert": "TEXT", "notiz": "TEXT", "geaendert_am": "TEXT",
+    "geoeffnet_am": "TEXT",
 }  # fmt: skip
 
 ROLLEN = {
@@ -387,4 +388,14 @@ def uebersicht(con: sqlite3.Connection) -> list[dict]:
         a["mandanten"] = [b["name"] for b in bet if b["rolle"] == "mandant"]
         a["gegner"] = [b["name"] for b in bet if b["rolle"] == "gegner"]
         a["gerichte"] = [{"name": b["name"], "aktenzeichen": b["aktenzeichen"]} for b in bet if b["rolle"] == "gericht"]
+        sb = a["sachbearbeiter_id"]
+        a["sachbearbeiter"] = _eigene_name(con, "eigene_person", sb) if sb else None
     return akten
+
+
+def geoeffnet(con: sqlite3.Connection, akte_id: int) -> dict:
+    """Merkt, wann die Akte zuletzt geöffnet wurde (für „Zuletzt geöffnet“); ändert nicht „bearbeitet“."""
+    _akte(con, akte_id)
+    with con:
+        con.execute("UPDATE akte SET geoeffnet_am = ? WHERE id = ?", (_jetzt(), akte_id))
+    return {"akte_id": akte_id}

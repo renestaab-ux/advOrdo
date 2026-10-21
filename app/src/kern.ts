@@ -109,11 +109,41 @@ export interface Akte {
   mandanten: string[];
   gegner: string[];
   gerichte: { name: string; aktenzeichen: string }[];
+  sachgebiet: string | null;
+  eigene_rolle: string | null;
+  sachbearbeiter_id: number | null;
+  sachbearbeiter: string | null;
+  geaendert_am: string | null;
+  /** Wann die Akte zuletzt geöffnet wurde; für „Zuletzt geöffnet“. */
+  geoeffnet_am: string | null;
 }
 
 /** Anzeige einer Akte in Auswahllisten: „12/26 · Brückner ./. Autohaus“; ohne Aktenzeichen nur der Name. */
 export function akteTitel(a: Pick<Akte, "name" | "aktenzeichen">): string {
   return a.aktenzeichen ? `${a.aktenzeichen} · ${a.name}` : a.name;
+}
+
+/** Die zuletzt geöffneten Akten, neueste zuerst; Akten, die noch nie geöffnet wurden, fehlen. */
+export function zuletztGeoeffnet(akten: Akte[], anzahl: number): Akte[] {
+  return akten
+    .filter((a) => a.geoeffnet_am)
+    .sort((a, b) => (b.geoeffnet_am ?? "").localeCompare(a.geoeffnet_am ?? ""))
+    .slice(0, anzahl);
+}
+
+/** Zuletzt bearbeitet als „heute“, „gestern“ oder Datum. */
+export function bearbeitetText(iso: string | null | undefined, jetzt = new Date()): string {
+  if (!iso) return "–";
+  const tag = iso.slice(0, 10);
+  // Der Kern speichert Ortszeit ohne Zone; daher mit dem örtlichen Datum vergleichen.
+  const tagVon = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const heute = tagVon(jetzt);
+  const gestern = tagVon(new Date(jetzt.getFullYear(), jetzt.getMonth(), jetzt.getDate() - 1));
+  if (tag === heute) return "heute";
+  if (tag === gestern) return "gestern";
+  const [j, m, t] = tag.split("-");
+  return j === heute.slice(0, 4) ? `${t}.${m}.` : `${t}.${m}.${j}`;
 }
 
 /** Eine Person oder Organisation aus dem Beteiligtenverzeichnis. */

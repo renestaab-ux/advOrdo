@@ -48,7 +48,7 @@ export default function AktenEinstellungen({ umgebungen }: { umgebungen: Umgebun
       <h2>Akten</h2>
       <form onSubmit={aktenzeichenSpeichern}>
         <p className="erklaerung">
-          Aktenzeichen nach dem Schema Nummer/Jahr, z. B. 102/26. Nächstes Aktenzeichen: <strong>{vorschlag}</strong>.
+          Aktenzeichen nach dem Schema Nummer/Jahr, z. B. 102/26. Nächstes Aktenzeichen: <strong>{vorschlag || "…"}</strong>.
           Wer eine bisherige Zählung fortführt, trägt die nächste Nummer des laufenden Jahres ein.
         </p>
         <div className="formular-raster">
@@ -59,7 +59,7 @@ export default function AktenEinstellungen({ umgebungen }: { umgebungen: Umgebun
           <label className="feld">
             Zusatz (optional)
             <input value={zusatz} onChange={(e) => setZusatz(e.target.value)} placeholder="z. B. Kürzel RS" maxLength={12} />
-            <span className="feld-hinweis">Erscheint hinter dem Jahr: 102/26 RS.</span>
+            <span className="feld-hinweis">Erscheint hinter dem Jahr: 102/26 {zusatz.trim() || "RS"}.</span>
           </label>
         </div>
         <button type="submit" className="zweitrangig">

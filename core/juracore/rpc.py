@@ -92,6 +92,7 @@ class Kern:
             "ocr.status": ocr.status,
             "akten.liste": lambda: stammdaten.uebersicht(self.akten),
             "akten.anlegen": self.akte_anlegen,
+            "akten.geoeffnet": lambda akte_id: stammdaten.geoeffnet(self.akten, akte_id),
             "akten.optionen": self.akten_optionen,
             "akten.stammdaten": self.akte_stammdaten,
             "akten.stammdaten_speichern": lambda akte_id, daten: self._mit_kollision(

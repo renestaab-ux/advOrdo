@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import Akte from "./Akte";
-import Analyse from "./Analyse";
+import Akten from "./Akten";
 import EigeneDaten from "./EigeneDaten";
 import Einstellungen from "./Einstellungen";
 import Gesetze from "./Gesetze";
@@ -9,28 +8,31 @@ import Beteiligte from "./Beteiligte";
 import Start, { StartZiel } from "./Start";
 import Suche from "./Suche";
 import Toolbox from "./Toolbox";
-import Vergleich from "./Vergleich";
+import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
+import { gemerkt, merke } from "./merken";
 import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern } from "./kern";
 
-type Bereich = "start" | "eigene" | "toolbox" | "akte" | "beteiligte" | "suche" | "vergleich" | "analyse" | "gesetze" | "rechtsprechung" | "einstellungen";
+type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
 
-const BEREICHE: { id: Bereich; titel: string; bald?: boolean }[] = [
-  { id: "start", titel: "Start" },
-  { id: "akte", titel: "Akte" },
-  { id: "beteiligte", titel: "Beteiligte" },
-  { id: "suche", titel: "Suche" },
-  { id: "vergleich", titel: "Vergleich" },
-  { id: "analyse", titel: "Analyse" },
-  { id: "gesetze", titel: "Gesetze" },
-  { id: "rechtsprechung", titel: "Rechtsprechung" },
-  { id: "einstellungen", titel: "Einstellungen" },
+// Vergleich und Analyse sind Reiter in der geöffneten Akte; die Toolbox und Eigene Daten erreicht man über Start.
+const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
+  { id: "start", titel: "Start", symbol: "start" },
+  { id: "akten", titel: "Akten", symbol: "akten" },
+  { id: "beteiligte", titel: "Beteiligte", symbol: "beteiligte" },
+  { id: "suche", titel: "Suche", symbol: "suche" },
+  { id: "gesetze", titel: "Gesetze", symbol: "gesetze" },
+  { id: "rechtsprechung", titel: "Rechtsprechung", symbol: "rechtsprechung" },
+  { id: "einstellungen", titel: "Einstellungen", symbol: "einstellungen" },
 ];
+
+const EINGEKLAPPT_SCHLUESSEL = "navigation.eingeklappt";
 
 export default function App() {
   const [bereich, setBereich] = useState<Bereich>("start");
-  // Die gewählte Akte gilt für Akte, Vergleich und Analyse gemeinsam.
+  // Die geöffnete Akte; null zeigt die Aktenübersicht.
   const [akteId, setAkteId] = useState<number | null>(null);
+  const [eingeklappt, setEingeklappt] = useState(() => gemerkt(EINGEKLAPPT_SCHLUESSEL));
   // Ob Dokumentinhalte das Gerät verlassen (externe KI gewählt); immer sichtbar in der Navigation.
   const [modus, setModus] = useState<KiModus | null>(null);
   const ladeModus = useCallback(() => {
@@ -51,16 +53,26 @@ export default function App() {
     }
   }
   const umgebung = aktiveUmgebung(umgebungen);
-  // „Akte anlegen“ vom Startbildschirm: Bereich Akte mit dem Namensfeld im Fokus.
+  // „Akte anlegen“ vom Startbildschirm: Aktenübersicht mit dem Anlegen-Feld im Fokus.
   const [neueAkte, setNeueAkte] = useState(0);
+
+  function einklappen() {
+    setEingeklappt(!eingeklappt);
+    merke(EINGEKLAPPT_SCHLUESSEL, !eingeklappt);
+  }
+
+  function oeffneAkte(id: number | null) {
+    setAkteId(id);
+    setBereich("akten");
+  }
 
   async function starte(ziel: StartZiel) {
     if (ziel === "anlegen") {
       setNeueAkte((n) => n + 1);
-      setBereich("akte");
-    } else if (ziel === "akte") {
+      oeffneAkte(null);
+    } else if (ziel === "akten") {
       setNeueAkte(0);
-      setBereich("akte");
+      oeffneAkte(null);
     } else if (ziel === "eigene") {
       setBereich("eigene");
     } else if (ziel === "einstellungen") {
@@ -73,81 +85,91 @@ export default function App() {
   }
 
   return (
-    <div className="rahmen">
+    <div className={eingeklappt ? "rahmen eingeklappt" : "rahmen"}>
       <nav className="navigation" aria-label="Bereiche">
-        <div className="marke">JuraBox</div>
-        {BEREICHE.filter((b) => b.id !== "toolbox").map((b) => (
+        <div className="marke">
+          <span className="marke-zeichen" aria-hidden>
+            §
+          </span>
+          <span className="nav-text">JuraBox</span>
+        </div>
+        {BEREICHE.map((b) => (
           <button
             key={b.id}
             className={b.id === bereich ? "nav-eintrag aktiv" : "nav-eintrag"}
-            onClick={() => setBereich(b.id)}
-            disabled={b.bald}
-            title={b.bald ? "Folgt in einem späteren Schritt" : undefined}
+            aria-current={b.id === bereich ? "page" : undefined}
+            onClick={() => {
+              // „Akten“ in der Leiste führt immer zur Übersicht, auch aus einer geöffneten Akte.
+              if (b.id === "akten") setAkteId(null);
+              setBereich(b.id);
+            }}
+            title={eingeklappt ? b.titel : undefined}
           >
-            {b.titel}
-            {b.bald && <span className="bald">bald</span>}
+            <Zeichen name={b.symbol} />
+            <span className="nav-text">{b.titel}</span>
           </button>
         ))}
-        {modus?.aktiv === "extern" ? (
+        <div className="nav-fuss">
+          {modus?.aktiv === "extern" ? (
+            <button
+              className="modus extern"
+              onClick={() => setBereich("einstellungen")}
+              title="Analyse und Chat senden Fragen und Dokumenttexte an diesen Anbieter. Umstellen unter „Einstellungen“."
+            >
+              <span className="modus-punkt" aria-hidden />
+              <span className="nav-text">Modus: Externer Anbieter ({modus.titel})</span>
+            </button>
+          ) : (
+            <div className="modus" title="Modus: nur lokal. Dokumentinhalte verlassen dieses Gerät nicht.">
+              <span className="modus-punkt" aria-hidden />
+              <span className="nav-text">Modus: nur lokal</span>
+            </div>
+          )}
+          {umgebung && (
+            <button
+              className="umgebung-anzeige"
+              onClick={() => setBereich("einstellungen")}
+              title={`Umgebung: ${umgebung.name}. Akten und Analysen gehören zu dieser Umgebung. Wechseln unter „Einstellungen“.`}
+            >
+              <span className="nav-text">
+                Umgebung: <strong>{umgebung.name}</strong>
+              </span>
+            </button>
+          )}
           <button
-            className="modus extern"
-            onClick={() => setBereich("einstellungen")}
-            title="Analyse und Chat senden Fragen und Dokumenttexte an diesen Anbieter. Umstellen unter „Einstellungen“."
+            className="nav-eintrag einklappen"
+            onClick={einklappen}
+            title={eingeklappt ? "Leiste ausklappen" : "Leiste einklappen"}
+            aria-label={eingeklappt ? "Leiste ausklappen" : "Leiste einklappen"}
           >
-            Modus: Externer Anbieter ({modus.titel})
+            <Zeichen name={eingeklappt ? "ausklappen" : "einklappen"} />
+            <span className="nav-text">Einklappen</span>
           </button>
-        ) : (
-          <div className="modus" title="Dokumentinhalte verlassen dieses Gerät nicht.">
-            Modus: nur lokal
-          </div>
-        )}
-        {umgebung && (
-          <button
-            className="umgebung-anzeige"
-            onClick={() => setBereich("einstellungen")}
-            title="Akten und Analysen gehören zu dieser Umgebung. Wechseln unter „Einstellungen“."
-          >
-            Umgebung: <strong>{umgebung.name}</strong>
-          </button>
-        )}
+        </div>
       </nav>
-      <main className="inhalt" key={stand}>
-        {bereich === "start" && <Start onWahl={(z) => void starte(z)} umgebung={umgebung?.name ?? null} />}
+      <main className={bereich === "akten" && akteId != null ? "inhalt ohne-rand" : "inhalt"} key={stand}>
+        {bereich === "start" && (
+          <Start
+            onWahl={(z) => void starte(z)}
+            onAkte={oeffneAkte}
+            modus={modus}
+            umgebung={umgebung?.name ?? null}
+          />
+        )}
         {bereich === "toolbox" && <Toolbox />}
         {bereich === "eigene" && <EigeneDaten onZurueck={() => setBereich("start")} />}
-        {bereich === "akte" && (
-          <Akte
+        {bereich === "akten" && (
+          <Akten
             neueAkte={neueAkte}
             akteId={akteId}
             setAkteId={setAkteId}
-            onVergleich={() => setBereich("vergleich")}
             onEinstellungen={() => setBereich("einstellungen")}
           />
         )}
-        {bereich === "suche" && (
-          <Suche
-            akteId={akteId}
-            setAkteId={setAkteId}
-            onAkte={(id) => {
-              setAkteId(id);
-              setBereich("akte");
-            }}
-          />
-        )}
-        {bereich === "beteiligte" && (
-          <Beteiligte
-            onAkte={(id) => {
-              setAkteId(id);
-              setBereich("akte");
-            }}
-          />
-        )}
-        {bereich === "vergleich" && <Vergleich akteId={akteId} setAkteId={setAkteId} />}
-        {bereich === "analyse" && (
-          <Analyse akteId={akteId} setAkteId={setAkteId} onEinstellungen={() => setBereich("einstellungen")} />
-        )}
+        {bereich === "suche" && <Suche akteId={akteId} setAkteId={setAkteId} onAkte={oeffneAkte} />}
+        {bereich === "beteiligte" && <Beteiligte onAkte={oeffneAkte} />}
         {bereich === "gesetze" && <Gesetze />}
-        {bereich === "rechtsprechung" && <Rechtsprechung onAkte={() => setBereich("akte")} />}
+        {bereich === "rechtsprechung" && <Rechtsprechung onAkte={() => setBereich("akten")} />}
         {bereich === "einstellungen" && (
           <Einstellungen
             onGeaendert={ladeModus}
