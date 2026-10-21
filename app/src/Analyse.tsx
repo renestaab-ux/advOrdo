@@ -23,6 +23,7 @@ import {
   kern,
   veraltet,
   zeitpunkt,
+  akteTitel,
 } from "./kern";
 
 type Ansicht = "widersprueche" | "chronologie" | "akte" | "dokumente";
@@ -181,7 +182,7 @@ export default function Analyse({
           <select value={akteId ?? ""} onChange={(e) => setAkteId(Number(e.target.value))} aria-label="Akte wählen">
             {akten.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name} ({a.dokumente} Dokumente)
+                {akteTitel(a)} ({a.dokumente} Dokumente)
               </option>
             ))}
           </select>

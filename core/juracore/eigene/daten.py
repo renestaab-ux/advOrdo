@@ -492,11 +492,19 @@ def archivieren(con: sqlite3.Connection, objekt: str, objekt_id: int, archiviert
 
 
 def loeschen(con: sqlite3.Connection, objekt: str, objekt_id: int) -> dict:
-    """Löscht einen Eintrag ganz. Später: nur, solange keine Akte darauf verweist; sonst archivieren."""
+    """Löscht einen Eintrag ganz, solange keine Akte darauf verweist; sonst bleibt nur das Archivieren."""
     tabelle = _tabelle(objekt)
     p = profil(con)
     if objekt_id == p["organisation_id" if objekt == "organisation" else "person_id"]:
         raise ValueError("Die eigene Organisation bzw. der Profilinhaber kann nicht gelöscht werden.")
+    if con.execute("SELECT 1 FROM sqlite_master WHERE name = 'akte_beteiligung'").fetchone():
+        spalte = "eigene_organisation_id" if objekt == "organisation" else "eigene_person_id"
+        if con.execute(f"SELECT 1 FROM akte_beteiligung WHERE {spalte} = ?", (objekt_id,)).fetchone() or (
+            objekt == "organisation" and con.execute(
+                """SELECT 1 FROM akte_beteiligung b JOIN eigene_mitgliedschaft m ON m.person_id = b.eigene_person_id
+                   WHERE m.organisation_id = ?""", (objekt_id,)).fetchone()
+        ):
+            raise ValueError("Dieser Eintrag ist an Akten beteiligt und kann nur archiviert werden.")
     with con:
         if objekt == "organisation":
             # Anwälte einer beauftragten Kanzlei gehören nur zu ihr.

@@ -10,11 +10,13 @@ import {
   useState,
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import AkteStammdaten from "./AkteStammdaten";
 import Chat from "./Chat";
 import { BelegAnsicht } from "./Gesetze";
 import {
   Abschnitt,
   Akte as AkteTyp,
+  akteTitel,
   AktenDokument,
   AktenImport,
   BETEILIGTE,
@@ -119,6 +121,9 @@ export default function Akte({
 }) {
   const [akten, setAkten] = useState<AkteTyp[]>([]);
   const [neuerName, setNeuerName] = useState("");
+  const [neuesAz, setNeuesAz] = useState("");
+  const [azVorschlag, setAzVorschlag] = useState("");
+  const [stammdatenOffen, setStammdatenOffen] = useState(false);
   const neuerNameFeld = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (neueAkte > 0) neuerNameFeld.current?.focus();
@@ -192,6 +197,7 @@ export default function Akte({
   const ladeAkten = useCallback(async () => {
     const liste = await kern<AkteTyp[]>("akten.liste");
     setAkten(liste);
+    setAzVorschlag((await kern<{ aktenzeichen: string }>("akten.aktenzeichen_vorschlag")).aktenzeichen);
     setAkteId((aktuell) => (aktuell != null && liste.some((a) => a.id === aktuell) ? aktuell : (liste[0]?.id ?? null)));
   }, [setAkteId]);
 
@@ -220,6 +226,7 @@ export default function Akte({
     setErgaenzung(null);
     setVolltext(null);
     if (akteId == null) setDokumente([]);
+    setStammdatenOffen(false);
     if (akteId != null) void ausfuehren("Lade Dokumente …", () => ladeDokumente(akteId));
   }, [akteId, ausfuehren, ladeDokumente]);
 
@@ -235,10 +242,13 @@ export default function Akte({
     const name = neuerName.trim();
     if (!name) return;
     await ausfuehren("Lege Akte an …", async () => {
-      const a = await kern<AkteTyp>("akten.anlegen", { name });
+      const a = await kern<AkteTyp>("akten.anlegen", { name, aktenzeichen: neuesAz.trim() || null });
       setNeuerName("");
+      setNeuesAz("");
       await ladeAkten();
       setAkteId(a.id);
+      // Eine neue Akte braucht zuerst Mandant und Gegner; dabei läuft gleich die Kollisionsprüfung.
+      setStammdatenOffen(true);
     });
   }
 
@@ -580,10 +590,20 @@ export default function Akte({
             }} aria-label="Akte wählen">
             {akten.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name} ({a.dokumente} Dokumente)
+                {akteTitel(a)} ({a.dokumente} Dokumente)
               </option>
             ))}
           </select>
+        )}
+        {akte && (
+          <button
+            className={stammdatenOffen ? "reiter-aktiv" : "zweitrangig"}
+            onClick={() => setStammdatenOffen(!stammdatenOffen)}
+            title="Aktenzeichen, Gegenstand, Beteiligte und Kollisionsprüfung"
+          >
+            Stammdaten und Beteiligte
+            {!akte.aktenzeichen && <span className={stammdatenOffen ? undefined : "hinweis"}> · Aktenzeichen fehlt</span>}
+          </button>
         )}
         {akte && (
           <button className="zweitrangig gefahr" onClick={() => setLoeschfrage({ art: "akte", id: akte.id })} disabled={!!laeuft}>
@@ -598,11 +618,23 @@ export default function Akte({
             placeholder="Neue Akte, z. B. Brückner ./. Autohaus Rehnfeld"
             aria-label="Name der neuen Akte"
           />
+          <input
+            value={neuesAz}
+            onChange={(e) => setNeuesAz(e.target.value)}
+            placeholder={azVorschlag ? `Az. ${azVorschlag}` : "Az. Nummer/Jahr"}
+            aria-label="Aktenzeichen der neuen Akte (leer: Vorschlag)"
+            title="Leer lassen für das vorgeschlagene Aktenzeichen"
+            size={10}
+          />
           <button type="submit" className="zweitrangig" disabled={!!laeuft || !neuerName.trim()}>
             Anlegen
           </button>
         </form>
       </div>
+
+      {akte && stammdatenOffen && (
+        <AkteStammdaten key={akte.id} akteId={akte.id} onGeaendert={() => void ladeAkten()} />
+      )}
 
       {ocr && !ocr.verfuegbar && (
         <p className="hinweis">Texterkennung nicht verfügbar: {ocr.hinweis} PDFs mit Text und Word-Dateien lassen sich trotzdem lesen.</p>

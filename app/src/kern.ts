@@ -103,7 +103,131 @@ export interface Akte {
   name: string;
   angelegt_am: string;
   dokumente: number;
+  aktenzeichen: string | null;
+  status: string;
+  gegenstand: string | null;
+  mandanten: string[];
+  gegner: string[];
+  gerichte: { name: string; aktenzeichen: string }[];
 }
+
+/** Anzeige einer Akte in Auswahllisten: „12/26 · Brückner ./. Autohaus“; ohne Aktenzeichen nur der Name. */
+export function akteTitel(a: Pick<Akte, "name" | "aktenzeichen">): string {
+  return a.aktenzeichen ? `${a.aktenzeichen} · ${a.name}` : a.name;
+}
+
+/** Eine Person oder Organisation aus dem Beteiligtenverzeichnis. */
+export interface Beteiligter {
+  id: number;
+  art: "person" | "organisation";
+  name: string;
+  daten: Record<string, string | string[]>;
+  geaendert_am: string;
+  stufe?: "gleich" | "aehnlich";
+  /** Nur in der Liste: an wie vielen Akten beteiligt. */
+  akten_anzahl?: number;
+  beziehungen?: { von: number; zu: number; art: string; anderer: number; name: string; funktion?: string; text: string }[];
+  akten?: { akte_id: number; rolle: string; akte: string; aktenzeichen: string | null }[];
+}
+
+/** Ein Beteiligter in einer Akte, mit Rolle und Seite. */
+export interface Beteiligung {
+  id: number;
+  rolle: string;
+  rolle_text: string;
+  seite: "eigene" | "gegen" | "neutral";
+  /** Gruppe in der Liste: wie die Seite, nur steht das Gericht für sich. */
+  gruppe: "eigene" | "gegen" | "gericht" | "neutral";
+  name: string;
+  quelle: "verzeichnis" | "eigene_organisation" | "eigene_person";
+  beteiligter_id: number | null;
+  art: "person" | "organisation" | null;
+  aktenzeichen: string;
+}
+
+export interface KollisionsTreffer {
+  ampel: "rot" | "gelb";
+  stufe: string;
+  text: string;
+  dort: { akte_id: number | null; aktenzeichen: string | null; akte: string; umgebung: string; andere_umgebung: boolean };
+}
+
+export interface Kollisionspruefung {
+  id: number;
+  zeitpunkt: string;
+  ampel: "gruen" | "gelb" | "rot";
+  treffer: KollisionsTreffer[];
+  umgebungen: string[];
+  entscheidung: string | null;
+  entscheidung_text: string | null;
+  begruendung: string | null;
+  entschieden_am: string | null;
+}
+
+export interface AkteStammdaten {
+  id: number;
+  name: string;
+  aktenzeichen: string | null;
+  gegenstand: string | null;
+  sachgebiet: string | null;
+  eigene_rolle: string | null;
+  status: string;
+  sachbearbeiter_id: number | null;
+  mandat_seit: string | null;
+  gegenstandswert: string | null;
+  notiz: string | null;
+  dokumente: number;
+  beteiligte: Beteiligung[];
+  kollision: Kollisionspruefung | null;
+}
+
+export interface AktenOptionen {
+  rollen: Record<string, { seite: "eigene" | "gegen" | "neutral"; text: string }>;
+  seiten: Record<string, string>;
+  gruppen: Record<string, string>;
+  status: Record<string, string>;
+  eigene_rollen: string[];
+  sachgebiete: string[];
+  kategorien: string[];
+  beziehungen: Record<string, string>;
+  funktionen: string[];
+  entscheidungen: Record<string, string>;
+  form: string | null;
+  sachbearbeiter: { id: number; name: string }[];
+  konzerngesellschaften: { id: number; name: string }[];
+  anwaelte: { id: number; name: string; kanzlei: string }[];
+}
+
+/** Möglicher Konflikt eines Suchtreffers, bevor er eingetragen ist; je Beteiligten-ID. */
+export type KollisionVorab = Record<string, { ampel: "rot" | "gelb"; texte: string[] }>;
+
+/** Gegenstandswert aus dem Kern ("250000.00") in deutscher Schreibweise ("250.000,00"); Freitext bleibt. */
+export function betragAnzeige(wert: string | null | undefined): string {
+  if (!wert) return "";
+  if (!/^\d+(\.\d{1,2})?$/.test(wert)) return wert;
+  return Number(wert).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Eingabe wie "250.000" oder "18450,5 €" in die Anzeige "250.000,00"; was kein Betrag ist, bleibt stehen. */
+export function betragNormalisieren(text: string): string {
+  let z = text.replace(/[\s€']|EUR/gi, "");
+  if (!z) return "";
+  if (z.includes(",")) z = z.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(z)) z = z.replace(/\./g, "");
+  return /^\d+(\.\d+)?$/.test(z) ? betragAnzeige(Number(z).toFixed(2)) : text;
+}
+
+export interface AktenEinstellungen {
+  aktenzeichen_zusatz: string;
+  naechste_nummer: Record<string, number>;
+  kollision_ausgenommen: string[];
+}
+
+export const AMPEL_TEXT: Record<string, string> = {
+  gruen: "Keine Treffer",
+  gelb: "Ähnliche Namen oder verbundene Beteiligte",
+  rot: "Partei steht anderswo auf der Gegenseite",
+};
 
 export interface AktenDokument {
   id: number;

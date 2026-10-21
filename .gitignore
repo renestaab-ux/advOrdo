@@ -24,3 +24,4 @@ daten/
 # Probelauf mit dem Sprachmodell (juracore ki-pruefen)
 ki-pruefen-daten/
 ki-pruefen-protokoll.json
+.venv-ci/

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import AktenEinstellungen from "./AktenEinstellungen";
 import Umgebungen from "./Umgebungen";
 import { KiStatus, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
 
@@ -110,6 +111,8 @@ export default function Einstellungen({
           aktiven Arbeitsumgebung.
         </p>
       </section>
+
+      <AktenEinstellungen umgebungen={umgebungen} />
 
       <section className="karte">
         <h2>Sprachmodell auf diesem Gerät</h2>

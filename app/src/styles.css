@@ -455,3 +455,48 @@ button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var
 .kachel-stand.gut { color: var(--gut); }
 .eigene table.tabelle { width: 100%; border-collapse: collapse; font-size: 13px; }
 .eigene table.tabelle td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--linie); vertical-align: top; }
+
+/* Aktenverwaltung: Stammdaten, Beteiligte, Kollisionsprüfung */
+.stammdaten { max-width: 980px; }
+.stammdaten h3 { font-size: 15px; margin: 18px 0 6px; }
+.az-zeile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.az-zeile .az { font-size: 16px; font-weight: 600; }
+.beteiligte-akte .seite { margin: 8px 0; }
+.beteiligte-akte .seite-eigene > .leise { color: var(--akzent); }
+.beteiligte-akte .seite-gegen > .leise { color: var(--fehler); }
+.beteiligte-neu { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 16px; }
+@media (max-width: 760px) { .beteiligte-neu { grid-template-columns: 1fr; } }
+.beteiligter-formular { background: var(--hintergrund); }
+.beteiligter-formular h3 { margin-top: 4px; }
+.kollision { border-top: 1px solid var(--linie); margin-top: 16px; padding-top: 4px; }
+.ampel { display: flex; align-items: center; gap: 8px; font-weight: 600; margin: 8px 0; }
+.ampel-punkt { width: 12px; height: 12px; border-radius: 50%; background: currentColor; display: inline-block; }
+.ampel.ampel-gruen { color: var(--gut); }
+.ampel.ampel-gelb { color: var(--warnung); }
+.ampel.ampel-rot { color: var(--fehler); }
+.treffer { margin: 4px 0 8px; padding-left: 20px; }
+.treffer li { margin: 4px 0; }
+.treffer li.ampel-rot::marker { color: var(--fehler); }
+.treffer li.ampel-gelb::marker { color: var(--warnung); }
+.entscheidung { margin: 8px 0; }
+.akten-wahl .weiteres { max-width: 560px; }
+.akten-wahl .weiteres input { min-width: 0; }
+.akten-wahl .weiteres input + input { flex: 0 0 110px; }
+.beteiligte-akte .seite-gericht > .leise { color: var(--text); font-weight: 600; }
+.beteiligte-hinzufuegen { margin-top: 20px; padding: 10px 16px 14px; background: var(--hintergrund); border-left: 4px solid var(--akzent); }
+.beteiligte-hinzufuegen h4, .beziehungen h4 { margin: 2px 0 8px; font-size: 14px; }
+.hinweis-zeile { display: block; font-size: 13px; margin-top: 2px; }
+li.vorab-rot .hinweis-zeile .ampel-punkt { color: var(--fehler); }
+li.vorab-gelb .hinweis-zeile .ampel-punkt { color: var(--warnung); }
+li.vorab-rot .hinweis-zeile:last-child { color: var(--fehler); }
+.ampel-punkt.ampel-rot, .ampel-punkt.ampel-gelb { width: 9px; height: 9px; vertical-align: 1px; }
+.neuer-vertreter { margin-top: 8px; }
+input.betrag { text-align: right; }
+.kollision-kurz { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--linie); margin-top: 16px; padding-top: 10px; }
+.kollision-kurz .ampel { margin: 0; }
+input.funktion { font: inherit; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); width: 220px; margin-left: auto; margin-right: 8px; }
+.verzeichnis-filter { display: flex; gap: 8px; margin: 8px 0 12px; max-width: 720px; }
+.verzeichnis-filter input { flex: 1; font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.verzeichnis-filter select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
+.beteiligte-verzeichnis .karte { max-width: 980px; margin-bottom: 16px; }
