@@ -7,7 +7,16 @@ from datetime import date
 
 import pytest
 
-from juracore.aktenverwaltung import aus_dokument, einrichten, kalender, notizen, rubrum, stammdaten, verfahren
+from juracore.aktenverwaltung import (
+    aus_dokument,
+    beteiligte,
+    einrichten,
+    kalender,
+    notizen,
+    rubrum,
+    stammdaten,
+    verfahren,
+)
 from juracore.dokumente import akte
 from juracore.eigene import daten as eigene
 from juracore.rpc import Kern
@@ -223,6 +232,7 @@ def test_notizen(con):
 def test_rubrum_anspruchsbegruendung():
     r = rubrum.erkenne(ANSPRUCHSBEGRUENDUNG)
     assert r["gericht"]["name"] == "Landgericht Freiburg im Breisgau"
+    assert r["gericht"]["anschrift"] == {"strasse": "Salzstraße 17", "plz": "79098", "ort": "Freiburg im Breisgau"}
     assert r["aktenzeichen"]["wert"] == "2 O 233/26" and r["aktenzeichen"]["fundstelle"]["abschnitt"] == 9
     assert r["gegenstand"]["wert"] == "Rückzahlung einer Abschlagszahlung aus Werkvertrag"
     assert r["streitwert"]["wert"] == "14.860,00" and r["verfahren_art"] == "klage"
@@ -309,7 +319,8 @@ def test_akte_aus_dokument_ueber_kern(tmp_path):
         "gegenstand": vorschau["gegenstand"]["wert"], "gegenstandswert": vorschau["streitwert"]["wert"],
         "parteien": vorschau["parteien"],
         "verfahren": {"art": "klage", "gericht": vorschau["gericht"]["name"],
-                      "aktenzeichen": vorschau["aktenzeichen"]["wert"]},
+                      "aktenzeichen": vorschau["aktenzeichen"]["wert"],
+                      "gericht_anschrift": vorschau["gericht"]["anschrift"]},
     }
     neu = kern.methoden["akten.aus_dokument_anlegen"](pfad=str(datei), auswahl=auswahl)
     assert neu["mandanten"] == ["Weber Haustechnik GmbH"] and neu["gegner"] == ["Dr. Lena Brückner"]
@@ -321,6 +332,9 @@ def test_akte_aus_dokument_ueber_kern(tmp_path):
     assert ("bevollmaechtigter_gegner", "Seefeld Rechtsanwälte", "388/26 SE") in rollen
     assert ("gericht", "Landgericht Freiburg im Breisgau", "2 O 233/26") in rollen
     assert not any(b["name"] == "Albrecht Tiedemann Rechtsanwälte" for b in s["beteiligte"])
+    gericht = next(b for b in s["beteiligte"] if b["rolle"] == "gericht")
+    daten = kern.methoden["beteiligte.eintrag"](beteiligter_id=gericht["beteiligter_id"])["daten"]
+    assert (daten["kategorie"], daten["strasse"], daten["plz"]) == ("Gericht", "Salzstraße 17", "79098")
     weber = next(b for b in s["beteiligte"] if b["rolle"] == "mandant")
     gf = kern.methoden["beteiligte.eintrag"](beteiligter_id=weber["beteiligter_id"])["beziehungen"]
     assert gf[0]["text"].startswith("vertreten durch Markus Weber")
@@ -336,3 +350,27 @@ def test_akte_aus_dokument_ohne_seite_legt_nichts_an(tmp_path):
     with pytest.raises(ValueError, match="welche Seite"):
         kern.methoden["akten.aus_dokument_anlegen"](pfad=str(datei), auswahl={"name": "X", "parteien": []})
     assert kern.methoden["akten.liste"]() == []
+
+
+def test_gerichtsanschrift_aus_dem_kopf():
+    r = rubrum.erkenne(abschnitte(
+        "Landgericht Freiburg im Breisgau 2. Zivilkammer Salzstraße 17, 79098 Freiburg im Breisgau",
+        "FIKTIVES DOKUMENT", "Aktenzeichen: 2 O 233/26", "In dem Rechtsstreit"))
+    assert (r["gericht"]["name"], r["gericht"]["spruchkoerper"]) == ("Landgericht Freiburg im Breisgau", "2. Zivilkammer")
+    assert r["gericht"]["anschrift"] == {"strasse": "Salzstraße 17", "plz": "79098", "ort": "Freiburg im Breisgau"}
+    r = rubrum.erkenne(abschnitte("An das", "Landgericht Berlin II", "Hans-Litten-Straße 16",
+                                  "10179 Berlin FIKTIV", "Klage"))
+    assert r["gericht"]["anschrift"]["strasse"].startswith("Hans-Litten-Straße 16")
+    assert r["gericht"]["anschrift"]["ort"] == "Berlin"
+
+
+def test_gericht_ergaenzt_nur_leere_felder(con):
+    a = neue_akte(con)
+    lg = {"strasse": "Salzstraße 17", "plz": "79098", "ort": "Freiburg im Breisgau"}
+    verfahren.speichern(con, a, {"art": "klage", "gericht": "Landgericht Freiburg im Breisgau"},
+                        gericht_daten={"strasse": "Salzstraße 17", "plz": "79098"})
+    verfahren.speichern(con, neue_akte(con, "Zweite"), {"art": "klage", "gericht": "Landgericht Freiburg im Breisgau"},
+                        gericht_daten={"strasse": "Falsche Straße 1", "ort": "Freiburg im Breisgau"})
+    g = next(b for b in stammdaten.beteiligungen(con, a) if b["rolle"] == "gericht")
+    daten = beteiligte.eintrag(con, g["beteiligter_id"])["daten"]
+    assert {k: daten[k] for k in lg} == lg and daten["kategorie"] == "Gericht"

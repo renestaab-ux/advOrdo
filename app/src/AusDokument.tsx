@@ -48,6 +48,7 @@ export default function AusDokument({
   const [art, setArt] = useState(v.verfahren_art);
   const [instanz, setInstanz] = useState(v.verfahren_art === "klage" ? "1. Instanz" : "");
   const [gericht, setGericht] = useState(v.gericht?.name ?? "");
+  const anschrift = v.gericht?.anschrift;
   const [spruchkoerper, setSpruchkoerper] = useState(v.gericht?.spruchkoerper ?? "");
   const [gerichtAz, setGerichtAz] = useState(v.aktenzeichen?.wert ?? "");
   const [wahl, setWahl] = useState<ParteiWahl[]>(
@@ -97,7 +98,17 @@ export default function AusDokument({
           beteiligter_id: wahl[i].bev_id ? Number(wahl[i].bev_id) : null,
         },
       })),
-      verfahren: art ? { art, instanz, gericht, spruchkoerper, aktenzeichen: gerichtAz } : null,
+      verfahren: art
+        ? {
+            art,
+            instanz,
+            gericht,
+            spruchkoerper,
+            aktenzeichen: gerichtAz,
+            // Die Anschrift aus dem Dokument gehört nur zum dort genannten Gericht.
+            gericht_anschrift: anschrift && gericht.trim() === v.gericht?.name ? anschrift : null,
+          }
+        : null,
     };
     try {
       const a = await kern<Akte>("akten.aus_dokument_anlegen", { pfad, auswahl });
@@ -199,6 +210,11 @@ export default function AusDokument({
               Gericht <Fund f={v.gericht?.fundstelle} abschnitte={v.abschnitte} />
             </span>
             <input value={gericht} onChange={(e) => setGericht(e.target.value)} />
+            {anschrift && gericht.trim() === v.gericht?.name && (
+              <span className="feld-hinweis">
+                Anschrift aus dem Dokument: {anschrift.strasse}, {anschrift.plz} {anschrift.ort}
+              </span>
+            )}
           </label>
           <label className="feld">
             Spruchkörper

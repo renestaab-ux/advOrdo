@@ -100,5 +100,5 @@ def uebernehmen(con: sqlite3.Connection, akte_id: int, auswahl: dict) -> dict:
                 pass  # dieselbe Kanzlei vertritt mehrere Gegner: einmal genügt
     if v.get("art"):
         felder = ("art", "instanz", "gericht", "spruchkoerper", "aktenzeichen")
-        verfahren.speichern(con, akte_id, {k: v[k] for k in felder if k in v})
+        verfahren.speichern(con, akte_id, {k: v[k] for k in felder if k in v}, gericht_daten=v.get("gericht_anschrift"))
     return stammdaten.stammdaten(con, akte_id)

@@ -86,15 +86,34 @@ def _gericht(text: str) -> dict | None:
     woerter: list[str] = []
     rest = m.group("rest").split()
     for i, w in enumerate(rest):
-        if re.match(_STRICH, w) or w[0].isdigit() or (i + 1 < len(rest) and re.match(r"^\d", rest[i + 1])
+        if re.match(_STRICH, w) or w[0].isdigit() or (i + 1 < len(rest) and re.match(r"^\d+(?!\.$)", rest[i + 1])
                                                        and w[0].isupper() and woerter):
             break
         woerter.append(w.strip(","))
-        if w.endswith(","):
+        # „… im Breisgau 2. Zivilkammer“: die Ordnungszahl gehört schon zum Spruchkörper.
+        if w.endswith(",") or (i + 1 < len(rest) and re.match(r"^\d+\.$", rest[i + 1])):
             break
     name = " ".join([m.group("art"), *woerter]).strip()
     sk = _SPRUCHKOERPER.search(m.group("rest"))
-    return {"name": name, "spruchkoerper": " ".join(sk.group(1).split()) if sk else ""}
+    # Steht die Anschrift ohne Trennzeichen dahinter („2. Zivilkammer Salzstraße 17“), endet er vor der Straße.
+    spruchkoerper = re.split(r"\s+(?=[A-ZÄÖÜ]\S*\s+\d)", sk.group(1))[0] if sk else ""
+    return {"name": name, "spruchkoerper": " ".join(spruchkoerper.split())}
+
+
+def _gerichtsanschrift(zeile: str, name: str, folgende: list[dict]) -> dict:
+    """Anschrift des Gerichts aus dem Rest der Zeile und den nächsten Abschnitten (Kopf des Schriftsatzes)."""
+    rest = zeile[zeile.find(name) + len(name):] if name in zeile else ""
+    teile = [rest, *(f["text"] for f in folgende)]
+    # Zeilen, Gedankenstriche und Spruchkörper trennen wie ein Komma, damit die Straße nichts davon einschließt.
+    # Nur freistehende Striche: „Hans-Litten-Straße“ bleibt ganz.
+    text = re.sub(r"(?:^|\s)" + _STRICH + r"(?=\s|$)|·|¶", ",", ", ".join(teile))
+    text = re.sub(r"(?:\d+\.\s*)?(?:Zivilkammer|Zivilsenat|Kammer für Handelssachen|Senat|Abteilung|Kammer)\b",
+                  ",", text)
+    a = _anschrift(text)
+    if a:
+        # Was im Kopf hinter dem Ort steht (Vermerke in Großbuchstaben, Aktenzeichen, Datum), gehört nicht dazu.
+        a["ort"] = re.split(r"\s+(?:[A-ZÄÖÜ]{2,}\b|Aktenzeichen|Az\.|Geschäftsnummer|Datum)", a["ort"])[0]
+    return a
 
 
 def _person(name: str) -> dict:
@@ -198,6 +217,8 @@ def erkenne(abschnitte: list[dict]) -> dict:
                     sk := _SPRUCHKOERPER.match(vor_rubrum[i + 1]["text"].strip("–— "))):
                 g["spruchkoerper"] = " ".join(sk.group(1).split())
             ergebnis["gericht"] = g | {"fundstelle": _fund(a)}
+            if anschrift := _gerichtsanschrift(a["text"], g["name"], vor_rubrum[i + 1:i + 4]):
+                ergebnis["gericht"]["anschrift"] = anschrift
         if ergebnis["dokumentart"] is None and a["text"].strip() in DOKUMENTARTEN:
             ergebnis["dokumentart"] = {"wert": a["text"].strip(), "fundstelle": _fund(a)}
     for a in kopf[:30]:

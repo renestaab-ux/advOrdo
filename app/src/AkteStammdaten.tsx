@@ -572,6 +572,9 @@ const FELDER_ORG: [string, string][] = [
   ["name", "Name / Firma"], ["rechtsform", "Rechtsform"], ["registergericht", "Registergericht"],
   ["registernummer", "Registernummer"],
 ];
+// Gerichte und Behörden stehen in keinem Handelsregister.
+const OHNE_REGISTER = new Set(["Gericht", "Behörde"]);
+const REGISTERFELDER = new Set(["rechtsform", "registergericht", "registernummer"]);
 const FELDER_GEMEINSAM: [string, string][] = [
   ["strasse", "Straße und Hausnummer"], ["plz", "PLZ"], ["ort", "Ort"], ["land", "Land"], ["telefon", "Telefon"],
   ["email", "E-Mail"], ["safe_id", "beA-/SAFE-ID"],
@@ -615,7 +618,10 @@ export function BeteiligterFormular({
   const [aktuell, setAktuell] = useState<Beteiligter | undefined>(eintrag);
   // Gesetzliche Vertreter einer neuen Organisation: werden beim Speichern mit angelegt und verknüpft.
   const [vertreter, setVertreter] = useState<VertreterEntwurf[]>([]);
-  const felder = art === "person" ? FELDER_PERSON : FELDER_ORG;
+  const felder =
+    art === "person"
+      ? FELDER_PERSON
+      : FELDER_ORG.filter(([k]) => !(OHNE_REGISTER.has(werte.kategorie ?? "") && REGISTERFELDER.has(k)));
   const vertreterBereich = art === "organisation";
 
   async function pruefeDubletten() {

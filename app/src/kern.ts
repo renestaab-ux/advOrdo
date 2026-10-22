@@ -253,7 +253,7 @@ export interface RubrumVorschau {
   dateiname: string;
   lesart: string;
   dokumentart: RubrumFeld | null;
-  gericht: (RubrumFeld & { name: string; spruchkoerper: string }) | null;
+  gericht: (RubrumFeld & { name: string; spruchkoerper: string; anschrift?: { strasse: string; plz: string; ort: string } }) | null;
   aktenzeichen: RubrumFeld | null;
   zeichen_absender: RubrumFeld | null;
   gegenstand: RubrumFeld | null;

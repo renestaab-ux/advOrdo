@@ -7,6 +7,7 @@ Das Gericht eines Verfahrens wird zugleich als Beteiligter der Akte (Rolle Geric
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import date, datetime
 
@@ -96,7 +97,8 @@ def aktuelles(verfahren: list[dict]) -> dict | None:
     return (laufend or verfahren or [None])[-1]
 
 
-def speichern(con: sqlite3.Connection, akte_id: int, daten: dict, verfahren_id: int | None = None) -> list[dict]:
+def speichern(con: sqlite3.Connection, akte_id: int, daten: dict, verfahren_id: int | None = None,
+             gericht_daten: dict | None = None) -> list[dict]:
     if con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")
     alt: dict = {}
@@ -136,24 +138,34 @@ def speichern(con: sqlite3.Connection, akte_id: int, daten: dict, verfahren_id: 
             con.execute(f"UPDATE verfahren SET {', '.join(f'{k} = ?' for k in FELDER)}, geaendert_am = ? "
                         "WHERE id = ?", (*werte.values(), jetzt, verfahren_id))
         if werte["gericht"]:
-            gericht_eintragen(con, akte_id, werte["gericht"], werte["aktenzeichen"] or "")
+            gericht_eintragen(con, akte_id, werte["gericht"], werte["aktenzeichen"] or "", gericht_daten)
         con.execute("UPDATE akte SET geaendert_am = ? WHERE id = ?", (jetzt, akte_id))
     return liste(con, akte_id)
 
 
-def gericht_eintragen(con: sqlite3.Connection, akte_id: int, name: str, aktenzeichen: str = "") -> int:
+def gericht_eintragen(con: sqlite3.Connection, akte_id: int, name: str, aktenzeichen: str = "",
+                      daten: dict | None = None) -> int:
     """Sorgt dafür, dass das Gericht als Beteiligter (Rolle Gericht) mit Aktenzeichen in der Akte steht.
 
-    Ein gleichnamiges Gericht im Verzeichnis wird verwendet, sonst angelegt. Läuft innerhalb der Transaktion des
-    Aufrufers.
+    Ein gleichnamiges Gericht im Verzeichnis wird verwendet, sonst angelegt. ``daten`` (etwa die Anschrift aus dem
+    Dokument) füllt nur leere Felder; Vorhandenes bleibt. Läuft innerhalb der Transaktion des Aufrufers.
     """
     s = beteiligte.schluessel(name)
-    vorhanden = next((z["id"] for z in con.execute("SELECT id, schluessel FROM beteiligter WHERE art = 'organisation'")
+    vorhanden = next((z for z in con.execute("SELECT id, schluessel, daten FROM beteiligter WHERE art = 'organisation'")
                       if z["schluessel"] == s), None)
+    zusatz = {k: str(v).strip() for k, v in (daten or {}).items() if k not in ("name", "kategorie") and str(v).strip()}
     if vorhanden is None:
-        daten = {"name": name, "kategorie": "Gericht"}
-        vorhanden = beteiligte._einfuegen(con, "organisation", name, beteiligte._bereinige("organisation", daten),
-                                          _jetzt())
+        neu = {**zusatz, "name": name, "kategorie": "Gericht"}
+        bid = beteiligte._einfuegen(con, "organisation", name, beteiligte._bereinige("organisation", neu), _jetzt())
+    else:
+        bid = vorhanden["id"]
+        alt = json.loads(vorhanden["daten"])
+        fehlend = {k: v for k, v in zusatz.items() if not alt.get(k)}
+        if fehlend:
+            con.execute("UPDATE beteiligter SET daten = ?, geaendert_am = ? WHERE id = ?",
+                        (json.dumps(beteiligte._bereinige("organisation", alt | fehlend), ensure_ascii=False),
+                         _jetzt(), bid))
+    vorhanden = bid
     b = con.execute("SELECT id, aktenzeichen FROM akte_beteiligung WHERE akte_id = ? AND rolle = 'gericht' "
                     "AND beteiligter_id = ?", (akte_id, vorhanden)).fetchone()
     if b is None:
