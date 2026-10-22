@@ -13,11 +13,13 @@ export default function Einstellungen({
   umgebungen,
   onUmgebungen,
   onEigeneDaten,
+  onDiagnose,
 }: {
   onGeaendert?: () => void;
   umgebungen: UmgebungsListe | null;
   onUmgebungen: (liste: UmgebungsListe, gewechselt: boolean) => void;
   onEigeneDaten: () => void;
+  onDiagnose: () => void;
 }) {
   const [status, setStatus] = useState<KiStatus | null>(null);
   const [anbieter, setAnbieter] = useState("ollama");
@@ -97,6 +99,19 @@ export default function Einstellungen({
             : `das Modell auf diesem Gerät (${status.modell || "kein Modell gewählt"}). Dokumentinhalte verlassen es nicht.`}
         </p>
       )}
+
+      <section className="karte">
+        <div className="kopf">
+          <h2>Diagnose</h2>
+          <button className="zweitrangig" onClick={onDiagnose}>
+            Diagnose öffnen
+          </button>
+        </div>
+        <p className="erklaerung">
+          Prüft Datenordner, Datenbanken, Archiv, Texterkennung, Programme, Sprachmodelle und die Rechtsquellen im
+          Internet und erklärt, was bei einem Fehler zu tun ist.
+        </p>
+      </section>
 
       <Umgebungen liste={umgebungen} onGeaendert={onUmgebungen} />
 

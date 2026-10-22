@@ -14,11 +14,12 @@ import json
 import logging
 import sqlite3
 import sys
+import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, db, einstellungen, programme
+from . import __version__, db, diagnose, einstellungen, programme
 from .abgleich import abgleich
 from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, notizen, stammdaten, verfahren
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
@@ -55,6 +56,8 @@ class Kern:
         self.auftraege = Auftraege()
         self.basiszins_datei = Path(db_pfad).parent / "basiszins.json"
         self.quellen_datei = Path(db_pfad).parent / "rechtsprechung-quellen.json"
+        # Für die Diagnose austauschbar (Tests ohne Netz).
+        self.diagnose_oeffnen = urllib.request.urlopen
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
             "umgebungen.liste": self.umgebungen.liste,
@@ -92,6 +95,8 @@ class Kern:
             ),
             "zitat.aufloesen": lambda zitat, fassung_id=None: wissensbasis.loese_zitat(self.con, zitat, fassung_id),
             "ocr.status": ocr.status,
+            "diagnose.liste": diagnose.liste,
+            "diagnose.pruefen": lambda pruef_id: diagnose.pruefe(self, pruef_id),
             "akten.liste": self.akten_liste,
             "akten.anlegen": self.akte_anlegen,
             "akten.geoeffnet": lambda akte_id: stammdaten.geoeffnet(self.akten, akte_id),

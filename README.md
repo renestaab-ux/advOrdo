@@ -477,6 +477,16 @@ Die Schlüssel liegen in `ki-schluessel.json` im Datenverzeichnis der App (Linux
 Benutzer lesbar), getrennt von `ki.json`, und werden nie wieder angezeigt. Die Kommandozeile
 (`ki-status`, `ki-pruefen`) arbeitet immer lokal.
 
+## Diagnose
+
+Einstellungen → **Diagnose öffnen** → „Prüfung starten“ prüft nacheinander: Kern und Datenordner (beschreibbar,
+freier Speicher), die Datenbanken (`PRAGMA quick_check`), das Archiv der Rechtsquellen (jede Datei gegen ihre
+SHA-256-Prüfsumme), Texterkennung, externe Programme, Mitteilungen des Systems, das lokale Sprachmodell, die externe
+KI (nur wenn eingebunden; abgefragt wird die Modellliste) und die Rechtsquellen im Internet (Gesetze im Internet,
+EUR-Lex, Rechtsprechung im Internet, gesetze-bayern.de, NeuRIS wenn eingeschaltet; jeweils nur die ersten Bytes).
+Jeder Fehler kommt mit einer verständlichen Meldung und einem Hinweis „Was tun“. „Bericht kopieren“ legt das Ergebnis
+als Text in die Zwischenablage; er enthält keine Dokumentinhalte und keine Schlüssel.
+
 ## Rechtsprechung: Urteilszitate prüfen
 
 Beim Einlesen erkennt die App auch Rechtsprechungszitate („BGH, Urteil vom 12.10.2016 – VIII ZR 103/15“,

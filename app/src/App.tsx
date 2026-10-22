@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Akten, { Reiter } from "./Akten";
 import EigeneDaten from "./EigeneDaten";
+import Diagnose from "./Diagnose";
 import Einstellungen from "./Einstellungen";
 import Gesetze from "./Gesetze";
 import Rechtsprechung from "./Rechtsprechung";
@@ -15,7 +16,7 @@ import { useErinnerungen } from "./erinnerungen";
 import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
-type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
+type Bereich = "start" | "eigene" | "toolbox" | "diagnose" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
 
 // Vergleich und Analyse sind Reiter in der geöffneten Akte; die Toolbox und Eigene Daten erreicht man über Start.
 const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
@@ -100,7 +101,7 @@ export default function App() {
         {BEREICHE.map((b) => (
           <button
             key={b.id}
-            className={b.id === bereich ? "nav-eintrag aktiv" : "nav-eintrag"}
+            className={b.id === bereich || (b.id === "einstellungen" && bereich === "diagnose") ? "nav-eintrag aktiv" : "nav-eintrag"}
             aria-current={b.id === bereich ? "page" : undefined}
             onClick={() => {
               // „Akten“ in der Leiste führt immer zur Übersicht, auch aus einer geöffneten Akte.
@@ -185,8 +186,10 @@ export default function App() {
             umgebungen={umgebungen}
             onUmgebungen={umgebungGeaendert}
             onEigeneDaten={() => setBereich("eigene")}
+            onDiagnose={() => setBereich("diagnose")}
           />
         )}
+        {bereich === "diagnose" && <Diagnose onZurueck={() => setBereich("einstellungen")} />}
       </main>
     </div>
   );

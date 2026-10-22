@@ -5,6 +5,7 @@ import {
   bearbeitetText,
   zuletztGeoeffnet,
   abstandText,
+  diagnoseBericht,
   faelligeErinnerungen,
   datumLang,
   akteTitel,
@@ -421,5 +422,26 @@ describe("faelligeErinnerungen", () => {
     const wv = { ...basis, art: "wiedervorlage" as const, art_text: "Wiedervorlage", titel: "Zahlungseingang prüfen" };
     expect(faelligeErinnerungen([{ ...wv, in_tagen: 1 }], leer)).toEqual([]);
     expect(faelligeErinnerungen([{ ...wv, in_tagen: -3 }], leer)[0].titel).toBe("Wiedervorlage: Zahlungseingang prüfen");
+  });
+});
+
+describe("diagnoseBericht", () => {
+  it("listet Ergebnisse je Gruppe mit Hinweis, ungeprüfte ausdrücklich", () => {
+    const pruefungen = [
+      { id: "kern", gruppe: "programm", gruppe_titel: "Programm und Daten", titel: "Kern" },
+      { id: "gii", gruppe: "netz", gruppe_titel: "Rechtsquellen im Internet", titel: "Gesetze im Internet" },
+    ];
+    const bericht = diagnoseBericht(
+      pruefungen,
+      {
+        gii: {
+          id: "gii", gruppe: "netz", titel: "Gesetze im Internet", stand: "fehler", meldung: "Keine Verbindung.",
+          details: ["https://www.gesetze-im-internet.de/gii-toc.xml"], hilfe: "Verbindung prüfen.", dauer_ms: 12,
+        },
+      },
+      new Date(2026, 9, 22, 18, 0),
+    );
+    expect(bericht).toContain("## Programm und Daten\n- Kern: nicht geprüft");
+    expect(bericht).toContain("- [FEHLER] Gesetze im Internet: Keine Verbindung.\n    https://www.gesetze-im-internet.de/gii-toc.xml\n    Was tun: Verbindung prüfen.");
   });
 });

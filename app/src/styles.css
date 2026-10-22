@@ -340,7 +340,9 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .markierung { position: absolute; background: rgb(255 214 0 / 45%); outline: 1px solid rgb(230 180 0 / 70%); border-radius: 2px; pointer-events: none; mix-blend-mode: multiply; }
 
 /* Externe KI: abgesetzt, damit klar ist, dass es die Ausnahme ist */
-.modus.extern { color: var(--warnung); font-weight: 600; text-align: left; background: color-mix(in srgb, var(--warnung) 12%, transparent); border: 1px solid var(--warnung); padding: 6px 8px; font-size: 12px; }
+.modus.extern { color: var(--warnung); font-weight: 600; text-align: left; background: color-mix(in srgb, var(--warnung) 12%, transparent); border: 1px solid var(--warnung); padding: 6px 8px; font-size: 12px;
+  /* Längere Anbieternamen umbrechen statt aus der Leiste zu ragen */
+  white-space: normal; width: 100%; box-sizing: border-box; line-height: 1.3; overflow-wrap: anywhere; }
 .ki-zeile.extern { color: var(--warnung); font-weight: 600; }
 .extern-karte { border-style: dashed; }
 .extern-karte.freigegeben { border: 1px solid var(--warnung); border-left-width: 4px; }
@@ -808,3 +810,25 @@ details.kurz-hinweis summary { cursor: pointer; }
 .kachel-fristen .start-frist.abgelaufen .leise, .kachel-fristen .start-frist.heute .leise { color: var(--fehler); }
 .kachel-fristen .start-frist.bald .leise, .kachel-fristen .start-frist.vorfrist .leise { color: var(--warnung); }
 .kacheln .kachel-info { grid-column: 1 / -1; }
+
+/* Diagnose */
+.diagnose { max-width: 900px; }
+.diagnose .aktionen { margin: 12px 0; }
+.diagnose-summe { font-weight: 600; }
+.diagnose-summe.stand-ok { color: var(--gut); }
+.diagnose-summe.stand-warnung { color: var(--warnung); }
+.diagnose-summe.stand-fehler { color: var(--fehler); }
+.diagnose-liste { list-style: none; margin: 0; padding: 0; }
+.diagnose-zeile { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--linie); }
+.diagnose-zeile:first-child { border-top: none; }
+.diagnose-marke { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--linie); }
+.diagnose-zeile.stand-ok .diagnose-marke { background: var(--gut); }
+.diagnose-zeile.stand-warnung .diagnose-marke { background: var(--warnung); }
+.diagnose-zeile.stand-fehler .diagnose-marke { background: var(--fehler); }
+.diagnose-zeile.stand-aus .diagnose-marke { background: transparent; border: 1px solid var(--text-leise); }
+.diagnose-zeile.stand-laeuft .diagnose-marke { background: var(--akzent); animation: diagnose-puls 1s ease-in-out infinite alternate; }
+@keyframes diagnose-puls { from { opacity: .3; } to { opacity: 1; } }
+.diagnose-titel { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.diagnose-hilfe { margin-top: 4px; padding: 6px 8px; border-left: 3px solid var(--warnung); background: color-mix(in srgb, var(--warnung) 8%, transparent); }
+.diagnose-zeile.stand-fehler .diagnose-hilfe { border-left-color: var(--fehler); background: color-mix(in srgb, var(--fehler) 8%, transparent); }
+.diagnose-details { margin: 4px 0 0; padding-left: 16px; overflow-wrap: anywhere; }
