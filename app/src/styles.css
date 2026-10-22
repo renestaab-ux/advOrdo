@@ -313,7 +313,16 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .suche-feld { display: flex; gap: 12px; align-items: center; }
 .suche-feld input[type="search"] { flex: 1; font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 .such-pfeile button:disabled { opacity: 0.4; }
-.such-umfang { font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); max-width: 320px; }
+.akten-wahl { position: relative; width: 320px; max-width: 40%; }
+.akten-wahl-knopf { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); text-align: left; }
+.akten-wahl-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akten-wahl-liste { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; width: max(100%, 420px); max-width: 80vw; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 8px; }
+.akten-wahl-liste input { width: 100%; box-sizing: border-box; padding: 7px 9px; }
+.akten-wahl-liste ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 60vh; overflow-y: auto; }
+.akten-wahl-zeile { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.akten-wahl-zeile[aria-selected="true"] { border-left: 3px solid var(--akzent); }
+.akten-wahl-zeile.markiert { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+.akten-wahl-titel { padding: 8px 8px 2px; font-size: 0.8em; color: var(--text-leise); text-transform: uppercase; letter-spacing: 0.04em; }
 .such-stand { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--text-leise); margin: 10px 0 8px; }
 .such-pfeile { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .such-pfeile button { padding: 2px 10px; }
@@ -340,7 +349,9 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .markierung { position: absolute; background: rgb(255 214 0 / 45%); outline: 1px solid rgb(230 180 0 / 70%); border-radius: 2px; pointer-events: none; mix-blend-mode: multiply; }
 
 /* Externe KI: abgesetzt, damit klar ist, dass es die Ausnahme ist */
-.modus.extern { color: var(--warnung); font-weight: 600; text-align: left; background: color-mix(in srgb, var(--warnung) 12%, transparent); border: 1px solid var(--warnung); padding: 6px 8px; font-size: 12px; }
+.modus.extern { color: var(--warnung); font-weight: 600; text-align: left; background: color-mix(in srgb, var(--warnung) 12%, transparent); border: 1px solid var(--warnung); padding: 6px 8px; font-size: 12px;
+  /* Längere Anbieternamen umbrechen statt aus der Leiste zu ragen */
+  white-space: normal; width: 100%; box-sizing: border-box; line-height: 1.3; overflow-wrap: anywhere; }
 .ki-zeile.extern { color: var(--warnung); font-weight: 600; }
 .extern-karte { border-style: dashed; }
 .extern-karte.freigegeben { border: 1px solid var(--warnung); border-left-width: 4px; }
@@ -526,7 +537,8 @@ input.betrag { text-align: right; }
 .kollision-kurz { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--linie); margin-top: 16px; padding-top: 10px; }
 .kollision-kurz .ampel { margin: 0; }
 input.funktion { font: inherit; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); width: 220px; margin-left: auto; margin-right: 8px; }
-.verzeichnis-filter { display: flex; gap: 8px; margin: 8px 0 12px; max-width: 720px; }
+.verzeichnis-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 12px; max-width: 1100px; }
+.verzeichnis-filter input { min-width: 240px; }
 .verzeichnis-filter input { flex: 1; font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 .verzeichnis-filter select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
@@ -696,7 +708,147 @@ details.kurz-hinweis summary { cursor: pointer; }
 .akte-anlegen-form .feld { display: grid; gap: 4px; }
 .akte-anlegen-form input { font-size: 16px; padding: 8px 12px; }
 .akte-anlegen-form .aktionen { display: flex; flex-wrap: wrap; gap: 10px; }
-.anlegen-schritte { flex: 0 1 320px; margin: 0; padding-left: 22px; display: grid; gap: 12px; color: var(--text-leise); }
+.anlegen-schritte { margin: 0; padding-left: 22px; display: grid; gap: 12px; color: var(--text-leise); }
 .anlegen-schritte li { padding-left: 4px; }
 .anlegen-schritte li span { display: block; font-size: 13px; }
 .anlegen-schritte li.aktiv strong { color: var(--text); }
+
+/* --- Stufe 2: Fristen, Termine, Wiedervorlagen ------------------------------------------------------------------ */
+.klein { font-size: 12px; }
+.hinweis-text { color: var(--warnung); }
+.fristen, .notizen { max-width: 900px; }
+.fristen-kopf { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.fristen-kopf h2 { font-size: 18px; margin: 4px 0; }
+.fristen-kopf .aktionen, .vorschlag .aktionen, .kalender-formular .aktionen, .verfahren-formular .aktionen { display: flex; flex-wrap: wrap; gap: 8px; }
+.art-marke { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .02em; padding: 1px 7px; border-radius: 4px; color: var(--akzent); background: color-mix(in srgb, var(--akzent) 12%, transparent); }
+.art-marke.termin { color: var(--gut); background: color-mix(in srgb, var(--gut) 14%, transparent); }
+.art-marke.wiedervorlage, .art-marke.erledigen { color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 14%, transparent); }
+.beleg { margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--linie); color: var(--text); font-size: 13px; }
+.beleg cite { display: block; margin-top: 4px; font-style: normal; font-size: 12px; color: var(--text-leise); }
+.vorschlaege { max-width: 900px; border-left: 4px solid var(--akzent); }
+.vorschlaege-kopf { display: flex; justify-content: space-between; align-items: center; }
+.vorschlaege-kopf h3, .kalender-formular h3, .aus-dokument h3 { margin: 0; font-size: 16px; }
+.vorschlag-liste { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 14px; }
+.vorschlag { padding-top: 12px; border-top: 1px solid var(--linie); }
+.vorschlag-zeile { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.kalender-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.kalender-eintrag { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; padding: 10px 14px; background: var(--flaeche); border: 1px solid var(--linie); border-left: 4px solid var(--linie); border-radius: 8px; }
+.kalender-eintrag.abgelaufen, .kalender-eintrag.heute { border-left-color: var(--fehler); }
+.kalender-eintrag.vorfrist, .kalender-eintrag.bald { border-left-color: var(--warnung); }
+.kalender-eintrag.offen { border-left-color: var(--akzent); }
+.kalender-eintrag.erledigt { opacity: .75; }
+.kalender-eintrag p { margin: 3px 0 0; }
+.kalender-datum { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.kalender-datum strong { font-size: 14px; }
+.lage-marke { font-size: 12px; color: var(--text-leise); }
+.lage-marke.abgelaufen, .lage-marke.heute { color: var(--fehler); font-weight: 600; }
+.lage-marke.vorfrist, .lage-marke.bald { color: var(--warnung); font-weight: 600; }
+.kalender-aktionen { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.kalender-aktionen button.zweitrangig { padding: 3px 10px; font-size: 13px; }
+@media (max-width: 760px) {
+  .kalender-eintrag { grid-template-columns: 1fr; }
+  .kalender-aktionen { flex-direction: row; align-items: center; }
+}
+.erledigt-liste summary { cursor: pointer; color: var(--text-leise); margin: 8px 0; }
+.kalender-formular { max-width: 900px; }
+.modus-wahl { border: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.modus-wahl legend { padding: 0; margin-bottom: 4px; }
+.modus-wahl label { display: flex; align-items: center; gap: 4px; }
+.dauer { display: flex; gap: 8px; align-items: center; }
+.dauer input[type="number"] { width: 5em; }
+.frist-ergebnis { padding: 8px 12px; border-radius: 6px; background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+.frist-ergebnis strong { font-size: 15px; }
+
+/* Verfahren (Stammdaten) */
+.verfahren-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.verfahren-liste li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--linie); border-radius: 6px; }
+.verfahren-liste li.aktuell { border-left: 4px solid var(--akzent); }
+.verfahren-liste .aktionen { display: flex; gap: 10px; align-items: flex-start; }
+.marke-aktuell { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--akzent); }
+.verfahren-liste .status-marke { margin-left: 8px; }
+
+/* Notizen */
+.notiz-neu { max-width: 900px; }
+.notiz-neu textarea, .notiz textarea { width: 100%; box-sizing: border-box; }
+.notiz-optionen { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 10px; }
+.notiz-optionen label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.notiz-optionen button { margin-left: auto; }
+.notiz-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.notiz { padding: 10px 14px; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; }
+.notiz.angeheftet { border-left: 4px solid var(--warnung); }
+.notiz-text { margin: 0 0 6px; white-space: pre-wrap; }
+.notiz-fuss { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: center; }
+.notiz-fuss .aktionen, .notiz .aktionen { display: flex; gap: 10px; }
+
+/* Akte aus Dokument */
+.akte-anlegen.einspaltig { display: block; }
+.anlegen-seite { flex: 0 1 340px; display: grid; gap: 16px; }
+.aus-dokument-start { margin: 0; display: grid; gap: 8px; justify-items: start; }
+.aus-dokument-start p { margin: 0; font-size: 13px; }
+.aus-dokument-start button { display: inline-flex; align-items: center; gap: 6px; }
+.aus-dokument { max-width: 900px; }
+.aus-dokument .karte { max-width: none; }
+.aus-dokument > .aktionen { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.hinweis-liste { margin: 8px 0; padding-left: 20px; color: var(--warnung); font-size: 13px; }
+.seite-wahl { border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; margin: 14px 0; display: grid; gap: 6px; }
+.seite-wahl legend { font-weight: 600; padding: 0 4px; }
+.seite-wahl label { display: flex; gap: 8px; align-items: baseline; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.seite-wahl label.gewaehlt { background: color-mix(in srgb, var(--akzent) 10%, transparent); }
+.fund { font-size: 11px; font-weight: 400; color: var(--text-leise); border-bottom: 1px dotted var(--text-leise); cursor: help; }
+.rubrum-parteien { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 10px; }
+.rubrum-parteien > li { padding: 10px 12px; border: 1px solid var(--linie); border-radius: 8px; display: grid; gap: 6px; }
+.rubrum-parteien > li.abgewaehlt { opacity: .55; }
+.partei-kopf { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.partei-daten { font-size: 13px; padding-left: 24px; }
+.rolle-marke { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 14%, transparent); }
+.rolle-marke.eigene { color: var(--gut); background: color-mix(in srgb, var(--gut) 14%, transparent); }
+.rolle-marke.gegen { color: var(--fehler); background: color-mix(in srgb, var(--fehler) 12%, transparent); }
+/* Geschäftsführer u. a.: Farbe der Seite ihrer Firma, umrandet statt gefüllt */
+.rolle-marke.funktion.eigene { background: none; border-color: color-mix(in srgb, var(--gut) 60%, transparent); }
+.rolle-marke.funktion.gegen { background: none; border-color: color-mix(in srgb, var(--fehler) 60%, transparent); }
+.treffer-wahl, .bevollmaechtigte { padding-left: 24px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+
+/* Nächste Frist in Übersicht, Akte und Start */
+.naechste-frist { display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; border: none; padding: 0; color: var(--text); font-size: 13px; }
+.naechste-frist .leise { font-size: 12px; }
+.naechste-frist.abgelaufen, .naechste-frist.heute { color: var(--fehler); font-weight: 600; }
+.naechste-frist.vorfrist, .naechste-frist.bald { color: var(--warnung); font-weight: 600; }
+.kopf-frist { background: none; border: none; padding: 0; text-align: left; color: inherit; cursor: pointer; }
+.akte-kopf button.kopf-frist { flex: none; }
+.akte-kopf .akte-kopf-titel { min-width: 140px; }
+.kopf-frist.abgelaufen strong, .kopf-frist.heute strong, .kopf-frist.vorfrist strong, .kopf-frist.bald strong { color: #ffd7a8; }
+.akte-reiter-knopf .anzahl.frist { color: var(--warnung); font-weight: 700; }
+.akte-reiter-knopf .anzahl.frist.abgelaufen, .akte-reiter-knopf .anzahl.frist.heute { color: var(--fehler); }
+.kachel-fristen .start-frist .link { font-weight: 600; }
+.kachel-fristen .start-frist.abgelaufen .leise, .kachel-fristen .start-frist.heute .leise { color: var(--fehler); }
+.kachel-fristen .start-frist.bald .leise, .kachel-fristen .start-frist.vorfrist .leise { color: var(--warnung); }
+.kacheln .kachel-info { grid-column: 1 / -1; }
+
+/* Diagnose */
+.diagnose { max-width: 900px; }
+.diagnose .aktionen { margin: 12px 0; }
+.diagnose-summe { font-weight: 600; }
+.diagnose-summe.stand-ok { color: var(--gut); }
+.diagnose-summe.stand-warnung { color: var(--warnung); }
+.diagnose-summe.stand-fehler { color: var(--fehler); }
+.diagnose-liste { list-style: none; margin: 0; padding: 0; }
+.diagnose-zeile { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--linie); }
+.diagnose-zeile:first-child { border-top: none; }
+.diagnose-marke { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--linie); }
+.diagnose-zeile.stand-ok .diagnose-marke { background: var(--gut); }
+.diagnose-zeile.stand-warnung .diagnose-marke { background: var(--warnung); }
+.diagnose-zeile.stand-fehler .diagnose-marke { background: var(--fehler); }
+.diagnose-zeile.stand-aus .diagnose-marke { background: transparent; border: 1px solid var(--text-leise); }
+.diagnose-zeile.stand-laeuft .diagnose-marke { background: var(--akzent); animation: diagnose-puls 1s ease-in-out infinite alternate; }
+@keyframes diagnose-puls { from { opacity: .3; } to { opacity: 1; } }
+.diagnose-titel { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.diagnose-hilfe { margin-top: 4px; padding: 6px 8px; border-left: 3px solid var(--warnung); background: color-mix(in srgb, var(--warnung) 8%, transparent); }
+.diagnose-zeile.stand-fehler .diagnose-hilfe { border-left-color: var(--fehler); background: color-mix(in srgb, var(--fehler) 8%, transparent); }
+.diagnose-details { margin: 4px 0 0; padding-left: 16px; overflow-wrap: anywhere; }
+
+/* Sortierbare Spaltenköpfe */
+.sortier-kopf { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.sortier-kopf:hover, .sortier-kopf.aktiv { color: var(--text); }
+.sortier-kopf:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; border-radius: 2px; }
+.sortier-pfeil { font-size: 10px; opacity: .45; }
+.sortier-kopf.aktiv .sortier-pfeil { opacity: 1; color: var(--akzent); }

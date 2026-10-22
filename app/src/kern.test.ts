@@ -4,7 +4,14 @@ import {
   FeldDef,
   bearbeitetText,
   zuletztGeoeffnet,
+  abstandText,
+  aktenzeichenSchluessel,
+  sortiert,
+  diagnoseBericht,
+  faelligeErinnerungen,
+  datumLang,
   akteTitel,
+  aktePasst,
   betragAnzeige,
   betragNormalisieren,
   aktiveUmgebung,
@@ -340,5 +347,140 @@ describe("externe Programme und Arbeitskopien", () => {
     expect(offeneUebernahmen(kopien, new Set()).map((k) => k.dokument_id)).toEqual([1]);
     expect(offeneUebernahmen(kopien, new Set(["1|t1"]))).toEqual([]);
     expect(offeneUebernahmen([kopie(1, "geaendert", "t2")], new Set(["1|t1"]))).toHaveLength(1);
+  });
+});
+
+describe("Fristen-Anzeige", () => {
+  it("zeigt Datum mit Wochentag", () => {
+    expect(datumLang("2026-09-29")).toBe("Di, 29.09.2026");
+    expect(datumLang(null)).toBe("–");
+  });
+
+  it("beschreibt den Abstand zum Datum", () => {
+    const e = { art: "frist" as const, erledigt_am: null };
+    expect(abstandText({ ...e, in_tagen: 0 })).toBe("heute");
+    expect(abstandText({ ...e, in_tagen: 1 })).toBe("morgen");
+    expect(abstandText({ ...e, in_tagen: 4 })).toBe("in 4 Tagen");
+    expect(abstandText({ ...e, in_tagen: -1 })).toBe("seit gestern abgelaufen");
+    expect(abstandText({ ...e, art: "termin", in_tagen: -3 })).toBe("seit 3 Tagen vorbei");
+    expect(abstandText({ ...e, in_tagen: 5, erledigt_am: "2026-09-20T10:00:00" })).toBe("erledigt");
+  });
+});
+
+describe("faelligeErinnerungen", () => {
+  const basis = {
+    id: 7,
+    akte_id: 3,
+    verfahren_id: null,
+    art: "frist" as const,
+    art_text: "Frist",
+    titel: "Klageerwiderung",
+    datum: "2026-11-26",
+    uhrzeit: null,
+    ort: null,
+    vorfrist: null,
+    berechnung: null,
+    dokument_id: null,
+    dokument: null,
+    fundstelle: null,
+    notiz: null,
+    erledigt_am: null,
+    erledigt_vermerk: null,
+    in_tagen: 10,
+    lage: "offen" as const,
+    akte: "Weber ./. Brückner",
+    aktenzeichen: "12/26",
+  };
+  const leer = new Set<string>();
+
+  it("erinnert bei Fristen an Vorfrist, Vortag, Ablauf und Überschreitung", () => {
+    expect(faelligeErinnerungen([basis], leer)).toEqual([]);
+    const vorfrist = faelligeErinnerungen([{ ...basis, in_tagen: 5, vorfrist: "2026-11-19", lage: "vorfrist" }], leer);
+    expect(vorfrist[0].titel).toBe("Vorfrist erreicht: Klageerwiderung");
+    expect(vorfrist[0].text).toBe("12/26 Weber ./. Brückner · Frist Do, 26.11.2026");
+    expect(faelligeErinnerungen([{ ...basis, in_tagen: 1, lage: "bald" }], leer)[0].schluessel).toBe("7:morgen:2026-11-26");
+    expect(faelligeErinnerungen([{ ...basis, in_tagen: 0, lage: "heute" }], leer)[0].titel).toBe(
+      "Frist läuft heute ab: Klageerwiderung",
+    );
+    expect(faelligeErinnerungen([{ ...basis, in_tagen: -2, lage: "abgelaufen" }], leer)[0].titel).toBe(
+      "Frist abgelaufen: Klageerwiderung",
+    );
+  });
+
+  it("zeigt jede Stufe nur einmal und lässt erledigte aus", () => {
+    const heute = { ...basis, in_tagen: 0, lage: "heute" as const };
+    expect(faelligeErinnerungen([heute], new Set(["7:heute:2026-11-26"]))).toEqual([]);
+    // Verschobenes Datum: neue Erinnerung.
+    expect(faelligeErinnerungen([{ ...heute, datum: "2026-11-27" }], new Set(["7:heute:2026-11-26"]))).toHaveLength(1);
+    expect(faelligeErinnerungen([{ ...heute, erledigt_am: "2026-11-25T09:00:00" }], leer)).toEqual([]);
+  });
+
+  it("erinnert an Termine am Vortag und am Tag, an Wiedervorlagen ab dem Tag", () => {
+    const termin = { ...basis, art: "termin" as const, art_text: "Termin", titel: "Mündliche Verhandlung", uhrzeit: "10:30", ort: "Saal 2" };
+    expect(faelligeErinnerungen([{ ...termin, in_tagen: 1 }], leer)[0]).toMatchObject({
+      titel: "Termin morgen, 10:30 Uhr: Mündliche Verhandlung",
+      text: "12/26 Weber ./. Brückner · Termin Do, 26.11.2026 · Saal 2",
+    });
+    expect(faelligeErinnerungen([{ ...termin, in_tagen: -1 }], leer)).toEqual([]);
+    const wv = { ...basis, art: "wiedervorlage" as const, art_text: "Wiedervorlage", titel: "Zahlungseingang prüfen" };
+    expect(faelligeErinnerungen([{ ...wv, in_tagen: 1 }], leer)).toEqual([]);
+    expect(faelligeErinnerungen([{ ...wv, in_tagen: -3 }], leer)[0].titel).toBe("Wiedervorlage: Zahlungseingang prüfen");
+  });
+});
+
+describe("diagnoseBericht", () => {
+  it("listet Ergebnisse je Gruppe mit Hinweis, ungeprüfte ausdrücklich", () => {
+    const pruefungen = [
+      { id: "kern", gruppe: "programm", gruppe_titel: "Programm und Daten", titel: "Kern" },
+      { id: "gii", gruppe: "netz", gruppe_titel: "Rechtsquellen im Internet", titel: "Gesetze im Internet" },
+    ];
+    const bericht = diagnoseBericht(
+      pruefungen,
+      {
+        gii: {
+          id: "gii", gruppe: "netz", titel: "Gesetze im Internet", stand: "fehler", meldung: "Keine Verbindung.",
+          details: ["https://www.gesetze-im-internet.de/gii-toc.xml"], hilfe: "Verbindung prüfen.", dauer_ms: 12,
+        },
+      },
+      new Date(2026, 9, 22, 18, 0),
+    );
+    expect(bericht).toContain("## Programm und Daten\n- Kern: nicht geprüft");
+    expect(bericht).toContain("- [FEHLER] Gesetze im Internet: Keine Verbindung.\n    https://www.gesetze-im-internet.de/gii-toc.xml\n    Was tun: Verbindung prüfen.");
+  });
+});
+
+describe("sortiert", () => {
+  const liste = [
+    { az: "10/26", n: 3 },
+    { az: "2/26", n: null },
+    { az: "101/25", n: 1 },
+    { az: null, n: 2 },
+  ];
+  const werte = { az: (x: (typeof liste)[0]) => aktenzeichenSchluessel(x.az), n: (x: (typeof liste)[0]) => x.n };
+  it("sortiert Aktenzeichen nach Jahr und Nummer, leere Werte am Ende", () => {
+    expect(sortiert(liste, { spalte: "az", absteigend: false }, werte).map((x) => x.az)).toEqual(["101/25", "2/26", "10/26", null]);
+    expect(sortiert(liste, { spalte: "az", absteigend: true }, werte).map((x) => x.az)).toEqual(["10/26", "2/26", "101/25", null]);
+  });
+  it("sortiert Zahlen und lässt unbekannte Spalten unverändert", () => {
+    expect(sortiert(liste, { spalte: "n", absteigend: true }, werte).map((x) => x.n)).toEqual([3, 2, 1, null]);
+    expect(sortiert(liste, { spalte: "gibtsnicht", absteigend: false }, werte)).toBe(liste);
+  });
+});
+
+describe("aktePasst", () => {
+  const a = {
+    aktenzeichen: "388/26",
+    name: "Brückner ./. Weber",
+    gegenstand: "Heizungsanlage",
+    mandanten: ["Dr. Lena Brückner"],
+    gegner: ["Weber Haustechnik GmbH"],
+    gerichte: [{ name: "Landgericht Freiburg im Breisgau", aktenzeichen: "2 O 233/26" }],
+  };
+  it("findet nach Aktenzeichen, Partei und Gericht, auch ohne Umlaut und Großschreibung", () => {
+    expect(aktePasst(a, "")).toBe(true);
+    expect(aktePasst(a, "388")).toBe(true);
+    expect(aktePasst(a, "bruckner weber")).toBe(true);
+    expect(aktePasst(a, "2 O 233")).toBe(true);
+    expect(aktePasst(a, "freiburg müller")).toBe(false);
   });
 });

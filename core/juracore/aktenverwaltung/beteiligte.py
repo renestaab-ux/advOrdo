@@ -243,12 +243,20 @@ def _rollen_ergaenzen(con: sqlite3.Connection, eintraege: list[dict]) -> None:
             "gruppe": "gericht" if rolle == "gericht" else seite,
             "rang": list(ROLLEN).index(rolle) if rolle in ROLLEN else 99})
     for z in con.execute(
-        f"""SELECT r.von, r.funktion, o.name FROM beteiligter_beziehung r JOIN beteiligter o ON o.id = r.zu
+        f"""SELECT r.von, r.zu, r.funktion, o.name FROM beteiligter_beziehung r JOIN beteiligter o ON o.id = r.zu
             WHERE r.art = 'gesetzlicher_vertreter' AND r.von IN ({marken})""", ids):
-        rollen[z["von"]].append({"text": f"{z['funktion'] or 'Gesetzlicher Vertreter'} von {z['name']}",
-                                 "gruppe": "funktion", "rang": 100})
+        # Auf welcher Seite die vertretene Organisation in den Akten steht (Mandant, Gegner …), damit man beim
+        # Geschäftsführer sieht, zu wem er gehört.
+        seiten = [ROLLEN[b["rolle"]] for b in con.execute(
+            "SELECT DISTINCT rolle FROM akte_beteiligung WHERE beteiligter_id = ?", (z["zu"],)) if b["rolle"] in ROLLEN]
+        seiten.sort(key=lambda r: list(ROLLEN.values()).index(r))
+        arten = {seite for seite, _ in seiten if seite in ("eigene", "gegen")}
+        zusatz = f" ({', '.join(text for _, text in seiten)})" if seiten else ""
+        rollen[z["von"]].append({"text": f"{z['funktion'] or 'Gesetzlicher Vertreter'} von {z['name']}{zusatz}",
+                                 "gruppe": "funktion", "seite": arten.pop() if len(arten) == 1 else None,
+                                 "rang": 100})
     for e in eintraege:
-        e["rollen"] = [{"text": r["text"], "gruppe": r["gruppe"]}
+        e["rollen"] = [{"text": r["text"], "gruppe": r["gruppe"], "seite": r.get("seite")}
                        for r in sorted(rollen[e["id"]], key=lambda r: (r["rang"], r["text"]))]
 
 

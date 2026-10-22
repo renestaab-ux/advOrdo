@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { DokumentAnsicht, OriginalAnsicht } from "./Akte";
-import { Akte, akteTitel, DokumentInhalt, SuchDokument, SuchErgebnis, SuchFundstelle, fundstelle, istDesktop, kern } from "./kern";
+import AktenWahl from "./AktenWahl";
+import { Akte, DokumentInhalt, SuchDokument, SuchErgebnis, SuchFundstelle, fundstelle, istDesktop, kern } from "./kern";
 
 interface Auswahl {
   dokument: SuchDokument;
@@ -8,19 +9,11 @@ interface Auswahl {
 }
 
 /** Volltextsuche über alle Akten, nach dem Vorbild von „PDF Search“: links die Treffer, rechts das Dokument. */
-export default function Suche({
-  akteId,
-  setAkteId,
-  onAkte,
-}: {
-  akteId: number | null;
-  setAkteId: (id: number) => void;
-  onAkte: (id: number) => void;
-}) {
+export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
   const [eingabe, setEingabe] = useState("");
   const [akten, setAkten] = useState<Akte[]>([]);
-  // Standard ist die gewählte Akte; „Alle Akten“ muss man ausdrücklich wählen.
-  const [alleAkten, setAlleAkten] = useState(false);
+  // Gesucht wird zunächst in allen Akten; null heißt „Alle Akten“.
+  const [akteId, setAkteId] = useState<number | null>(null);
   const [ergebnis, setErgebnis] = useState<SuchErgebnis | null>(null);
   const [zu, setZu] = useState<Set<number>>(new Set());
   const [auswahl, setAuswahl] = useState<Auswahl | null>(null);
@@ -35,7 +28,7 @@ export default function Suche({
       return;
     }
     try {
-      const e = await kern<SuchErgebnis>("akten.suche", { text, akte_id: alleAkten ? null : akteId });
+      const e = await kern<SuchErgebnis>("akten.suche", { text, akte_id: akteId });
       if (nr !== anfrage.current) return; // eine neuere Eingabe ist schon unterwegs
       setFehler(null);
       setErgebnis(e);
@@ -53,16 +46,13 @@ export default function Suche({
     if (!istDesktop) return;
     const t = setTimeout(() => void suchen(eingabe), 250);
     return () => clearTimeout(t);
-  }, [eingabe, alleAkten, akteId]);
+  }, [eingabe, akteId]);
 
-  // Akten für das Auswahlfeld; ohne gewählte Akte gilt die neueste, wie im Bereich Akte.
+  // Akten für die Auswahl „Suchen in“.
   useEffect(() => {
     if (!istDesktop) return;
     kern<Akte[]>("akten.liste")
-      .then((liste) => {
-        setAkten(liste);
-        if (liste.length > 0 && (akteId == null || !liste.some((a) => a.id === akteId))) setAkteId(liste[0].id);
-      })
+      .then(setAkten)
       .catch((f) => setFehler(String(f)));
   }, []);
 
@@ -139,26 +129,7 @@ export default function Suche({
           placeholder="Suchen, z. B. Mechatronik, „Frist bis zum“ oder Nachbesser*"
           aria-label="Suchbegriff"
         />
-        <select
-          className="such-umfang"
-          aria-label="Suchen in"
-          value={alleAkten || akteId == null ? "alle" : String(akteId)}
-          onChange={(e) => {
-            if (e.target.value === "alle") {
-              setAlleAkten(true);
-            } else {
-              setAlleAkten(false);
-              setAkteId(Number(e.target.value));
-            }
-          }}
-        >
-          {akten.map((a) => (
-            <option key={a.id} value={a.id}>
-              Akte: {akteTitel(a)}
-            </option>
-          ))}
-          <option value="alle">Alle Akten</option>
-        </select>
+        <AktenWahl akten={akten} akteId={akteId} onWahl={setAkteId} />
       </form>
       {fehler && <p className="fehler">{fehler}</p>}
       {ergebnis && (

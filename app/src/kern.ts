@@ -116,11 +116,259 @@ export interface Akte {
   geaendert_am: string | null;
   /** Wann die Akte zuletzt geöffnet wurde; für „Zuletzt geöffnet“. */
   geoeffnet_am: string | null;
+  /** Aktuelles Verfahren, z. B. "Klageverfahren, 1. Instanz · Landgericht Freiburg, 2 O 233/26". */
+  verfahren?: string | null;
+  /** Früheste offene Frist, Termin oder Wiedervorlage. */
+  naechste?: Pick<KalenderEintrag, "id" | "art" | "art_text" | "titel" | "datum" | "uhrzeit" | "in_tagen" | "lage"> | null;
+}
+
+// --- Stufe 2: Verfahren, Fristen und Termine, Notizen, Akte aus Dokument --------------------------------
+
+export interface Verfahren {
+  id: number;
+  akte_id: number;
+  art: string;
+  art_text: string;
+  instanz: string | null;
+  gericht: string | null;
+  spruchkoerper: string | null;
+  aktenzeichen: string | null;
+  status: string;
+  beginn: string | null;
+  ende: string | null;
+  notiz: string | null;
+  bezeichnung: string;
+  aktuell: boolean;
+}
+
+/** Fundstelle in einem Dokument: Abschnitt, Seite und der Satz, aus dem ein Vorschlag stammt. */
+export interface Fundstelle {
+  abschnitt: number;
+  seite: number | null;
+  text?: string;
+}
+
+export interface FristBerechnung {
+  bezugstag: string;
+  anzahl: number;
+  einheit: "tage" | "wochen" | "monate" | "jahre";
+  beginn: string;
+  land: string;
+  ende: string;
+  wochentag: string;
+  verschoben: boolean;
+  grund: string;
+  grundlagen: string[];
+  hinweise: string[];
+}
+
+export type KalenderArt = "frist" | "termin" | "wiedervorlage";
+export type KalenderLage = "erledigt" | "abgelaufen" | "heute" | "vorfrist" | "bald" | "offen";
+
+export interface KalenderEintrag {
+  id: number;
+  akte_id: number;
+  verfahren_id: number | null;
+  art: KalenderArt;
+  art_text: string;
+  titel: string;
+  datum: string;
+  uhrzeit: string | null;
+  ort: string | null;
+  vorfrist: string | null;
+  berechnung: FristBerechnung | null;
+  dokument_id: number | null;
+  dokument: string | null;
+  fundstelle: Fundstelle | null;
+  notiz: string | null;
+  erledigt_am: string | null;
+  erledigt_vermerk: string | null;
+  in_tagen: number;
+  lage: KalenderLage;
+  /** Nur in „Nächste Fristen“ über alle Akten. */
+  akte?: string;
+  aktenzeichen?: string | null;
+}
+
+/** Vorschlag aus einem Dokument; "erledigen" schlägt vor, einen eingetragenen Termin als aufgehoben abzuhaken. */
+export interface KalenderVorschlag {
+  art: KalenderArt | "erledigen";
+  titel: string;
+  datum: string | null;
+  uhrzeit?: string;
+  ort?: string;
+  vorfrist?: string;
+  berechnung?: FristBerechnung;
+  dauer?: { anzahl: number; einheit: FristBerechnung["einheit"]; bezug: string };
+  hinweis?: string;
+  eintrag_id?: number;
+  vermerk?: string;
+  fundstelle: Fundstelle & { text: string };
+  bezug_fundstelle?: Fundstelle & { text: string };
+  dokument_id: number;
+  dateiname: string;
+}
+
+export interface Notiz {
+  id: number;
+  akte_id: number;
+  dokument_id: number | null;
+  dokument: string | null;
+  text: string;
+  angeheftet: boolean;
+  angelegt_am: string;
+  geaendert_am: string;
+}
+
+export interface RubrumFeld {
+  wert: string;
+  fundstelle: Fundstelle;
+  /** Beim Mahnbescheid steht statt des Streitwerts die Hauptforderung. */
+  art?: string;
+}
+
+export interface RubrumPartei {
+  index: number;
+  art: "person" | "organisation";
+  name: string;
+  daten: Record<string, string>;
+  vertreter: { funktion: string; name: string; daten: Record<string, string> }[];
+  hinweise: string[];
+  seite: "aktiv" | "passiv";
+  rolle: string;
+  zusatz: string;
+  fundstelle: Fundstelle;
+  treffer: { id: number; name: string; stufe: "gleich" | "aehnlich" }[];
+  eigene_organisation_id: number | null;
+  bevollmaechtigte: {
+    name: string;
+    daten: Record<string, string>;
+    zeichen: string;
+    treffer: { id: number; name: string; stufe: "gleich" | "aehnlich" }[];
+    eigene: boolean;
+  } | null;
+}
+
+export interface RubrumVorschau {
+  dateiname: string;
+  lesart: string;
+  dokumentart: RubrumFeld | null;
+  gericht: (RubrumFeld & { name: string; spruchkoerper: string; anschrift?: { strasse: string; plz: string; ort: string } }) | null;
+  aktenzeichen: RubrumFeld | null;
+  zeichen_absender: RubrumFeld | null;
+  gegenstand: RubrumFeld | null;
+  streitwert: RubrumFeld | null;
+  parteien: RubrumPartei[];
+  verfahren_art: string;
+  kurzbezeichnung: string;
+  eigene_seite: { wert: "aktiv" | "passiv"; grund: string } | null;
+  aktenzeichen_vorschlag: string;
+  hinweise: string[];
+  abschnitte: Record<string, string>;
+}
+
+/** "2026-09-29" → "Di, 29.09.2026". */
+export function datumLang(iso: string | null | undefined): string {
+  if (!iso) return "–";
+  const [j, m, t] = iso.slice(0, 10).split("-").map(Number);
+  const d = new Date(j, m - 1, t);
+  if (Number.isNaN(d.getTime())) return iso;
+  const tag = d.toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "");
+  return `${tag}, ${String(t).padStart(2, "0")}.${String(m).padStart(2, "0")}.${j}`;
+}
+
+/** Wie weit ein Eintrag entfernt ist: "heute", "morgen", "in 4 Tagen", "seit 2 Tagen abgelaufen". */
+export function abstandText(e: Pick<KalenderEintrag, "in_tagen" | "art" | "erledigt_am">): string {
+  if (e.erledigt_am) return "erledigt";
+  const n = e.in_tagen;
+  if (n === 0) return "heute";
+  if (n === 1) return "morgen";
+  if (n > 1) return `in ${n} Tagen`;
+  const wort = e.art === "termin" ? "vorbei" : "abgelaufen";
+  return n === -1 ? `seit gestern ${wort}` : `seit ${-n} Tagen ${wort}`;
+}
+
+/** Eine Erinnerung des Systems an eine Frist, einen Termin oder eine Wiedervorlage. */
+export interface Erinnerung {
+  /** Eintrag, Stufe und Datum: ändert sich das Datum, wird erneut erinnert. */
+  schluessel: string;
+  akte_id: number;
+  titel: string;
+  text: string;
+}
+
+/**
+ * Welche Erinnerungen jetzt fällig und noch nicht gezeigt sind. Fristen: bei erreichter Vorfrist, am Vortag, am
+ * Tag des Ablaufs und einmal, wenn sie abgelaufen sind. Termine: am Vortag und am Tag. Wiedervorlagen: am Tag
+ * (auch nachträglich).
+ */
+export function faelligeErinnerungen(eintraege: KalenderEintrag[], gezeigt: ReadonlySet<string>): Erinnerung[] {
+  const ergebnis: Erinnerung[] = [];
+  for (const e of eintraege) {
+    if (e.erledigt_am) continue;
+    const n = e.in_tagen;
+    let stufe: string | null = null;
+    let titel = "";
+    if (e.art === "frist") {
+      if (n < 0) [stufe, titel] = ["abgelaufen", `Frist abgelaufen: ${e.titel}`];
+      else if (n === 0) [stufe, titel] = ["heute", `Frist läuft heute ab: ${e.titel}`];
+      else if (n === 1) [stufe, titel] = ["morgen", `Frist läuft morgen ab: ${e.titel}`];
+      else if (e.lage === "vorfrist") [stufe, titel] = ["vorfrist", `Vorfrist erreicht: ${e.titel}`];
+    } else if (e.art === "termin") {
+      const zeit = e.uhrzeit ? `, ${e.uhrzeit} Uhr` : "";
+      if (n === 0) [stufe, titel] = ["heute", `Termin heute${zeit}: ${e.titel}`];
+      else if (n === 1) [stufe, titel] = ["morgen", `Termin morgen${zeit}: ${e.titel}`];
+    } else if (n <= 0) {
+      [stufe, titel] = ["faellig", `Wiedervorlage: ${e.titel}`];
+    }
+    if (!stufe) continue;
+    const schluessel = `${e.id}:${stufe}:${e.datum}`;
+    if (gezeigt.has(schluessel)) continue;
+    const akte = [e.aktenzeichen, e.akte].filter(Boolean).join(" ");
+    ergebnis.push({
+      schluessel,
+      akte_id: e.akte_id,
+      titel,
+      text: [akte, `${e.art_text} ${datumLang(e.datum)}`, e.art === "termin" ? e.ort : null].filter(Boolean).join(" · "),
+    });
+  }
+  return ergebnis;
+}
+
+/** Das Land für die Feiertage (§ 193 BGB) wie im Fristenrechner der Toolbox. */
+export function fristenLand(): string {
+  try {
+    return localStorage.getItem("toolbox.land") ?? "BY";
+  } catch {
+    return "BY";
+  }
 }
 
 /** Anzeige einer Akte in Auswahllisten: „12/26 · Brückner ./. Autohaus“; ohne Aktenzeichen nur der Name. */
 export function akteTitel(a: Pick<Akte, "name" | "aktenzeichen">): string {
   return a.aktenzeichen ? `${a.aktenzeichen} · ${a.name}` : a.name;
+}
+
+function einfach(text: string): string {
+  return text.toLocaleLowerCase("de").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * Ob eine Akte zu einer Sucheingabe passt: jedes Wort muss in Aktenzeichen, Kurzbezeichnung, Parteien, Gegenstand,
+ * Gericht oder gerichtlichem Aktenzeichen vorkommen. Groß- und Kleinschreibung und Akzente spielen keine Rolle.
+ */
+export function aktePasst(
+  a: Pick<Akte, "aktenzeichen" | "name" | "gegenstand" | "mandanten" | "gegner" | "gerichte">,
+  suche: string,
+): boolean {
+  const begriffe = einfach(suche).split(/\s+/).filter(Boolean);
+  if (begriffe.length === 0) return true;
+  const text = einfach(
+    [a.aktenzeichen, a.name, a.gegenstand, ...a.mandanten, ...a.gegner, ...a.gerichte.flatMap((g) => [g.name, g.aktenzeichen])]
+      .filter(Boolean)
+      .join(" "),
+  );
+  return begriffe.every((b) => text.includes(b));
 }
 
 /** Die zuletzt geöffneten Akten, neueste zuerst; Akten, die noch nie geöffnet wurden, fehlen. */
@@ -155,7 +403,8 @@ export interface Beteiligter {
   geaendert_am: string;
   stufe?: "gleich" | "aehnlich";
   /** Nur in der Liste: als wer der Eintrag vorkommt, z. B. "Mandant", "Gegner · 2 Akten", "Geschäftsführerin von …". */
-  rollen?: { text: string; gruppe: "eigene" | "gegen" | "gericht" | "neutral" | "funktion" }[];
+  /** Bei Funktionen (Geschäftsführer …) die Seite der vertretenen Organisation, wenn sie eindeutig ist. */
+  rollen?: { text: string; gruppe: "eigene" | "gegen" | "gericht" | "neutral" | "funktion"; seite?: "eigene" | "gegen" | null }[];
   /** Nur in der Liste: an wie vielen Akten beteiligt. */
   akten_anzahl?: number;
   beziehungen?: { von: number; zu: number; art: string; anderer: number; name: string; funktion?: string; text: string }[];
@@ -224,6 +473,9 @@ export interface AktenOptionen {
   beziehungen: Record<string, string>;
   funktionen: string[];
   entscheidungen: Record<string, string>;
+  verfahren_arten: Record<string, string>;
+  instanzen: string[];
+  kalender_arten: Record<KalenderArt, string>;
   form: string | null;
   sachbearbeiter: { id: number; name: string }[];
   konzerngesellschaften: { id: number; name: string }[];
@@ -1259,4 +1511,88 @@ export function startwerte(felder: FeldDef[], gespeichert: Werte | null | undefi
     else werte[f.schluessel] = gespeichert ? "" : (f.vorgabe ?? "");
   }
   return werte;
+}
+
+// ---------------------------------------------------------------- Diagnose
+
+export type DiagnoseStand = "ok" | "warnung" | "fehler" | "aus";
+
+export interface DiagnosePruefung {
+  id: string;
+  gruppe: string;
+  gruppe_titel: string;
+  titel: string;
+}
+
+export interface DiagnoseErgebnis {
+  id: string;
+  gruppe: string;
+  titel: string;
+  stand: DiagnoseStand;
+  meldung: string;
+  details: string[];
+  hilfe: string | null;
+  dauer_ms: number;
+}
+
+/** Klartext-Bericht zum Weitergeben; enthält nur die Prüfergebnisse, keine Dokumentinhalte. */
+export function diagnoseBericht(
+  pruefungen: DiagnosePruefung[],
+  ergebnisse: Record<string, DiagnoseErgebnis>,
+  zeitpunkt: Date,
+): string {
+  const zeichen: Record<DiagnoseStand, string> = { ok: "OK", warnung: "HINWEIS", fehler: "FEHLER", aus: "AUS" };
+  const zeilen = [`JuraBox-Diagnose vom ${zeitpunkt.toLocaleString("de-DE")}`];
+  let gruppe = "";
+  for (const p of pruefungen) {
+    if (p.gruppe_titel !== gruppe) {
+      gruppe = p.gruppe_titel;
+      zeilen.push("", `## ${gruppe}`);
+    }
+    const e = ergebnisse[p.id];
+    if (!e) {
+      zeilen.push(`- ${p.titel}: nicht geprüft`);
+      continue;
+    }
+    zeilen.push(`- [${zeichen[e.stand]}] ${p.titel}: ${e.meldung}`);
+    for (const d of e.details) zeilen.push(`    ${d}`);
+    if (e.hilfe) zeilen.push(`    Was tun: ${e.hilfe}`);
+  }
+  return zeilen.join("\n");
+}
+
+// ---------------------------------------------------------------- Sortieren von Tabellen
+
+export interface Sortierung {
+  spalte: string;
+  absteigend: boolean;
+}
+
+type SortWert = string | number | null | undefined;
+
+/**
+ * Sortiert nach einer Spalte; Texte deutsch und mit Zahlen in natürlicher Reihenfolge („2 O“ vor „10 O“).
+ * Leere Werte stehen immer am Ende, auch bei absteigender Sortierung.
+ */
+export function sortiert<T>(liste: T[], s: Sortierung, werte: Record<string, (x: T) => SortWert>): T[] {
+  const wert = werte[s.spalte];
+  if (!wert) return liste;
+  const leer = (v: SortWert) => v == null || v === "";
+  return [...liste].sort((a, b) => {
+    const x = wert(a);
+    const y = wert(b);
+    if (leer(x) || leer(y)) return leer(x) === leer(y) ? 0 : leer(x) ? 1 : -1;
+    const c =
+      typeof x === "number" && typeof y === "number"
+        ? x - y
+        : String(x).localeCompare(String(y), "de", { numeric: true, sensitivity: "base" });
+    return s.absteigend ? -c : c;
+  });
+}
+
+/** Sortierschlüssel für eigene Aktenzeichen Nummer/Jahr („102/26 RS“): erst das Jahr, dann die Nummer. */
+export function aktenzeichenSchluessel(az: string | null | undefined): string | null {
+  if (!az) return null;
+  const m = /^(\d+)\s*\/\s*(\d{2,4})/.exec(az.trim());
+  return m ? `${m[2].slice(-2)}-${m[1].padStart(6, "0")}` : az;
 }

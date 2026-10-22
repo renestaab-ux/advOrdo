@@ -85,7 +85,7 @@ def test_neuris_treffer_und_volltext():
     t = treffer[0]
     assert (t["doknr"], t["gericht"], t["datum"], t["aktenzeichen"], t["link"]) == (
         "KORE999992026", "BGH", "2026-06-01", "VIII ZR 11/26",
-        "https://testphase.rechtsinformationen.bund.de/case-law/KORE999992026")
+        "https://testphase.rechtsinformationen.bund.de/v1/rechtsprechung/KORE999992026.html")
     v = neuris.lies((FIXTURES / "neuris_volltext_auszug.html").read_bytes(), t)
     assert (v.gericht, v.spruchkoerper, v.aktenzeichen, v.doktyp) == ("BGH", "8. Zivilsenat", "VIII ZR 11/26", "Urteil")
     assert [(a.teil, a.rn, a.text) for a in v.absaetze] == [

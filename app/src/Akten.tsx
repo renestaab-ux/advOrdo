@@ -2,25 +2,39 @@ import { Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useRef, us
 import Akte, { AkteReiter, Rueckfrage } from "./Akte";
 import AkteStammdaten from "./AkteStammdaten";
 import Analyse from "./Analyse";
+import AusDokument from "./AusDokument";
+import Fristen from "./Fristen";
+import Notizen from "./Notizen";
 import Zeichen, { SymbolName } from "./Symbole";
 import Vergleich from "./Vergleich";
+import VerfahrenKarte from "./Verfahren";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   Akte as AkteTyp,
   AktenOptionen,
   Loeschergebnis,
+  RubrumVorschau,
+  abstandText,
+  aktenzeichenSchluessel,
   akteTitel,
+  aktePasst,
+  datumLang,
   bearbeitetText,
   istDesktop,
   kern,
+  sortiert,
   zuletztGeoeffnet,
 } from "./kern";
+import { SortKopf, useSortierung } from "./Sortierung";
 
-/** Reiter einer geöffneten Akte; „stammdaten“ öffnet der Knopf im Kopf. Notizen und Fristen folgen in Stufe 2. */
-type Reiter = AkteReiter | "beteiligte" | "vergleich" | "analyse" | "stammdaten";
+/** Reiter einer geöffneten Akte; „stammdaten“ öffnet der Knopf im Kopf. */
+export type Reiter = AkteReiter | "beteiligte" | "fristen" | "notizen" | "vergleich" | "analyse" | "stammdaten";
 
 const REITER: { id: Reiter; titel: string; symbol: SymbolName }[] = [
   { id: "dokumente", titel: "Dokumente", symbol: "dokumente" },
   { id: "beteiligte", titel: "Beteiligte", symbol: "beteiligte" },
+  { id: "fristen", titel: "Fristen", symbol: "fristen" },
+  { id: "notizen", titel: "Notizen", symbol: "notizen" },
   { id: "vergleich", titel: "Vergleich", symbol: "vergleich" },
   { id: "analyse", titel: "Analyse", symbol: "analyse" },
   { id: "normen", titel: "Normen", symbol: "gesetze" },
@@ -29,19 +43,6 @@ const REITER: { id: Reiter; titel: string; symbol: SymbolName }[] = [
 ];
 
 /** Kleinschreibung ohne Akzente, damit „bruckner“ auch „Brückner“ findet. */
-function einfach(text: string): string {
-  return text.toLocaleLowerCase("de").normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
-
-/** Alles, wonach die Aktenübersicht sucht: Aktenzeichen, Kurzbezeichnung, Parteien, Gegenstand, Gericht und gerichtl. Az. */
-function suchtext(a: AkteTyp): string {
-  return einfach(
-    [a.aktenzeichen, a.name, a.gegenstand, ...a.mandanten, ...a.gegner, ...a.gerichte.flatMap((g) => [g.name, g.aktenzeichen])]
-      .filter(Boolean)
-      .join(" "),
-  );
-}
-
 const bearbeitet = (a: AkteTyp) => a.geaendert_am ?? a.angelegt_am;
 
 /**
@@ -53,9 +54,12 @@ export default function Akten({
   anlegen,
   onAnlegen,
   onEinstellungen,
+  reiterWunsch,
 }: {
   akteId: number | null;
   setAkteId: Dispatch<SetStateAction<number | null>>;
+  /** Mit welchem Reiter eine von außen geöffnete Akte startet (z. B. „fristen“ aus „Nächste Fristen“). */
+  reiterWunsch?: { reiter: Reiter } | null;
   /** „Akte anlegen“ (Startseite oder „+ Neue Akte“): statt der Übersicht der Anlegeprozess. */
   anlegen: boolean;
   onAnlegen: (an: boolean) => void;
@@ -64,6 +68,9 @@ export default function Akten({
   const [akten, setAkten] = useState<AkteTyp[] | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [reiter, setReiter] = useState<Reiter>("dokumente");
+  useEffect(() => {
+    if (reiterWunsch) setReiter(reiterWunsch.reiter);
+  }, [reiterWunsch]);
 
   const laden = useCallback(async () => {
     try {
@@ -124,11 +131,12 @@ export default function Akten({
     return (
       <AkteAnlegen
         onAbbrechen={() => onAnlegen(false)}
-        onAngelegt={async (id) => {
+        onAngelegt={async (id, start) => {
           await laden();
           onAnlegen(false);
           // Eine neue Akte braucht zuerst ihre Stammdaten, danach Mandant und Gegner (mit Kollisionsprüfung).
-          oeffnen(id, "stammdaten");
+          // Aus einem Dokument sind beide schon ausgefüllt; dann gleich die Beteiligten mit der Kollisionsprüfung.
+          oeffnen(id, start ?? "stammdaten");
         }}
       />
     );
@@ -146,8 +154,15 @@ const SCHRITTE = [
 ] as const;
 
 /** Erster Schritt einer neuen Akte als eigene Seite; danach geht es in der Akte mit Stammdaten und Beteiligten weiter. */
-function AkteAnlegen({ onAbbrechen, onAngelegt }: { onAbbrechen: () => void; onAngelegt: (id: number) => Promise<void> }) {
+function AkteAnlegen({
+  onAbbrechen,
+  onAngelegt,
+}: {
+  onAbbrechen: () => void;
+  onAngelegt: (id: number, reiter?: Reiter) => Promise<void>;
+}) {
   const [name, setName] = useState("");
+  const [ausDokument, setAusDokument] = useState<{ pfad: string; vorschau: RubrumVorschau } | null>(null);
   const [az, setAz] = useState("");
   const [azVorschlag, setAzVorschlag] = useState("");
   const [laeuft, setLaeuft] = useState(false);
@@ -156,6 +171,25 @@ function AkteAnlegen({ onAbbrechen, onAngelegt }: { onAbbrechen: () => void; onA
   useEffect(() => {
     void kern<{ aktenzeichen: string }>("akten.aktenzeichen_vorschlag").then((v) => setAzVorschlag(v.aktenzeichen), () => undefined);
   }, []);
+
+  async function dokumentWaehlen() {
+    const pfad = await open({
+      title: "Dokument mit Rubrum wählen (Klage, Mahnbescheid, Verfügung …)",
+      multiple: false,
+      directory: false,
+      filters: [{ name: "Dokumente", extensions: ["pdf", "docx", "txt", "md"] }],
+    });
+    if (typeof pfad !== "string") return;
+    setLaeuft(true);
+    setFehler(null);
+    try {
+      setAusDokument({ pfad, vorschau: await kern<RubrumVorschau>("akten.rubrum_lesen", { pfad }) });
+    } catch (f) {
+      setFehler(String(f));
+    } finally {
+      setLaeuft(false);
+    }
+  }
 
   async function abschicken(e: FormEvent) {
     e.preventDefault();
@@ -178,10 +212,20 @@ function AkteAnlegen({ onAbbrechen, onAngelegt }: { onAbbrechen: () => void; onA
           <Zeichen name="zurueck" groesse={16} /> Akten
         </button>
         <div className="akte-kopf-titel">
-          <p className="kopfband-ueber">Schritt 1 von 3</p>
+          <p className="kopfband-ueber">{ausDokument ? "Aus Dokument" : "Schritt 1 von 3"}</p>
           <h1>Neue Akte anlegen</h1>
         </div>
       </header>
+      {ausDokument ? (
+        <div className="akte-anlegen einspaltig">
+          <AusDokument
+            pfad={ausDokument.pfad}
+            vorschau={ausDokument.vorschau}
+            onAbbrechen={() => setAusDokument(null)}
+            onAngelegt={(id) => onAngelegt(id, "beteiligte")}
+          />
+        </div>
+      ) : (
       <div className="akte-anlegen">
         <form className="karte akte-anlegen-form" onSubmit={abschicken}>
           <label className="feld">
@@ -215,15 +259,28 @@ function AkteAnlegen({ onAbbrechen, onAngelegt }: { onAbbrechen: () => void; onA
           </span>
           {fehler && <p className="fehler">{fehler}</p>}
         </form>
-        <ol className="anlegen-schritte">
-          {SCHRITTE.map(([titel, text], i) => (
-            <li key={titel} className={i === 0 ? "aktiv" : undefined}>
-              <strong>{titel}</strong>
-              <span className="leise">{text}</span>
-            </li>
-          ))}
-        </ol>
+        <div className="anlegen-seite">
+          <ol className="anlegen-schritte">
+            {SCHRITTE.map(([titel, text], i) => (
+              <li key={titel} className={i === 0 ? "aktiv" : undefined}>
+                <strong>{titel}</strong>
+                <span className="leise">{text}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="karte aus-dokument-start">
+            <strong>Oder aus einem Dokument</strong>
+            <p className="leise">
+              Klage, Anspruchsbegründung, Mahnbescheid oder Verfügung wählen: JuraBox liest Gericht, Aktenzeichen,
+              Parteien und Gegenstand aus dem Rubrum und zeigt alles mit Fundstelle zur Prüfung.
+            </p>
+            <button className="zweitrangig" onClick={dokumentWaehlen} disabled={laeuft}>
+              <Zeichen name="dokumentLesen" groesse={16} /> Dokument wählen …
+            </button>
+          </div>
+        </div>
       </div>
+      )}
     </div>
   );
 }
@@ -246,26 +303,47 @@ function AktenUebersicht({
   const [status, setStatus] = useState<string | null>("laufend");
   const [sachgebiet, setSachgebiet] = useState("");
   const [sachbearbeiter, setSachbearbeiter] = useState("");
+  const [bald, setBald] = useState(false);
+  const [gericht, setGericht] = useState("");
+  const [sortierung, sortieren] = useSortierung("akten.sortierung", { spalte: "bearbeitet", absteigend: true });
 
   useEffect(() => {
     void kern<AktenOptionen>("akten.optionen").then(setOptionen, () => setOptionen(null));
   }, []);
 
   const alle = akten ?? [];
-  const begriffe = einfach(suche).split(/\s+/).filter(Boolean);
   // Status zählt innerhalb der übrigen Filter, damit die Zahlen zu dem passen, was ein Klick zeigt.
   const vorStatus = alle.filter(
     (a) =>
       (!sachgebiet || a.sachgebiet === sachgebiet) &&
       (!sachbearbeiter || String(a.sachbearbeiter_id ?? "") === sachbearbeiter) &&
-      begriffe.every((b) => suchtext(a).includes(b)),
+      (!bald || fristBald(a)) &&
+      (!gericht || a.gerichte.some((g) => g.name === gericht)) &&
+      aktePasst(a, suche),
   );
-  const sichtbar = vorStatus
-    .filter((a) => status == null || a.status === status)
-    .sort((a, b) => bearbeitet(b).localeCompare(bearbeitet(a)));
+  const statusRang = Object.keys(optionen?.status ?? {});
+  const sichtbar = sortiert(
+    vorStatus.filter((a) => status == null || a.status === status),
+    sortierung,
+    {
+      az: (a) => aktenzeichenSchluessel(a.aktenzeichen),
+      name: (a) => a.name,
+      mandant: (a) => a.mandanten.join(", "),
+      gegner: (a) => a.gegner.join(", "),
+      gegenstand: (a) => a.gegenstand,
+      gericht: (a) => a.gerichte[0]?.name,
+      frist: (a) => a.naechste?.datum,
+      status: (a) => statusRang.indexOf(a.status),
+      bearbeitet: (a) => bearbeitet(a),
+    },
+  );
   const zaehlung = (s: string) => vorStatus.filter((a) => a.status === s).length;
+  const baldAnzahl = alle.filter(fristBald).length;
   const zuletzt = zuletztGeoeffnet(alle, 4);
   const sachgebiete = [...new Set(alle.map((a) => a.sachgebiet).filter((s): s is string => !!s))].sort();
+  const gerichte = [...new Set(alle.flatMap((a) => a.gerichte.map((g) => g.name)).filter(Boolean))].sort((x, y) =>
+    x.localeCompare(y, "de"),
+  );
 
   return (
     <div className="akten-uebersicht">
@@ -303,6 +381,14 @@ function AktenUebersicht({
         <button className={status == null ? "chip aktiv" : "chip"} aria-pressed={status == null} onClick={() => setStatus(null)}>
           Alle ({vorStatus.length})
         </button>
+        <button
+          className={bald ? "chip aktiv frist-chip" : "chip frist-chip"}
+          aria-pressed={bald}
+          onClick={() => setBald(!bald)}
+          title="Akten mit einer offenen Frist, einem Termin oder einer Wiedervorlage in den nächsten 7 Tagen (auch abgelaufene)"
+        >
+          Frist in 7 Tagen ({baldAnzahl})
+        </button>
         <select value={sachgebiet} onChange={(e) => setSachgebiet(e.target.value)} aria-label="Sachgebiet">
           <option value="">Sachgebiet: alle</option>
           {sachgebiete.map((s) => (
@@ -319,7 +405,14 @@ function AktenUebersicht({
             ))}
           </select>
         )}
-        <span className="leise rechts">Sortiert nach: zuletzt bearbeitet</span>
+        {gerichte.length > 0 && (
+          <select value={gericht} onChange={(e) => setGericht(e.target.value)} aria-label="Gericht">
+            <option value="">Gericht: alle</option>
+            {gerichte.map((g) => (
+              <option key={g}>{g}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {zuletzt.length > 0 && !suche.trim() && (
@@ -347,14 +440,21 @@ function AktenUebersicht({
         <table className="dokumente akten-tabelle">
           <thead>
             <tr>
-              <th>Az.</th>
-              <th>Kurzbezeichnung</th>
-              <th>Mandant</th>
-              <th>Gegner</th>
-              <th>Gegenstand</th>
-              <th>Gericht · Az.</th>
-              <th>Status</th>
-              <th>Bearbeitet</th>
+              {(
+                [
+                  ["az", "Az."],
+                  ["name", "Kurzbezeichnung"],
+                  ["mandant", "Mandant"],
+                  ["gegner", "Gegner"],
+                  ["gegenstand", "Gegenstand"],
+                  ["gericht", "Gericht · Az."],
+                  ["frist", "Nächste Frist"],
+                  ["status", "Status"],
+                  ["bearbeitet", "Bearbeitet"],
+                ] as const
+              ).map(([k, t]) => (
+                <SortKopf key={k} spalte={k} titel={t} sortierung={sortierung} onSortieren={sortieren} />
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -394,6 +494,25 @@ function AktenUebersicht({
                   )}
                 </td>
                 <td>
+                  {a.naechste ? (
+                    <button
+                      className={`naechste-frist ${a.naechste.lage}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOeffnen(a.id, "fristen");
+                      }}
+                      title={`${a.naechste.art_text}: ${a.naechste.titel}`}
+                    >
+                      {datumLang(a.naechste.datum)}
+                      <span className="leise">
+                        {a.naechste.titel} · {abstandText({ ...a.naechste, erledigt_am: null })}
+                      </span>
+                    </button>
+                  ) : (
+                    <span className="leise">–</span>
+                  )}
+                </td>
+                <td>
                   <span className={`status-marke ${a.status}`}>{optionen?.status[a.status] ?? a.status}</span>
                 </td>
                 <td className="leise">{bearbeitetText(bearbeitet(a))}</td>
@@ -412,6 +531,9 @@ function AktenUebersicht({
     </div>
   );
 }
+
+/** Offene Frist, Termin oder Wiedervorlage in den nächsten 7 Tagen oder schon abgelaufen. */
+const fristBald = (a: AkteTyp) => !!a.naechste && a.naechste.in_tagen <= 7;
 
 /** Mehrere Mandanten oder Gegner: der erste und „u. a.“, alle im Tooltip. */
 function namen(liste: string[]) {
@@ -471,14 +593,34 @@ function AkteRahmen({
           </p>
           <h1>{akte.name}</h1>
         </div>
-        {gericht && (
+        {akte.verfahren ? (
           <div className="akte-kopf-angabe">
-            <p className="kopfband-ueber">Gericht</p>
-            <strong>
-              {gericht.name}
-              {gericht.aktenzeichen && ` · ${gericht.aktenzeichen}`}
-            </strong>
+            <p className="kopfband-ueber">Verfahren</p>
+            <strong title={akte.verfahren}>{akte.verfahren}</strong>
           </div>
+        ) : (
+          gericht && (
+            <div className="akte-kopf-angabe">
+              <p className="kopfband-ueber">Gericht</p>
+              <strong>
+                {gericht.name}
+                {gericht.aktenzeichen && ` · ${gericht.aktenzeichen}`}
+              </strong>
+            </div>
+          )
+        )}
+        {akte.naechste && (
+          <button
+            className={`akte-kopf-angabe kopf-frist ${akte.naechste.lage}`}
+            onClick={() => onReiter("fristen")}
+            title="Zu den Fristen"
+          >
+            <p className="kopfband-ueber">Nächste {akte.naechste.art_text}</p>
+            <strong title={`${akte.naechste.titel}: ${abstandText({ ...akte.naechste, erledigt_am: null })}`}>
+              {datumLang(akte.naechste.datum)}
+              {akte.naechste.in_tagen < 0 ? " · abgelaufen" : akte.naechste.in_tagen <= 7 ? ` · ${abstandText({ ...akte.naechste, erledigt_am: null })}` : ""}
+            </strong>
+          </button>
         )}
         {akte.mandanten.length > 0 && (
           <div className="akte-kopf-angabe">
@@ -509,6 +651,11 @@ function AkteRahmen({
             <Zeichen name={r.symbol} groesse={16} />
             {r.titel}
             {r.id === "dokumente" && <span className="anzahl">{akte.dokumente}</span>}
+            {r.id === "fristen" && akte.naechste && akte.naechste.in_tagen <= 7 && (
+              <span className={`anzahl frist ${akte.naechste.lage}`} title="Frist, Termin oder Wiedervorlage in den nächsten 7 Tagen">
+                !
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -537,6 +684,9 @@ function AkteRahmen({
             onEntfernen={() => setLoeschfrage(true)}
           />
         )}
+        {reiter === "stammdaten" && <VerfahrenKarte key={`v${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
+        {reiter === "fristen" && <Fristen key={`f${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
+        {reiter === "notizen" && <Notizen key={`n${akte.id}`} akteId={akte.id} />}
         {reiter === "beteiligte" && (
           <AkteStammdaten key={`b${akte.id}`} akteId={akte.id} teil="beteiligte" onGeaendert={onGeaendert} />
         )}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import Akten from "./Akten";
+import Akten, { Reiter } from "./Akten";
 import EigeneDaten from "./EigeneDaten";
+import Diagnose from "./Diagnose";
 import Einstellungen from "./Einstellungen";
 import Gesetze from "./Gesetze";
 import Rechtsprechung from "./Rechtsprechung";
@@ -11,10 +12,11 @@ import Toolbox from "./Toolbox";
 import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
+import { useErinnerungen } from "./erinnerungen";
 import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
-type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
+type Bereich = "start" | "eigene" | "toolbox" | "diagnose" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
 
 // Vergleich und Analyse sind Reiter in der geöffneten Akte; die Toolbox und Eigene Daten erreicht man über Start.
 const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
@@ -54,17 +56,21 @@ export default function App() {
     }
   }
   const umgebung = aktiveUmgebung(umgebungen);
+  // Mitteilungen des Systems bei Vorfrist, Ablauf und Terminen, solange die App läuft.
+  useErinnerungen(umgebungen ? umgebungen.aktiv : undefined);
   // „Akte anlegen“ (Startbildschirm oder „+ Neue Akte“): eigene Seite für den Anlegeprozess.
   const [anlegen, setAnlegen] = useState(false);
+  const [reiterWunsch, setReiterWunsch] = useState<{ reiter: Reiter } | null>(null);
 
   function einklappen() {
     setEingeklappt(!eingeklappt);
     merke(EINGEKLAPPT_SCHLUESSEL, !eingeklappt);
   }
 
-  function oeffneAkte(id: number | null) {
+  function oeffneAkte(id: number | null, reiter?: Reiter) {
     setAnlegen(false);
     setAkteId(id);
+    setReiterWunsch(reiter ? { reiter } : null);
     setBereich("akten");
   }
 
@@ -95,7 +101,7 @@ export default function App() {
         {BEREICHE.map((b) => (
           <button
             key={b.id}
-            className={b.id === bereich ? "nav-eintrag aktiv" : "nav-eintrag"}
+            className={b.id === bereich || (b.id === "einstellungen" && bereich === "diagnose") ? "nav-eintrag aktiv" : "nav-eintrag"}
             aria-current={b.id === bereich ? "page" : undefined}
             onClick={() => {
               // „Akten“ in der Leiste führt immer zur Übersicht, auch aus einer geöffneten Akte.
@@ -119,12 +125,12 @@ export default function App() {
               title="Analyse und Chat senden Fragen und Dokumenttexte an diesen Anbieter. Umstellen unter „Einstellungen“."
             >
               <span className="modus-punkt" aria-hidden />
-              <span className="nav-text">Modus: Externer Anbieter ({modus.titel})</span>
+              <span className="nav-text">KI-Modus: Externer Anbieter ({modus.titel})</span>
             </button>
           ) : (
-            <div className="modus" title="Modus: nur lokal. Dokumentinhalte verlassen dieses Gerät nicht.">
+            <div className="modus" title="KI-Modus: nur lokal. Das Sprachmodell läuft auf diesem Gerät; Dokumentinhalte verlassen es nicht.">
               <span className="modus-punkt" aria-hidden />
-              <span className="nav-text">Modus: nur lokal</span>
+              <span className="nav-text">KI-Modus: nur lokal</span>
             </div>
           )}
           {umgebung && (
@@ -166,10 +172,11 @@ export default function App() {
             onAnlegen={setAnlegen}
             akteId={akteId}
             setAkteId={setAkteId}
+            reiterWunsch={reiterWunsch}
             onEinstellungen={() => setBereich("einstellungen")}
           />
         )}
-        {bereich === "suche" && <Suche akteId={akteId} setAkteId={setAkteId} onAkte={oeffneAkte} />}
+        {bereich === "suche" && <Suche onAkte={oeffneAkte} />}
         {bereich === "beteiligte" && <Beteiligte onAkte={oeffneAkte} />}
         {bereich === "gesetze" && <Gesetze />}
         {bereich === "rechtsprechung" && <Rechtsprechung onAkte={() => setBereich("akten")} />}
@@ -179,8 +186,10 @@ export default function App() {
             umgebungen={umgebungen}
             onUmgebungen={umgebungGeaendert}
             onEigeneDaten={() => setBereich("eigene")}
+            onDiagnose={() => setBereich("diagnose")}
           />
         )}
+        {bereich === "diagnose" && <Diagnose onZurueck={() => setBereich("einstellungen")} />}
       </main>
     </div>
   );

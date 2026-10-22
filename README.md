@@ -164,9 +164,11 @@ Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern aus JuraBox Lite. G
 ## Akten: Übersicht und geöffnete Akte
 
 Der Bereich **Akten** zeigt zuerst die **Aktenübersicht**: Suche über Aktenzeichen, Kurzbezeichnung, Mandant, Gegner,
-Gegenstand, Gericht und gerichtliches Aktenzeichen; Filter nach Status (Vorgabe: laufend), Sachgebiet und
-Sachbearbeiter; darüber die zuletzt geöffneten Akten. Die Tabelle ist nach „zuletzt bearbeitet“ sortiert; Öffnen
-allein zählt nicht als Bearbeiten. Akten ohne Aktenzeichen tragen die Marke **Aktenzeichen fehlt**; ein Klick darauf
+Gegenstand, Gericht und gerichtliches Aktenzeichen; Filter nach Status (Vorgabe: laufend), Frist, Sachgebiet,
+Sachbearbeiter und Gericht; darüber die zuletzt geöffneten Akten. Ein Klick auf einen Spaltenkopf sortiert, ein
+zweiter kehrt die Reihenfolge um; die Wahl bleibt gespeichert (Vorgabe: zuletzt bearbeitet, Öffnen allein zählt
+nicht als Bearbeiten; Aktenzeichen nach Jahr und Nummer). Das Beteiligtenverzeichnis lässt sich ebenso sortieren
+und nach Art, Kategorie und Rolle filtern (Geschäftsführer zählen zur Seite ihrer Firma). Akten ohne Aktenzeichen tragen die Marke **Aktenzeichen fehlt**; ein Klick darauf
 öffnet die Stammdaten. **+ Neue Akte** (wie die Kachel „Akte anlegen“ auf der
 Startseite) öffnet eine eigene Seite: Kurzbezeichnung und Aktenzeichen (leer: Vorschlag), danach geht es mit den
 Stammdaten und den Beteiligten der neuen Akte weiter.
@@ -300,6 +302,36 @@ Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1. In der Akte öffnen **St
   durchsucht die App mit, aber nur lesend, etwa bei Doppelzulassung; Testumgebungen lassen sich unter Einstellungen
   ausnehmen. Ob ein Konflikt besteht, entscheidet der Anwalt; Prüfung, Treffer und Entscheidung mit Begründung
   bleiben in der Akte dokumentiert.
+
+### Verfahren, Fristen, Notizen und Akte aus Dokument (Stufe 2)
+
+- **Verfahren** (unter Stammdaten): Mahnverfahren, Klageverfahren, Berufung, einstweiliger Rechtsschutz usw. mit
+  **Instanz**, Gericht, Spruchkörper und gerichtlichem Aktenzeichen. Eine Akte kann mehrere Verfahren nacheinander
+  haben; das jüngste laufende steht im Kopf der Akte und in der Übersicht. Das Gericht wird dabei auch als
+  Beteiligter (Rolle Gericht, mit Aktenzeichen) eingetragen.
+- Reiter **Fristen**: Fristen, Termine und Wiedervorlagen. Fristen rechnet der Fristenrechner der Toolbox (§§ 187, 188,
+  193 BGB, Feiertage des dort gewählten Landes) aus Bezugstag und Dauer; die Berechnung bleibt beim Eintrag sichtbar.
+  Dazu Vorfrist, Verfahren und Notiz; erledigte Einträge bleiben nachvollziehbar.
+  **Vorschläge aus Dokumenten** sucht in den Dokumenten der Akte nach Fristen („binnen vier Wochen nach Zustellung“,
+  berechnet ab einem „zugestellt am …“ im Dokument), Terminen mit Uhrzeit und Saal und aufgehobenen Terminen. Jeder
+  Vorschlag zeigt den Satz mit Fundstelle und wird erst nach Prüfung eingetragen; er ersetzt nicht die eigene
+  Fristenkontrolle.
+- **Nächste Fristen**: auf der Startseite die offenen Einträge der nächsten 14 Tage aus allen Akten (abgelaufene
+  zuerst), in der Aktenübersicht die Spalte „Nächste Frist“ und der Filter „Frist in 7 Tagen“, im Kopf der Akte die
+  nächste Frist.
+- **Erinnerungen**: Solange JuraBox läuft, meldet das Betriebssystem fällige Fristen (bei erreichter Vorfrist, am
+  Vortag, am Tag des Ablaufs, einmal nach Ablauf), Termine (Vortag und Tag) und Wiedervorlagen, beim Start und dann
+  alle zehn Minuten; jede Stufe nur einmal. Beim ersten Mal fragt das System, ob JuraBox Mitteilungen zeigen darf.
+  Abschalten und Probe-Erinnerung unter Einstellungen → Akten. Ist die App geschlossen, erinnert sie nicht.
+- Reiter **Notizen**: kurze Vermerke zur Akte oder zu einem Dokument, wichtige oben angeheftet.
+- **Akte aus Dokument**: Beim Anlegen ein Dokument wählen (Klage, Anspruchsbegründung, Mahnbescheid, Verfügung). Die
+  App liest Gericht, Aktenzeichen, Parteien mit Anschrift und gesetzlichem Vertreter, Prozessbevollmächtigte,
+  Gegenstand und Streitwert aus dem Rubrum und zeigt alles mit Fundstelle zur Prüfung, dazu vorhandene Einträge im
+  Beteiligtenverzeichnis. Welche Seite wir vertreten, leitet sie aus „Eigene Daten“ ab (eigene Kanzlei als
+  Prozessbevollmächtigte, Konzerngesellschaft als Partei) oder fragt. Erst „Akte anlegen“ übernimmt die Auswahl, liest
+  das Dokument ein und startet die Kollisionsprüfung.
+- Testakte: `testdaten/testakte-weber` (fiktiv; Mahnverfahren, Abgabe an das Landgericht, Verfügung mit Frist und Termin,
+  Terminsverlegung; die Gegnerin ist in der Testakte Brückner Mandantin).
 
 ## Suche: Volltext über alle Akten
 
@@ -439,13 +471,23 @@ Claude, OpenAI, Google Gemini, Mistral oder ein anderer Dienst mit OpenAI-kompat
 (nur HTTPS) anbinden. Das geht erst, nachdem der Schalter **Externe KI einbinden** eingeschaltet und der
 Hinweis auf Datenschutz- und Berufsrecht bestätigt wurde. Danach API-Schlüssel und Modell eintragen,
 „Speichern“ (fragt beim Anbieter nur die Modellliste ab) und unter „Analyse und Chat verwenden“ den
-externen Anbieter wählen. Solange er gewählt ist, steht links unten „Modus: Externer Anbieter“, und
+externen Anbieter wählen. Solange er gewählt ist, steht links unten „KI-Modus: Externer Anbieter“, und
 Analyse und Chat weisen darauf hin, dass Dokumenttexte das Gerät verlassen. Schalter aus stellt sofort
 wieder auf lokal.
 
 Die Schlüssel liegen in `ki-schluessel.json` im Datenverzeichnis der App (Linux/macOS: nur für den
 Benutzer lesbar), getrennt von `ki.json`, und werden nie wieder angezeigt. Die Kommandozeile
 (`ki-status`, `ki-pruefen`) arbeitet immer lokal.
+
+## Diagnose
+
+Einstellungen → **Diagnose öffnen** → „Prüfung starten“ prüft nacheinander: Kern und Datenordner (beschreibbar,
+freier Speicher), die Datenbanken (`PRAGMA quick_check`), das Archiv der Rechtsquellen (jede Datei gegen ihre
+SHA-256-Prüfsumme), Texterkennung, externe Programme, Mitteilungen des Systems, das lokale Sprachmodell, die externe
+KI (nur wenn eingebunden; abgefragt wird die Modellliste) und die Rechtsquellen im Internet (Gesetze im Internet,
+EUR-Lex, Rechtsprechung im Internet, gesetze-bayern.de, NeuRIS wenn eingeschaltet; jeweils nur die ersten Bytes).
+Jeder Fehler kommt mit einer verständlichen Meldung und einem Hinweis „Was tun“. „Bericht kopieren“ legt das Ergebnis
+als Text in die Zwischenablage; er enthält keine Dokumentinhalte und keine Schlüssel.
 
 ## Rechtsprechung: Urteilszitate prüfen
 
