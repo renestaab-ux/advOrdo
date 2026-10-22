@@ -23,7 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, db, diagnose, einstellungen, nachrichten, programme
+from . import __version__, db, diagnose, einstellungen, gerichte, nachrichten, programme
 from .abgleich import abgleich
 from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, notizen, stammdaten, verfahren
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
@@ -69,7 +69,7 @@ class Kern:
         # Nachrichten-Feeds der Startseite gelten für das Gerät; geladen wird im Hintergrund.
         self.nachrichten = nachrichten.Nachrichten(
             Path(db_pfad).parent / "nachrichten.json", Path(db_pfad).parent / "nachrichten-cache.json")
-        # Für die Diagnose austauschbar (Tests ohne Netz).
+        # Abrufe der Diagnose und des Gerichtsverzeichnisses; in Tests ohne Netz austauschbar.
         self.diagnose_oeffnen = urllib.request.urlopen
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
@@ -240,6 +240,11 @@ class Kern:
             "rechtsprechung.stand": lambda: verzeichnis.stand(self.con),
             "rechtsprechung.laden": self.rechtsprechung_laden,
             "rechtsprechung.laden_datei": self.rechtsprechung_laden_datei,
+            "gerichte.stand": lambda: gerichte.stand(self.con),
+            "gerichte.laden": self.gerichte_laden,
+            "gerichte.laden_datei": self.gerichte_laden_datei,
+            "gerichte.namen": lambda: gerichte.namen(self.con),
+            "gerichte.verzeichnis_oeffnen": lambda: gerichte.verzeichnis_oeffnen(),
             "akten.abgleich": lambda akte_id, dokument_ids=None: abgleich.abgleich(self.akten, akte_id, dokument_ids),
             "ki.status": self.ki_status,
             "ki.modus": self.ki_modus,
@@ -688,6 +693,17 @@ class Kern:
         daten = Path(pfad).read_bytes()
         sha, archivpfad = verzeichnis.archiviere(daten, self.archiv)
         return verzeichnis.importiere(self.con, daten, str(pfad), sha, archivpfad)
+
+    def gerichte_laden(self) -> dict:
+        """Lädt die Codeliste GDS.Gerichte aus XRepository (öffentliche Liste, keine Akteninhalte)."""
+        daten, url = gerichte.lade(self.diagnose_oeffnen)
+        sha, archivpfad = gerichte.archiviere(daten, self.archiv)
+        return gerichte.importiere(self.con, daten, url, sha, archivpfad)
+
+    def gerichte_laden_datei(self, pfad: str) -> dict:
+        daten = Path(pfad).read_bytes()
+        sha, archivpfad = gerichte.archiviere(daten, self.archiv)
+        return gerichte.importiere(self.con, daten, str(pfad), sha, archivpfad)
 
     def importieren_datei(self, pfad: str) -> dict:
         roh = quelle.lies_datei(Path(pfad), self.archiv, gesetze=quelle.voreinstellung(self.eigene_liste))

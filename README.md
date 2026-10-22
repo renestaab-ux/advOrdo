@@ -337,6 +337,12 @@ Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1. In der Akte öffnen **St
   Beteiligtenverzeichnis. Welche Seite wir vertreten, leitet sie aus „Eigene Daten“ ab (eigene Kanzlei als
   Prozessbevollmächtigte, Konzerngesellschaft als Partei) oder fragt. Erst „Akte anlegen“ übernimmt die Auswahl, liest
   das Dokument ein und startet die Kollisionsprüfung.
+- **Gerichtsverzeichnis** (Einstellungen → Gerichtsverzeichnis → „Verzeichnis laden“): lädt auf Klick die
+  XJustiz-Codeliste „GDS.Gerichte“ aus XRepository (gültige Version, unverändert unter SHA-256 archiviert in
+  `GERICHTE/`). Danach schlägt das Feld „Gericht“ in den Verfahren alle Gerichte mit amtlichem Namen vor;
+  Staatsanwaltschaften und Grundbuchämter bleiben außen vor. Die Liste enthält keine Anschriften und Zuständigkeiten,
+  dafür öffnet „Orts- und Gerichtsverzeichnis öffnen“ die Suche auf justiz.de im Browser. Ist XRepository nicht
+  erreichbar, lässt sich die heruntergeladene genericode-Datei mit „Aus Datei laden“ übernehmen.
 - Testakte: `testdaten/testakte-weber` (fiktiv; Mahnverfahren, Abgabe an das Landgericht, Verfügung mit Frist und Termin,
   Terminsverlegung; die Gegnerin ist in der Testakte Brückner Mandantin).
 
@@ -498,7 +504,8 @@ Einstellungen → **Diagnose öffnen** → „Prüfung starten“ prüft nachein
 freier Speicher), die Datenbanken (`PRAGMA quick_check`), das Archiv der Rechtsquellen (jede Datei gegen ihre
 SHA-256-Prüfsumme), Texterkennung, externe Programme, Mitteilungen des Systems, das lokale Sprachmodell, die externe
 KI (nur wenn eingebunden; abgefragt wird die Modellliste) und die Rechtsquellen im Internet (Gesetze im Internet,
-EUR-Lex, Rechtsprechung im Internet, gesetze-bayern.de, NeuRIS wenn eingeschaltet; jeweils nur die ersten Bytes).
+EUR-Lex, Rechtsprechung im Internet, gesetze-bayern.de, NeuRIS wenn eingeschaltet, XRepository für das
+Gerichtsverzeichnis; jeweils nur die ersten Bytes).
 Jeder Fehler kommt mit einer verständlichen Meldung und einem Hinweis „Was tun“. „Bericht kopieren“ legt das Ergebnis
 als Text in die Zwischenablage; er enthält keine Dokumentinhalte und keine Schlüssel.
 

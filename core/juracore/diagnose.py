@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from . import __version__, programme
+from . import __version__, gerichte, programme
 from .dokumente import ocr
 from .gesetze import quelle
 from .ki import anbieter as ki_anbieter
@@ -282,6 +282,8 @@ PRUEFUNGEN: list[tuple[str, str, str, Callable[[Any], dict]]] = [
     ("bayern", "netz", "Gesetze Bayern (Rechtsprechung)",
      _quelle("gesetze-bayern.de", bayern.BASIS + "/", "Entscheidungen bayerischer Gerichte")),
     ("neuris", "netz", "NeuRIS (Testphase)", _neuris),
+    ("xrepository", "netz", "XRepository (Gerichtsverzeichnis)",
+     _quelle("XRepository", gerichte.VERSION_URL, "Gerichtsverzeichnis (XJustiz-Codeliste GDS.Gerichte)")),
 ]
 
 

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { OrtsverzeichnisKnopf } from "./Gerichtsverzeichnis";
 import { AktenOptionen, INSTANZ_VORGABE, Verfahren, datumLang, kern } from "./kern";
 import VerfahrenAusDokument from "./VerfahrenAusDokument";
 
@@ -35,6 +36,7 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
   const [bearbeitet, setBearbeitet] = useState<{ id: number | null; e: Entwurf } | null>(null);
   const [loeschfrage, setLoeschfrage] = useState<Verfahren | null>(null);
   const [gerichte, setGerichte] = useState<string[]>([]);
+  const [verzeichnisGeladen, setVerzeichnisGeladen] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [ausDokument, setAusDokument] = useState(false);
@@ -42,11 +44,17 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
   useEffect(() => {
     void kern<Verfahren[]>("akten.verfahren", { akte_id: akteId }).then(setVerfahren, (e) => setFehler(String(e)));
     void kern<AktenOptionen>("akten.optionen").then(setOptionen, () => undefined);
-    // Gerichte aus dem Beteiligtenverzeichnis als Vorschläge für das Eingabefeld.
-    void kern<{ name: string; daten: Record<string, string> }[]>("beteiligte.liste", { suche: "", art: "organisation" }).then(
-      (l) => setGerichte(l.filter((b) => b.daten.kategorie === "Gericht").map((b) => b.name)),
-      () => undefined,
-    );
+    // Vorschläge für das Eingabefeld: zuerst die Gerichte aus dem Beteiligtenverzeichnis, dann das Gerichtsverzeichnis.
+    void Promise.all([
+      kern<{ name: string; daten: Record<string, string> }[]>("beteiligte.liste", { suche: "", art: "organisation" }).catch(
+        () => [],
+      ),
+      kern<string[]>("gerichte.namen").catch(() => []),
+    ]).then(([bekannt, verzeichnis]) => {
+      const eigene = bekannt.filter((b) => b.daten.kategorie === "Gericht").map((b) => b.name);
+      setGerichte([...new Set([...eigene, ...verzeichnis])]);
+      setVerzeichnisGeladen(verzeichnis.length > 0);
+    });
   }, [akteId]);
 
   async function speichern(ev: FormEvent) {
@@ -232,6 +240,10 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
                   <option key={g} value={g} />
                 ))}
               </datalist>
+              <span className="leise klein">
+                {!verzeichnisGeladen && "Alle Gerichte schlägt das Feld vor, wenn unter Einstellungen das Gerichtsverzeichnis geladen ist. "}
+                Anschrift und Zuständigkeit: <OrtsverzeichnisKnopf onFehler={setFehler} />
+              </span>
             </label>
             <label className="feld">
               Spruchkörper

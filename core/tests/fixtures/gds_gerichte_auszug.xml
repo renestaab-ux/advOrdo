@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Auszug im Format der XJustiz-Codeliste GDS.Gerichte (genericode); Namen öffentlicher Gerichte, Testdaten. -->
+<gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/">
+  <Identification>
+    <ShortName>gds.gerichte</ShortName>
+    <LongName>GDS.Gerichte</LongName>
+    <Version>3.7</Version>
+    <CanonicalUri>urn:xoev-de:xjustiz:codeliste:gds.gerichte</CanonicalUri>
+    <CanonicalVersionUri>urn:xoev-de:xjustiz:codeliste:gds.gerichte_3.7</CanonicalVersionUri>
+  </Identification>
+  <ColumnSet>
+    <Column Id="code" Use="required"><ShortName>code</ShortName><LongName>Schlüssel</LongName><Data Type="string"/></Column>
+    <Column Id="wert" Use="required"><ShortName>wert</ShortName><LongName>Wert</LongName><Data Type="string"/></Column>
+    <Key Id="codeKey"><ShortName>codeKey</ShortName><ColumnRef Ref="code"/></Key>
+  </ColumnSet>
+  <SimpleCodeList>
+    <Row><Value ColumnRef="code"><SimpleValue>A2000R</SimpleValue></Value><Value ColumnRef="wert"><SimpleValue>Bundesamt für Justiz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>B1101G</SimpleValue></Value><Value ColumnRef="wert"><SimpleValue>Amtsgericht Achern -Grundbuchamt-</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>B2402</SimpleValue></Value><Value ColumnRef="wert"><SimpleValue>Amtsgericht Biberach an der Riß</SimpleValue></Value></Row>
+    <Row><Value><SimpleValue>R2000</SimpleValue></Value><Value><SimpleValue>Oberlandesgericht Hamm</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>R2000S</SimpleValue></Value><Value ColumnRef="wert"><SimpleValue>Generalstaatsanwaltschaft Hamm</SimpleValue></Value></Row>
+  </SimpleCodeList>
+</gc:CodeList>

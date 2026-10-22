@@ -1067,6 +1067,16 @@ export interface RechtsprechungStand {
   neu?: boolean;
 }
 
+export interface GerichtsverzeichnisStand {
+  sha256: string;
+  quelle: string;
+  version: string | null;
+  abgerufen_am: string;
+  eintraege: number;
+  arten: Record<string, number>;
+  neu?: boolean;
+}
+
 /** „BGH ab 2010, BVerfG ab 1998 …“ aus dem Stand des Verzeichnisses. */
 export function rechtsprechungUmfang(stand: Pick<RechtsprechungStand, "gerichte">): string {
   return Object.entries(stand.gerichte)
