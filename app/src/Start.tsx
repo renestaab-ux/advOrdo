@@ -57,7 +57,7 @@ export default function Start({
         </div>
         <span className={extern ? "modus-pille extern" : "modus-pille"}>
           <span className="modus-punkt" aria-hidden />
-          {extern ? `Externer Anbieter (${modus?.titel})` : "Nur lokal"}
+          {extern ? `KI: Externer Anbieter (${modus?.titel})` : "KI: nur lokal"}
         </span>
       </header>
       <div className="start-inhalt">
@@ -126,7 +126,7 @@ export default function Start({
           <section className="kachel kachel-info" aria-label="Ihr Arbeitsbereich">
             <h2>Ihr Arbeitsbereich</h2>
             <dl>
-              <dt>Modus</dt>
+              <dt>KI-Modus</dt>
               <dd className={extern ? "hinweis" : "gut"}>
                 {extern
                   ? `Externer Anbieter (${modus?.titel}): Analyse und Chat senden Dokumenttexte dorthin.`

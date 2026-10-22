@@ -161,7 +161,7 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
                 {(b.rollen ?? []).length > 0 ? (
                   <span className="rollen">
                     {(b.rollen ?? []).map((r) => (
-                      <span key={r.text} className={`rolle-marke ${r.gruppe}`}>
+                      <span key={r.text} className={`rolle-marke ${r.gruppe} ${r.seite ?? ""}`.trim()}>
                         {r.text}
                       </span>
                     ))}

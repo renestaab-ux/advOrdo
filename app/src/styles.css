@@ -793,6 +793,9 @@ details.kurz-hinweis summary { cursor: pointer; }
 .rolle-marke { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 14%, transparent); }
 .rolle-marke.eigene { color: var(--gut); background: color-mix(in srgb, var(--gut) 14%, transparent); }
 .rolle-marke.gegen { color: var(--fehler); background: color-mix(in srgb, var(--fehler) 12%, transparent); }
+/* Geschäftsführer u. a.: Farbe der Seite ihrer Firma, umrandet statt gefüllt */
+.rolle-marke.funktion.eigene { background: none; border-color: color-mix(in srgb, var(--gut) 60%, transparent); }
+.rolle-marke.funktion.gegen { background: none; border-color: color-mix(in srgb, var(--fehler) 60%, transparent); }
 .treffer-wahl, .bevollmaechtigte { padding-left: 24px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
 
 /* Nächste Frist in Übersicht, Akte und Start */

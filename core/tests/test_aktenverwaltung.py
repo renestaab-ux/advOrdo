@@ -88,7 +88,10 @@ def test_liste_zeigt_rollen_und_funktionen(con):
     rollen = {e["name"]: [r["text"] for r in e["rollen"]] for e in beteiligte.liste(con)}
     assert rollen["Lena Brückner"] == ["Mandant", "Gegner · 2 Akten"]
     assert rollen["Nordstern Social GmbH"] == ["Gegner"]
-    assert rollen["Dr. Mira Lenz"] == ["Geschäftsführerin von Nordstern Social GmbH"]
+    # Beim Geschäftsführer steht, auf welcher Seite seine Firma steht; die Seite färbt die Marke.
+    assert rollen["Dr. Mira Lenz"] == ["Geschäftsführerin von Nordstern Social GmbH (Gegner)"]
+    lenz = next(e for e in beteiligte.liste(con) if e["name"] == "Dr. Mira Lenz")
+    assert lenz["rollen"][0]["seite"] == "gegen"
 
 
 def test_beziehungen_und_loeschschutz(con):

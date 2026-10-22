@@ -125,12 +125,12 @@ export default function App() {
               title="Analyse und Chat senden Fragen und Dokumenttexte an diesen Anbieter. Umstellen unter „Einstellungen“."
             >
               <span className="modus-punkt" aria-hidden />
-              <span className="nav-text">Modus: Externer Anbieter ({modus.titel})</span>
+              <span className="nav-text">KI-Modus: Externer Anbieter ({modus.titel})</span>
             </button>
           ) : (
-            <div className="modus" title="Modus: nur lokal. Dokumentinhalte verlassen dieses Gerät nicht.">
+            <div className="modus" title="KI-Modus: nur lokal. Das Sprachmodell läuft auf diesem Gerät; Dokumentinhalte verlassen es nicht.">
               <span className="modus-punkt" aria-hidden />
-              <span className="nav-text">Modus: nur lokal</span>
+              <span className="nav-text">KI-Modus: nur lokal</span>
             </div>
           )}
           {umgebung && (

@@ -469,7 +469,7 @@ Claude, OpenAI, Google Gemini, Mistral oder ein anderer Dienst mit OpenAI-kompat
 (nur HTTPS) anbinden. Das geht erst, nachdem der Schalter **Externe KI einbinden** eingeschaltet und der
 Hinweis auf Datenschutz- und Berufsrecht bestätigt wurde. Danach API-Schlüssel und Modell eintragen,
 „Speichern“ (fragt beim Anbieter nur die Modellliste ab) und unter „Analyse und Chat verwenden“ den
-externen Anbieter wählen. Solange er gewählt ist, steht links unten „Modus: Externer Anbieter“, und
+externen Anbieter wählen. Solange er gewählt ist, steht links unten „KI-Modus: Externer Anbieter“, und
 Analyse und Chat weisen darauf hin, dass Dokumenttexte das Gerät verlassen. Schalter aus stellt sofort
 wieder auf lokal.
 
