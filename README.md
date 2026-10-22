@@ -317,6 +317,10 @@ Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1. In der Akte öffnen **St
 - **Nächste Fristen**: auf der Startseite die offenen Einträge der nächsten 14 Tage aus allen Akten (abgelaufene
   zuerst), in der Aktenübersicht die Spalte „Nächste Frist“ und der Filter „Frist in 7 Tagen“, im Kopf der Akte die
   nächste Frist.
+- **Erinnerungen**: Solange JuraBox läuft, meldet das Betriebssystem fällige Fristen (bei erreichter Vorfrist, am
+  Vortag, am Tag des Ablaufs, einmal nach Ablauf), Termine (Vortag und Tag) und Wiedervorlagen, beim Start und dann
+  alle zehn Minuten; jede Stufe nur einmal. Beim ersten Mal fragt das System, ob JuraBox Mitteilungen zeigen darf.
+  Abschalten und Probe-Erinnerung unter Einstellungen → Akten. Ist die App geschlossen, erinnert sie nicht.
 - Reiter **Notizen**: kurze Vermerke zur Akte oder zu einem Dokument, wichtige oben angeheftet.
 - **Akte aus Dokument**: Beim Anlegen ein Dokument wählen (Klage, Anspruchsbegründung, Mahnbescheid, Verfügung). Die
   App liest Gericht, Aktenzeichen, Parteien mit Anschrift und gesetzlichem Vertreter, Prozessbevollmächtigte,

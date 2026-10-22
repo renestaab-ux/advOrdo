@@ -1,7 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AktenEinstellungen as Werte, UmgebungsListe, istDesktop, kern } from "./kern";
+import { ERINNERUNGEN_AUS, testErinnerung } from "./erinnerungen";
+import { gemerkt, merke } from "./merken";
 
-/** Aktenzeichen (Startnummer, Zusatz) und welche anderen Umgebungen die Kollisionsprüfung durchsucht. */
+/**
+ * Aktenzeichen (Startnummer, Zusatz), welche anderen Umgebungen die Kollisionsprüfung durchsucht und ob die App an
+ * Fristen erinnert.
+ */
 export default function AktenEinstellungen({ umgebungen }: { umgebungen: UmgebungsListe | null }) {
   const [werte, setWerte] = useState<Werte | null>(null);
   const [vorschlag, setVorschlag] = useState("");
@@ -9,6 +14,7 @@ export default function AktenEinstellungen({ umgebungen }: { umgebungen: Umgebun
   const [nummer, setNummer] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
+  const [erinnern, setErinnern] = useState(() => !gemerkt(ERINNERUNGEN_AUS));
 
   async function laden() {
     const w = await kern<Werte>("akten.einstellungen");
@@ -96,6 +102,38 @@ export default function AktenEinstellungen({ umgebungen }: { umgebungen: Umgebun
           </label>
         );
       })}
+
+      <h3>Erinnerungen</h3>
+      <p className="erklaerung">
+        Solange JuraBox läuft, meldet das Betriebssystem fällige Fristen (Vorfrist, Vortag, Ablauf), Termine (Vortag
+        und Tag) und Wiedervorlagen. Ist die App geschlossen, erinnert sie nicht; sie ersetzt keinen Fristenkalender.
+        Die Einstellung gilt für dieses Gerät.
+      </p>
+      <label className="schalter-zeile">
+        <input
+          type="checkbox"
+          checked={erinnern}
+          onChange={() => {
+            merke(ERINNERUNGEN_AUS, erinnern);
+            setErinnern(!erinnern);
+            setMeldung(erinnern ? "Erinnerungen sind aus." : "Erinnerungen sind an.");
+          }}
+        />
+        An Fristen, Termine und Wiedervorlagen erinnern
+      </label>
+      <button
+        className="zweitrangig"
+        onClick={() => {
+          setFehler(null);
+          setMeldung(null);
+          void testErinnerung().then(
+            () => setMeldung("Probe-Erinnerung gesendet. Erscheint keine, bitte die Mitteilungen des Systems für JuraBox prüfen."),
+            (e) => setFehler(String(e)),
+          );
+        }}
+      >
+        Probe-Erinnerung senden
+      </button>
       {meldung && <p className="meldung">{meldung}</p>}
       {fehler && <p className="fehler">{fehler}</p>}
     </section>

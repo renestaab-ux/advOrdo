@@ -288,6 +288,53 @@ export function abstandText(e: Pick<KalenderEintrag, "in_tagen" | "art" | "erled
   return n === -1 ? `seit gestern ${wort}` : `seit ${-n} Tagen ${wort}`;
 }
 
+/** Eine Erinnerung des Systems an eine Frist, einen Termin oder eine Wiedervorlage. */
+export interface Erinnerung {
+  /** Eintrag, Stufe und Datum: ändert sich das Datum, wird erneut erinnert. */
+  schluessel: string;
+  akte_id: number;
+  titel: string;
+  text: string;
+}
+
+/**
+ * Welche Erinnerungen jetzt fällig und noch nicht gezeigt sind. Fristen: bei erreichter Vorfrist, am Vortag, am
+ * Tag des Ablaufs und einmal, wenn sie abgelaufen sind. Termine: am Vortag und am Tag. Wiedervorlagen: am Tag
+ * (auch nachträglich).
+ */
+export function faelligeErinnerungen(eintraege: KalenderEintrag[], gezeigt: ReadonlySet<string>): Erinnerung[] {
+  const ergebnis: Erinnerung[] = [];
+  for (const e of eintraege) {
+    if (e.erledigt_am) continue;
+    const n = e.in_tagen;
+    let stufe: string | null = null;
+    let titel = "";
+    if (e.art === "frist") {
+      if (n < 0) [stufe, titel] = ["abgelaufen", `Frist abgelaufen: ${e.titel}`];
+      else if (n === 0) [stufe, titel] = ["heute", `Frist läuft heute ab: ${e.titel}`];
+      else if (n === 1) [stufe, titel] = ["morgen", `Frist läuft morgen ab: ${e.titel}`];
+      else if (e.lage === "vorfrist") [stufe, titel] = ["vorfrist", `Vorfrist erreicht: ${e.titel}`];
+    } else if (e.art === "termin") {
+      const zeit = e.uhrzeit ? `, ${e.uhrzeit} Uhr` : "";
+      if (n === 0) [stufe, titel] = ["heute", `Termin heute${zeit}: ${e.titel}`];
+      else if (n === 1) [stufe, titel] = ["morgen", `Termin morgen${zeit}: ${e.titel}`];
+    } else if (n <= 0) {
+      [stufe, titel] = ["faellig", `Wiedervorlage: ${e.titel}`];
+    }
+    if (!stufe) continue;
+    const schluessel = `${e.id}:${stufe}:${e.datum}`;
+    if (gezeigt.has(schluessel)) continue;
+    const akte = [e.aktenzeichen, e.akte].filter(Boolean).join(" ");
+    ergebnis.push({
+      schluessel,
+      akte_id: e.akte_id,
+      titel,
+      text: [akte, `${e.art_text} ${datumLang(e.datum)}`, e.art === "termin" ? e.ort : null].filter(Boolean).join(" · "),
+    });
+  }
+  return ergebnis;
+}
+
 /** Das Land für die Feiertage (§ 193 BGB) wie im Fristenrechner der Toolbox. */
 export function fristenLand(): string {
   try {

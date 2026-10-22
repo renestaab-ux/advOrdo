@@ -11,6 +11,7 @@ import Toolbox from "./Toolbox";
 import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
+import { useErinnerungen } from "./erinnerungen";
 import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
@@ -54,6 +55,8 @@ export default function App() {
     }
   }
   const umgebung = aktiveUmgebung(umgebungen);
+  // Mitteilungen des Systems bei Vorfrist, Ablauf und Terminen, solange die App läuft.
+  useErinnerungen(umgebungen ? umgebungen.aktiv : undefined);
   // „Akte anlegen“ (Startbildschirm oder „+ Neue Akte“): eigene Seite für den Anlegeprozess.
   const [anlegen, setAnlegen] = useState(false);
   const [reiterWunsch, setReiterWunsch] = useState<{ reiter: Reiter } | null>(null);

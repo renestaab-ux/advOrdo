@@ -5,6 +5,7 @@ import {
   bearbeitetText,
   zuletztGeoeffnet,
   abstandText,
+  faelligeErinnerungen,
   datumLang,
   akteTitel,
   betragAnzeige,
@@ -359,5 +360,66 @@ describe("Fristen-Anzeige", () => {
     expect(abstandText({ ...e, in_tagen: -1 })).toBe("seit gestern abgelaufen");
     expect(abstandText({ ...e, art: "termin", in_tagen: -3 })).toBe("seit 3 Tagen vorbei");
     expect(abstandText({ ...e, in_tagen: 5, erledigt_am: "2026-09-20T10:00:00" })).toBe("erledigt");
+  });
+});
+
+describe("faelligeErinnerungen", () => {
+  const basis = {
+    id: 7,
+    akte_id: 3,
+    verfahren_id: null,
+    art: "frist" as const,
+    art_text: "Frist",
+    titel: "Klageerwiderung",
+    datum: "2026-11-26",
+    uhrzeit: null,
+    ort: null,
+    vorfrist: null,
+    berechnung: null,
+    dokument_id: null,
+    dokument: null,
+    fundstelle: null,
+    notiz: null,
+    erledigt_am: null,
+    erledigt_vermerk: null,
+    in_tagen: 10,
+    lage: "offen" as const,
+    akte: "Weber ./. Brückner",
+    aktenzeichen: "12/26",
+  };
+  const leer = new Set<string>();
+
+  it("erinnert bei Fristen an Vorfrist, Vortag, Ablauf und Überschreitung", () => {
+    expect(faelligeErinnerungen([basis], leer)).toEqual([]);
+    const vorfrist = faelligeErinnerungen([{ ...basis, in_tagen: 5, vorfrist: "2026-11-19", lage: "vorfrist" }], leer);
+    expect(vorfrist[0].titel).toBe("Vorfrist erreicht: Klageerwiderung");
+    expect(vorfrist[0].text).toBe("12/26 Weber ./. Brückner · Frist Do, 26.11.2026");
+    expect(faelligeErinnerungen([{ ...basis, in_tagen: 1, lage: "bald" }], leer)[0].schluessel).toBe("7:morgen:2026-11-26");
+    expect(faelligeErinnerungen([{ ...basis, in_tagen: 0, lage: "heute" }], leer)[0].titel).toBe(
+      "Frist läuft heute ab: Klageerwiderung",
+    );
+    expect(faelligeErinnerungen([{ ...basis, in_tagen: -2, lage: "abgelaufen" }], leer)[0].titel).toBe(
+      "Frist abgelaufen: Klageerwiderung",
+    );
+  });
+
+  it("zeigt jede Stufe nur einmal und lässt erledigte aus", () => {
+    const heute = { ...basis, in_tagen: 0, lage: "heute" as const };
+    expect(faelligeErinnerungen([heute], new Set(["7:heute:2026-11-26"]))).toEqual([]);
+    // Verschobenes Datum: neue Erinnerung.
+    expect(faelligeErinnerungen([{ ...heute, datum: "2026-11-27" }], new Set(["7:heute:2026-11-26"]))).toHaveLength(1);
+    expect(faelligeErinnerungen([{ ...heute, erledigt_am: "2026-11-25T09:00:00" }], leer)).toEqual([]);
+  });
+
+  it("erinnert an Termine am Vortag und am Tag, an Wiedervorlagen ab dem Tag", () => {
+    const termin = { ...basis, art: "termin" as const, art_text: "Termin", titel: "Mündliche Verhandlung", uhrzeit: "10:30", ort: "Saal 2" };
+    expect(faelligeErinnerungen([{ ...termin, in_tagen: 1 }], leer)[0]).toMatchObject({
+      titel: "Termin morgen, 10:30 Uhr: Mündliche Verhandlung",
+      text: "12/26 Weber ./. Brückner · Termin Do, 26.11.2026 · Saal 2",
+    });
+    expect(faelligeErinnerungen([{ ...termin, in_tagen: -1 }], leer)).toEqual([]);
+    const wv = { ...basis, art: "wiedervorlage" as const, art_text: "Wiedervorlage", titel: "Zahlungseingang prüfen" };
+    expect(faelligeErinnerungen([{ ...wv, in_tagen: 1 }], leer)).toEqual([]);
+    expect(faelligeErinnerungen([{ ...wv, in_tagen: -3 }], leer)[0].titel).toBe("Wiedervorlage: Zahlungseingang prüfen");
   });
 });
