@@ -164,9 +164,11 @@ Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern aus JuraBox Lite. G
 ## Akten: Übersicht und geöffnete Akte
 
 Der Bereich **Akten** zeigt zuerst die **Aktenübersicht**: Suche über Aktenzeichen, Kurzbezeichnung, Mandant, Gegner,
-Gegenstand, Gericht und gerichtliches Aktenzeichen; Filter nach Status (Vorgabe: laufend), Sachgebiet und
-Sachbearbeiter; darüber die zuletzt geöffneten Akten. Die Tabelle ist nach „zuletzt bearbeitet“ sortiert; Öffnen
-allein zählt nicht als Bearbeiten. Akten ohne Aktenzeichen tragen die Marke **Aktenzeichen fehlt**; ein Klick darauf
+Gegenstand, Gericht und gerichtliches Aktenzeichen; Filter nach Status (Vorgabe: laufend), Frist, Sachgebiet,
+Sachbearbeiter und Gericht; darüber die zuletzt geöffneten Akten. Ein Klick auf einen Spaltenkopf sortiert, ein
+zweiter kehrt die Reihenfolge um; die Wahl bleibt gespeichert (Vorgabe: zuletzt bearbeitet, Öffnen allein zählt
+nicht als Bearbeiten; Aktenzeichen nach Jahr und Nummer). Das Beteiligtenverzeichnis lässt sich ebenso sortieren
+und nach Art, Kategorie und Rolle filtern (Geschäftsführer zählen zur Seite ihrer Firma). Akten ohne Aktenzeichen tragen die Marke **Aktenzeichen fehlt**; ein Klick darauf
 öffnet die Stammdaten. **+ Neue Akte** (wie die Kachel „Akte anlegen“ auf der
 Startseite) öffnet eine eigene Seite: Kurzbezeichnung und Aktenzeichen (leer: Vorschlag), danach geht es mit den
 Stammdaten und den Beteiligten der neuen Akte weiter.

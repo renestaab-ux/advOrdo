@@ -1,8 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { BeteiligterFormular } from "./AkteStammdaten";
-import { AktenOptionen, Beteiligter, akteTitel, istDesktop, kern } from "./kern";
+import { AktenOptionen, Beteiligter, akteTitel, istDesktop, kern, sortiert } from "./kern";
+import { SortKopf, useSortierung } from "./Sortierung";
 
 type Art = "" | "person" | "organisation";
+type Seite = "" | "eigene" | "gegen" | "gericht" | "neutral" | "ohne";
+
+const SEITEN: [Seite, string][] = [
+  ["", "Rolle: alle"],
+  ["eigene", "Eigene Seite (Mandant …)"],
+  ["gegen", "Gegenseite"],
+  ["gericht", "Gericht"],
+  ["neutral", "Neutral / Dritte"],
+  ["ohne", "In keiner Akte"],
+];
+
+/** Ob ein Eintrag zur gewählten Seite gehört; Geschäftsführer zählen zur Seite ihrer Firma. */
+function aufSeite(b: Beteiligter, seite: Seite): boolean {
+  if (!seite) return true;
+  if (seite === "ohne") return (b.akten_anzahl ?? 0) === 0;
+  return (b.rollen ?? []).some((r) => r.gruppe === seite || (r.gruppe === "funktion" && r.seite === seite));
+}
 
 /**
  * Bereich „Beteiligte“: das Beteiligtenverzeichnis der aktiven Umgebung. Jede Person und Organisation steht dort
@@ -12,6 +30,9 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
   const [optionen, setOptionen] = useState<AktenOptionen | null>(null);
   const [suche, setSuche] = useState("");
   const [art, setArt] = useState<Art>("");
+  const [kategorie, setKategorie] = useState("");
+  const [seite, setSeite] = useState<Seite>("");
+  const [sortierung, sortieren] = useSortierung("beteiligte.sortierung", { spalte: "name", absteigend: false });
   const [liste, setListe] = useState<Beteiligter[]>([]);
   const [formular, setFormular] = useState<{ art: "person" | "organisation"; eintrag?: Beteiligter; nr: number } | null>(null);
   const [laeuft, setLaeuft] = useState(false);
@@ -64,6 +85,18 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
   if (!istDesktop) return <p className="leer">Das Beteiligtenverzeichnis gibt es nur in der Desktop-App.</p>;
 
   const offen = formular?.eintrag;
+  const sichtbar = sortiert(
+    liste.filter((b) => (!kategorie || art === "person" || b.daten.kategorie === kategorie) && aufSeite(b, seite)),
+    sortierung,
+    {
+      // Personen nach Nachnamen, Organisationen nach Namen.
+      name: (b) => (b.art === "person" ? `${b.daten.nachname ?? ""} ${b.daten.vorname ?? ""}`.trim() || b.name : b.name),
+      art: (b) => (b.art === "person" ? "Person" : `Organisation ${b.daten.kategorie ?? ""}`),
+      rolle: (b) => b.rollen?.[0]?.text,
+      ort: (b) => b.daten.ort as string,
+      akten: (b) => b.akten_anzahl ?? 0,
+    },
+  );
 
   return (
     <div className="beteiligte-verzeichnis">
@@ -87,10 +120,30 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
         <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name suchen, auch früherer Name"
           aria-label="Beteiligte suchen" />
         <select value={art} onChange={(e) => setArt(e.target.value as Art)} aria-label="Art">
-          <option value="">Alle</option>
+          <option value="">Art: alle</option>
           <option value="person">Personen</option>
           <option value="organisation">Organisationen</option>
         </select>
+        {art !== "person" && optionen && (
+          <select value={kategorie} onChange={(e) => setKategorie(e.target.value)} aria-label="Kategorie">
+            <option value="">Kategorie: alle</option>
+            {optionen.kategorien.map((k) => (
+              <option key={k}>{k}</option>
+            ))}
+          </select>
+        )}
+        <select value={seite} onChange={(e) => setSeite(e.target.value as Seite)} aria-label="Rolle">
+          {SEITEN.map(([k, t]) => (
+            <option key={k} value={k}>
+              {t}
+            </option>
+          ))}
+        </select>
+        {((kategorie && art !== "person") || seite) && (
+          <span className="leise">
+            {sichtbar.length} von {liste.length}
+          </span>
+        )}
       </div>
 
       {fehler && <p className="fehler">{fehler}</p>}
@@ -138,16 +191,16 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
       <table className="dokumente verzeichnis">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Art</th>
-            <th>Rolle</th>
-            <th>Ort</th>
-            <th>Akten</th>
+            <SortKopf spalte="name" titel="Name" sortierung={sortierung} onSortieren={sortieren} />
+            <SortKopf spalte="art" titel="Art" sortierung={sortierung} onSortieren={sortieren} />
+            <SortKopf spalte="rolle" titel="Rolle" sortierung={sortierung} onSortieren={sortieren} />
+            <SortKopf spalte="ort" titel="Ort" sortierung={sortierung} onSortieren={sortieren} />
+            <SortKopf spalte="akten" titel="Akten" sortierung={sortierung} onSortieren={sortieren} />
             <th />
           </tr>
         </thead>
         <tbody>
-          {liste.map((b) => (
+          {sichtbar.map((b) => (
             <tr key={b.id} className={offen?.id === b.id ? "gewaehlt" : undefined}>
               <td>
                 <button className="link" onClick={() => void oeffnen(b.id)}>
@@ -183,8 +236,12 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
           ))}
         </tbody>
       </table>
-      {liste.length === 0 && !laeuft && (
-        <p className="leer">{suche.trim() ? "Kein Eintrag gefunden." : "Noch keine Beteiligten. Sie entstehen beim Erfassen in einer Akte oder hier."}</p>
+      {sichtbar.length === 0 && !laeuft && (
+        <p className="leer">
+          {suche.trim() || kategorie || seite
+            ? "Kein Eintrag passt zu Suche und Filtern."
+            : "Noch keine Beteiligten. Sie entstehen beim Erfassen in einer Akte oder hier."}
+        </p>
       )}
     </div>
   );

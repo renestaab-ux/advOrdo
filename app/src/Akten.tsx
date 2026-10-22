@@ -15,13 +15,16 @@ import {
   Loeschergebnis,
   RubrumVorschau,
   abstandText,
+  aktenzeichenSchluessel,
   akteTitel,
   datumLang,
   bearbeitetText,
   istDesktop,
   kern,
+  sortiert,
   zuletztGeoeffnet,
 } from "./kern";
+import { SortKopf, useSortierung } from "./Sortierung";
 
 /** Reiter einer geöffneten Akte; „stammdaten“ öffnet der Knopf im Kopf. */
 export type Reiter = AkteReiter | "beteiligte" | "fristen" | "notizen" | "vergleich" | "analyse" | "stammdaten";
@@ -313,6 +316,8 @@ function AktenUebersicht({
   const [sachgebiet, setSachgebiet] = useState("");
   const [sachbearbeiter, setSachbearbeiter] = useState("");
   const [bald, setBald] = useState(false);
+  const [gericht, setGericht] = useState("");
+  const [sortierung, sortieren] = useSortierung("akten.sortierung", { spalte: "bearbeitet", absteigend: true });
 
   useEffect(() => {
     void kern<AktenOptionen>("akten.optionen").then(setOptionen, () => setOptionen(null));
@@ -326,15 +331,32 @@ function AktenUebersicht({
       (!sachgebiet || a.sachgebiet === sachgebiet) &&
       (!sachbearbeiter || String(a.sachbearbeiter_id ?? "") === sachbearbeiter) &&
       (!bald || fristBald(a)) &&
+      (!gericht || a.gerichte.some((g) => g.name === gericht)) &&
       begriffe.every((b) => suchtext(a).includes(b)),
   );
-  const sichtbar = vorStatus
-    .filter((a) => status == null || a.status === status)
-    .sort((a, b) => bearbeitet(b).localeCompare(bearbeitet(a)));
+  const statusRang = Object.keys(optionen?.status ?? {});
+  const sichtbar = sortiert(
+    vorStatus.filter((a) => status == null || a.status === status),
+    sortierung,
+    {
+      az: (a) => aktenzeichenSchluessel(a.aktenzeichen),
+      name: (a) => a.name,
+      mandant: (a) => a.mandanten.join(", "),
+      gegner: (a) => a.gegner.join(", "),
+      gegenstand: (a) => a.gegenstand,
+      gericht: (a) => a.gerichte[0]?.name,
+      frist: (a) => a.naechste?.datum,
+      status: (a) => statusRang.indexOf(a.status),
+      bearbeitet: (a) => bearbeitet(a),
+    },
+  );
   const zaehlung = (s: string) => vorStatus.filter((a) => a.status === s).length;
   const baldAnzahl = alle.filter(fristBald).length;
   const zuletzt = zuletztGeoeffnet(alle, 4);
   const sachgebiete = [...new Set(alle.map((a) => a.sachgebiet).filter((s): s is string => !!s))].sort();
+  const gerichte = [...new Set(alle.flatMap((a) => a.gerichte.map((g) => g.name)).filter(Boolean))].sort((x, y) =>
+    x.localeCompare(y, "de"),
+  );
 
   return (
     <div className="akten-uebersicht">
@@ -396,7 +418,14 @@ function AktenUebersicht({
             ))}
           </select>
         )}
-        <span className="leise rechts">Sortiert nach: zuletzt bearbeitet</span>
+        {gerichte.length > 0 && (
+          <select value={gericht} onChange={(e) => setGericht(e.target.value)} aria-label="Gericht">
+            <option value="">Gericht: alle</option>
+            {gerichte.map((g) => (
+              <option key={g}>{g}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {zuletzt.length > 0 && !suche.trim() && (
@@ -424,15 +453,21 @@ function AktenUebersicht({
         <table className="dokumente akten-tabelle">
           <thead>
             <tr>
-              <th>Az.</th>
-              <th>Kurzbezeichnung</th>
-              <th>Mandant</th>
-              <th>Gegner</th>
-              <th>Gegenstand</th>
-              <th>Gericht · Az.</th>
-              <th>Nächste Frist</th>
-              <th>Status</th>
-              <th>Bearbeitet</th>
+              {(
+                [
+                  ["az", "Az."],
+                  ["name", "Kurzbezeichnung"],
+                  ["mandant", "Mandant"],
+                  ["gegner", "Gegner"],
+                  ["gegenstand", "Gegenstand"],
+                  ["gericht", "Gericht · Az."],
+                  ["frist", "Nächste Frist"],
+                  ["status", "Status"],
+                  ["bearbeitet", "Bearbeitet"],
+                ] as const
+              ).map(([k, t]) => (
+                <SortKopf key={k} spalte={k} titel={t} sortierung={sortierung} onSortieren={sortieren} />
+              ))}
             </tr>
           </thead>
           <tbody>

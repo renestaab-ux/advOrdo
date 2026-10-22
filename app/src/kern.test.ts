@@ -5,6 +5,8 @@ import {
   bearbeitetText,
   zuletztGeoeffnet,
   abstandText,
+  aktenzeichenSchluessel,
+  sortiert,
   diagnoseBericht,
   faelligeErinnerungen,
   datumLang,
@@ -443,5 +445,23 @@ describe("diagnoseBericht", () => {
     );
     expect(bericht).toContain("## Programm und Daten\n- Kern: nicht geprüft");
     expect(bericht).toContain("- [FEHLER] Gesetze im Internet: Keine Verbindung.\n    https://www.gesetze-im-internet.de/gii-toc.xml\n    Was tun: Verbindung prüfen.");
+  });
+});
+
+describe("sortiert", () => {
+  const liste = [
+    { az: "10/26", n: 3 },
+    { az: "2/26", n: null },
+    { az: "101/25", n: 1 },
+    { az: null, n: 2 },
+  ];
+  const werte = { az: (x: (typeof liste)[0]) => aktenzeichenSchluessel(x.az), n: (x: (typeof liste)[0]) => x.n };
+  it("sortiert Aktenzeichen nach Jahr und Nummer, leere Werte am Ende", () => {
+    expect(sortiert(liste, { spalte: "az", absteigend: false }, werte).map((x) => x.az)).toEqual(["101/25", "2/26", "10/26", null]);
+    expect(sortiert(liste, { spalte: "az", absteigend: true }, werte).map((x) => x.az)).toEqual(["10/26", "2/26", "101/25", null]);
+  });
+  it("sortiert Zahlen und lässt unbekannte Spalten unverändert", () => {
+    expect(sortiert(liste, { spalte: "n", absteigend: true }, werte).map((x) => x.n)).toEqual([3, 2, 1, null]);
+    expect(sortiert(liste, { spalte: "gibtsnicht", absteigend: false }, werte)).toBe(liste);
   });
 });

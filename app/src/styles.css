@@ -528,7 +528,8 @@ input.betrag { text-align: right; }
 .kollision-kurz { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--linie); margin-top: 16px; padding-top: 10px; }
 .kollision-kurz .ampel { margin: 0; }
 input.funktion { font: inherit; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); width: 220px; margin-left: auto; margin-right: 8px; }
-.verzeichnis-filter { display: flex; gap: 8px; margin: 8px 0 12px; max-width: 720px; }
+.verzeichnis-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 12px; max-width: 1100px; }
+.verzeichnis-filter input { min-width: 240px; }
 .verzeichnis-filter input { flex: 1; font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 .verzeichnis-filter select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
@@ -835,3 +836,10 @@ details.kurz-hinweis summary { cursor: pointer; }
 .diagnose-hilfe { margin-top: 4px; padding: 6px 8px; border-left: 3px solid var(--warnung); background: color-mix(in srgb, var(--warnung) 8%, transparent); }
 .diagnose-zeile.stand-fehler .diagnose-hilfe { border-left-color: var(--fehler); background: color-mix(in srgb, var(--fehler) 8%, transparent); }
 .diagnose-details { margin: 4px 0 0; padding-left: 16px; overflow-wrap: anywhere; }
+
+/* Sortierbare Spaltenköpfe */
+.sortier-kopf { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.sortier-kopf:hover, .sortier-kopf.aktiv { color: var(--text); }
+.sortier-kopf:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; border-radius: 2px; }
+.sortier-pfeil { font-size: 10px; opacity: .45; }
+.sortier-kopf.aktiv .sortier-pfeil { opacity: 1; color: var(--akzent); }
