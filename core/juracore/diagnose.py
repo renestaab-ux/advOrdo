@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from . import __version__, gerichte, programme
+from . import __version__, gerichte, programme, zertifikate
 from .dokumente import ocr
 from .gesetze import quelle
 from .ki import anbieter as ki_anbieter
@@ -45,7 +45,9 @@ def _kern(k: Any) -> dict:
     ordner = Path(k.ki_datei).parent
     details = [f"JuraBox-Kern {__version__}, Python {platform.python_version()}",
                f"System: {platform.system()} {platform.release()} ({platform.machine()})",
-               f"Datenordner: {ordner}", f"Arbeitsumgebung: {k.umgebungen.ordner()}"]
+               f"Datenordner: {ordner}", f"Arbeitsumgebung: {k.umgebungen.ordner()}",
+               "Zertifikate: " + ("Speicher des Systems" if zertifikate.aktiv() else "eigene Liste von Python "
+                                  "(truststore fehlt)")]
     try:
         probe = ordner / ".diagnose-schreibprobe"
         probe.write_text("ok", encoding="utf-8")
@@ -220,7 +222,10 @@ def netzfehler(fehler: BaseException, adresse: str) -> tuple[str, str]:
                 "Firmennetzen nach dem Proxy fragen.")
     if isinstance(grund, ssl.SSLCertVerificationError) or isinstance(grund, ssl.SSLError):
         return (f"Die sichere Verbindung zu {host} lässt sich nicht prüfen ({getattr(grund, 'reason', grund)}).",
-                "Häufige Ursachen: falsche Uhrzeit am Rechner, oder ein Virenscanner bzw. eine Firewall, die "
+                ("" if zertifikate.aktiv() else
+                 "Der Kern prüft noch nicht mit den Zertifikaten des Systems: im Ordner von JuraBox "
+                 "„pip install -e core[dev]“ ausführen und die App neu starten. Sonst ") +
+                "häufige Ursachen: falsche Uhrzeit am Rechner, oder ein Virenscanner bzw. eine Firewall, die "
                 "HTTPS-Verbindungen aufbricht. Datum und Uhrzeit prüfen; im Virenscanner die HTTPS-Prüfung "
                 "für diese Seite ausnehmen.")
     if isinstance(grund, (TimeoutError, socket.timeout)):

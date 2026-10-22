@@ -83,3 +83,17 @@ def test_quellen_erreichbar_und_fehler_verstaendlich(kern):
 def test_netzfehler(fehler, teil):
     meldung, hilfe = diagnose.netzfehler(fehler, "https://x.de/pfad")
     assert teil in meldung and hilfe
+
+
+def test_zertifikate_ueber_systemspeicher():
+    import ssl
+
+    from juracore import zertifikate
+
+    assert zertifikate.systemzertifikate_nutzen() is True
+    assert zertifikate.aktiv()
+    assert ssl.SSLContext.__module__.startswith("truststore")
+    import truststore
+
+    truststore.extract_from_ssl()
+    zertifikate._aktiv = False
