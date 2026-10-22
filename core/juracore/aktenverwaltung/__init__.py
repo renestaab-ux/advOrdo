@@ -4,6 +4,12 @@
 - ``stammdaten``: Aktenzeichen, Gegenstand, Status usw. einer Akte und ihre Beteiligten mit Rolle.
 - ``kollision``: Prüfung auf widerstreitende Interessen über alle Akten (§ 43a Abs. 4 BRAO, § 3 BORA).
 
+Stufe 2:
+- ``verfahren``: Verfahren einer Akte mit Instanz, Gericht und gerichtlichem Aktenzeichen.
+- ``kalender``: Fristen, Termine und Wiedervorlagen; Vorschläge aus Dokumenten.
+- ``notizen``: Aktennotizen.
+- ``rubrum`` und ``aus_dokument``: Akte aus einem Dokument anlegen.
+
 Alles liegt in der Aktendatenbank der aktiven Arbeitsumgebung. Akten verweisen auf Beteiligte, statt sie zu kopieren.
 """
 
@@ -11,7 +17,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from . import beteiligte, kollision, stammdaten
+from . import beteiligte, kalender, kollision, notizen, stammdaten, verfahren
 
 
 def einrichten(con: sqlite3.Connection) -> None:
@@ -19,3 +25,6 @@ def einrichten(con: sqlite3.Connection) -> None:
     beteiligte.einrichten(con)
     stammdaten.einrichten(con)
     kollision.einrichten(con)
+    verfahren.einrichten(con)
+    kalender.einrichten(con)
+    notizen.einrichten(con)

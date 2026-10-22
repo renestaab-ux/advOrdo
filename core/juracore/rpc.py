@@ -20,9 +20,9 @@ from typing import Any
 
 from . import __version__, db, einstellungen, programme
 from .abgleich import abgleich
-from .aktenverwaltung import beteiligte, kollision, stammdaten
+from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, notizen, stammdaten, verfahren
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
-from .dokumente import akte, ansicht, fassungen, ocr, suche, urteile
+from .dokumente import akte, ansicht, fassungen, lesen, ocr, suche, urteile
 from .eigene import daten as eigene
 from .eigene.felder import FELDER, FORMEN
 from .gesetze import quelle, wissensbasis
@@ -92,7 +92,7 @@ class Kern:
             ),
             "zitat.aufloesen": lambda zitat, fassung_id=None: wissensbasis.loese_zitat(self.con, zitat, fassung_id),
             "ocr.status": ocr.status,
-            "akten.liste": lambda: stammdaten.uebersicht(self.akten),
+            "akten.liste": self.akten_liste,
             "akten.anlegen": self.akte_anlegen,
             "akten.geoeffnet": lambda akte_id: stammdaten.geoeffnet(self.akten, akte_id),
             "akten.optionen": self.akten_optionen,
@@ -115,6 +115,28 @@ class Kern:
             "akten.kollision_entscheiden": lambda pruefung_id, entscheidung, begruendung="": kollision.entscheiden(
                 self.akten, pruefung_id, entscheidung, begruendung),
             "akten.kollision_verlauf": lambda akte_id: kollision.verlauf(self.akten, akte_id),
+            "akten.verfahren": lambda akte_id: verfahren.liste(self.akten, akte_id),
+            "akten.verfahren_speichern": lambda akte_id, daten, verfahren_id=None: verfahren.speichern(
+                self.akten, akte_id, daten, verfahren_id),
+            "akten.verfahren_loeschen": lambda verfahren_id: verfahren.loeschen(self.akten, verfahren_id),
+            "akten.kalender": lambda akte_id: kalender.liste(self.akten, akte_id),
+            "akten.kalender_speichern": lambda akte_id, daten, eintrag_id=None: kalender.speichern(
+                self.akten, akte_id, daten, eintrag_id),
+            "akten.kalender_erledigen": lambda eintrag_id, erledigt=True, vermerk="": kalender.erledigen(
+                self.akten, eintrag_id, erledigt, vermerk),
+            "akten.kalender_loeschen": lambda eintrag_id: kalender.loeschen(self.akten, eintrag_id),
+            "akten.kalender_naechste": lambda tage=None, limit=50: kalender.naechste(self.akten, tage, limit),
+            "akten.frist_berechnen": lambda bezugstag, anzahl, einheit, land="BY", beginn="ereignis": kalender.berechne(
+                bezugstag, anzahl, einheit, land, beginn),
+            "akten.kalender_vorschlaege": self.kalender_vorschlaege,
+            "akten.notizen": lambda akte_id, dokument_id=None: notizen.liste(self.akten, akte_id, dokument_id),
+            "akten.notiz_speichern": lambda akte_id, text, dokument_id=None, angeheftet=None, notiz_id=None: (
+                notizen.speichern(self.akten, akte_id, text, dokument_id, angeheftet, notiz_id)),
+            "akten.notiz_anheften": lambda notiz_id, angeheftet=True: notizen.anheften(
+                self.akten, notiz_id, angeheftet),
+            "akten.notiz_loeschen": lambda notiz_id: notizen.loeschen(self.akten, notiz_id),
+            "akten.rubrum_lesen": self.rubrum_lesen,
+            "akten.aus_dokument_anlegen": self.aus_dokument_anlegen,
             "beteiligte.liste": lambda suche="", art=None: beteiligte.liste(self.akten, suche, art),
             "beteiligte.eintrag": lambda beteiligter_id: beteiligte.eintrag(self.akten, beteiligter_id),
             "beteiligte.aehnliche": lambda art, daten, ausser=None: beteiligte.aehnliche(
@@ -249,6 +271,51 @@ class Kern:
                 raise
         return next(a for a in stammdaten.uebersicht(self.akten) if a["id"] == neu["id"])
 
+    def akten_liste(self) -> list[dict]:
+        """Aktenübersicht mit aktuellem Verfahren und nächster offener Frist bzw. nächstem Termin."""
+        akten = stammdaten.uebersicht(self.akten)
+        naechste = kalender.naechste_je_akte(self.akten)
+        for a in akten:
+            a["verfahren"] = (verfahren.aktuelles(verfahren.liste(self.akten, a["id"])) or {}).get("bezeichnung")
+            a["naechste"] = naechste.get(a["id"])
+        return akten
+
+    def kalender_vorschlaege(self, akte_id: int, dokument_id: int | None = None, land: str = "BY") -> list[dict]:
+        """Vorschläge für Fristen und Termine aus einem Dokument oder aus allen Dokumenten der Akte."""
+        ids = [dokument_id] if dokument_id else [z["id"] for z in self.akten.execute(
+            "SELECT id FROM dokument WHERE akte_id = ? ORDER BY COALESCE(datum, importiert_am), id", (akte_id,))]
+        return [v | {"dateiname": e["dateiname"]} for i in ids
+                for e in [kalender.dokument_vorschlaege(self.akten, i, land)] for v in e["vorschlaege"]]
+
+    def rubrum_lesen(self, pfad: str) -> dict:
+        """Liest eine Datei (ohne sie abzulegen) und erkennt das Rubrum für „Akte aus Dokument“."""
+        dok = lesen.lies(Path(pfad))
+        abschnitte = [{"nr": a.nr, "seite": a.seite, "text": a.text} for a in dok.abschnitte]
+        s = eigene.stand(self.akten, mit_archiv=False)
+        namen = [s["organisation_name"], *(k["daten"].get("name", "") for k in s["beauftragte_kanzleien"])]
+        konzern = [{"id": k["id"], "name": k["daten"].get("name", "")} for k in s["konzerngesellschaften"]]
+        r = aus_dokument.vorschau(self.akten, abschnitte, namen, konzern)
+        r["dateiname"] = Path(pfad).name
+        r["lesart"] = dok.lesart
+        r["abschnitte"] = {a["nr"]: a["text"] for a in abschnitte[:80]}
+        return r
+
+    def aus_dokument_anlegen(self, pfad: str, auswahl: dict) -> dict:
+        """Neue Akte mit der bestätigten Auswahl; das Dokument wird als erstes Dokument eingelesen."""
+        if not Path(pfad).is_file():
+            raise FileNotFoundError(f"Datei nicht gefunden: {pfad}")
+        if auswahl.get("eigene_seite") not in ("aktiv", "passiv"):
+            raise ValueError("Bitte angeben, welche Seite wir vertreten.")  # vor dem Anlegen: Az. bleibt frei
+        neu = self.akte_anlegen(auswahl.get("name") or "Neue Akte", auswahl.get("aktenzeichen"))
+        try:
+            aus_dokument.uebernehmen(self.akten, neu["id"], auswahl)
+            akte.importiere(self.akten, self.con, neu["id"], pfad, self.ablage)
+        except Exception:
+            akte.akte_loeschen(self.akten, neu["id"], self.ablage)
+            raise
+        self.kollision_pruefen(neu["id"])
+        return next(a for a in self.akten_liste() if a["id"] == neu["id"])
+
     def akten_optionen(self) -> dict:
         """Auswahllisten für Stammdaten und Beteiligte, dazu die passenden Einträge aus „Eigene Daten“."""
         s = eigene.stand(self.akten, mit_archiv=False)
@@ -262,6 +329,7 @@ class Kern:
         return {
             "rollen": {k: {"seite": v[0], "text": v[1]} for k, v in stammdaten.ROLLEN.items()},
             "seiten": stammdaten.SEITEN, "gruppen": stammdaten.GRUPPEN, "status": stammdaten.STATUS,
+            "verfahren_arten": verfahren.ARTEN, "instanzen": verfahren.INSTANZEN, "kalender_arten": kalender.ARTEN,
             "eigene_rollen": stammdaten.EIGENE_ROLLEN,
             "sachgebiete": stammdaten.SACHGEBIETE, "kategorien": beteiligte.KATEGORIEN,
             "beziehungen": beteiligte.BEZIEHUNGEN, "funktionen": beteiligte.FUNKTIONEN,
@@ -278,7 +346,8 @@ class Kern:
         return self._mit_kollision(stammdaten.stammdaten(self.akten, akte_id))
 
     def _mit_kollision(self, daten: dict) -> dict:
-        return {**daten, "kollision": kollision.letzte(self.akten, daten["id"])}
+        return {**daten, "kollision": kollision.letzte(self.akten, daten["id"]),
+                "verfahren": verfahren.liste(self.akten, daten["id"])}
 
     def _nach_aenderung(self, daten: dict, rolle: str | None) -> dict:
         """Nach einer Änderung an Mandant oder Gegner gleich erneut prüfen."""
