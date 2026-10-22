@@ -198,6 +198,10 @@ def netzfehler(fehler: BaseException, adresse: str) -> tuple[str, str]:
             return (f"{host} verweigert den Zugriff (HTTP {code}).",
                     "Der Dienst blockiert die Anfrage, etwa wegen einer Sperre im Firmennetz oder einer "
                     "Änderung beim Anbieter. Im Browser prüfen, ob die Seite aufgeht.")
+        if code in (404, 410):
+            return (f"{host} meldet die Adresse als {'abgeschaltet' if code == 410 else 'nicht vorhanden'} "
+                    f"(HTTP {code}).",
+                    "Der Anbieter hat die Schnittstelle verlegt. JuraBox braucht dafür ein Update; bitte melden.")
         if code == 429:
             return (f"{host} meldet zu viele Anfragen (HTTP 429).", "Einige Minuten warten und erneut prüfen.")
         if code >= 500:
@@ -252,7 +256,7 @@ def _quelle(titel: str, adresse: str, wofuer: str) -> Callable[[Any], dict]:
 def _neuris(k: Any) -> dict:
     if not online.einstellungen(k.quellen_datei)["neuris"]:
         return _ergebnis("aus", "NeuRIS ist ausgeschaltet (Bereich Rechtsprechung).")
-    return _quelle("NeuRIS", neuris.BASIS + "/case-law?size=1", "Bundesgerichte, die im Verzeichnis fehlen")(k)
+    return _quelle("NeuRIS", neuris.BASIS + "/rechtsprechung?size=1", "Bundesgerichte, die im Verzeichnis fehlen")(k)
 
 
 PRUEFUNGEN: list[tuple[str, str, str, Callable[[Any], dict]]] = [

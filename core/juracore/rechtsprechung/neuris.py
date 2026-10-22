@@ -25,7 +25,6 @@ from .verzeichnis import USER_AGENT
 from .volltext import Absatz, Volltext
 
 BASIS = "https://testphase.rechtsinformationen.bund.de/v1"
-PORTAL = "https://testphase.rechtsinformationen.bund.de"
 HERKUNFT = "rechtsinformationen.bund.de (Testphase)"
 HINWEIS = "Quelle: Rechtsinformationsportal des Bundes, Testphase – ohne Gewähr. Kein amtlicher Text."
 SEITENGROESSE = 50
@@ -44,8 +43,8 @@ def _pruefe_doknr(doknr: str) -> str:
 
 
 def adresse(doknr: str) -> str:
-    """Leseadresse der Entscheidung im Portal."""
-    return f"{PORTAL}/case-law/{_pruefe_doknr(doknr)}"
+    """Leseadresse der Entscheidung: die HTML-Fassung der Schnittstelle (seit Oktober 2026 unter /v1/rechtsprechung)."""
+    return f"{BASIS}/rechtsprechung/{_pruefe_doknr(doknr)}.html"
 
 
 def _hole(url: str, timeout: float) -> bytes:
@@ -83,12 +82,12 @@ def lies_treffer(daten: bytes | str | dict) -> tuple[list[dict], int | None]:
 def suche(aktenzeichen: str, timeout: float = 30) -> tuple[list[dict], int | None]:
     """Sucht Entscheidungen mit diesem Aktenzeichen."""
     abfrage = urllib.parse.urlencode({"fileNumber": aktenzeichen, "size": SEITENGROESSE, "pageIndex": 0})
-    return lies_treffer(_hole(f"{BASIS}/case-law?{abfrage}", timeout))
+    return lies_treffer(_hole(f"{BASIS}/rechtsprechung?{abfrage}", timeout))
 
 
 def lade(doknr: str, timeout: float = 60) -> bytes:
     """Lädt den Volltext (HTML) einer Entscheidung."""
-    return _hole(f"{BASIS}/case-law/{_pruefe_doknr(doknr)}.html", timeout)
+    return _hole(adresse(doknr), timeout)
 
 
 # --- Volltext --------------------------------------------------------------------------------------

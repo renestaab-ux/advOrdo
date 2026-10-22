@@ -77,6 +77,7 @@ def test_quellen_erreichbar_und_fehler_verstaendlich(kern):
     (urllib.error.URLError(ssl.SSLCertVerificationError("certificate verify failed")), "sichere Verbindung"),
     (urllib.error.URLError(TimeoutError()), "antwortet nicht innerhalb"),
     (TimeoutError(), "antwortet nicht innerhalb"),
+    (urllib.error.HTTPError("https://x.de", 410, "Gone", {}, None), "als abgeschaltet (HTTP 410)"),
     (urllib.error.URLError(OSError("Tunnel connection failed: 403 Forbidden")), "Der Proxy lässt keine Verbindung"),
 ])
 def test_netzfehler(fehler, teil):
