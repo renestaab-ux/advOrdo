@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import Akten from "./Akten";
+import Akten, { Reiter } from "./Akten";
 import EigeneDaten from "./EigeneDaten";
 import Einstellungen from "./Einstellungen";
 import Gesetze from "./Gesetze";
@@ -56,15 +56,17 @@ export default function App() {
   const umgebung = aktiveUmgebung(umgebungen);
   // „Akte anlegen“ (Startbildschirm oder „+ Neue Akte“): eigene Seite für den Anlegeprozess.
   const [anlegen, setAnlegen] = useState(false);
+  const [reiterWunsch, setReiterWunsch] = useState<{ reiter: Reiter } | null>(null);
 
   function einklappen() {
     setEingeklappt(!eingeklappt);
     merke(EINGEKLAPPT_SCHLUESSEL, !eingeklappt);
   }
 
-  function oeffneAkte(id: number | null) {
+  function oeffneAkte(id: number | null, reiter?: Reiter) {
     setAnlegen(false);
     setAkteId(id);
+    setReiterWunsch(reiter ? { reiter } : null);
     setBereich("akten");
   }
 
@@ -166,6 +168,7 @@ export default function App() {
             onAnlegen={setAnlegen}
             akteId={akteId}
             setAkteId={setAkteId}
+            reiterWunsch={reiterWunsch}
             onEinstellungen={() => setBereich("einstellungen")}
           />
         )}

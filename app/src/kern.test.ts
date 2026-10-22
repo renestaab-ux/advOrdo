@@ -4,6 +4,8 @@ import {
   FeldDef,
   bearbeitetText,
   zuletztGeoeffnet,
+  abstandText,
+  datumLang,
   akteTitel,
   betragAnzeige,
   betragNormalisieren,
@@ -340,5 +342,22 @@ describe("externe Programme und Arbeitskopien", () => {
     expect(offeneUebernahmen(kopien, new Set()).map((k) => k.dokument_id)).toEqual([1]);
     expect(offeneUebernahmen(kopien, new Set(["1|t1"]))).toEqual([]);
     expect(offeneUebernahmen([kopie(1, "geaendert", "t2")], new Set(["1|t1"]))).toHaveLength(1);
+  });
+});
+
+describe("Fristen-Anzeige", () => {
+  it("zeigt Datum mit Wochentag", () => {
+    expect(datumLang("2026-09-29")).toBe("Di, 29.09.2026");
+    expect(datumLang(null)).toBe("–");
+  });
+
+  it("beschreibt den Abstand zum Datum", () => {
+    const e = { art: "frist" as const, erledigt_am: null };
+    expect(abstandText({ ...e, in_tagen: 0 })).toBe("heute");
+    expect(abstandText({ ...e, in_tagen: 1 })).toBe("morgen");
+    expect(abstandText({ ...e, in_tagen: 4 })).toBe("in 4 Tagen");
+    expect(abstandText({ ...e, in_tagen: -1 })).toBe("seit gestern abgelaufen");
+    expect(abstandText({ ...e, art: "termin", in_tagen: -3 })).toBe("seit 3 Tagen vorbei");
+    expect(abstandText({ ...e, in_tagen: 5, erledigt_am: "2026-09-20T10:00:00" })).toBe("erledigt");
   });
 });

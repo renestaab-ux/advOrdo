@@ -117,6 +117,27 @@ const PFADE = {
     </>
   ),
   filter: <path d="M4 5h16l-6 7.5V19l-4-2v-4.5z" />,
+  fristen: (
+    <>
+      <rect x="4" y="5" width="16" height="15" rx="1.5" />
+      <path d="M4 9.5h16M8.5 3v4M15.5 3v4" />
+      <path d="M12 12.5v3l2 1.2" />
+    </>
+  ),
+  notizen: (
+    <>
+      <path d="M5 4h10l4 4v12H5z" />
+      <path d="M15 4v4h4M8.5 12h7M8.5 15.5h5" />
+    </>
+  ),
+  dokumentLesen: (
+    <>
+      <path d="M6 3h8l4 4v6" />
+      <path d="M6 3v18h6" />
+      <circle cx="16.5" cy="17.5" r="3" />
+      <path d="m18.7 19.7 2.3 2.3" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type SymbolName = keyof typeof PFADE;

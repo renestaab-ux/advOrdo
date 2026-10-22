@@ -301,6 +301,32 @@ Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1. In der Akte öffnen **St
   ausnehmen. Ob ein Konflikt besteht, entscheidet der Anwalt; Prüfung, Treffer und Entscheidung mit Begründung
   bleiben in der Akte dokumentiert.
 
+### Verfahren, Fristen, Notizen und Akte aus Dokument (Stufe 2)
+
+- **Verfahren** (unter Stammdaten): Mahnverfahren, Klageverfahren, Berufung, einstweiliger Rechtsschutz usw. mit
+  **Instanz**, Gericht, Spruchkörper und gerichtlichem Aktenzeichen. Eine Akte kann mehrere Verfahren nacheinander
+  haben; das jüngste laufende steht im Kopf der Akte und in der Übersicht. Das Gericht wird dabei auch als
+  Beteiligter (Rolle Gericht, mit Aktenzeichen) eingetragen.
+- Reiter **Fristen**: Fristen, Termine und Wiedervorlagen. Fristen rechnet der Fristenrechner der Toolbox (§§ 187, 188,
+  193 BGB, Feiertage des dort gewählten Landes) aus Bezugstag und Dauer; die Berechnung bleibt beim Eintrag sichtbar.
+  Dazu Vorfrist, Verfahren und Notiz; erledigte Einträge bleiben nachvollziehbar.
+  **Vorschläge aus Dokumenten** sucht in den Dokumenten der Akte nach Fristen („binnen vier Wochen nach Zustellung“,
+  berechnet ab einem „zugestellt am …“ im Dokument), Terminen mit Uhrzeit und Saal und aufgehobenen Terminen. Jeder
+  Vorschlag zeigt den Satz mit Fundstelle und wird erst nach Prüfung eingetragen; er ersetzt nicht die eigene
+  Fristenkontrolle.
+- **Nächste Fristen**: auf der Startseite die offenen Einträge der nächsten 14 Tage aus allen Akten (abgelaufene
+  zuerst), in der Aktenübersicht die Spalte „Nächste Frist“ und der Filter „Frist in 7 Tagen“, im Kopf der Akte die
+  nächste Frist.
+- Reiter **Notizen**: kurze Vermerke zur Akte oder zu einem Dokument, wichtige oben angeheftet.
+- **Akte aus Dokument**: Beim Anlegen ein Dokument wählen (Klage, Anspruchsbegründung, Mahnbescheid, Verfügung). Die
+  App liest Gericht, Aktenzeichen, Parteien mit Anschrift und gesetzlichem Vertreter, Prozessbevollmächtigte,
+  Gegenstand und Streitwert aus dem Rubrum und zeigt alles mit Fundstelle zur Prüfung, dazu vorhandene Einträge im
+  Beteiligtenverzeichnis. Welche Seite wir vertreten, leitet sie aus „Eigene Daten“ ab (eigene Kanzlei als
+  Prozessbevollmächtigte, Konzerngesellschaft als Partei) oder fragt. Erst „Akte anlegen“ übernimmt die Auswahl, liest
+  das Dokument ein und startet die Kollisionsprüfung.
+- Testakte: `testdaten/testakte-weber` (fiktiv; Mahnverfahren, Abgabe an das Landgericht, Verfügung mit Frist und Termin,
+  Terminsverlegung; die Gegnerin ist in der Testakte Brückner Mandantin).
+
 ## Suche: Volltext über alle Akten
 
 Der Bereich **Suche** durchsucht den gelesenen Text der Dokumente einer Akte oder aller Akten, nach dem Vorbild von „PDF Search“

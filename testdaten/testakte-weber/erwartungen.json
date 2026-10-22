@@ -1,0 +1,67 @@
+{
+  "akte": "Brückner ./. Weber Haustechnik GmbH",
+  "fiktiv": true,
+  "zweck": "Stufe 2 der Aktenverwaltung: Akte aus Dokument, Verfahren und Instanzen, Fristvorschläge, Posteingang-Zuordnung, Kollisionsprüfung",
+  "wir_vertreten": "Weber Haustechnik GmbH (Beklagte / Antragsgegnerin)",
+  "dokumente": {
+    "01": "01_Mahnbescheid_2026-06-03",
+    "02": "02_Widerspruch_2026-06-15",
+    "03": "03_Abgabe_LG_Freiburg_2026-07-10",
+    "04": "04_Anspruchsbegruendung_2026-08-20",
+    "05": "05_Verfuegung_Termin_2026-08-27",
+    "06": "06_Terminsverlegung_2026-10-05"
+  },
+  "rubrum": {
+    "quelle": "04",
+    "gericht": "Landgericht Freiburg im Breisgau",
+    "aktenzeichen": "2 O 233/26",
+    "gegenstand": "Rückzahlung einer Abschlagszahlung aus Werkvertrag",
+    "streitwert": "14.860,00",
+    "klaeger": [
+      {"name": "Dr. Lena Brückner", "art": "person", "anschrift": "Ahornstieg 7, 79100 Freiburg im Breisgau",
+       "prozessbevollmaechtigte": "Seefeld Rechtsanwälte, Bertoldstraße 48, 79098 Freiburg im Breisgau"}
+    ],
+    "beklagte": [
+      {"name": "Weber Haustechnik GmbH", "art": "organisation", "anschrift": "Elzstraße 21, 79312 Emmendingen",
+       "gesetzlicher_vertreter": "Markus Weber (Geschäftsführer)",
+       "prozessbevollmaechtigte": "Albrecht Tiedemann Rechtsanwälte, Kaiser-Joseph-Straße 300, 79098 Freiburg im Breisgau"}
+    ]
+  },
+  "rubrum_mahnbescheid": {
+    "quelle": "01",
+    "gericht": "Amtsgericht Stuttgart – Zentrales Mahngericht Baden-Württemberg –",
+    "aktenzeichen": "26-4815162-0-3",
+    "antragsteller": "Dr. Lena Brückner",
+    "antragsgegner": "Weber Haustechnik GmbH",
+    "hauptforderung": "14.860,00"
+  },
+  "verfahren": [
+    {"art": "Mahnverfahren", "gericht": "Amtsgericht Stuttgart (Zentrales Mahngericht)", "aktenzeichen": "26-4815162-0-3",
+     "beleg": "01", "ende": "Abgabe nach Widerspruch, 03"},
+    {"art": "Klageverfahren", "instanz": "1. Instanz", "gericht": "Landgericht Freiburg im Breisgau", "aktenzeichen": "2 O 233/26",
+     "beleg": "03"}
+  ],
+  "fristen": [
+    {"id": "F1", "art": "Widerspruchsfrist Mahnbescheid", "beleg": "01", "zustellung": "2026-06-08", "dauer": "2 Wochen",
+     "ende": "2026-06-22", "wochentag": "Montag", "erledigt_durch": "02"},
+    {"id": "F2", "art": "Klageerwiderung", "beleg": "05", "zustellung": "2026-09-01", "dauer": "4 Wochen",
+     "ende": "2026-09-29", "wochentag": "Dienstag", "norm": "§ 697 Abs. 2, § 275 Abs. 1 Satz 1 ZPO"}
+  ],
+  "termine": [
+    {"id": "T1", "art": "Güteverhandlung und früher erster Termin", "beleg": "05", "datum": "2026-11-19", "uhrzeit": "10:30",
+     "ort": "Saal 104", "status": "aufgehoben durch 06"},
+    {"id": "T2", "art": "Güteverhandlung und früher erster Termin", "beleg": "06", "datum": "2026-11-26", "uhrzeit": "11:00",
+     "ort": "Saal 104"}
+  ],
+  "posteingang": [
+    {"dok": "06", "zuordnung_ueber": "Aktenzeichen 2 O 233/26 und Ihr Zeichen 214/26 TI", "nennt_parteien": false}
+  ],
+  "kollision": [
+    {"name": "Dr. Lena Brückner", "hier": "Gegner (Klägerin)", "andere_testakte": "Brückner ./. Autohaus Rehnfeld GmbH (testakte)",
+     "dort": "Mandant", "erwartung": "Hinweis der Kollisionsprüfung"}
+  ],
+  "hinweise": [
+    "Fristen mit dem Fristenrechner der App nachgerechnet (§§ 187, 188 BGB, Baden-Württemberg).",
+    "Die Normzitate der fiktiven Schriftsätze wurden nicht online gegen die geltende Fassung geprüft."
+  ]
+}

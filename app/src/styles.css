@@ -696,7 +696,115 @@ details.kurz-hinweis summary { cursor: pointer; }
 .akte-anlegen-form .feld { display: grid; gap: 4px; }
 .akte-anlegen-form input { font-size: 16px; padding: 8px 12px; }
 .akte-anlegen-form .aktionen { display: flex; flex-wrap: wrap; gap: 10px; }
-.anlegen-schritte { flex: 0 1 320px; margin: 0; padding-left: 22px; display: grid; gap: 12px; color: var(--text-leise); }
+.anlegen-schritte { margin: 0; padding-left: 22px; display: grid; gap: 12px; color: var(--text-leise); }
 .anlegen-schritte li { padding-left: 4px; }
 .anlegen-schritte li span { display: block; font-size: 13px; }
 .anlegen-schritte li.aktiv strong { color: var(--text); }
+
+/* --- Stufe 2: Fristen, Termine, Wiedervorlagen ------------------------------------------------------------------ */
+.klein { font-size: 12px; }
+.hinweis-text { color: var(--warnung); }
+.fristen, .notizen { max-width: 900px; }
+.fristen-kopf { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.fristen-kopf h2 { font-size: 18px; margin: 4px 0; }
+.fristen-kopf .aktionen, .vorschlag .aktionen, .kalender-formular .aktionen, .verfahren-formular .aktionen { display: flex; flex-wrap: wrap; gap: 8px; }
+.art-marke { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .02em; padding: 1px 7px; border-radius: 4px; color: var(--akzent); background: color-mix(in srgb, var(--akzent) 12%, transparent); }
+.art-marke.termin { color: var(--gut); background: color-mix(in srgb, var(--gut) 14%, transparent); }
+.art-marke.wiedervorlage, .art-marke.erledigen { color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 14%, transparent); }
+.beleg { margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--linie); color: var(--text); font-size: 13px; }
+.beleg cite { display: block; margin-top: 4px; font-style: normal; font-size: 12px; color: var(--text-leise); }
+.vorschlaege { max-width: 900px; border-left: 4px solid var(--akzent); }
+.vorschlaege-kopf { display: flex; justify-content: space-between; align-items: center; }
+.vorschlaege-kopf h3, .kalender-formular h3, .aus-dokument h3 { margin: 0; font-size: 16px; }
+.vorschlag-liste { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 14px; }
+.vorschlag { padding-top: 12px; border-top: 1px solid var(--linie); }
+.vorschlag-zeile { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.kalender-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.kalender-eintrag { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; padding: 10px 14px; background: var(--flaeche); border: 1px solid var(--linie); border-left: 4px solid var(--linie); border-radius: 8px; }
+.kalender-eintrag.abgelaufen, .kalender-eintrag.heute { border-left-color: var(--fehler); }
+.kalender-eintrag.vorfrist, .kalender-eintrag.bald { border-left-color: var(--warnung); }
+.kalender-eintrag.offen { border-left-color: var(--akzent); }
+.kalender-eintrag.erledigt { opacity: .75; }
+.kalender-eintrag p { margin: 3px 0 0; }
+.kalender-datum { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.kalender-datum strong { font-size: 14px; }
+.lage-marke { font-size: 12px; color: var(--text-leise); }
+.lage-marke.abgelaufen, .lage-marke.heute { color: var(--fehler); font-weight: 600; }
+.lage-marke.vorfrist, .lage-marke.bald { color: var(--warnung); font-weight: 600; }
+.kalender-aktionen { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.kalender-aktionen button.zweitrangig { padding: 3px 10px; font-size: 13px; }
+@media (max-width: 760px) {
+  .kalender-eintrag { grid-template-columns: 1fr; }
+  .kalender-aktionen { flex-direction: row; align-items: center; }
+}
+.erledigt-liste summary { cursor: pointer; color: var(--text-leise); margin: 8px 0; }
+.kalender-formular { max-width: 900px; }
+.modus-wahl { border: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.modus-wahl legend { padding: 0; margin-bottom: 4px; }
+.modus-wahl label { display: flex; align-items: center; gap: 4px; }
+.dauer { display: flex; gap: 8px; align-items: center; }
+.dauer input[type="number"] { width: 5em; }
+.frist-ergebnis { padding: 8px 12px; border-radius: 6px; background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+.frist-ergebnis strong { font-size: 15px; }
+
+/* Verfahren (Stammdaten) */
+.verfahren-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.verfahren-liste li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--linie); border-radius: 6px; }
+.verfahren-liste li.aktuell { border-left: 4px solid var(--akzent); }
+.verfahren-liste .aktionen { display: flex; gap: 10px; align-items: flex-start; }
+.marke-aktuell { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--akzent); }
+.verfahren-liste .status-marke { margin-left: 8px; }
+
+/* Notizen */
+.notiz-neu { max-width: 900px; }
+.notiz-neu textarea, .notiz textarea { width: 100%; box-sizing: border-box; }
+.notiz-optionen { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 10px; }
+.notiz-optionen label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.notiz-optionen button { margin-left: auto; }
+.notiz-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.notiz { padding: 10px 14px; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; }
+.notiz.angeheftet { border-left: 4px solid var(--warnung); }
+.notiz-text { margin: 0 0 6px; white-space: pre-wrap; }
+.notiz-fuss { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: center; }
+.notiz-fuss .aktionen, .notiz .aktionen { display: flex; gap: 10px; }
+
+/* Akte aus Dokument */
+.akte-anlegen.einspaltig { display: block; }
+.anlegen-seite { flex: 0 1 340px; display: grid; gap: 16px; }
+.aus-dokument-start { margin: 0; display: grid; gap: 8px; justify-items: start; }
+.aus-dokument-start p { margin: 0; font-size: 13px; }
+.aus-dokument-start button { display: inline-flex; align-items: center; gap: 6px; }
+.aus-dokument { max-width: 900px; }
+.aus-dokument .karte { max-width: none; }
+.aus-dokument > .aktionen { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.hinweis-liste { margin: 8px 0; padding-left: 20px; color: var(--warnung); font-size: 13px; }
+.seite-wahl { border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; margin: 14px 0; display: grid; gap: 6px; }
+.seite-wahl legend { font-weight: 600; padding: 0 4px; }
+.seite-wahl label { display: flex; gap: 8px; align-items: baseline; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.seite-wahl label.gewaehlt { background: color-mix(in srgb, var(--akzent) 10%, transparent); }
+.fund { font-size: 11px; font-weight: 400; color: var(--text-leise); border-bottom: 1px dotted var(--text-leise); cursor: help; }
+.rubrum-parteien { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 10px; }
+.rubrum-parteien > li { padding: 10px 12px; border: 1px solid var(--linie); border-radius: 8px; display: grid; gap: 6px; }
+.rubrum-parteien > li.abgewaehlt { opacity: .55; }
+.partei-kopf { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.partei-daten { font-size: 13px; padding-left: 24px; }
+.rolle-marke { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 14%, transparent); }
+.rolle-marke.eigene { color: var(--gut); background: color-mix(in srgb, var(--gut) 14%, transparent); }
+.rolle-marke.gegen { color: var(--fehler); background: color-mix(in srgb, var(--fehler) 12%, transparent); }
+.treffer-wahl, .bevollmaechtigte { padding-left: 24px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+
+/* Nächste Frist in Übersicht, Akte und Start */
+.naechste-frist { display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; border: none; padding: 0; color: var(--text); font-size: 13px; }
+.naechste-frist .leise { font-size: 12px; }
+.naechste-frist.abgelaufen, .naechste-frist.heute { color: var(--fehler); font-weight: 600; }
+.naechste-frist.vorfrist, .naechste-frist.bald { color: var(--warnung); font-weight: 600; }
+.kopf-frist { background: none; border: none; padding: 0; text-align: left; color: inherit; cursor: pointer; }
+.akte-kopf button.kopf-frist { flex: none; }
+.akte-kopf .akte-kopf-titel { min-width: 140px; }
+.kopf-frist.abgelaufen strong, .kopf-frist.heute strong, .kopf-frist.vorfrist strong, .kopf-frist.bald strong { color: #ffd7a8; }
+.akte-reiter-knopf .anzahl.frist { color: var(--warnung); font-weight: 700; }
+.akte-reiter-knopf .anzahl.frist.abgelaufen, .akte-reiter-knopf .anzahl.frist.heute { color: var(--fehler); }
+.kachel-fristen .start-frist .link { font-weight: 600; }
+.kachel-fristen .start-frist.abgelaufen .leise, .kachel-fristen .start-frist.heute .leise { color: var(--fehler); }
+.kachel-fristen .start-frist.bald .leise, .kachel-fristen .start-frist.vorfrist .leise { color: var(--warnung); }
+.kacheln .kachel-info { grid-column: 1 / -1; }

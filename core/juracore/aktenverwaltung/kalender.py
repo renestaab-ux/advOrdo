@@ -297,11 +297,15 @@ def _titel_termin(kontext: str) -> str:
     return "Gerichtstermin"
 
 
+# Satzende: Punkt, danach ein Großbuchstabe; „Abs. 2“, „Nr. 3“ oder „S. 4“ enden keinen Satz.
+_SATZENDE = re.compile(r"(?<!\bAbs)(?<!\bNr)(?<!\bS)(?<!\bArt)(?<!\bvgl)(?<!\bDr)(?<!\bz\.B)\.\s+(?=[A-ZÄÖÜ„])")
+
+
 def _satz(text: str, start: int, ende: int) -> str:
     """Der Satz um die Fundstelle, für die Anzeige gekürzt."""
-    links = max(text.rfind(". ", 0, start), text.rfind("\n", 0, start))
-    rechts = text.find(". ", ende)
-    satz = text[links + 1 if links >= 0 else 0: rechts + 1 if rechts >= 0 else len(text)].strip()
+    links = max([m.end() for m in _SATZENDE.finditer(text, 0, start)] + [text.rfind("\n", 0, start) + 1, 0])
+    rechts = next((m.start() + 1 for m in _SATZENDE.finditer(text, ende)), len(text))
+    satz = text[links:rechts].strip()
     return satz if len(satz) <= 320 else satz[:317] + " …"
 
 
@@ -356,10 +360,12 @@ def vorschlaege(abschnitte: list[dict], dokument_datum: str | None = None, land:
             datum = _iso(m, 2)
             if not datum or "termin" not in kontext.casefold() or (dokument_datum and datum < dokument_datum):
                 continue
+            satz = _satz(text, m.start(), m.end())
+            if "termin" not in satz.casefold() and i > 0:
+                satz = f"{abschnitte[i - 1]['text'].strip()} {satz}"  # „Termin … wird bestimmt auf“ steht davor
             ergebnis.append({"art": "termin", "titel": _titel_termin(kontext), "datum": datum,
                              "uhrzeit": f"{int(m.group(5)):02d}:{m.group(6)}", "ort": m.group(7) or "",
-                             "fundstelle": {"abschnitt": a["nr"], "seite": a.get("seite"),
-                                            "text": _satz(text, m.start(), m.end())}})
+                             "fundstelle": {"abschnitt": a["nr"], "seite": a.get("seite"), "text": satz}})
         for m in _AUFGEHOBEN.finditer(text):
             datum = _iso(m)
             passend = [e for e in vorhandene if e["art"] == "termin" and e["datum"] == datum and not e["erledigt_am"]]

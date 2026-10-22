@@ -1,11 +1,22 @@
 import { useEffect, useState } from "react";
 import Zeichen, { SymbolName } from "./Symbole";
-import { Akte, EigeneKurzstand, KiModus, akteTitel, istDesktop, kern, zuletztGeoeffnet } from "./kern";
+import {
+  Akte,
+  EigeneKurzstand,
+  KalenderEintrag,
+  KiModus,
+  abstandText,
+  akteTitel,
+  datumLang,
+  istDesktop,
+  kern,
+  zuletztGeoeffnet,
+} from "./kern";
 
 export type StartZiel = "anlegen" | "akten" | "eigene" | "toolbox" | "einstellungen";
 
 const KACHELN: { ziel: StartZiel; titel: string; text: string; symbol: SymbolName }[] = [
-  { ziel: "anlegen", titel: "Akte anlegen", text: "Neues Mandat mit Bezeichnung anlegen", symbol: "akteNeu" },
+  { ziel: "anlegen", titel: "Akte anlegen", text: "Neues Mandat anlegen, auch aus einem Dokument", symbol: "akteNeu" },
   { ziel: "akten", titel: "Akten", text: "Übersicht, Dokumente, Vergleich und Analyse", symbol: "akten" },
   { ziel: "eigene", titel: "Eigene Daten", text: "Kanzlei bzw. Unternehmen und Ihre Person", symbol: "eigene" },
   { ziel: "toolbox", titel: "Toolbox", text: "Verzugszinsen- und Fristenrechner, eigenes Fenster", symbol: "toolbox" },
@@ -19,15 +30,18 @@ export default function Start({
   umgebung,
 }: {
   onWahl: (ziel: StartZiel) => void;
-  onAkte: (akteId: number) => void;
+  onAkte: (akteId: number, reiter?: "fristen") => void;
   modus: KiModus | null;
   umgebung: string | null;
 }) {
   // Stand der Eigenen Daten für die Kachel, z. B. „3 Angaben fehlen“.
   const [profil, setProfil] = useState<EigeneKurzstand | null>(null);
   const [akten, setAkten] = useState<Akte[] | null>(null);
+  const [fristen, setFristen] = useState<KalenderEintrag[] | null>(null);
   useEffect(() => {
     if (!istDesktop) return;
+    // Offene Fristen, Termine und Wiedervorlagen der nächsten 14 Tage aus allen Akten, abgelaufene zuerst.
+    void kern<KalenderEintrag[]>("akten.kalender_naechste", { tage: 14, limit: 8 }).then(setFristen, () => setFristen([]));
     void kern<EigeneKurzstand>("eigene.kurzstand").then(setProfil, () => setProfil(null));
     void kern<Akte[]>("akten.liste").then(setAkten, () => setAkten([]));
   }, []);
@@ -85,6 +99,28 @@ export default function Start({
             <button className="link klein" onClick={() => onWahl("akten")}>
               Alle Akten
             </button>
+          </section>
+
+          <section className="kachel kachel-liste kachel-fristen" aria-label="Nächste Fristen">
+            <h2>Nächste Fristen und Termine</h2>
+            {fristen && fristen.length > 0 ? (
+              <ul>
+                {fristen.map((f) => (
+                  <li key={f.id} className={`start-frist ${f.lage}`}>
+                    <button className="link" onClick={() => onAkte(f.akte_id, "fristen")}>
+                      {datumLang(f.datum)}
+                      {f.uhrzeit && `, ${f.uhrzeit}`} · {f.titel}
+                    </button>
+                    <span className="leise">
+                      {abstandText(f)} · {f.aktenzeichen ? `${f.aktenzeichen} ` : ""}
+                      {f.akte}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="leer">{fristen ? "Keine offenen Fristen in den nächsten 14 Tagen." : "Lade …"}</p>
+            )}
           </section>
 
           <section className="kachel kachel-info" aria-label="Ihr Arbeitsbereich">
