@@ -349,6 +349,28 @@ export function akteTitel(a: Pick<Akte, "name" | "aktenzeichen">): string {
   return a.aktenzeichen ? `${a.aktenzeichen} · ${a.name}` : a.name;
 }
 
+function einfach(text: string): string {
+  return text.toLocaleLowerCase("de").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * Ob eine Akte zu einer Sucheingabe passt: jedes Wort muss in Aktenzeichen, Kurzbezeichnung, Parteien, Gegenstand,
+ * Gericht oder gerichtlichem Aktenzeichen vorkommen. Groß- und Kleinschreibung und Akzente spielen keine Rolle.
+ */
+export function aktePasst(
+  a: Pick<Akte, "aktenzeichen" | "name" | "gegenstand" | "mandanten" | "gegner" | "gerichte">,
+  suche: string,
+): boolean {
+  const begriffe = einfach(suche).split(/\s+/).filter(Boolean);
+  if (begriffe.length === 0) return true;
+  const text = einfach(
+    [a.aktenzeichen, a.name, a.gegenstand, ...a.mandanten, ...a.gegner, ...a.gerichte.flatMap((g) => [g.name, g.aktenzeichen])]
+      .filter(Boolean)
+      .join(" "),
+  );
+  return begriffe.every((b) => text.includes(b));
+}
+
 /** Die zuletzt geöffneten Akten, neueste zuerst; Akten, die noch nie geöffnet wurden, fehlen. */
 export function zuletztGeoeffnet(akten: Akte[], anzahl: number): Akte[] {
   return akten

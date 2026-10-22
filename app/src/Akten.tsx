@@ -17,6 +17,7 @@ import {
   abstandText,
   aktenzeichenSchluessel,
   akteTitel,
+  aktePasst,
   datumLang,
   bearbeitetText,
   istDesktop,
@@ -42,19 +43,6 @@ const REITER: { id: Reiter; titel: string; symbol: SymbolName }[] = [
 ];
 
 /** Kleinschreibung ohne Akzente, damit „bruckner“ auch „Brückner“ findet. */
-function einfach(text: string): string {
-  return text.toLocaleLowerCase("de").normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
-
-/** Alles, wonach die Aktenübersicht sucht: Aktenzeichen, Kurzbezeichnung, Parteien, Gegenstand, Gericht und gerichtl. Az. */
-function suchtext(a: AkteTyp): string {
-  return einfach(
-    [a.aktenzeichen, a.name, a.gegenstand, ...a.mandanten, ...a.gegner, ...a.gerichte.flatMap((g) => [g.name, g.aktenzeichen])]
-      .filter(Boolean)
-      .join(" "),
-  );
-}
-
 const bearbeitet = (a: AkteTyp) => a.geaendert_am ?? a.angelegt_am;
 
 /**
@@ -324,7 +312,6 @@ function AktenUebersicht({
   }, []);
 
   const alle = akten ?? [];
-  const begriffe = einfach(suche).split(/\s+/).filter(Boolean);
   // Status zählt innerhalb der übrigen Filter, damit die Zahlen zu dem passen, was ein Klick zeigt.
   const vorStatus = alle.filter(
     (a) =>
@@ -332,7 +319,7 @@ function AktenUebersicht({
       (!sachbearbeiter || String(a.sachbearbeiter_id ?? "") === sachbearbeiter) &&
       (!bald || fristBald(a)) &&
       (!gericht || a.gerichte.some((g) => g.name === gericht)) &&
-      begriffe.every((b) => suchtext(a).includes(b)),
+      aktePasst(a, suche),
   );
   const statusRang = Object.keys(optionen?.status ?? {});
   const sichtbar = sortiert(

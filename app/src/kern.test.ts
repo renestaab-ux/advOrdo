@@ -11,6 +11,7 @@ import {
   faelligeErinnerungen,
   datumLang,
   akteTitel,
+  aktePasst,
   betragAnzeige,
   betragNormalisieren,
   aktiveUmgebung,
@@ -463,5 +464,23 @@ describe("sortiert", () => {
   it("sortiert Zahlen und lässt unbekannte Spalten unverändert", () => {
     expect(sortiert(liste, { spalte: "n", absteigend: true }, werte).map((x) => x.n)).toEqual([3, 2, 1, null]);
     expect(sortiert(liste, { spalte: "gibtsnicht", absteigend: false }, werte)).toBe(liste);
+  });
+});
+
+describe("aktePasst", () => {
+  const a = {
+    aktenzeichen: "388/26",
+    name: "Brückner ./. Weber",
+    gegenstand: "Heizungsanlage",
+    mandanten: ["Dr. Lena Brückner"],
+    gegner: ["Weber Haustechnik GmbH"],
+    gerichte: [{ name: "Landgericht Freiburg im Breisgau", aktenzeichen: "2 O 233/26" }],
+  };
+  it("findet nach Aktenzeichen, Partei und Gericht, auch ohne Umlaut und Großschreibung", () => {
+    expect(aktePasst(a, "")).toBe(true);
+    expect(aktePasst(a, "388")).toBe(true);
+    expect(aktePasst(a, "bruckner weber")).toBe(true);
+    expect(aktePasst(a, "2 O 233")).toBe(true);
+    expect(aktePasst(a, "freiburg müller")).toBe(false);
   });
 });

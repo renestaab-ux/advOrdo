@@ -176,7 +176,7 @@ export default function App() {
             onEinstellungen={() => setBereich("einstellungen")}
           />
         )}
-        {bereich === "suche" && <Suche akteId={akteId} setAkteId={setAkteId} onAkte={oeffneAkte} />}
+        {bereich === "suche" && <Suche onAkte={oeffneAkte} />}
         {bereich === "beteiligte" && <Beteiligte onAkte={oeffneAkte} />}
         {bereich === "gesetze" && <Gesetze />}
         {bereich === "rechtsprechung" && <Rechtsprechung onAkte={() => setBereich("akten")} />}
