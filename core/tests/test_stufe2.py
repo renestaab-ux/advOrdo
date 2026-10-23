@@ -395,3 +395,110 @@ def test_gericht_ergaenzt_nur_leere_felder(con):
     g = next(b for b in stammdaten.beteiligungen(con, a) if b["rolle"] == "gericht")
     daten = beteiligte.eintrag(con, g["beteiligter_id"])["daten"]
     assert {k: daten[k] for k in lg} == lg and daten["kategorie"] == "Gericht"
+
+
+# --------------------------------------------------------------------------- Weiteres Verfahren aus Dokument
+
+
+def _weber_aus_mahnbescheid(kern, tmp_path):
+    """Akte Weber wie in der Testakte: angelegt aus dem Mahnbescheid, wir vertreten die Antragsgegnerin."""
+    mb = tmp_path / "Mahnbescheid.txt"
+    mb.write_text("\n\n".join(a["text"] for a in MAHNBESCHEID), encoding="utf-8")
+    v = kern.methoden["akten.rubrum_lesen"](pfad=str(mb))
+    auswahl = {"name": "Brückner ./. Weber", "eigene_seite": "passiv", "parteien": v["parteien"],
+               "verfahren": {"art": "mahnverfahren", "gericht": v["gericht"]["name"],
+                             "aktenzeichen": v["aktenzeichen"]["wert"]}}
+    return kern.methoden["akten.aus_dokument_anlegen"](pfad=str(mb), auswahl=auswahl)["id"]
+
+
+def _auswahl_wie_pruefansicht(v):
+    """Was die Prüfansicht mit ihren Vorgaben schickt: neue Parteien und Bevollmächtigte angehakt, vorhandene nicht."""
+    return {
+        "eigene_seite": v["eigene_seite"]["wert"],
+        "parteien": [p | {"uebernehmen": not p["in_akte"],
+                          "bevollmaechtigte": p["bevollmaechtigte"] and p["bevollmaechtigte"] | {
+                              "uebernehmen": not p["bevollmaechtigte"]["in_akte"] and not p["bevollmaechtigte"]["eigene"]}}
+                     for p in v["parteien"]],
+        "verfahren": {"art": v["verfahren_art"], "instanz": "1. Instanz", "gericht": v["gericht"]["name"],
+                      "aktenzeichen": v["aktenzeichen"]["wert"], "beginn": "2026-07-09",
+                      "gericht_anschrift": v["gericht"].get("anschrift")},
+        "abschliessen": [x["id"] for x in v["laufende_verfahren"]],
+    }
+
+
+def test_verfahren_aus_neuem_dokument(tmp_path):
+    kern = Kern(tmp_path / "wissensbasis.sqlite", tmp_path / "archiv")
+    a = _weber_aus_mahnbescheid(kern, tmp_path)
+    ab = tmp_path / "Anspruchsbegruendung.txt"
+    ab.write_text("\n\n".join(a["text"] for a in ANSPRUCHSBEGRUENDUNG), encoding="utf-8")
+    v = kern.methoden["akten.rubrum_lesen"](pfad=str(ab), akte_id=a)
+    # Die Seite kommt aus der Akte (Brückner ist dort Gegnerin), nicht aus den Bevollmächtigten.
+    assert v["eigene_seite"] == {"wert": "passiv", "grund": "Dr. Lena Brückner ist in dieser Akte Gegner."}
+    assert [p["in_akte"]["rolle"] for p in v["parteien"]] == ["gegner", "mandant"]
+    assert v["parteien"][0]["bevollmaechtigte"]["in_akte"]["rolle"] == "bevollmaechtigter_gegner"
+    assert v["verfahren_vorhanden"] is None
+    assert [x["art"] for x in v["laufende_verfahren"]] == ["mahnverfahren"]
+    vorher = kern.methoden["akten.stammdaten"](akte_id=a)["beteiligte"]
+
+    liste = kern.methoden["akten.verfahren_aus_dokument"](akte_id=a, auswahl=_auswahl_wie_pruefansicht(v), pfad=str(ab))
+    assert [(x["art"], x["status"], x["ende"]) for x in liste] == [
+        ("mahnverfahren", "abgeschlossen", "2026-07-09"), ("klage", "laufend", None)]
+    assert liste[1]["aktuell"] and liste[1]["bezeichnung"].endswith("Landgericht Freiburg im Breisgau, 2 O 233/26")
+    s = kern.methoden["akten.stammdaten"](akte_id=a)
+    assert s["dokumente"] == 2
+    neu = [(b["rolle"], b["name"]) for b in s["beteiligte"] if b["id"] not in {x["id"] for x in vorher}]
+    assert neu == [("gericht", "Landgericht Freiburg im Breisgau")]  # keine doppelten Parteien
+    # Dasselbe Dokument noch einmal: das Verfahren steht schon in der Akte.
+    v2 = kern.methoden["akten.rubrum_lesen"](pfad=str(ab), akte_id=a)
+    assert v2["verfahren_vorhanden"]["bezeichnung"].startswith("Klageverfahren")
+    assert len(v2["laufende_verfahren"]) == 1
+
+
+def test_verfahren_aus_dokument_der_akte(tmp_path):
+    kern = Kern(tmp_path / "wissensbasis.sqlite", tmp_path / "archiv")
+    a = _weber_aus_mahnbescheid(kern, tmp_path)
+    ab = tmp_path / "Anspruchsbegruendung.txt"
+    ab.write_text("\n\n".join(a["text"] for a in ANSPRUCHSBEGRUENDUNG), encoding="utf-8")
+    dok = kern.methoden["akten.importieren"](akte_id=a, pfad=str(ab))
+    v = kern.methoden["akten.rubrum_lesen"](dokument_id=dok["dokument_id"])  # Akte ergibt sich aus dem Dokument
+    assert v["dateiname"] == "Anspruchsbegruendung.txt" and v["aktenzeichen"]["wert"] == "2 O 233/26"
+    assert not any("Streitwert" in h or "Gegenstand" in h for h in v["hinweise"])
+    assert v["eigene_seite"]["wert"] == "passiv" and v["parteien"][0]["in_akte"]
+    # Eine neue Partei ohne Angabe der Seite: nichts wird eingetragen.
+    ohne_seite = _auswahl_wie_pruefansicht(v) | {"eigene_seite": ""}
+    ohne_seite["parteien"][0] = ohne_seite["parteien"][0] | {"in_akte": None, "uebernehmen": True}
+    with pytest.raises(ValueError, match="welche Seite"):
+        kern.methoden["akten.verfahren_aus_dokument"](akte_id=a, auswahl=ohne_seite)
+    assert len(kern.methoden["akten.verfahren"](akte_id=a)) == 1
+    liste = kern.methoden["akten.verfahren_aus_dokument"](
+        akte_id=a, auswahl=_auswahl_wie_pruefansicht(v) | {"abschliessen": []})
+    assert [x["status"] for x in liste] == ["laufend", "laufend"]
+    assert kern.methoden["akten.stammdaten"](akte_id=a)["dokumente"] == 2
+
+
+def test_verfahren_aus_dokument_ohne_art_liest_nichts_ein(tmp_path):
+    kern = Kern(tmp_path / "wissensbasis.sqlite", tmp_path / "archiv")
+    a = _weber_aus_mahnbescheid(kern, tmp_path)
+    ab = tmp_path / "Anspruchsbegruendung.txt"
+    ab.write_text("\n\n".join(a["text"] for a in ANSPRUCHSBEGRUENDUNG), encoding="utf-8")
+    with pytest.raises(ValueError, match="Art des Verfahrens"):
+        kern.methoden["akten.verfahren_aus_dokument"](akte_id=a, auswahl={"verfahren": {}}, pfad=str(ab))
+    assert kern.methoden["akten.stammdaten"](akte_id=a)["dokumente"] == 1
+
+
+def test_verfahren_aus_kurzrubrum_ohne_unnoetige_hinweise(tmp_path):
+    kern = Kern(tmp_path / "wissensbasis.sqlite", tmp_path / "archiv")
+    a = _weber_aus_mahnbescheid(kern, tmp_path)
+    vf = tmp_path / "Verfuegung.txt"
+    vf.write_text("\n\n".join(a["text"] for a in VERFUEGUNG), encoding="utf-8")
+    v = kern.methoden["akten.rubrum_lesen"](pfad=str(vf), akte_id=a)
+    assert all(p["in_akte"] for p in v["parteien"]) and v["hinweise"] == []
+    assert v["gericht"]["spruchkoerper"] == "2. Zivilkammer"
+    # Ergänzen statt doppelt anlegen: der Spruchkörper kommt dazu, Beginn und Aktenzeichen bleiben.
+    vorhanden = kern.methoden["akten.verfahren"](akte_id=a)[0]
+    auswahl = _auswahl_wie_pruefansicht(v) | {"verfahren_id": vorhanden["id"]}
+    auswahl["verfahren"] = auswahl["verfahren"] | {"art": "mahnverfahren", "aktenzeichen": "", "beginn": "",
+                                                   "spruchkoerper": "Zentrales Mahngericht Baden-Württemberg"}
+    liste = kern.methoden["akten.verfahren_aus_dokument"](akte_id=a, auswahl=auswahl)
+    assert len(liste) == 1 and liste[0]["aktenzeichen"] == "26-4815162-0-3"
+    assert liste[0]["spruchkoerper"] == "Zentrales Mahngericht Baden-Württemberg"
