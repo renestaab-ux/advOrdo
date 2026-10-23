@@ -1,12 +1,16 @@
 mod fenster;
 mod kern;
+mod menue;
 
 use std::sync::Arc;
 
 use tauri::Manager;
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(menue::hauptmenue);
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
