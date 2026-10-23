@@ -18,7 +18,7 @@ pub fn run() {
             app.manage(Arc::new(kern::Kern::new(daten)));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![kern::kern_aufruf, fenster::toolbox_oeffnen])
+        .invoke_handler(tauri::generate_handler![kern::kern_aufruf, fenster::toolbox_oeffnen, fenster::drucken])
         .run(tauri::generate_context!())
         .expect("Fehler beim Start der Anwendung");
 }

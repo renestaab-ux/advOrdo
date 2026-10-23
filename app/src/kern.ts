@@ -1230,6 +1230,49 @@ export const HALTUNG_TEXT: Record<string, string> = {
   festgestellt: "festgestellt",
 };
 
+// --- Ausgabe der KI-Ergebnisse ---------------------------------------------------------------------------
+
+export type ExportTeil = "widersprueche" | "chronologie" | "zusammenfassung_akte" | "dokumente";
+export type ExportFormat = "docx" | "pdf" | "xlsx" | "md" | "txt";
+
+export const EXPORT_FORMATE: { id: ExportFormat; titel: string }[] = [
+  { id: "docx", titel: "Word" },
+  { id: "pdf", titel: "PDF" },
+  { id: "xlsx", titel: "Excel" },
+  { id: "md", titel: "Markdown" },
+  { id: "txt", titel: "Text" },
+];
+
+export interface Druckansicht {
+  titel: string;
+  html: string;
+  stil: string;
+}
+
+/** Welche Teile der Analyse gespeicherte Ergebnisse haben, in der Reihenfolge der Ausgabe. */
+export function exportTeile(e: KiErgebnisse): { id: ExportTeil; titel: string; vorhanden: boolean }[] {
+  const n = (zahl: number | undefined) => (zahl != null ? ` (${zahl})` : "");
+  return [
+    { id: "widersprueche", titel: `Widersprüche${n(e.widersprueche?.widersprueche.length)}`, vorhanden: e.widersprueche != null },
+    { id: "chronologie", titel: `Chronologie${n(e.chronologie?.ereignisse.length)}`, vorhanden: e.chronologie != null },
+    { id: "zusammenfassung_akte", titel: "Zusammenfassung der Akte", vorhanden: e.zusammenfassung_akte != null },
+    {
+      id: "dokumente",
+      titel: `Zusammenfassungen der Dokumente${n(Object.keys(e.dokumente).length || undefined)}`,
+      vorhanden: Object.keys(e.dokumente).length > 0,
+    },
+  ];
+}
+
+/** Druckdialog des Systems. Unter macOS druckt window.print() in der App nichts; der Befehl der App kann es überall. */
+export async function drucken(): Promise<void> {
+  try {
+    await invoke("drucken");
+  } catch {
+    window.print();
+  }
+}
+
 /** Laufzeit lesbar: „45 s“, „3:05 min“. */
 export function dauerText(sekunden: number): string {
   if (sekunden < 60) return `${sekunden} s`;
