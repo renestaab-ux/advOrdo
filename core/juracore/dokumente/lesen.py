@@ -87,14 +87,14 @@ def _lies_pdf(pfad: Path, ocr: Tesseract | None | bool) -> Dokument:
                 seiten.append(Seite(i + 1, LEER, []))
                 continue
             try:
-                zeilen, konfidenz = tesseract.erkenne(_seitenbild(seite))
+                zeilen, konfidenz, woerter = tesseract.erkenne_mit_woertern(_seitenbild(seite))
             except OcrNichtVerfuegbar as fehler:
                 # Eine fehlgeschlagene Seite soll die übrigen nicht aufhalten.
                 log.warning("OCR Seite %s von %s: %s", i + 1, pfad.name, fehler)
                 ocr_fehler = str(fehler)
                 seiten.append(Seite(i + 1, LEER, []))
                 continue
-            seiten.append(Seite(i + 1, OCR, list(zeilen), konfidenz))
+            seiten.append(Seite(i + 1, OCR, list(zeilen), konfidenz, woerter))
     finally:
         pdf.close()
 

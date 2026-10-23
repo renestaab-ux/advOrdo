@@ -85,6 +85,11 @@ class Tesseract:
 
     def erkenne(self, bild: bytes) -> tuple[list[str], float | None]:
         """Erkennt Text auf einem Seitenbild (PNM/PNG). Ergebnis: Zeilen und mittlere Konfidenz."""
+        zeilen, konfidenz, _ = self.erkenne_mit_woertern(bild)
+        return zeilen, konfidenz
+
+    def erkenne_mit_woertern(self, bild: bytes) -> tuple[list[str], float | None, list[list]]:
+        """Wie ``erkenne``, zusätzlich die Wörter mit ihrer Lage auf der Seite (siehe ``lies_woerter``)."""
         # Das Seitenbild geht über eine kurzlebige Datei im Temp-Ordner, nicht über stdin: Das Lesen von
         # stdin ist bei den Windows-Builds von Tesseract nicht verlässlich. Die Datei wird sofort gelöscht.
         with tempfile.TemporaryDirectory(prefix="juracore-ocr-") as ordner:
@@ -97,7 +102,8 @@ class Tesseract:
         if ausgabe.returncode != 0:
             fehler = ausgabe.stderr.decode("utf-8", "replace").strip()
             raise OcrNichtVerfuegbar(f"Texterkennung fehlgeschlagen: {fehler}")
-        return lies_tsv(ausgabe.stdout.decode("utf-8", "replace"))
+        tsv = ausgabe.stdout.decode("utf-8", "replace")
+        return (*lies_tsv(tsv), lies_woerter(tsv))
 
 
 def lies_tsv(tsv: str) -> tuple[list[str], float | None]:
@@ -118,6 +124,35 @@ def lies_tsv(tsv: str) -> tuple[list[str], float | None]:
     text = [" ".join(woerter) for _, woerter in sorted(zeilen.items())]
     konfidenz = round(sum(konfidenzen) / len(konfidenzen), 1) if konfidenzen else None
     return text, konfidenz
+
+
+def lies_woerter(tsv: str) -> list[list]:
+    """Wörter der TSV-Ausgabe mit ihrer Lage: ``[text, zeile, x, y, b, h]``.
+
+    ``zeile`` zählt die Zeilen der Seite in Lesereihenfolge (wie bei ``lies_tsv``), ``x``, ``y``, ``b`` und ``h``
+    sind Anteile von Breite und Höhe des Seitenbilds (0 bis 1), damit sie unabhängig von der Auflösung gelten.
+    """
+    breite = hoehe = 0
+    roh: list[tuple[tuple[int, int, int], int, list]] = []
+    for zeile in tsv.splitlines()[1:]:
+        spalten = zeile.split("\t")
+        if len(spalten) < 12:
+            continue
+        if spalten[0] == "1":
+            breite, hoehe = int(spalten[8]), int(spalten[9])
+            continue
+        if spalten[0] != "5" or not spalten[11].strip():
+            continue
+        lage = [int(spalten[6]), int(spalten[7]), int(spalten[8]), int(spalten[9])]
+        roh.append(((int(spalten[2]), int(spalten[3]), int(spalten[4])), int(spalten[5]), [spalten[11].strip(), *lage]))
+    if not breite or not hoehe:
+        return []
+    zeilennummer = {k: i for i, k in enumerate(sorted({k for k, _, _ in roh}))}
+    woerter = []
+    for schluessel, _, (text, x, y, b, h) in sorted(roh, key=lambda r: (r[0], r[1])):
+        woerter.append([text, zeilennummer[schluessel], round(x / breite, 5), round(y / hoehe, 5),
+                        round(b / breite, 5), round(h / hoehe, 5)])
+    return woerter
 
 
 def status() -> dict:

@@ -1,4 +1,5 @@
 import base64
+import json
 import struct
 import zlib
 
@@ -79,3 +80,38 @@ def test_normen_und_rechtsprechung_je_dokument(akten, con, tmp_path):
     assert [n["zitat"] for n in akte.normen(akten, a["id"], ids[1])] == ["§ 433 BGB"]
     assert [u["zitat"] for u in akte.rechtsprechung(akten, con, a["id"], ids[0])] == [
         "BGH, Urteil vom 12.10.2016 – VIII ZR 103/15"]
+
+
+WOERTER = [  # [Wort, Zeile, x, y, b, h] wie aus der Texterkennung
+    ["Kosten", 0, 0.1, 0.1, 0.2, 0.02], ["als", 0, 0.32, 0.1, 0.1, 0.02], ["Verzugs-", 0, 0.44, 0.1, 0.4, 0.02],
+    ["schaden", 1, 0.1, 0.13, 0.35, 0.02], ["nach", 1, 0.5, 0.13, 0.2, 0.02], ["8", 1, 0.72, 0.13, 0.05, 0.02],
+    ["286", 1, 0.8, 0.13, 0.15, 0.02],
+]
+
+
+def test_markierungen_aus_wortpositionen():
+    m = ansicht.markierungen_aus_woertern(WOERTER, ["kosten"])
+    assert m == [{"x": 0.1, "y": 0.1, "b": 0.2, "h": 0.02}]
+    # Silbentrennung am Zeilenende: ein Fund, zwei Rechtecke (je Zeile eines).
+    m = ansicht.markierungen_aus_woertern(WOERTER, ["Verzugsschaden"])
+    assert [(r["x"], r["y"]) for r in m] == [(0.44, 0.1), (0.1, 0.13)]
+    assert m[0]["b"] == pytest.approx(0.35)  # ohne den Trennstrich
+    # Teil eines Worts: nur der Anteil der Zeichen.
+    (r,) = ansicht.markierungen_aus_woertern(WOERTER, ["schaden"])
+    assert (r["x"], r["b"]) == (0.1, 0.35)
+    # "§" im (korrigierten) Suchtext findet die Verwechslung "8" der Texterkennung.
+    (r,) = ansicht.markierungen_aus_woertern(WOERTER, ["§ 286"])
+    assert (r["x"], r["b"]) == (0.72, 0.23)
+    assert ansicht.markierungen_aus_woertern(WOERTER, ["Mangel"]) == []
+
+
+def test_markierungen_im_scan_aus_gespeicherten_woertern(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Test")
+    pdf = schreibe_pdf(tmp_path / "scan.pdf", [["(1) Erste Seite."]])
+    d = akte.importiere(akten, con, a["id"], pdf, tmp_path / "ablage", ocr=False)["dokument_id"]
+    # Wie ein Scan: die Seite stammt aus der Texterkennung, die Textebene des PDFs spielt keine Rolle.
+    akten.execute("UPDATE seite SET quelle = 'ocr', woerter = ? WHERE dokument_id = ?", (json.dumps(WOERTER), d))
+    s = ansicht.seitenbild(akten, d, 1, breite=400, begriffe=["Verzugsschaden"])
+    assert len(s["markierungen"]) == 2
+    assert ansicht.seitenbild(akten, d, 1, breite=400, begriffe=["Erste"])["markierungen"] == []
+    assert ansicht.seitenbild(akten, d, 1, breite=400)["markierungen"] == []
