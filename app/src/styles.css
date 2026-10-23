@@ -477,6 +477,16 @@ button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var
 .feld-hinweis { color: var(--text-leise); font-size: 12px; }
 .pflicht { color: var(--akzent); }
 .mehrfach { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.such-auswahl { position: relative; min-width: 0; }
+.such-auswahl-knopf { width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 10px; font: inherit; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); text-align: left; }
+.such-auswahl-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.such-auswahl-liste { position: absolute; left: 0; top: calc(100% + 4px); z-index: 20; width: max(100%, 380px); max-width: 80vw; box-sizing: border-box; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 8px; }
+.such-auswahl-liste input { width: 100%; box-sizing: border-box; padding: 7px 9px; }
+.such-auswahl-liste ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 50vh; overflow-y: auto; }
+.such-auswahl-zeile { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.such-auswahl-zeile[aria-selected="true"] { border-left: 3px solid var(--akzent); }
+.such-auswahl-zeile.markiert { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+.such-auswahl-titel { padding: 8px; color: var(--text-leise); }
 .assistent-navigation { margin: 16px 0; }
 .anzeige { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; margin: 8px 0 0; }
 .anzeige div { display: flex; flex-direction: column; }
