@@ -1361,7 +1361,7 @@ export interface ChatEintrag {
   /** Name des externen Anbieters, wenn die Frage das Gerät verlassen hat. */
   extern?: string | null;
   /** Zusatzwissen, das mit der Frage ging. */
-  wissen?: { rechner?: boolean; gesetze?: string[]; fehlend?: string[]; zeichen?: number };
+  wissen?: { rechner?: boolean; gesetze?: string[]; fehlend?: string[]; zeichen?: number; gekuerzt?: boolean };
 }
 
 /** Was dem Modell vorlag, z. B. „alle 3 Dokumente vollständig“ oder „120 von 450 Absätzen aus 6 von 8 Dokumenten“. */

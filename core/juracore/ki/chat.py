@@ -247,67 +247,94 @@ def frage(
         fortschritt.melde("Suche passende Normen in der Wissensbasis")
         zusaetzlich = ["§ 288 BGB", "§ 247 BGB", "§ 187 BGB", "§ 188 BGB", "§ 193 BGB"] if rechnen else []
         normen, fehlende_normen = wissen.waehle_normen(gesetze, con, akte_id, dokument_id, text, zusaetzlich,
-                                                             suche=gesetze_suche, ergaenzt=gesetze_ergaenzt)
-    normtext = wissen.normen_text(normen)
-    zusatz = (len(wissen.ANWEISUNG_RECHNER) if rechnen else 0) + len(normtext) + (400 if normen else 0)
-    # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung, Verlauf und Zusatzwissen, rund 3 Zeichen je Token.
-    budget = max(3000, (kontext - ANTWORT_TOKEN - 1200) * 3 - len(bisher) - len(text) - zusatz)
-    fortschritt.melde("Wähle die passenden Absätze aus")
-    stuecke, auswahl = waehle(texte, text + " " + bisher[-300:], budget)
+                                                       suche=gesetze_suche, ergaenzt=gesetze_ergaenzt)
 
-    teile = []
-    for nr, (t, abschnitte) in enumerate(zip(texte, stuecke, strict=True), 1):
-        if not abschnitte:
-            continue
-        kopf = f"Dokument {nr}: {t.dateiname}" + (f" (Beteiligte: {', '.join(t.parteien)})" if t.parteien else "")
-        zeilen = "\n".join(f"[{nr}.{a['nr']}] " + " ".join(a["text"].split()) for a in abschnitte)
-        teile.append(f"{kopf}\n{zeilen}")
-    umfang = (
-        "Dir liegen die Dokumente vollständig vor."
-        if auswahl["vollstaendig"]
-        else "Dir liegt nur eine Auswahl der Absätze vor (die zur Frage passendsten). Steht die Antwort nicht darin, "
-        "sage das als Hinweis, statt zu raten."
-    )
-    nutzer = (
-        f"{chr(10).join(teile)}\n\n"
-        + (f"Gesetze aus der Wissensbasis:\n{normtext}\n\n" if normen else "")
-        + (f"Bisheriger Verlauf des Gesprächs:\n{bisher}\n\n" if bisher else "")
-        + f"Frage: {text}\n\n"
-        f"Aufgabe: Beantworte die Frage in höchstens {HOECHSTENS} kurzen Aussagen, die wichtigste zuerst. {umfang}\n"
-        "Ordne jede Aussage einer Art zu:\n"
-        "- tatsache: was in den Dokumenten steht oder eine Partei dort vorträgt; nenne, wer es sagt\n"
-        "- einschaetzung: deine rechtliche oder inhaltliche Würdigung; Normen und Urteile nennst du nur hier, "
-        "ohne Aktenzeichen oder Randnummern zu erfinden\n"
-        "- hinweis: etwa, dass die Dokumente zu der Frage nichts enthalten\n\n"
-        "Belege jede Tatsache mit der Nummer des Dokuments und des Absatzes (die Zahlen in eckigen Klammern, "
-        "[Dokument.Absatz]) und einem wörtlichen Zitat aus genau diesem Absatz: eine zusammenhängende Wortfolge "
-        "von 4 bis 25 Wörtern, Zeichen für Zeichen abgeschrieben, ohne Auslassungen. Eine Einschätzung belegst du "
-        "mit den Stellen, auf die sie sich stützt."
-        + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
-        + (f"\n\n{wissen.ANWEISUNG_RECHNER}" if rechnen else "")
-    )
-    # Zusatzfelder sind Pflicht: Lokale Modelle mit erzwungener JSON-Ausgabe (LM Studio) lassen freiwillige
-    # Felder sonst einfach weg.
-    schema = SCHEMA
-    if normen or rechnen:
-        schema = json.loads(json.dumps(SCHEMA))
-        if normen:
-            aussage = schema["properties"]["aussagen"]["items"]
-            aussage["properties"]["normbelege"] = wissen.SCHEMA_NORMBELEGE
-            aussage["required"] = [*aussage["required"], "normbelege"]
-        if rechnen:
-            schema["properties"]["berechnungen"] = wissen.SCHEMA_BERECHNUNG
-            schema["required"] = [*schema["required"], "berechnungen"]
+    def baue(normen: list[dict]) -> tuple[str, dict, list[str], dict, str]:
+        """Anfrage an das Modell: Text, Schema, vorgelegte Dokumente, Auswahl und Gesetzestext."""
+        normtext = wissen.normen_text(normen)
+        zusatz = (len(wissen.ANWEISUNG_RECHNER) if rechnen else 0) + len(normtext) + (400 if normen else 0)
+        # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung, Verlauf und Zusatzwissen,
+        # rund 3 Zeichen je Token.
+        budget = max(3000, (kontext - ANTWORT_TOKEN - 1200) * 3 - len(bisher) - len(text) - zusatz)
+        stuecke, auswahl = waehle(texte, text + " " + bisher[-300:], budget)
+
+        teile = []
+        for nr, (t, abschnitte) in enumerate(zip(texte, stuecke, strict=True), 1):
+            if not abschnitte:
+                continue
+            kopf = f"Dokument {nr}: {t.dateiname}" + (f" (Beteiligte: {', '.join(t.parteien)})" if t.parteien else "")
+            zeilen = "\n".join(f"[{nr}.{a['nr']}] " + " ".join(a["text"].split()) for a in abschnitte)
+            teile.append(f"{kopf}\n{zeilen}")
+        umfang = (
+            "Dir liegen die Dokumente vollständig vor."
+            if auswahl["vollstaendig"]
+            else "Dir liegt nur eine Auswahl der Absätze vor (die zur Frage passendsten). Steht die Antwort nicht "
+            "darin, sage das als Hinweis, statt zu raten."
+        )
+        nutzer = (
+            f"{chr(10).join(teile)}\n\n"
+            + (f"Gesetze aus der Wissensbasis:\n{normtext}\n\n" if normen else "")
+            + (f"Bisheriger Verlauf des Gesprächs:\n{bisher}\n\n" if bisher else "")
+            + f"Frage: {text}\n\n"
+            f"Aufgabe: Beantworte die Frage in höchstens {HOECHSTENS} kurzen Aussagen, die wichtigste zuerst. "
+            f"{umfang}\n"
+            "Ordne jede Aussage einer Art zu:\n"
+            "- tatsache: was in den Dokumenten steht oder eine Partei dort vorträgt; nenne, wer es sagt\n"
+            "- einschaetzung: deine rechtliche oder inhaltliche Würdigung; Normen und Urteile nennst du nur hier, "
+            "ohne Aktenzeichen oder Randnummern zu erfinden\n"
+            "- hinweis: etwa, dass die Dokumente zu der Frage nichts enthalten\n\n"
+            "Belege jede Tatsache mit der Nummer des Dokuments und des Absatzes (die Zahlen in eckigen Klammern, "
+            "[Dokument.Absatz]) und einem wörtlichen Zitat aus genau diesem Absatz: eine zusammenhängende Wortfolge "
+            "von 4 bis 25 Wörtern, Zeichen für Zeichen abgeschrieben, ohne Auslassungen. Eine Einschätzung belegst du "
+            "mit den Stellen, auf die sie sich stützt."
+            + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
+            + (f"\n\n{wissen.ANWEISUNG_RECHNER}" if rechnen else "")
+        )
+        # Zusatzfelder sind Pflicht: Lokale Modelle mit erzwungener JSON-Ausgabe (LM Studio) lassen freiwillige
+        # Felder sonst einfach weg.
+        schema = SCHEMA
+        if normen or rechnen:
+            schema = json.loads(json.dumps(SCHEMA))
+            if normen:
+                aussage = schema["properties"]["aussagen"]["items"]
+                aussage["properties"]["normbelege"] = wissen.SCHEMA_NORMBELEGE
+                aussage["required"] = [*aussage["required"], "normbelege"]
+            if rechnen:
+                schema["properties"]["berechnungen"] = wissen.SCHEMA_BERECHNUNG
+                schema["required"] = [*schema["required"], "berechnungen"]
+        return nutzer, schema, teile, auswahl, normtext
+
+    fortschritt.melde("Wähle die passenden Absätze aus")
+    nutzer, schema, teile, auswahl, normtext = baue(normen)
 
     fortschritt.melde("Das Sprachmodell beantwortet die Frage")
     fortschritt.pruefe()
+    gekuerzt = False
     try:
         antwort = anbieter.chat(SYSTEM, nutzer, schema)
     except KiFehler as fehler:
-        if "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
+        if _zu_lang(fehler) and normen:
+            # Der im Programm eingestellte Kontext ist kleiner als angegeben: noch einmal mit weniger Gesetzestext.
+            fortschritt.melde("Die Anfrage war zu lang; frage noch einmal mit weniger Gesetzestext")
+            fortschritt.pruefe()
+            normen = [n for n in normen if n["herkunft"] == "zitiert"][:3]
+            for i, n in enumerate(normen, 1):
+                n["nr"] = i
+            nutzer, schema, teile, auswahl, normtext = baue(normen)
+            gekuerzt = True
+            try:
+                antwort = anbieter.chat(SYSTEM, nutzer, schema)
+            except KiFehler as noch:
+                if not _zu_lang(noch):
+                    raise
+                raise KiFehler(_zu_lang_text(noch)) from noch
+        elif _zu_lang(fehler):
+            raise KiFehler(_zu_lang_text(fehler)) from fehler
+        elif "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
             raise
-        fortschritt.pruefe()
-        antwort = anbieter.chat(SYSTEM, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
+        else:
+            fortschritt.pruefe()
+            antwort = anbieter.chat(SYSTEM, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
 
     aussagen = []
     for a in (antwort.get("aussagen") or [])[:HOECHSTENS]:
@@ -376,6 +403,7 @@ def frage(
             "gesetze": [f"{n['bezeichnung']} {n['gesetz']}" for n in normen],
             "fehlend": fehlende_normen,
             "zeichen": len(normtext),
+            "gekuerzt": gekuerzt,
         }
     if rechnen:
         ergebnis.setdefault("wissen", {})["rechner"] = True
@@ -387,6 +415,20 @@ def frage(
             (akte_id, dokument_id, "antwort", json.dumps(ergebnis, ensure_ascii=False), jetzt),
         )
     return {"id": cur.lastrowid, "rolle": "antwort", "erstellt_am": jetzt, **ergebnis}
+
+
+_ZU_LANG = re.compile(r"context|n_ctx|tokens to keep|too long|exceed", re.I)
+
+
+def _zu_lang(fehler: Exception) -> bool:
+    """Ob das Programm die Anfrage abgelehnt hat, weil sie nicht in seinen Kontext passt."""
+    return bool(_ZU_LANG.search(str(fehler)))
+
+
+def _zu_lang_text(fehler: Exception) -> str:
+    return ("Die Anfrage passt nicht in den Kontext, mit dem das Modell im Programm geladen ist. In LM Studio die "
+            "„Context Length“ des Modells prüfen (empfohlen 32768, wie unter „Einstellungen“ angegeben) oder weniger "
+            f"Gesetze einbeziehen. Meldung des Programms: {fehler}")
 
 
 def _beleg(texte: list[belege.Text], dokument: object, absatz: object, zitat: object) -> dict | None:

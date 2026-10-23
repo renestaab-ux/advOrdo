@@ -395,6 +395,7 @@ function ChatAntwort({
                 {eintrag.wissen.gesetze.length ? eintrag.wissen.gesetze.join(", ") : "keine passenden in der Wissensbasis"}
               </>
             )}
+            {eintrag.wissen?.gekuerzt && <> (gekürzt, weil die Anfrage nicht in den Kontext des Modells passte)</>}
             {eintrag.wissen?.fehlend && eintrag.wissen.fehlend.length > 0 && (
               <> · Nicht in der Wissensbasis: {eintrag.wissen.fehlend.join(", ")}</>
             )}

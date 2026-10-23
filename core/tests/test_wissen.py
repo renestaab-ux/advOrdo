@@ -12,6 +12,7 @@ import pytest
 from juracore import rpc
 from juracore.dokumente import akte
 from juracore.ki import chat, wissen
+from juracore.ki.anbieter import KiFehler
 
 from .test_ki import Attrappe, _warte
 
@@ -191,6 +192,32 @@ def test_ergaenzte_normen_und_gesetze(akten, con, tmp_path):
     # Ein geladenes Gesetz erweitert die Suche: Treffer aus der ZPO zu „Klage“.
     normen, _ = wissen.waehle_normen(con, akten, akte_id, None, "Klageerhebung Zustellung", ergaenzt=["ZPO"])
     assert any(n["gesetz"] == "ZPO" for n in normen)
+
+
+def test_zu_lange_anfrage_wird_mit_weniger_gesetzen_wiederholt(akten, con, tmp_path):
+    akte_id = _akte(akten, con, tmp_path)
+    anfragen = []
+
+    class Knapp:
+        modell = "attrappe:1b"
+
+        def chat(self, system, nutzer, schema):
+            anfragen.append(nutzer)
+            if len(anfragen) == 1:
+                raise KiFehler("LM Studio: The number of tokens to keep from the initial prompt is greater than "
+                               "the context length.")
+            return {"aussagen": []}
+
+    erg = chat.frage(akten, Knapp(), 32768, akte_id, "Verjährung und Schadensersatz?", gesetze=con)
+    assert len(anfragen) == 2 and len(anfragen[1]) < len(anfragen[0])
+    assert erg["wissen"]["gekuerzt"] is True
+
+    class ImmerZuLang(Knapp):
+        def chat(self, system, nutzer, schema):
+            raise KiFehler("context length exceeded")
+
+    with pytest.raises(KiFehler, match="Context Length"):
+        chat.frage(akten, ImmerZuLang(), 32768, akte_id, "Verjährung?", gesetze=con)
 
 
 def test_beim_zinsrechner_fehlende_normen_werden_genannt(akten, con, tmp_path):
