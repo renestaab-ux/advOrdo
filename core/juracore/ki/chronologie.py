@@ -179,9 +179,7 @@ def erstelle(
                 else:
                     ereignisse.append(neu)
 
-    ergebnis = _fasse_zusammen(ereignisse)
-    reihenfolge = {"dokument": 2, "frist": 1, "ereignis": 0}
-    ergebnis.sort(key=lambda e: (e["datum"], reihenfolge[e["art"]]))
+    ergebnis = sortiere(_fasse_zusammen(ereignisse))
     for e in ergebnis:
         del e["nummern"]
     return {
@@ -251,6 +249,26 @@ def _dokument(d: object, koepfe: list[belege.Text]) -> dict | None:
                 "nummern": {("D", t.dokument_id)},
             }
     return None  # Datum steht nicht im Kopf des Dokuments
+
+
+_REIHENFOLGE = {"dokument": 2, "frist": 1, "ereignis": 0}
+# Wo ein Eintrag mit nur einem Monat zwischen den Tagen steht: „Mitte Februar 2026“ nach dem 14.02.,
+# „Ende Februar 2026“ nach dem letzten Tag; ohne Zusatz und bei „Anfang“ vor dem 01.
+_IM_MONAT = (("ende", "32"), ("mitte", "15"), ("anfang", "00"), ("beginn", "00"))
+
+
+def _sortierdatum(e: dict) -> str:
+    datum = e["datum"]
+    if len(datum) != 7:  # schon ein Tag (JJJJ-MM-TT)
+        return datum
+    text = e.get("anzeige", "").lower()
+    tag = next((t for wort, t in _IM_MONAT if text.startswith(wort)), "00")
+    return f"{datum}-{tag}"
+
+
+def sortiere(ereignisse: list[dict]) -> list[dict]:
+    """Zeitlich ordnen; am selben Tag Ereignisse vor Fristen vor Dokumenten."""
+    return sorted(ereignisse, key=lambda e: (_sortierdatum(e), _REIHENFOLGE.get(e.get("art"), 0)))
 
 
 def _anzeige(datum: Wert, im_original: str | None) -> str:

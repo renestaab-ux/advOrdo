@@ -15,6 +15,8 @@ import json
 import sqlite3
 from datetime import UTC, datetime
 
+from . import chronologie
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS ki_ergebnis (
     schluessel   TEXT PRIMARY KEY,       -- SHA-256 über Aufgabe, Anweisungsfassung, Modell und Eingabe
@@ -81,6 +83,9 @@ def ergebnisse(con: sqlite3.Connection, akte_id: int, modell: str) -> dict:
         if z["aufgabe"] == "zusammenfassung_dokument":
             aus["dokumente"][str(z["dokument_id"])] = ergebnis
         elif z["aufgabe"] in aus and z["dokument_id"] is None:
+            if z["aufgabe"] == "chronologie":
+                # Auch früher gespeicherte Chronologien in der heutigen Reihenfolge („Ende Februar“ ans Monatsende).
+                ergebnis["ereignisse"] = chronologie.sortiere(ergebnis.get("ereignisse", []))
             aus[z["aufgabe"]] = ergebnis
     return aus
 
