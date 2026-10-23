@@ -152,8 +152,29 @@ def test_laden_ueber_voreinstellung(monkeypatch, tmp_path):
         eurlex.lade("32099R9999")
 
 
+def test_bot_abwehr_weicht_auf_cellar_aus(monkeypatch, tmp_path):
+    aufrufe = []
+
+    def urlopen(anfrage, timeout):
+        aufrufe.append((anfrage.full_url, anfrage.get_header("Accept-language")))
+        if anfrage.full_url == eurlex.cellar_adresse("32016R0679"):
+            return _Antwort(AUSZUG.read_bytes())
+        return _Antwort(b"")  # EUR-Lex: HTTP 202 ohne Inhalt
+
+    monkeypatch.setattr(eurlex.urllib.request, "urlopen", urlopen)
+    roh = quelle.lade_gesetz("DSGVO", tmp_path)
+    assert roh.quelle == "https://publications.europa.eu/resource/celex/32016R0679"
+    assert [a[0] for a in aufrufe] == [eurlex.adresse("32016R0679"), eurlex.cellar_adresse("32016R0679")]
+    assert aufrufe[1][1] == "deu"
+
+
 def test_unlesbare_antwort_nennt_ausweg(monkeypatch):
-    monkeypatch.setattr(eurlex.urllib.request, "urlopen", lambda anfrage, timeout: _Antwort(b"<html>Bitte warten</html>"))
+    def urlopen(anfrage, timeout):
+        if anfrage.full_url == eurlex.cellar_adresse("32016R0679"):
+            raise urllib.error.HTTPError(anfrage.full_url, 406, "Not Acceptable", {}, None)
+        return _Antwort(b"<html>Bitte warten</html>")
+
+    monkeypatch.setattr(eurlex.urllib.request, "urlopen", urlopen)
     with pytest.raises(ValueError, match="als Datei importieren"):
         eurlex.lade("32016R0679")
     with pytest.raises(ValueError, match="CELEX"):
