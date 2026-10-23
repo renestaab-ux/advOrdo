@@ -315,7 +315,7 @@ export default function AusDokument({
         </p>
       </section>
 
-      <span className="aktionen">
+      <span className="aktionen leiste-unten">
         <button onClick={anlegen} disabled={laeuft || !seite}>
           Akte anlegen
         </button>
@@ -323,8 +323,8 @@ export default function AusDokument({
           Abbrechen
         </button>
         {!seite && <span className="leise">Bitte zuerst wählen, welche Seite wir vertreten.</span>}
+        {fehler && <p className="fehler">{fehler}</p>}
       </span>
-      {fehler && <p className="fehler">{fehler}</p>}
     </div>
   );
 }
