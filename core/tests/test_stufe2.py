@@ -250,6 +250,27 @@ def test_rubrum_anspruchsbegruendung():
     assert beklagte["bevollmaechtigte"]["name"] == "Albrecht Tiedemann Rechtsanwälte"
 
 
+def test_rubrum_klage_ohne_einleitung():
+    """Rubrum direkt nach der Dokumentart („Klage¶der Frau …“), Streitwert mit Zusatz in Klammern."""
+    r = rubrum.erkenne(abschnitte(
+        "Albrecht Tiedemann Rechtsanwälte", "An das", "Landgericht Freiburg im Breisgau", "Unser Zeichen: 117/25 SA",
+        "Klage",
+        "der Frau Dr. Lena Brückner, Ahornstieg 7, 79100 Freiburg im Breisgau, – Klägerin –",
+        "Prozessbevollmächtigte: Albrecht Tiedemann Rechtsanwälte, Kaiser-Joseph-Straße 300, 79098 Freiburg im Breisgau",
+        "gegen",
+        "die Autohaus Rehnfeld GmbH, vertreten durch den Geschäftsführer Markus Rehnfeld, Gewerbering 112, "
+        "79211 Denzlingen,",
+        "– Beklagte –",
+        "wegen: Rückabwicklung eines Kaufvertrags",
+        "Streitwert (vorläufig): 14.555,40 €",
+    ))
+    assert [(p["name"], p["seite"]) for p in r["parteien"]] == [
+        ("Dr. Lena Brückner", "aktiv"), ("Autohaus Rehnfeld GmbH", "passiv")]
+    assert r["parteien"][0]["bevollmaechtigte"]["name"] == "Albrecht Tiedemann Rechtsanwälte"
+    assert r["dokumentart"]["wert"] == "Klage" and r["gericht"]["name"] == "Landgericht Freiburg im Breisgau"
+    assert r["streitwert"]["wert"] == "14.555,40" and r["kurzbezeichnung"]
+
+
 def test_rubrum_mahnbescheid():
     r = rubrum.erkenne(MAHNBESCHEID)
     assert r["verfahren_art"] == "mahnverfahren" and r["aktenzeichen"]["wert"] == "26-4815162-0-3"

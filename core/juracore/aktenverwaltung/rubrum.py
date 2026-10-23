@@ -34,6 +34,7 @@ _EREIGNIS = re.compile(
 _ANFANG = re.compile(r"^(?:In dem Rechtsstreit|In Sachen|In der Sache|In dem Verfahren|In der Zwangsvollstreckungs)",
                      re.IGNORECASE)
 _LABEL_ANFANG = re.compile(r"^" + _ROLLE + r"\s*:")
+_ARTIKEL_ANFANG = re.compile(r"^(?:der|des|die)\s+[A-ZÄÖÜ]")
 _ENDE = re.compile(
     r"^(?:wegen\b|(?:Vorläufiger\s+)?Streitwert|Gegenstandswert|Der Antragsteller macht|Wir beantragen|"
     r"Namens und in Vollmacht|begründen wir|beantragen wir|erheben wir|Verfügung$|Beschluss$|Urteil$|"
@@ -50,7 +51,8 @@ _AZ = re.compile(
 _ZEICHEN = re.compile(r"\b(?:Unser|Ihr)?\s*Zeichen:?\s+(?P<z>\d{1,6}/\d{2}(?:\s[A-ZÄÖÜ]{1,4}\b)?)")
 _WEGEN = re.compile(r"^wegen:?\s+(?P<g>.+?)(?=\s+(?:Vorläufiger\s+)?Streitwert|$)", re.IGNORECASE)
 _BETRAG = r"(?P<b>\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:€|Euro|EUR)"
-_STREITWERT = re.compile(r"(?:Streitwert|Gegenstandswert)\s*:?\s*(?:bis\s+)?" + _BETRAG, re.IGNORECASE)
+_STREITWERT = re.compile(r"(?:Streitwert|Gegenstandswert)\s*(?:\([^)]{1,20}\))?\s*:?\s*(?:bis\s+)?" + _BETRAG,
+                         re.IGNORECASE)
 _HAUPTFORDERUNG = re.compile(r"Hauptforderung:\s*(?P<g>.+?)\s*" + _STRICH + r"\s*" + _BETRAG)
 _KURZRUBRUM = re.compile(r"^(?P<a>[^¶]{3,120}?)\s+\./\.\s+(?P<p>[^¶]{3,120})$")
 _RECHTSFORM = re.compile(
@@ -209,6 +211,10 @@ def erkenne(abschnitte: list[dict]) -> dict:
                       "gegenstand": None, "streitwert": None, "parteien": [], "hinweise": []}
     anfang = next((i for i, a in enumerate(kopf) if _ANFANG.match(a["text"]) or _LABEL_ANFANG.match(a["text"])),
                   None)
+    if anfang is None:
+        # „Klage¶der Frau …¶– Klägerin –“: das Rubrum folgt ohne „In dem Rechtsstreit“ direkt auf die Dokumentart.
+        anfang = next((i for i, a in enumerate(kopf[:-1]) if a["text"].strip() in DOKUMENTARTEN
+                       and _ARTIKEL_ANFANG.match(kopf[i + 1]["text"])), None)
     vor_rubrum = kopf[: anfang if anfang is not None else 20]
 
     for i, a in enumerate(vor_rubrum):
@@ -231,7 +237,7 @@ def erkenne(abschnitte: list[dict]) -> dict:
             ergebnis["dokumentart"] = {"wert": a["text"].strip(), "fundstelle": _fund(a)}
 
     if anfang is not None:
-        start = anfang + (1 if _ANFANG.match(kopf[anfang]["text"]) else 0)
+        start = anfang + (0 if _LABEL_ANFANG.match(kopf[anfang]["text"]) else 1)
         bereich = []
         for a in kopf[start:]:
             if _ENDE.match(a["text"]) or re.match(r"^\d+\.\s", a["text"]):
