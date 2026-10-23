@@ -1,9 +1,13 @@
 name: CI
 
+# Vorübergehend nur von Hand (Actions → CI → Run workflow): Die Actions-Minuten des Kontos sind bis
+# 01.11.2026 aufgebraucht, die Jobs brachen sofort ab. Geprüft wird solange auf den eigenen Rechnern
+# (eigener-runner.yml). Ab November wieder einschalten: die drei auskommentierten Zeilen zurückholen.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  # push:
+  #   branches: [main]
+  # pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
