@@ -8,6 +8,7 @@ import {
   euro,
   heuteIso,
   istDesktop,
+  drucken,
   kern,
   prozent,
 } from "./kern";
@@ -302,7 +303,7 @@ function ZinsAusgabe({ e }: { e: ZinsErgebnis }) {
     <div className="rechner-ergebnis">
       <div className="kopf">
         <h2>Ergebnis</h2>
-        <button className="zweitrangig nicht-drucken" onClick={() => window.print()}>
+        <button className="zweitrangig nicht-drucken" onClick={() => void drucken()}>
           Drucken …
         </button>
       </div>
@@ -566,7 +567,7 @@ function Fristen() {
             <h2>
               Fristende: {ergebnis.wochentag}, {datumDe(ergebnis.ende)}
             </h2>
-            <button className="zweitrangig nicht-drucken" onClick={() => window.print()}>
+            <button className="zweitrangig nicht-drucken" onClick={() => void drucken()}>
               Drucken …
             </button>
           </div>

@@ -1,7 +1,7 @@
 // Zusätzliche Fenster der App. Die Toolbox (Rechner aus JuraBox Lite) läuft in einem eigenen Fenster,
 // das dieselbe Oberfläche mit dem Parameter `fenster=toolbox` lädt und denselben Kern benutzt.
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 pub const TOOLBOX: &str = "toolbox";
 
@@ -24,6 +24,14 @@ pub async fn toolbox_oeffnen(app: AppHandle) -> Result<(), String> {
         .build()
         .map(|_| ())
         .map_err(|f| f.to_string())
+}
+
+/// Druckdialog des Systems für den Inhalt des Fensters; die Oberfläche blendet beim Drucken alles außer der
+/// Druckansicht aus (`@media print`). `window.print()` allein reicht nicht: Unter macOS druckt WKWebView damit nichts,
+/// Tauri ruft dort den Druckvorgang von AppKit auf, unter Windows und Linux den der Webansicht.
+#[tauri::command]
+pub fn drucken(fenster: WebviewWindow) -> Result<(), String> {
+    fenster.print().map_err(|f| f.to_string())
 }
 
 #[cfg(test)]

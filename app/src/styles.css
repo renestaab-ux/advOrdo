@@ -879,3 +879,18 @@ details.kurz-hinweis summary { cursor: pointer; }
 .sortier-kopf:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; border-radius: 2px; }
 .sortier-pfeil { font-size: 10px; opacity: .45; }
 .sortier-kopf.aktiv .sortier-pfeil { opacity: 1; color: var(--akzent); }
+
+/* Ausgabe der KI-Ergebnisse */
+.ki-ausgeben { margin-left: auto; }
+.ki-export { max-width: 900px; margin: 0 0 12px; }
+.ki-export-kopf { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.ki-export-teile { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 8px; }
+.ki-export-zitate { display: block; font-size: 13px; margin-bottom: 10px; }
+.ki-export-knoepfe { flex-wrap: wrap; }
+#druckbereich { display: none; }
+@media print {
+  @page { margin: 16mm 15mm; }
+  body:has(#druckbereich) { background: #fff; }
+  body:has(#druckbereich) > #root { display: none !important; }
+  #druckbereich { display: block; }
+}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
 import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
+import KiExport from "./Export";
 import {
   ART_TEXT,
   EREIGNIS_ART_TEXT,
@@ -38,6 +39,7 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
   const [ansicht, setAnsicht] = useState<Ansicht>("widersprueche");
   const [offen, setOffen] = useState<Offen>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [ausgeben, setAusgeben] = useState(false);
   const seite = useRef<HTMLDivElement>(null);
 
   const ladeErgebnisse = useCallback(async (id: number) => {
@@ -60,6 +62,7 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
     setErgebnisse(LEER);
     setDokumente([]);
     setOffen(null);
+    setAusgeben(false);
     if (akteId == null || !istDesktop) return;
     void (async () => {
       try {
@@ -178,7 +181,19 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
         >
           {z ? "Akte neu zusammenfassen" : "Akte zusammenfassen"}
         </button>
+        {(w || c || z || Object.keys(ergebnisse.dokumente).length > 0) && (
+          <button
+            className="zweitrangig ki-ausgeben"
+            onClick={() => setAusgeben(!ausgeben)}
+            aria-expanded={ausgeben}
+            title="Ergebnisse mit Fundstellen als Word, PDF, Excel, Markdown oder Text speichern oder drucken"
+          >
+            Exportieren / Drucken …
+          </button>
+        )}
       </div>
+
+      {ausgeben && <KiExport akteId={akteId} ergebnisse={ergebnisse} onSchliessen={() => setAusgeben(false)} />}
 
       {auftrag && auftrag.status === "laeuft" && <Fortschritt auftrag={auftrag} onAbbrechen={abbrechen} />}
       {auftrag?.status === "abgebrochen" && <p className="meldung">Analyse abgebrochen.</p>}

@@ -29,6 +29,7 @@ from .eigene.felder import FELDER, FORMEN
 from .gesetze import quelle, wissensbasis
 from .ki import anbieter as ki_anbieter
 from .ki import chat as ki_chat
+from .ki import export as ki_export
 from .ki import speicher as ki_speicher
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
@@ -205,9 +206,12 @@ class Kern:
             "ki.auftrag": self.auftraege.status,
             "ki.laufend": lambda: (a.als_dict() if (a := self.auftraege.laufend()) else None),
             "ki.abbrechen": self.auftraege.abbrechen,
-            "ki.ergebnisse": lambda akte_id: ki_speicher.ergebnisse(
-                self.akten, akte_id, ki_anbieter.lade_einstellungen(self.ki_datei).aktives_modell
-            ),
+            "ki.ergebnisse": lambda akte_id: ki_speicher.ergebnisse(self.akten, akte_id, self.aktives_modell()),
+            "ki.export_name": lambda akte_id: {"name": ki_export.dateiname(self.akten, akte_id)},
+            "ki.export": lambda akte_id, format, pfad, teile=None, zitate=True: ki_export.schreiben(
+                self.akten, akte_id, self.aktives_modell(), format, pfad, teile, zitate),
+            "ki.export_druck": lambda akte_id, teile=None, zitate=True: ki_export.druckansicht(
+                self.akten, akte_id, self.aktives_modell(), teile, zitate),
             "ki.chat_verlauf": lambda akte_id, dokument_id=None: ki_chat.verlauf(self.akten, akte_id, dokument_id),
             "ki.chat_fragen": self.ki_chat_fragen,
             "rechner.verzugszinsen": lambda **p: verzugszinsen.berechne(
@@ -379,6 +383,10 @@ class Kern:
                                       for o in s["konzerngesellschaften"]],
             "anwaelte": anwaelte,
         }
+
+    def aktives_modell(self) -> str:
+        """Ergebnisse gelten je Modell; gezeigt und ausgegeben wird, was zum aktiven Modell gespeichert ist."""
+        return ki_anbieter.lade_einstellungen(self.ki_datei).aktives_modell
 
     def akte_stammdaten(self, akte_id: int) -> dict:
         return self._mit_kollision(stammdaten.stammdaten(self.akten, akte_id))

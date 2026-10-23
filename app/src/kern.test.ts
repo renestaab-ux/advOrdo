@@ -44,6 +44,7 @@ import {
   programmName,
   optionPasst,
   type Arbeitskopie,
+  exportTeile,
 } from "./kern";
 
 describe("istZitat", () => {
@@ -496,5 +497,24 @@ describe("optionPasst", () => {
     expect(optionPasst(kammer, "kammer münchen")).toBe(true);
     expect(optionPasst(kammer, "nürnberg")).toBe(false);
     expect(optionPasst("Rechtsanwaltskammer Köln", "koeln")).toBe(true);
+  });
+});
+
+describe("exportTeile", () => {
+  it("bietet nur Teile mit gespeichertem Ergebnis an, mit Anzahl", () => {
+    const teile = exportTeile({
+      zusammenfassung_akte: null,
+      widersprueche: null,
+      chronologie: { ereignisse: [{}, {}] } as never,
+      dokumente: { "3": {} as never },
+    });
+    expect(teile.map((t) => [t.id, t.vorhanden])).toEqual([
+      ["widersprueche", false],
+      ["chronologie", true],
+      ["zusammenfassung_akte", false],
+      ["dokumente", true],
+    ]);
+    expect(teile[1].titel).toBe("Chronologie (2)");
+    expect(teile[3].titel).toBe("Zusammenfassungen der Dokumente (1)");
   });
 });
