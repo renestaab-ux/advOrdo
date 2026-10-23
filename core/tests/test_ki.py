@@ -723,3 +723,26 @@ def test_probelauf_mit_chronologie(tmp_path, monkeypatch, capsys):
     assert "fehlt: 2025-07-15 Rücktritt (04)" in aus
     protokoll = json.loads((tmp_path / "ki-pruefen-protokoll.json").read_text(encoding="utf-8"))
     assert len(protokoll["chronologie"]["ereignisse"]) == 4
+
+
+def test_chronologie_monat_steht_an_seiner_stelle_im_monat():
+    from juracore.ki.chronologie import sortiere
+
+    def e(datum, anzeige, art="ereignis"):
+        return {"datum": datum, "anzeige": anzeige, "art": art}
+
+    reihe = sortiere([e("2026-02", "Ende Februar 2026"), e("2026-02-28", "28.02.2026"), e("2026-02-02", "02.02.2026"),
+                      e("2026-02", "Mitte Februar 2026"), e("2026-02", "Februar 2026"), e("2026-03-01", "01.03.2026"),
+                      e("2026-02-15", "15.02.2026", "frist"), e("2026-02-14", "14.02.2026")])
+    assert [x["anzeige"] for x in reihe] == ["Februar 2026", "02.02.2026", "14.02.2026", "Mitte Februar 2026",
+                                             "15.02.2026", "28.02.2026", "Ende Februar 2026", "01.03.2026"]
+
+
+def test_gespeicherte_chronologie_wird_neu_geordnet(akten):
+    speicher.einrichten(akten)
+    a = akte.akte_anlegen(akten, "Akte")
+    speicher.schreibe(akten, "k", "chronologie", "m", {"ereignisse": [
+        {"datum": "2026-02", "anzeige": "Ende Februar 2026", "art": "ereignis"},
+        {"datum": "2026-02-02", "anzeige": "02.02.2026", "art": "ereignis"}]}, akte_id=a["id"])
+    c = speicher.ergebnisse(akten, a["id"], "m")["chronologie"]
+    assert [x["anzeige"] for x in c["ereignisse"]] == ["02.02.2026", "Ende Februar 2026"]
