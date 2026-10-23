@@ -103,7 +103,7 @@ export default function AktenWahl({
   }
 
   return (
-    <div className="akten-wahl" ref={rahmen}>
+    <div className="akten-wahl-feld" ref={rahmen}>
       <button
         type="button"
         className="akten-wahl-knopf"
