@@ -43,6 +43,7 @@ log = logging.getLogger("juracore.rpc")
 class Kern:
     def __init__(self, db_pfad: Path, archiv: Path):
         self.con = db.oeffne(db_pfad)
+        self.db_pfad = Path(db_pfad)
         self.archiv = archiv
         self.eigene_liste = Path(db_pfad).parent / "gesetze.json"
         # Akten getrennt von der Wissensbasis: eigene Datenbank, Originale je Akte in einem eigenen Ordner.
@@ -515,8 +516,12 @@ class Kern:
             raise ValueError("Kein Sprachmodell gewählt. Bitte unter „Einstellungen“ ein Modell auswählen.")
         return e, self.ki_fabrik(e, self._schluessel(e) if e.extern else None)
 
-    def ki_chat_fragen(self, akte_id: int, frage: str, dokument_id: int | None = None) -> dict:
-        """Stellt eine Frage an die Akte bzw. an ein Dokument im Hintergrund; die Antwort liefert ``ki.auftrag``."""
+    def ki_chat_fragen(self, akte_id: int, frage: str, dokument_id: int | None = None, rechner: bool = False,
+                       gesetze: bool = False, land: str = "BY") -> dict:
+        """Stellt eine Frage an die Akte bzw. an ein Dokument im Hintergrund; die Antwort liefert ``ki.auftrag``.
+
+        ``rechner``: Zinsen und Fristen rechnet die App (Toolbox); ``gesetze``: passende Normen der Wissensbasis
+        gehen mit in die Anfrage; ``land``: Bundesland für Feiertage beim Fristenrechner."""
         if not str(frage).strip():
             raise ValueError("Die Frage ist leer.")
         e, modell = self._ki_modell()
@@ -524,11 +529,16 @@ class Kern:
 
         def arbeit(auftrag) -> dict:
             con = akte.oeffne(self.akten_pfad)
+            wb = db.oeffne(self.db_pfad) if gesetze else None
             try:
                 return ki_chat.frage(con, modell, e.aktiver_kontext, int(akte_id), str(frage),
-                                     None if dokument_id is None else int(dokument_id), auftrag, extern)
+                                     None if dokument_id is None else int(dokument_id), auftrag, extern,
+                                     rechner=bool(rechner), gesetze=wb,
+                                     basiszins=basiszins.lade(self.basiszins_datei), land=str(land))
             finally:
                 con.close()
+                if wb is not None:
+                    wb.close()
 
         return self.auftraege.starte("chat", arbeit)
 

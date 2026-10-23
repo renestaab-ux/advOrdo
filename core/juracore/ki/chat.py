@@ -18,6 +18,9 @@ wird in Aktenreihenfolge aufgefüllt. Die Antwort nennt, wie viel vorlag.
 
 Der Verlauf wird je Akte bzw. Dokument in ``ki_chat`` gespeichert; die letzten
 Fragen und Antworten gehen als Zusammenhang mit in die nächste Anfrage.
+
+Zuschaltbares Zusatzwissen (``wissen.py``): Rechner der Toolbox für Zinsen und
+Fristen und Gesetze aus der Wissensbasis.
 """
 
 from __future__ import annotations
@@ -25,14 +28,15 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from ..abgleich.abgleich import PARTEIEN
-from . import belege
+from ..rechner.basiszins import Basiszins
+from . import belege, wissen
 from .analyse import BELEGT, OHNE_BELEG, Fortschritt, OhneFortschritt
 from .anbieter import ANTWORT_TOKEN, Anbieter, KiFehler
 
-FASSUNG = 1
+FASSUNG = 2
 
 # Fragen und Antworten aus dem Verlauf, die als Zusammenhang mitgehen.
 VERLAUF = 6
@@ -43,6 +47,7 @@ HOECHSTENS = 12  # Aussagen je Antwort
 TATSACHE = "tatsache"
 EINSCHAETZUNG = "einschaetzung"
 HINWEIS = "hinweis"
+BERECHNUNG = "berechnung"
 
 SYSTEM = (
     "Du bist ein sorgfältiger juristischer Assistent in einer deutschen Anwaltskanzlei. Du beantwortest Fragen zu "
@@ -197,10 +202,18 @@ def frage(
     dokument_id: int | None = None,
     fortschritt: Fortschritt | None = None,
     extern: str | None = None,
+    rechner: bool = False,
+    gesetze: sqlite3.Connection | None = None,
+    basiszins: Basiszins | None = None,
+    land: str = "BY",
+    heute: date | None = None,
 ) -> dict:
     """Beantwortet eine Frage zur Akte bzw. zum Dokument, speichert Frage und Antwort und gibt die Antwort zurück.
 
     ``extern``: Name des externen Anbieters, an den die Anfrage geht (wird mit der Antwort vermerkt).
+    ``rechner``: Zinsen und Fristen rechnet die App mit den Angaben des Modells (Toolbox).
+    ``gesetze``: Verbindung zur Wissensbasis; dann gehen passende Normen mit in die Anfrage.
+    ``land``: Bundesland für Feiertage beim Fristenrechner.
     """
     fortschritt = fortschritt or OhneFortschritt()
     einrichten(con)
@@ -223,8 +236,17 @@ def frage(
     texte = [belege.lade_text(con, i, PARTEIEN) for i in ids]
 
     bisher = _zusammenhang(verlauf(con, akte_id, dokument_id))
-    # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung und Verlauf, rund 3 Zeichen je Token.
-    budget = max(3000, (kontext - ANTWORT_TOKEN - 1200) * 3 - len(bisher) - len(text))
+    rechnen = rechner and wissen.soll_rechnen(text)
+    normen: list[dict] = []
+    fehlende_normen: list[str] = []
+    if gesetze is not None:
+        fortschritt.melde("Suche passende Normen in der Wissensbasis")
+        zusaetzlich = ["§ 288 BGB", "§ 247 BGB", "§ 187 BGB", "§ 188 BGB", "§ 193 BGB"] if rechnen else []
+        normen, fehlende_normen = wissen.waehle_normen(gesetze, con, akte_id, dokument_id, text, zusaetzlich)
+    normtext = wissen.normen_text(normen)
+    zusatz = (len(wissen.ANWEISUNG_RECHNER) if rechnen else 0) + len(normtext) + (400 if normen else 0)
+    # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung, Verlauf und Zusatzwissen, rund 3 Zeichen je Token.
+    budget = max(3000, (kontext - ANTWORT_TOKEN - 1200) * 3 - len(bisher) - len(text) - zusatz)
     fortschritt.melde("Wähle die passenden Absätze aus")
     stuecke, auswahl = waehle(texte, text + " " + bisher[-300:], budget)
 
@@ -243,6 +265,7 @@ def frage(
     )
     nutzer = (
         f"{chr(10).join(teile)}\n\n"
+        + (f"Gesetze aus der Wissensbasis:\n{normtext}\n\n" if normen else "")
         + (f"Bisheriger Verlauf des Gesprächs:\n{bisher}\n\n" if bisher else "")
         + f"Frage: {text}\n\n"
         f"Aufgabe: Beantworte die Frage in höchstens {HOECHSTENS} kurzen Aussagen, die wichtigste zuerst. {umfang}\n"
@@ -255,17 +278,26 @@ def frage(
         "[Dokument.Absatz]) und einem wörtlichen Zitat aus genau diesem Absatz: eine zusammenhängende Wortfolge "
         "von 4 bis 25 Wörtern, Zeichen für Zeichen abgeschrieben, ohne Auslassungen. Eine Einschätzung belegst du "
         "mit den Stellen, auf die sie sich stützt."
+        + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
+        + (f"\n\n{wissen.ANWEISUNG_RECHNER}" if rechnen else "")
     )
+    schema = SCHEMA
+    if normen or rechnen:
+        schema = json.loads(json.dumps(SCHEMA))
+        if normen:
+            schema["properties"]["aussagen"]["items"]["properties"]["normbelege"] = wissen.SCHEMA_NORMBELEGE
+        if rechnen:
+            schema["properties"]["berechnungen"] = wissen.SCHEMA_BERECHNUNG
 
     fortschritt.melde("Das Sprachmodell beantwortet die Frage")
     fortschritt.pruefe()
     try:
-        antwort = anbieter.chat(SYSTEM, nutzer, SCHEMA)
+        antwort = anbieter.chat(SYSTEM, nutzer, schema)
     except KiFehler as fehler:
         if "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
             raise
         fortschritt.pruefe()
-        antwort = anbieter.chat(SYSTEM, nutzer, SCHEMA)  # ein zweiter Versuch bei unbrauchbarem JSON
+        antwort = anbieter.chat(SYSTEM, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
 
     aussagen = []
     for a in (antwort.get("aussagen") or [])[:HOECHSTENS]:
@@ -277,8 +309,39 @@ def frage(
             if isinstance(b, dict) and (f := _beleg(texte, b.get("dokument"), b.get("absatz"), b.get("zitat"))):
                 if f not in fundstellen:
                     fundstellen.append(f)
-        status = HINWEIS if art == HINWEIS and not fundstellen else (BELEGT if fundstellen else OHNE_BELEG)
-        aussagen.append({"text": str(a["text"]).strip(), "art": art, "status": status, "fundstellen": fundstellen})
+        normbelege = []
+        for b in (a.get("normbelege") or []) if normen else []:
+            if isinstance(b, dict) and (f := wissen.normbeleg(normen, b.get("norm"), b.get("zitat"))):
+                if f not in normbelege:
+                    normbelege.append(f)
+        # Eine Tatsache aus der Akte belegt nur das Dokument, eine Einschätzung auch der Wortlaut einer Norm.
+        belegt = fundstellen or (normbelege and art != TATSACHE)
+        status = HINWEIS if art == HINWEIS and not belegt else (BELEGT if belegt else OHNE_BELEG)
+        eintrag = {"text": str(a["text"]).strip(), "art": art, "status": status, "fundstellen": fundstellen}
+        if normbelege:
+            eintrag["normbelege"] = normbelege
+        aussagen.append(eintrag)
+
+    berechnungen = []
+    if rechnen:
+        fortschritt.melde("Rechne mit den Rechnern der Toolbox")
+
+        def belegen(dokument: object, absatz: object, zitat: object) -> tuple[dict, str] | None:
+            f = _beleg(texte, dokument, absatz, zitat)
+            if f is None:
+                return None
+            t = next(t for t in texte if t.dokument_id == f["dokument_id"])
+            return f, t.nach_nr[f["abschnitt"]]
+
+        berechnungen = wissen.berechne(antwort.get("berechnungen"), belegen, text, heute or date.today(),
+                                       basiszins, land)
+    for b in reversed(berechnungen):
+        aussagen.insert(0, {"text": b["text"], "art": BERECHNUNG, "status": BELEGT if b["belegt"] else OHNE_BELEG,
+                            "fundstellen": [], "berechnung": b})
+    if any(b["ergebnis"] for b in berechnungen):
+        # Die App hat gerechnet; Hinweise des Modells, es könne nicht rechnen, wären jetzt falsch.
+        aussagen = [a for a in aussagen
+                    if not (a["art"] == HINWEIS and re.search(r"basiszins|berechn|rechn", a["text"], re.I))]
 
     jetzt = _jetzt()
     ergebnis = {
@@ -288,6 +351,14 @@ def frage(
         "extern": extern,
         "fassung": FASSUNG,
     }
+    if gesetze is not None:
+        ergebnis["wissen"] = {
+            "gesetze": [f"{n['bezeichnung']} {n['gesetz']}" for n in normen],
+            "fehlend": fehlende_normen,
+            "zeichen": len(normtext),
+        }
+    if rechnen:
+        ergebnis.setdefault("wissen", {})["rechner"] = True
     with con:
         con.execute("INSERT INTO ki_chat (akte_id, dokument_id, rolle, inhalt, erstellt_am) VALUES (?, ?, ?, ?, ?)",
                     (akte_id, dokument_id, "frage", json.dumps({"text": text}, ensure_ascii=False), jetzt))
