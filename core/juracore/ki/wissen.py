@@ -99,6 +99,25 @@ ANWEISUNG_RECHNER = (
 )
 
 
+SCHEMA_NUR_BERECHNUNG = {
+    "type": "object",
+    "properties": {"berechnungen": SCHEMA_BERECHNUNG},
+    "required": ["berechnungen"],
+}
+
+
+def brauchbar(vorschlaege: object) -> bool:
+    """Ob das Modell überhaupt Angaben für einen Rechner geliefert hat."""
+    return isinstance(vorschlaege, list) and any(
+        isinstance(v, dict) and v.get("rechner") in FELDER and v.get("angaben") for v in vorschlaege)
+
+
+def rechner_auftrag(dokumente: str, frage: str) -> str:
+    """Anfrage nur nach den Angaben für den Rechner, wenn die Antwort sie nicht enthielt."""
+    return (f"{dokumente}\n\nFrage: {frage}\n\nAufgabe: Beantworte die Frage nicht. Suche nur die Angaben, die die "
+            f"App für ihre Berechnung braucht.\n{ANWEISUNG_RECHNER}")
+
+
 def soll_rechnen(frage: str) -> bool:
     return bool(_RECHNEN.search(frage))
 

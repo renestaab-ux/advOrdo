@@ -281,13 +281,18 @@ def frage(
         + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
         + (f"\n\n{wissen.ANWEISUNG_RECHNER}" if rechnen else "")
     )
+    # Zusatzfelder sind Pflicht: Lokale Modelle mit erzwungener JSON-Ausgabe (LM Studio) lassen freiwillige
+    # Felder sonst einfach weg.
     schema = SCHEMA
     if normen or rechnen:
         schema = json.loads(json.dumps(SCHEMA))
         if normen:
-            schema["properties"]["aussagen"]["items"]["properties"]["normbelege"] = wissen.SCHEMA_NORMBELEGE
+            aussage = schema["properties"]["aussagen"]["items"]
+            aussage["properties"]["normbelege"] = wissen.SCHEMA_NORMBELEGE
+            aussage["required"] = [*aussage["required"], "normbelege"]
         if rechnen:
             schema["properties"]["berechnungen"] = wissen.SCHEMA_BERECHNUNG
+            schema["required"] = [*schema["required"], "berechnungen"]
 
     fortschritt.melde("Das Sprachmodell beantwortet die Frage")
     fortschritt.pruefe()
@@ -333,8 +338,18 @@ def frage(
             t = next(t for t in texte if t.dokument_id == f["dokument_id"])
             return f, t.nach_nr[f["abschnitt"]]
 
-        berechnungen = wissen.berechne(antwort.get("berechnungen"), belegen, text, heute or date.today(),
-                                       basiszins, land)
+        vorschlaege = antwort.get("berechnungen")
+        if not wissen.brauchbar(vorschlaege):
+            # Zweiter, schmaler Auftrag nur für die Angaben des Rechners; kleine Modelle übergehen das Feld neben
+            # der eigentlichen Antwort gern.
+            fortschritt.melde("Das Sprachmodell sucht die Angaben für den Rechner")
+            fortschritt.pruefe()
+            try:
+                vorschlaege = anbieter.chat(SYSTEM, wissen.rechner_auftrag(chr(10).join(teile), text),
+                                            wissen.SCHEMA_NUR_BERECHNUNG).get("berechnungen")
+            except KiFehler:
+                vorschlaege = None
+        berechnungen = wissen.berechne(vorschlaege, belegen, text, heute or date.today(), basiszins, land)
     for b in reversed(berechnungen):
         aussagen.insert(0, {"text": b["text"], "art": BERECHNUNG, "status": BELEGT if b["belegt"] else OHNE_BELEG,
                             "fundstellen": [], "berechnung": b})
