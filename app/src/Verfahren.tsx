@@ -179,6 +179,21 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
       )}
       {e && optionen && (
         <form className="verfahren-formular" onSubmit={speichern}>
+          {!bearbeitet?.id && (
+            <p className="leise klein">
+              Gericht und Aktenzeichen stehen schon in einem Dokument?{" "}
+              <button
+                type="button"
+                className="link klein"
+                onClick={() => {
+                  setBearbeitet(null);
+                  setAusDokument(true);
+                }}
+              >
+                Aus Dokument übernehmen …
+              </button>
+            </p>
+          )}
           <div className="formular-raster">
             <label className="feld">
               Art
