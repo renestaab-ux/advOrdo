@@ -204,6 +204,8 @@ def frage(
     extern: str | None = None,
     rechner: bool = False,
     gesetze: sqlite3.Connection | None = None,
+    gesetze_suche: bool = True,
+    gesetze_ergaenzt: list[str] | None = None,
     basiszins: Basiszins | None = None,
     land: str = "BY",
     heute: date | None = None,
@@ -212,7 +214,9 @@ def frage(
 
     ``extern``: Name des externen Anbieters, an den die Anfrage geht (wird mit der Antwort vermerkt).
     ``rechner``: Zinsen und Fristen rechnet die App mit den Angaben des Modells (Toolbox).
-    ``gesetze``: Verbindung zur Wissensbasis; dann gehen passende Normen mit in die Anfrage.
+    ``gesetze``: Verbindung zur Wissensbasis; dann gehen die zitierten Normen mit in die Anfrage und, mit
+    ``gesetze_suche``, die zur Frage passenden Treffer der Volltextsuche; ``gesetze_ergaenzt``: vom Nutzer
+    ergänzte Normen und Gesetze (siehe ``wissen.waehle_normen``).
     ``land``: Bundesland für Feiertage beim Fristenrechner.
     """
     fortschritt = fortschritt or OhneFortschritt()
@@ -242,7 +246,8 @@ def frage(
     if gesetze is not None:
         fortschritt.melde("Suche passende Normen in der Wissensbasis")
         zusaetzlich = ["§ 288 BGB", "§ 247 BGB", "§ 187 BGB", "§ 188 BGB", "§ 193 BGB"] if rechnen else []
-        normen, fehlende_normen = wissen.waehle_normen(gesetze, con, akte_id, dokument_id, text, zusaetzlich)
+        normen, fehlende_normen = wissen.waehle_normen(gesetze, con, akte_id, dokument_id, text, zusaetzlich,
+                                                             suche=gesetze_suche, ergaenzt=gesetze_ergaenzt)
     normtext = wissen.normen_text(normen)
     zusatz = (len(wissen.ANWEISUNG_RECHNER) if rechnen else 0) + len(normtext) + (400 if normen else 0)
     # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung, Verlauf und Zusatzwissen, rund 3 Zeichen je Token.

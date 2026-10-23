@@ -174,6 +174,25 @@ def test_gesetze_gehen_mit_und_werden_am_wortlaut_geprueft(akten, con, tmp_path)
     assert "§ 280 BGB" in erg["wissen"]["gesetze"]
 
 
+def test_nur_zitierte_normen_ohne_suche(akten, con, tmp_path):
+    akte_id = _akte(akten, con, tmp_path)
+    mit, _ = wissen.waehle_normen(con, akten, akte_id, None, "Verjährung des Anspruchs")
+    ohne, _ = wissen.waehle_normen(con, akten, akte_id, None, "Verjährung des Anspruchs", suche=False)
+    assert {n["herkunft"] for n in mit} == {"zitiert", "suche"}
+    assert [n["bezeichnung"] for n in ohne] == ["§ 280"]
+
+
+def test_ergaenzte_normen_und_gesetze(akten, con, tmp_path):
+    akte_id = _akte(akten, con, tmp_path)
+    normen, fehlend = wissen.waehle_normen(con, akten, akte_id, None, "Wer ist Partei?", suche=False,
+                                           ergaenzt=["§ 437 BGB", "HGB", ""])
+    assert [n["bezeichnung"] for n in normen] == ["§ 437", "§ 280"]  # ergänzte Norm zuerst
+    assert fehlend == ["HGB"]  # nicht in der Wissensbasis
+    # Ein geladenes Gesetz erweitert die Suche: Treffer aus der ZPO zu „Klage“.
+    normen, _ = wissen.waehle_normen(con, akten, akte_id, None, "Klageerhebung Zustellung", ergaenzt=["ZPO"])
+    assert any(n["gesetz"] == "ZPO" for n in normen)
+
+
 def test_beim_zinsrechner_fehlende_normen_werden_genannt(akten, con, tmp_path):
     akte_id = _akte(akten, con, tmp_path)
     erg = chat.frage(akten, Attrappe(zinsantwort), 32768, akte_id, "Rechne die Zinsen aus.", rechner=True,
@@ -206,7 +225,7 @@ def test_rpc_reicht_die_schalter_durch(con, tmp_path):
 
     aufruf("ki.einstellungen_setzen", anbieter="ollama", endpunkt="http://127.0.0.1:9", modell=Attrappe.modell)
     auftrag = aufruf("ki.chat_fragen", akte_id=akte_id, frage="Rechne die Zinsen aus.", rechner=True,
-                     gesetze=True, land="BW")
+                     gesetze="zitiert", land="BW")
     stand = _warte(lambda: aufruf("ki.auftrag", auftrag_id=auftrag["auftrag_id"]))
     assert stand["status"] == "fertig", stand
     assert "berechnungen" in gesehen[0][1]["properties"]

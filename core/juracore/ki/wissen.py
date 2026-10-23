@@ -18,6 +18,7 @@ from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 
+from .. import db
 from ..abgleich.angaben import BETRAG, DATUM, finde_werte
 from ..gesetze import wissensbasis
 from ..gesetze.zitate import finde_zitate
@@ -30,6 +31,14 @@ GESETZE_ZEICHEN = 12000
 NORM_ZEICHEN = 3000  # je Norm; längere Normen werden gekürzt
 SUCHTREFFER = 4  # Normen aus der Volltextsuche zusätzlich zu den zitierten
 HOECHSTENS_BERECHNUNGEN = 2
+# Gesetze, in denen die Suche zur Frage stets sucht; dazu kommen die in der Akte zitierten.
+SUCHGESETZE = ("BGB", "ZPO", "GVG", "EGBGB")
+
+# Stufen des Schalters „Gesetze“.
+GESETZE_AUS = "aus"
+GESETZE_ZITIERT = "zitiert"
+GESETZE_SUCHE = "suche"
+GESETZE_STUFEN = (GESETZE_AUS, GESETZE_ZITIERT, GESETZE_SUCHE)
 
 ZINSEN = "zinsen"
 FRIST = "frist"
@@ -348,11 +357,15 @@ def _norm_zeile(wb: sqlite3.Connection, norm_id: int) -> dict | None:
 
 def waehle_normen(
     wb: sqlite3.Connection, akten: sqlite3.Connection, akte_id: int, dokument_id: int | None, frage: str,
-    zusaetzlich: list[str] | None = None, budget: int = GESETZE_ZEICHEN,
+    zusaetzlich: list[str] | None = None, budget: int = GESETZE_ZEICHEN, suche: bool = True,
+    ergaenzt: list[str] | None = None,
 ) -> tuple[list[dict], list[str]]:
     """Normen für die Anfrage: zuerst ``zusaetzlich`` (etwa § 288, § 247 BGB beim Zinsrechner), dann die in der
     Akte zitierten (häufigste zuerst), dann Treffer der Volltextsuche. Zweite Liste: zitierte Normen, die die
-    Wissensbasis nicht enthält."""
+    Wissensbasis nicht enthält.
+
+    ``ergaenzt``: Eingaben des Nutzers. Ein Normzitat („§ 288 BGB“) geht immer mit, ein Gesetz („HGB“) erweitert die
+    Suche zur Frage."""
     kandidaten: list[tuple[str, str, str]] = []  # Gesetz, Nummer, Typ
     fehlend: list[str] = []
 
@@ -362,6 +375,17 @@ def waehle_normen(
             if schluessel not in kandidaten:
                 kandidaten.append(schluessel)
 
+    weitere_gesetze: list[str] = []
+    for e in ergaenzt or []:
+        e = str(e).strip()
+        if not e:
+            continue
+        if finde_zitate(e):
+            dazu(e)
+        elif db.aktuelle_fassung(wb, e) is not None:
+            weitere_gesetze.append(e.upper())
+        else:
+            fehlend.append(e)
     for z in zusaetzlich or []:
         dazu(z)
     for z in akten.execute(
@@ -398,14 +422,18 @@ def waehle_normen(
         if n is None:
             fehlend.append(f"{'Art.' if typ == 'artikel' else '§'} {nummer} {gesetz}")
         nimm(n, "zitiert")
-    woerter = _suchwoerter(frage)
+    woerter = _suchwoerter(frage) if suche else []
     if woerter:
         abfrage = " OR ".join(f'"{w}"*' for w in woerter)
+        # Gesucht wird nur in den Grundgesetzen des Zivilprozesses und den Gesetzen, die die Akte zitiert.
+        gesetze = sorted({*SUCHGESETZE, *weitere_gesetze, *(g for g, _, _ in kandidaten)})
         try:
             treffer = wb.execute(
-                """SELECT n.id FROM norm_fts JOIN norm n ON n.id = norm_fts.rowid JOIN fassung f ON f.id = n.fassung_id
+                f"""SELECT n.id FROM norm_fts JOIN norm n ON n.id = norm_fts.rowid JOIN fassung f ON f.id = n.fassung_id
+                   JOIN gesetz g ON g.id = f.gesetz_id
                    WHERE norm_fts MATCH ? AND f.id = (SELECT MAX(id) FROM fassung WHERE gesetz_id = f.gesetz_id)
-                   ORDER BY bm25(norm_fts, 5.0, 3.0, 1.0) LIMIT ?""", (abfrage, SUCHTREFFER)).fetchall()
+                     AND g.abk IN ({", ".join("?" * len(gesetze))})
+                   ORDER BY bm25(norm_fts, 5.0, 3.0, 1.0) LIMIT ?""", (abfrage, *gesetze, SUCHTREFFER)).fetchall()
         except sqlite3.OperationalError:
             treffer = []
         for t in treffer:

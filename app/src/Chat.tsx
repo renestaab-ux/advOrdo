@@ -19,6 +19,38 @@ import {
   zeitpunkt,
 } from "./kern";
 
+type GesetzeStufe = "aus" | "zitiert" | "suche";
+
+function gemerkteStufe(): GesetzeStufe {
+  try {
+    const wert = localStorage.getItem("chat.gesetze_stufe");
+    if (wert === "aus" || wert === "zitiert" || wert === "suche") return wert;
+  } catch {
+    // ohne Speicher: aus
+  }
+  return gemerkt("chat.gesetze") ? "suche" : "aus";
+}
+
+function merkeStufe(stufe: GesetzeStufe) {
+  merkeText("chat.gesetze_stufe", stufe);
+}
+
+function gemerkterText(schluessel: string): string {
+  try {
+    return localStorage.getItem(schluessel) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function merkeText(schluessel: string, wert: string) {
+  try {
+    localStorage.setItem(schluessel, wert);
+  } catch {
+    // ohne Speicher gilt die Eingabe bis zum Neustart
+  }
+}
+
 const ART_TEXT: Record<ChatAussage["art"], string> = {
   tatsache: "Aus der Akte",
   einschaetzung: "Einschätzung des Modells",
@@ -46,7 +78,9 @@ export default function Chat({
   const [fehler, setFehler] = useState<string | null>(null);
   // Zusatzwissen je Gerät gemerkt: Rechner standardmäßig an (kostet kaum Token), Gesetze aus.
   const [rechner, setRechner] = useState(() => !gemerkt("chat.ohne_rechner"));
-  const [gesetze, setGesetze] = useState(() => gemerkt("chat.gesetze"));
+  const [gesetze, setGesetze] = useState<GesetzeStufe>(gemerkteStufe);
+  const [ergaenzt, setErgaenzt] = useState(() => gemerkterText("chat.gesetze_ergaenzt"));
+  const [geladeneGesetze, setGeladeneGesetze] = useState<string[]>([]);
   const ende = useRef<HTMLDivElement>(null);
   const seite = useRef<HTMLDivElement>(null);
 
@@ -62,6 +96,7 @@ export default function Chat({
       try {
         await ladeVerlauf();
         setStatus(await kern<KiStatus>("ki.status"));
+        setGeladeneGesetze((await kern<{ abk: string }[]>("gesetze.liste")).map((g) => g.abk));
         const laufend = await kern<KiAuftrag | null>("ki.laufend");
         if (laufend?.aufgabe === "chat") setAuftrag(laufend);
       } catch (e) {
@@ -117,6 +152,10 @@ export default function Chat({
           frage,
           rechner,
           gesetze,
+          gesetze_ergaenzt: ergaenzt
+            .split(/[;,\n]/)
+            .map((x) => x.trim())
+            .filter(Boolean),
           land: gespeichertesLand(),
         }),
       );
@@ -233,17 +272,41 @@ export default function Chat({
               />{" "}
               Rechner (Zinsen, Fristen)
             </label>
-            <label title="Die in der Akte zitierten und zur Frage passenden Normen gehen mit Wortlaut und Fassung an das Modell. Das braucht mehr Kontext (bis etwa 4.000 Token) und dauert länger.">
-              <input
-                type="checkbox"
-                checked={gesetze}
+            <label title="Normen gehen mit Wortlaut und Fassung an das Modell. Das braucht mehr Kontext (bis etwa 4.000 Token) und dauert länger; die Suche zur Frage am längsten.">
+              Gesetze:{" "}
+              <select
+                value={gesetze}
                 onChange={(e) => {
-                  setGesetze(e.target.checked);
-                  merke("chat.gesetze", e.target.checked);
+                  const stufe = e.target.value as GesetzeStufe;
+                  setGesetze(stufe);
+                  merkeStufe(stufe);
                 }}
-              />{" "}
-              Gesetze einbeziehen
+              >
+                <option value="aus">nicht einbeziehen</option>
+                <option value="zitiert">nur in der Akte zitierte Normen</option>
+                <option value="suche">zitierte und zur Frage passende Normen</option>
+              </select>
             </label>
+            {gesetze !== "aus" && (
+              <label title="Normen wie „§ 288 BGB“ gehen immer mit; Gesetze wie „HGB“ erweitern die Suche zur Frage. Mehrere mit Komma trennen.">
+                Ergänzen:{" "}
+                <input
+                  type="text"
+                  list="chat-gesetze"
+                  value={ergaenzt}
+                  placeholder="z. B. § 288 BGB, HGB"
+                  onChange={(e) => {
+                    setErgaenzt(e.target.value);
+                    merkeText("chat.gesetze_ergaenzt", e.target.value);
+                  }}
+                />
+                <datalist id="chat-gesetze">
+                  {geladeneGesetze.map((g) => (
+                    <option key={g} value={g} />
+                  ))}
+                </datalist>
+              </label>
+            )}
           </div>
           <div className="aktionen">
             <button onClick={fragen} disabled={!bereit || laeuft || !eingabe.trim()}>
