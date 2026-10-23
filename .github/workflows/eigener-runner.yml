@@ -1,8 +1,9 @@
 name: CI (eigener Rechner)
 
-# Dieselben Prüfungen wie in ci.yml, aber auf einem selbst gehosteten Windows-Runner (dem eigenen Rechner).
-# Kostet keine Actions-Minuten. Läuft nur, solange dort der Runner gestartet ist (run.cmd); sonst wartet der Lauf.
-# Nur für das private Repository gedacht: Vor einer Veröffentlichung den Runner entfernen oder diese Datei löschen.
+# Dieselben Prüfungen wie in ci.yml, aber auf selbst gehosteten Runnern (den eigenen Rechnern unter Windows und macOS).
+# Kostet keine Actions-Minuten. Ein Job läuft nur, solange auf dem jeweiligen Rechner der Runner gestartet ist
+# (Windows: run.cmd, macOS: ./run.sh); sonst wartet er, bis der Runner wieder online ist.
+# Nur für das private Repository gedacht: Vor einer Veröffentlichung die Runner entfernen oder diese Datei löschen.
 
 on:
   push:
@@ -49,3 +50,43 @@ jobs:
         run: |
           $env:JURACORE_PYTHON = (Resolve-Path ..\..\.venv-ci\Scripts\python.exe).Path
           cargo test; if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+  test-macos:
+    name: Tests (eigener Mac)
+    runs-on: [self-hosted, macOS]
+    defaults:
+      run:
+        # Login-Shell, damit Homebrew und Rust aus ~/.bash_profile im PATH sind; -e bricht beim ersten Fehler ab.
+        shell: bash -l -e -o pipefail {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Wie unter Windows: target/ bleibt erhalten, damit der Rust-Build schnell ist.
+          clean: false
+
+      - name: Python-Umgebung für den Lauf
+        run: |
+          # Homebrew-Python 3.12 bevorzugen (python.org-Python bringt keine Zertifikate mit).
+          PY=$(command -v python3.12 || command -v python3)
+          "$PY" --version
+          "$PY" -m venv .venv-ci
+          .venv-ci/bin/python -m pip install -e "core[dev]"
+
+      - name: Analysekern testen
+        working-directory: core
+        run: |
+          ../.venv-ci/bin/python -m ruff check .
+          ../.venv-ci/bin/python -m pytest -q
+
+      - name: Oberfläche bauen und testen
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - name: Desktop-Hülle testen
+        working-directory: app/src-tauri
+        run: |
+          export JURACORE_PYTHON="$(cd ../.. && pwd)/.venv-ci/bin/python"
+          cargo test
