@@ -23,6 +23,7 @@ class Seite:
     quelle: str
     zeilen: list[str | None]  # None markiert eine Absatzgrenze (Leerzeile, Textblock)
     konfidenz: float | None = None  # mittlere OCR-Konfidenz 0–100
+    woerter: list[list] | None = None  # nur OCR: [text, zeile, x, y, b, h], Lage als Anteil der Seite
 
 
 @dataclass

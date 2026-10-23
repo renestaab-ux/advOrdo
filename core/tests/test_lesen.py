@@ -129,3 +129,19 @@ def test_texterkennung_auf_seitenbild(tmp_path):
     zeilen, konfidenz = _tesseract_deutsch().erkenne(lesen._seitenbild(seite))
     assert "Klägerin" in " ".join(zeilen)
     assert konfidenz and konfidenz > 50
+
+
+def test_wortpositionen_der_texterkennung():
+    tsv = (
+        "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+        "1\t1\t0\t0\t0\t0\t0\t0\t1000\t2000\t-1\t\n"
+        "5\t1\t1\t1\t2\t1\t100\t240\t50\t20\t84.0\t433\n"
+        "5\t1\t1\t1\t1\t1\t100\t200\t200\t20\t96.0\tnach\n"
+        "5\t1\t1\t1\t1\t2\t320\t200\t10\t20\t90.0\t§\n"
+    )
+    assert ocr.lies_woerter(tsv) == [
+        ["nach", 0, 0.1, 0.1, 0.2, 0.01],
+        ["§", 0, 0.32, 0.1, 0.01, 0.01],
+        ["433", 1, 0.1, 0.12, 0.05, 0.01],
+    ]
+    assert ocr.lies_woerter("level\n") == []

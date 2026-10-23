@@ -108,7 +108,8 @@ CREATE TABLE IF NOT EXISTS seite (
     nr          INTEGER,
     quelle      TEXT NOT NULL,
     konfidenz   REAL,
-    text        TEXT NOT NULL               -- Rohtext der Seite vor der Aufbereitung
+    text        TEXT NOT NULL,              -- Rohtext der Seite vor der Aufbereitung
+    woerter     TEXT                        -- nur OCR: JSON [[Wort, Zeile, x, y, b, h], …] für Markierungen
 );
 
 CREATE TABLE IF NOT EXISTS abschnitt (
@@ -243,6 +244,7 @@ def _migriere(con: sqlite3.Connection) -> None:
     # Zwischenstände von Schema 4 (Entwicklungsversion) um die späteren Spalten ergänzen.
     for tabelle, spalte, typ in (("urteilszitat", "rn_zitiert", "INTEGER"), ("urteil", "doknr", "TEXT"),
                                  ("urteil", "kopf", "TEXT"), ("urteil_abschnitt", "teil", "TEXT"),
+                                 ("seite", "woerter", "TEXT"),
                                  *(("dokument", s, t) for s, t in _DATUM_SPALTEN.items())):
         if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
             con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
@@ -415,8 +417,9 @@ def inhalt_speichern(con: sqlite3.Connection, dokument_id: int, dok: Dokument, f
                      pfad: Path) -> None:
     """Seiten, Abschnitte und Datum eines gelesenen Dokuments; ``pfad`` ist die gelesene Datei (Dateidatum)."""
     con.executemany(
-        "INSERT INTO seite (dokument_id, nr, quelle, konfidenz, text) VALUES (?, ?, ?, ?, ?)",
-        [(dokument_id, s.nr, s.quelle, s.konfidenz, "\n".join(z for z in s.zeilen if z)) for s in dok.seiten],
+        "INSERT INTO seite (dokument_id, nr, quelle, konfidenz, text, woerter) VALUES (?, ?, ?, ?, ?, ?)",
+        [(dokument_id, s.nr, s.quelle, s.konfidenz, "\n".join(z for z in s.zeilen if z),
+          json.dumps(s.woerter, ensure_ascii=False) if s.woerter is not None else None) for s in dok.seiten],
     )
     con.executemany(
         """INSERT INTO abschnitt (dokument_id, nr, seite, seite_bis, rn, art, text, seitenwechsel)
