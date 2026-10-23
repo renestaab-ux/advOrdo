@@ -124,6 +124,15 @@ export interface Akte {
 
 // --- Stufe 2: Verfahren, Fristen und Termine, Notizen, Akte aus Dokument --------------------------------
 
+// Wie im Kern (verfahren.INSTANZ_VORGABE): Vorgabe der Instanz je Verfahrensart, frei änderbar.
+export const INSTANZ_VORGABE: Record<string, string> = {
+  klage: "1. Instanz",
+  eilverfahren: "1. Instanz",
+  beweisverfahren: "1. Instanz",
+  berufung: "2. Instanz",
+  revision: "3. Instanz",
+};
+
 export interface Verfahren {
   id: number;
   akte_id: number;
@@ -240,13 +249,22 @@ export interface RubrumPartei {
   fundstelle: Fundstelle;
   treffer: { id: number; name: string; stufe: "gleich" | "aehnlich" }[];
   eigene_organisation_id: number | null;
+  /** Nur bei „Verfahren aus Dokument“: Rolle, in der die Partei schon in der Akte steht. */
+  in_akte?: RubrumInAkte | null;
   bevollmaechtigte: {
     name: string;
     daten: Record<string, string>;
     zeichen: string;
     treffer: { id: number; name: string; stufe: "gleich" | "aehnlich" }[];
     eigene: boolean;
+    in_akte?: RubrumInAkte | null;
   } | null;
+}
+
+export interface RubrumInAkte {
+  rolle: string;
+  rolle_text: string;
+  name: string;
 }
 
 export interface RubrumVorschau {
@@ -265,6 +283,10 @@ export interface RubrumVorschau {
   aktenzeichen_vorschlag: string;
   hinweise: string[];
   abschnitte: Record<string, string>;
+  /** Nur bei „Verfahren aus Dokument“: gleiches gerichtliches Aktenzeichen schon in der Akte. */
+  verfahren_vorhanden?: { id: number; bezeichnung: string } | null;
+  /** Nur bei „Verfahren aus Dokument“: laufende Verfahren der Akte, die sich dabei abschließen lassen. */
+  laufende_verfahren?: { id: number; bezeichnung: string; art: string }[];
 }
 
 /** "2026-09-29" → "Di, 29.09.2026". */

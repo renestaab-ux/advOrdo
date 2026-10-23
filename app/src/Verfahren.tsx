@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
-import { AktenOptionen, Verfahren, datumLang, kern } from "./kern";
+import { AktenOptionen, INSTANZ_VORGABE, Verfahren, datumLang, kern } from "./kern";
+import VerfahrenAusDokument from "./VerfahrenAusDokument";
 
 interface Entwurf {
   art: string;
@@ -24,15 +25,6 @@ const LEER: Entwurf = {
   ende: "",
   notiz: "",
 };
-// Wie im Kern (verfahren.INSTANZ_VORGABE): Vorgabe der Instanz je Art, frei änderbar.
-const INSTANZ_VORGABE: Record<string, string> = {
-  klage: "1. Instanz",
-  eilverfahren: "1. Instanz",
-  beweisverfahren: "1. Instanz",
-  berufung: "2. Instanz",
-  revision: "3. Instanz",
-};
-
 /**
  * Verfahren der Akte (Stammdaten): Mahnverfahren, Klage in erster Instanz, Berufung … je mit Gericht und gerichtlichem
  * Aktenzeichen. Das Gericht steht danach auch unter den Beteiligten.
@@ -45,6 +37,7 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
   const [gerichte, setGerichte] = useState<string[]>([]);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
+  const [ausDokument, setAusDokument] = useState(false);
 
   useEffect(() => {
     void kern<Verfahren[]>("akten.verfahren", { akte_id: akteId }).then(setVerfahren, (e) => setFehler(String(e)));
@@ -95,10 +88,15 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
     <section className="karte verfahren-karte">
       <div className="kopf">
         <h2>Verfahren</h2>
-        {!bearbeitet && (
-          <button className="zweitrangig" onClick={() => setBearbeitet({ id: null, e: { ...LEER } })}>
-            + Verfahren
-          </button>
+        {!bearbeitet && !ausDokument && (
+          <span className="aktionen">
+            <button className="zweitrangig" onClick={() => setAusDokument(true)} title="Gericht, Aktenzeichen und Parteien aus einem Dokument übernehmen">
+              Aus Dokument …
+            </button>
+            <button className="zweitrangig" onClick={() => setBearbeitet({ id: null, e: { ...LEER } })}>
+              + Verfahren
+            </button>
+          </span>
         )}
       </div>
       <p className="erklaerung">
@@ -167,6 +165,17 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
             </button>
           </div>
         </div>
+      )}
+      {ausDokument && (
+        <VerfahrenAusDokument
+          akteId={akteId}
+          onAbbrechen={() => setAusDokument(false)}
+          onFertig={(liste) => {
+            setVerfahren(liste);
+            setAusDokument(false);
+            onGeaendert();
+          }}
+        />
       )}
       {e && optionen && (
         <form className="verfahren-formular" onSubmit={speichern}>

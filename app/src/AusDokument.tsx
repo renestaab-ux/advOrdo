@@ -14,7 +14,7 @@ interface ParteiWahl {
 const vorhanden = (t: RubrumPartei["treffer"]) => String(t.find((x) => x.stufe === "gleich")?.id ?? "");
 
 /** Fundstelle als „S. 1, Abschnitt 12“; der Abschnittstext erscheint beim Darüberfahren. */
-function Fund({ f, abschnitte }: { f: Fundstelle | undefined; abschnitte: Record<string, string> }) {
+export function Fund({ f, abschnitte }: { f: Fundstelle | undefined; abschnitte: Record<string, string> }) {
   if (!f) return null;
   return (
     <span className="fund" title={abschnitte[String(f.abschnitt)]}>

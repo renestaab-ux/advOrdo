@@ -142,6 +142,7 @@ class Kern:
             "akten.notiz_loeschen": lambda notiz_id: notizen.loeschen(self.akten, notiz_id),
             "akten.rubrum_lesen": self.rubrum_lesen,
             "akten.aus_dokument_anlegen": self.aus_dokument_anlegen,
+            "akten.verfahren_aus_dokument": self.verfahren_aus_dokument,
             "beteiligte.liste": lambda suche="", art=None: beteiligte.liste(self.akten, suche, art),
             "beteiligte.eintrag": lambda beteiligter_id: beteiligte.eintrag(self.akten, beteiligter_id),
             "beteiligte.aehnliche": lambda art, daten, ausser=None: beteiligte.aehnliche(
@@ -292,16 +293,33 @@ class Kern:
         return [v | {"dateiname": e["dateiname"]} for i in ids
                 for e in [kalender.dokument_vorschlaege(self.akten, i, land)] for v in e["vorschlaege"]]
 
-    def rubrum_lesen(self, pfad: str) -> dict:
-        """Liest eine Datei (ohne sie abzulegen) und erkennt das Rubrum für „Akte aus Dokument“."""
-        dok = lesen.lies(Path(pfad))
-        abschnitte = [{"nr": a.nr, "seite": a.seite, "text": a.text} for a in dok.abschnitte]
+    def rubrum_lesen(self, pfad: str | None = None, dokument_id: int | None = None,
+                     akte_id: int | None = None) -> dict:
+        """Erkennt das Rubrum für „Akte aus Dokument“ bzw. „Verfahren aus Dokument“: aus einer Datei (ohne sie
+        abzulegen) oder aus einem Dokument, das schon in der Akte liegt. Mit ``akte_id`` (bei einem Dokument der Akte
+        immer) wird die Vorschau mit den Beteiligten und Verfahren dieser Akte abgeglichen."""
+        if dokument_id is not None:
+            z = self.akten.execute("SELECT akte_id, dateiname, lesart FROM dokument WHERE id = ?",
+                                   (dokument_id,)).fetchone()
+            if z is None:
+                raise LookupError(f"Dokument {dokument_id} gibt es nicht.")
+            abschnitte = [dict(a) for a in self.akten.execute(
+                "SELECT nr, seite, text FROM abschnitt WHERE dokument_id = ? ORDER BY nr", (dokument_id,))]
+            dateiname, lesart, akte_id = z["dateiname"], z["lesart"], z["akte_id"]
+        elif pfad:
+            dok = lesen.lies(Path(pfad))
+            abschnitte = [{"nr": a.nr, "seite": a.seite, "text": a.text} for a in dok.abschnitte]
+            dateiname, lesart = Path(pfad).name, dok.lesart
+        else:
+            raise ValueError("Bitte eine Datei oder ein Dokument der Akte wählen.")
         s = eigene.stand(self.akten, mit_archiv=False)
         namen = [s["organisation_name"], *(k["daten"].get("name", "") for k in s["beauftragte_kanzleien"])]
         konzern = [{"id": k["id"], "name": k["daten"].get("name", "")} for k in s["konzerngesellschaften"]]
         r = aus_dokument.vorschau(self.akten, abschnitte, namen, konzern)
-        r["dateiname"] = Path(pfad).name
-        r["lesart"] = dok.lesart
+        if akte_id is not None:
+            aus_dokument.mit_akte_abgleichen(self.akten, akte_id, r)
+        r["dateiname"] = dateiname
+        r["lesart"] = lesart
         r["abschnitte"] = {a["nr"]: a["text"] for a in abschnitte[:80]}
         return r
 
@@ -320,6 +338,21 @@ class Kern:
             raise
         self.kollision_pruefen(neu["id"])
         return next(a for a in self.akten_liste() if a["id"] == neu["id"])
+
+    def verfahren_aus_dokument(self, akte_id: int, auswahl: dict, pfad: str | None = None) -> list[dict]:
+        """Weiteres Verfahren in einer bestehenden Akte aus der bestätigten Auswahl. Mit ``pfad`` (neues Dokument)
+        wird die Datei dabei in die Akte eingelesen; scheitert die Übernahme, wird sie wieder entfernt."""
+        if (auswahl.get("verfahren") or {}).get("art") not in verfahren.ARTEN:
+            raise ValueError("Bitte die Art des Verfahrens wählen.")  # vor dem Einlesen prüfen
+        eingelesen = akte.importiere(self.akten, self.con, akte_id, pfad, self.ablage) if pfad else None
+        try:
+            liste = aus_dokument.verfahren_uebernehmen(self.akten, akte_id, auswahl)
+        except Exception:
+            if eingelesen and eingelesen["neu"]:
+                akte.dokument_loeschen(self.akten, eingelesen["dokument_id"], self.ablage)
+            raise
+        self.kollision_pruefen(akte_id)
+        return liste
 
     def akten_optionen(self) -> dict:
         """Auswahllisten für Stammdaten und Beteiligte, dazu die passenden Einträge aus „Eigene Daten“."""

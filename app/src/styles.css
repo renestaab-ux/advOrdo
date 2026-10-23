@@ -777,6 +777,16 @@ details.kurz-hinweis summary { cursor: pointer; }
 .verfahren-liste .aktionen { display: flex; gap: 10px; align-items: flex-start; }
 .marke-aktuell { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--akzent); }
 .verfahren-liste .status-marke { margin-left: 8px; }
+.verfahren-karte .kopf .aktionen { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Verfahren aus Dokument: Prüfansicht innerhalb der Karte */
+.verfahren-aus-dokument { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--linie); display: grid; gap: 10px; }
+.verfahren-aus-dokument h3 { margin: 6px 0 0; font-size: 16px; }
+.verfahren-aus-dokument p { margin: 0; }
+.verfahren-aus-dokument .aktionen { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.quelle-wahl { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; }
+.quelle-wahl .feld { flex: 1 1 320px; margin: 0; }
+.abschliessen-wahl { border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; margin: 0; display: grid; gap: 6px; }
+.abschliessen-wahl legend { font-weight: 600; padding: 0 4px; }
 
 /* Notizen */
 .notiz-neu { max-width: 900px; }

@@ -82,9 +82,9 @@ def _zeile(z: sqlite3.Row) -> dict:
 
 
 def liste(con: sqlite3.Connection, akte_id: int) -> list[dict]:
-    """Alle Verfahren der Akte, ältestes zuerst; das aktuelle ist markiert."""
+    """Alle Verfahren der Akte, ältestes zuerst (nach Beginn, ohne Beginn nach Ende); das aktuelle ist markiert."""
     verfahren = [_zeile(z) for z in con.execute(
-        "SELECT * FROM verfahren WHERE akte_id = ? ORDER BY COALESCE(beginn, angelegt_am), id", (akte_id,))]
+        "SELECT * FROM verfahren WHERE akte_id = ? ORDER BY COALESCE(beginn, ende, angelegt_am), id", (akte_id,))]
     aktuell = aktuelles(verfahren)
     for v in verfahren:
         v["aktuell"] = aktuell is not None and v["id"] == aktuell["id"]
