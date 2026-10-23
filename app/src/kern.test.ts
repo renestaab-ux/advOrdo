@@ -42,6 +42,7 @@ import {
   urteilHerkunft,
   offeneUebernahmen,
   programmName,
+  optionPasst,
   type Arbeitskopie,
 } from "./kern";
 
@@ -482,5 +483,18 @@ describe("aktePasst", () => {
     expect(aktePasst(a, "bruckner weber")).toBe(true);
     expect(aktePasst(a, "2 O 233")).toBe(true);
     expect(aktePasst(a, "freiburg müller")).toBe(false);
+  });
+});
+
+describe("optionPasst", () => {
+  const kammer = "Rechtsanwaltskammer für den Oberlandesgerichtsbezirk München";
+  it("findet Teilwörter an beliebiger Stelle, auch mit umschriebenem Umlaut", () => {
+    expect(optionPasst(kammer, "")).toBe(true);
+    expect(optionPasst(kammer, "münchen")).toBe(true);
+    expect(optionPasst(kammer, "Muen")).toBe(true);
+    expect(optionPasst(kammer, "muenchen")).toBe(true);
+    expect(optionPasst(kammer, "kammer münchen")).toBe(true);
+    expect(optionPasst(kammer, "nürnberg")).toBe(false);
+    expect(optionPasst("Rechtsanwaltskammer Köln", "koeln")).toBe(true);
   });
 });

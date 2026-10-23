@@ -371,6 +371,18 @@ export function aktePasst(
   return begriffe.every((b) => text.includes(b));
 }
 
+/**
+ * Ob ein Eintrag einer Auswahlliste zur Eingabe passt: jedes Wort muss im Eintrag vorkommen, egal wo. „münchen“ findet so
+ * „Rechtsanwaltskammer für den Oberlandesgerichtsbezirk München“. Umlaute dürfen auch umschrieben sein („muenchen“).
+ */
+export function optionPasst(option: string, suche: string): boolean {
+  const umschreiben = (t: string) =>
+    t.toLocaleLowerCase("de").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
+  const begriffe = umschreiben(suche).split(/\s+/).filter(Boolean);
+  const text = umschreiben(option);
+  return begriffe.every((b) => text.includes(b));
+}
+
 /** Die zuletzt geöffneten Akten, neueste zuerst; Akten, die noch nie geöffnet wurden, fehlen. */
 export function zuletztGeoeffnet(akten: Akte[], anzahl: number): Akte[] {
   return akten

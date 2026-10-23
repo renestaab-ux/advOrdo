@@ -1,6 +1,7 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { Rueckfrage } from "./Akte";
+import SuchAuswahl, { SUCHE_AB } from "./SuchAuswahl";
 import {
   EigeneAenderung,
   EigeneDaten as Stand,
@@ -1115,33 +1116,54 @@ export function Formular({
             <div key={f.schluessel} className="feld feld-breit">
               {titel}
               <div className="mehrfach">
-                {Array.from({ length: plaetze }, (_, i) => (
-                  <select
-                    key={i}
-                    aria-label={`${f.titel} ${i + 1}`}
-                    value={liste[i] ?? ""}
-                    onChange={(e) => {
-                      const neu = [...liste];
-                      neu[i] = e.target.value;
-                      setze(f.schluessel, neu.filter(Boolean));
-                    }}
-                  >
-                    <option value="">–</option>
-                    {(f.optionen ?? [])
-                      .filter((o) => o === liste[i] || !liste.includes(o))
-                      .map((o) => (
+                {Array.from({ length: plaetze }, (_, i) => {
+                  const frei = (f.optionen ?? []).filter((o) => o === liste[i] || !liste.includes(o));
+                  const waehle = (w: string) => {
+                    const neu = [...liste];
+                    neu[i] = w;
+                    setze(f.schluessel, neu.filter(Boolean));
+                  };
+                  return frei.length >= SUCHE_AB ? (
+                    <SuchAuswahl
+                      key={i}
+                      bezeichnung={`${f.titel} ${i + 1}`}
+                      optionen={frei}
+                      wert={liste[i] ?? ""}
+                      onWahl={waehle}
+                    />
+                  ) : (
+                    <select key={i} aria-label={`${f.titel} ${i + 1}`} value={liste[i] ?? ""} onChange={(e) => waehle(e.target.value)}>
+                      <option value="">–</option>
+                      {frei.map((o) => (
                         <option key={o} value={o}>
                           {o}
                         </option>
                       ))}
-                  </select>
-                ))}
+                    </select>
+                  );
+                })}
               </div>
               {hinweis}
             </div>
           );
         }
         const text = typeof wert === "string" ? wert : "";
+        // Lange Listen (etwa die Rechtsanwaltskammern) mit Suchfeld; kein <label> drumherum, sonst löst jeder Klick in
+        // die offene Liste zusätzlich den Knopf aus.
+        if (f.typ === "auswahl" && (f.optionen ?? []).length >= SUCHE_AB) {
+          return (
+            <div key={f.schluessel} className="feld">
+              {titel}
+              <SuchAuswahl
+                bezeichnung={f.titel}
+                optionen={f.optionen ?? []}
+                wert={text}
+                onWahl={(w) => setze(f.schluessel, w)}
+              />
+              {hinweis}
+            </div>
+          );
+        }
         return (
           <label key={f.schluessel} className={f.typ === "mehrzeilig" ? "feld feld-breit" : "feld"}>
             {titel}
