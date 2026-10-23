@@ -10,6 +10,10 @@ Der Leser liefert dieselbe Struktur wie der GII-Parser (``GesetzDokument`` mit `
 wie Paragraphen des BGB. Die Erwägungsgründe werden als eigene Einträge gespeichert, damit sie
 in der Suche erscheinen.
 
+EUR-Lex beantwortet Abrufe ohne Browser zeitweise mit einer leeren Prüfseite (HTTP 202, Bot-Abwehr).
+Dann kommt derselbe Text aus Cellar, dem Datenarchiv des Amtsblatts beim Amt für Veröffentlichungen,
+das für maschinellen Abruf gedacht ist.
+
 Gespeichert wird die Fassung des Amtsblatts, also ohne spätere Änderungen und Berichtigungen.
 Die Weiterverwendung ist mit Quellenangabe erlaubt (Beschluss 2011/833/EU der Kommission).
 """
@@ -48,6 +52,10 @@ def adresse(celex: str) -> str:
     return f"https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:{celex}"
 
 
+def cellar_adresse(celex: str) -> str:
+    return f"https://publications.europa.eu/resource/celex/{celex}"
+
+
 def ist_celex(kuerzel: str) -> bool:
     return bool(_CELEX.match(kuerzel))
 
@@ -73,12 +81,29 @@ def lade(celex: str, timeout: float = 60) -> tuple[bytes, str]:
         if fehler.code == 404:
             raise ValueError(f"CELEX {celex} wurde bei EUR-Lex nicht gefunden.") from None
         raise
-    if not ist_eurlex(daten):
-        raise ValueError(
-            f"EUR-Lex hat für CELEX {celex} keinen lesbaren Rechtstext geliefert. Die Seite im Browser öffnen "
-            f"({url}), als „Webseite, nur HTML“ speichern und unter Gesetze als Datei importieren."
-        )
-    return daten, url
+    if ist_eurlex(daten):
+        return daten, url
+    if (cellar := _lade_cellar(celex, timeout)) is not None:
+        return cellar, cellar_adresse(celex)
+    raise ValueError(
+        f"EUR-Lex hat für CELEX {celex} keinen lesbaren Rechtstext geliefert. Die Seite im Browser öffnen "
+        f"({url}), als „Webseite, nur HTML“ (Safari: „Seitenquelle“) speichern und unter Gesetze als Datei "
+        "importieren."
+    )
+
+
+def _lade_cellar(celex: str, timeout: float) -> bytes | None:
+    """Deutsche HTML-Fassung aus Cellar; ``None``, wenn auch dort kein lesbarer Text kommt."""
+    anfrage = urllib.request.Request(
+        cellar_adresse(celex),
+        headers={"User-Agent": USER_AGENT, "Accept": "application/xhtml+xml, text/html", "Accept-Language": "deu"},
+    )
+    try:
+        with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
+            daten = antwort.read()
+    except (urllib.error.URLError, TimeoutError):
+        return None
+    return daten if ist_eurlex(daten) else None
 
 
 # --- HTML in einfache Elemente zerlegen -------------------------------------------------------------

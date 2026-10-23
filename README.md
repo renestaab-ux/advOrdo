@@ -592,9 +592,10 @@ juracore zitat "Art. 6 Abs. 1 lit. f DSGVO"
 - Zitate mit Buchstaben („lit. f“, „Buchst. f“), Unterabsatz („UAbs. 1“, wird übergangen) und
   den Schreibweisen „DS-GVO“, „Rom I“ oder „Rom-II-VO“ werden erkannt. Die Erwägungsgründe sind als eigene Einträge
   durchsuchbar.
-- Liefert EUR-Lex statt des Rechtstexts etwa eine Prüfseite, die Seite im Browser öffnen, als
-  „Webseite, nur HTML“ speichern und mit `import-datei` einlesen; die Abkürzung wird an der
-  CELEX-Nummer erkannt.
+- Liefert EUR-Lex statt des Rechtstexts eine leere Prüfseite (Bot-Abwehr, HTTP 202), holt der Kern denselben
+  Text aus Cellar, dem Datenarchiv des Amtsblatts (`publications.europa.eu/resource/celex/…`). Scheitert auch das,
+  die Seite im Browser öffnen, als „Webseite, nur HTML“ (Safari: „Seitenquelle“) speichern und mit `import-datei`
+  einlesen; die Abkürzung wird an der CELEX-Nummer erkannt.
 
 Die Testdaten unter `core/tests/fixtures/` sind von Hand gekürzte Auszüge im
 GII-Format und keine Rechtsquelle.
