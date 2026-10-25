@@ -257,3 +257,19 @@ def test_rpc_reicht_die_schalter_durch(con, tmp_path):
     assert stand["status"] == "fertig", stand
     assert "berechnungen" in gesehen[0][1]["properties"]
     assert stand["ergebnis"]["wissen"]["rechner"] is True and "gesetze" in stand["ergebnis"]["wissen"]
+
+
+def test_doppelte_aussagen_und_fundstellen_einmal(akten, con, tmp_path):
+    akte_id = _akte(akten, con, tmp_path)
+
+    def antwort(prompt, schema):
+        d, n = _zeile(prompt, "in Verzug")
+        beleg = [{"dokument": d, "absatz": n, "zitat": "Die Beklagte befindet sich seit dem 15.04.2026 in Verzug"},
+                 {"dokument": d, "absatz": n, "zitat": "Der Anspruch folgt aus § 280 Abs. 1 BGB"}]
+        return {"aussagen": [
+            {"text": "Die Beklagte ist seit dem 15.04.2026 in Verzug.", "art": "tatsache", "belege": beleg},
+            {"text": "Die Beklagte ist seit dem 15.04.2026 in Verzug", "art": "einschaetzung", "belege": []},
+        ]}
+
+    erg = chat.frage(akten, Attrappe(antwort), 32768, akte_id, "Seit wann besteht Verzug?")
+    assert len(erg["aussagen"]) == 1 and len(erg["aussagen"][0]["fundstellen"]) == 1

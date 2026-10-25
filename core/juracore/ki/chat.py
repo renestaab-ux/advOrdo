@@ -337,19 +337,26 @@ def frage(
             antwort = anbieter.chat(SYSTEM, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
 
     aussagen = []
+    gesehen: set[str] = set()
     for a in (antwort.get("aussagen") or [])[:HOECHSTENS]:
         if not isinstance(a, dict) or not str(a.get("text", "")).strip():
             continue
+        # Dieselbe Aussage noch einmal (etwa als Tatsache und als Einschätzung) zeigt nur die erste.
+        schluessel = re.sub(r"\W+", " ", str(a["text"]).lower()).strip()
+        if schluessel in gesehen:
+            continue
+        gesehen.add(schluessel)
         art = a.get("art") if a.get("art") in (TATSACHE, EINSCHAETZUNG, HINWEIS) else TATSACHE
         fundstellen = []
         for b in a.get("belege") or []:
             if isinstance(b, dict) and (f := _beleg(texte, b.get("dokument"), b.get("absatz"), b.get("zitat"))):
-                if f not in fundstellen:
+                # Mehrere Zitate aus demselben Absatz ergäben gleiche Fundstellen; die erste genügt.
+                if not any(_ort(f) == _ort(x) for x in fundstellen):
                     fundstellen.append(f)
         normbelege = []
         for b in (a.get("normbelege") or []) if normen else []:
             if isinstance(b, dict) and (f := wissen.normbeleg(normen, b.get("norm"), b.get("zitat"))):
-                if f not in normbelege:
+                if not any(f["norm"] == x["norm"] for x in normbelege):
                     normbelege.append(f)
         # Eine Tatsache aus der Akte belegt nur das Dokument, eine Einschätzung auch der Wortlaut einer Norm.
         belegt = fundstellen or (normbelege and art != TATSACHE)
@@ -415,6 +422,10 @@ def frage(
             (akte_id, dokument_id, "antwort", json.dumps(ergebnis, ensure_ascii=False), jetzt),
         )
     return {"id": cur.lastrowid, "rolle": "antwort", "erstellt_am": jetzt, **ergebnis}
+
+
+def _ort(f: dict) -> tuple:
+    return f["dokument_id"], f["abschnitt"], f.get("seite"), f.get("rn")
 
 
 _ZU_LANG = re.compile(r"context|n_ctx|tokens to keep|too long|exceed", re.I)
