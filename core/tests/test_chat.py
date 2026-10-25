@@ -154,7 +154,7 @@ def test_externe_ki_nur_mit_schalter(tmp_path):
     if sys.platform != "win32":
         assert os.stat(tmp_path / "ki-schluessel.json").st_mode & 0o077 == 0
     assert aufruf("ki.modus")["result"] == {"aktiv": "extern", "titel": "Anthropic Claude",
-                                           "modell": "claude-opus-5-5"}
+                                           "modell": "claude-opus-5-5", "ort": None}
 
     akte_id = aufruf("akten.anlegen", name="Test")["result"]["id"]
     pfad = tmp_path / "brief.md"

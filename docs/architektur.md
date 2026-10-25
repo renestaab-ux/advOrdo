@@ -79,9 +79,11 @@ oder Datum prüft die Analyse mit dem Sprachmodell.
 `juracore.ki`:
 
 - `anbieter`: Provider-Adapter für Ollama (`/api/chat`) und OpenAI-kompatible lokale Server wie
-  LM Studio (`/v1/chat/completions`), nur mit der Standardbibliothek (`urllib`). Im Modus „Nur lokal“
-  sind nur Loopback-Adressen erlaubt (`pruefe_lokal`), geprüft beim Speichern, Laden und vor jeder
-  Verbindung; Proxy-Variablen des Systems werden umgangen. Der Kern ist dabei nur Client und öffnet
+  LM Studio (`/v1/chat/completions`), nur mit der Standardbibliothek (`urllib`). Im Modus „Lokal“
+  sind nur Loopback-Adressen und Adressen des eigenen Netzes erlaubt (`pruefe_lokal`: private IPv4/IPv6-
+  Bereiche, Rechnernamen ohne Punkt oder mit Heimnetz-Endung), geprüft beim Speichern, Laden und vor
+  jeder Verbindung; Rechnernamen müssen dabei auf solche Adressen auflösen (`_pruefe_aufloesung`).
+  `endpunkt_ort` unterscheidet „Eigener Rechner“ und „Lokales Netzwerk“ für die Anzeige; Proxy-Variablen des Systems werden umgangen. Der Kern ist dabei nur Client und öffnet
   keinen Port. Antworten kommen als JSON nach Schema (strukturierte Ausgabe), Temperatur 0, fester
   Startwert; bei denkenden Modellen (Ollama meldet `thinking`) wird die Denkphase abgeschaltet.
   Einstellungen in `<Datenverzeichnis>/ki.json`.

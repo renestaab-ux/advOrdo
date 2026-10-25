@@ -1104,6 +1104,14 @@ export interface KiModus {
   aktiv: "lokal" | "extern";
   titel: string | null;
   modell: string;
+  /** Nur lokal: Modell auf diesem Rechner oder auf einem anderen Rechner im eigenen Netzwerk. */
+  ort: "geraet" | "netzwerk" | null;
+}
+
+/** Kurzname des KI-Modus für Navigation und Startseite. */
+export function kiModusName(modus: KiModus | null): string {
+  if (modus?.aktiv === "extern") return `Externer Anbieter (${modus.titel})`;
+  return modus?.ort === "netzwerk" ? "Lokales Netzwerk" : "Eigener Rechner";
 }
 
 export type KiAufgabe =

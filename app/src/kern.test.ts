@@ -3,6 +3,7 @@ import {
   Akte,
   FeldDef,
   bearbeitetText,
+  kiModusName,
   zuletztGeoeffnet,
   abstandText,
   aktenzeichenSchluessel,
@@ -516,5 +517,16 @@ describe("exportTeile", () => {
     ]);
     expect(teile[1].titel).toBe("Chronologie (2)");
     expect(teile[3].titel).toBe("Zusammenfassungen der Dokumente (1)");
+  });
+});
+
+describe("kiModusName", () => {
+  it("unterscheidet eigenen Rechner, lokales Netzwerk und externen Anbieter", () => {
+    expect(kiModusName(null)).toBe("Eigener Rechner");
+    expect(kiModusName({ aktiv: "lokal", titel: null, modell: "m", ort: "geraet" })).toBe("Eigener Rechner");
+    expect(kiModusName({ aktiv: "lokal", titel: null, modell: "m", ort: "netzwerk" })).toBe("Lokales Netzwerk");
+    expect(kiModusName({ aktiv: "extern", titel: "Google Gemini", modell: "m", ort: null })).toBe(
+      "Externer Anbieter (Google Gemini)",
+    );
   });
 });

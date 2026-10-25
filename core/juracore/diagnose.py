@@ -150,7 +150,10 @@ def _programme(k: Any) -> dict:
 def _ki_lokal(k: Any) -> dict:
     e = ki_anbieter.lade_einstellungen(k.ki_datei)
     s = ki_anbieter.status(e)
-    details = [f"{s['anbieter_titel']} unter {s['endpunkt']}", f"Gewähltes Modell: {s['modell'] or '–'}"]
+    netz = ki_anbieter.endpunkt_ort(e.endpunkt) == ki_anbieter.NETZWERK
+    details = [f"{s['anbieter_titel']} unter {s['endpunkt']}"
+               + (" (anderer Rechner im eigenen Netzwerk)" if netz else " (dieser Rechner)"),
+               f"Gewähltes Modell: {s['modell'] or '–'}"]
     if s["modelle"]:
         details.append(f"{len(s['modelle'])} Modelle verfügbar")
     if not s["erreichbar"]:
@@ -159,6 +162,9 @@ def _ki_lokal(k: Any) -> dict:
                          ("LM Studio starten, ein Modell laden und den lokalen Server einschalten (Developer → Start "
                           "Server, Port 1234)." if e.anbieter == ki_anbieter.OPENAI else
                           "Ollama starten (unter Windows über das Startmenü; das Symbol erscheint im Infobereich).")
+                         + (" Auf dem anderen Rechner muss das Programm Verbindungen aus dem Netzwerk annehmen (LM "
+                            "Studio: „Serve on Local Network“; Ollama: OLLAMA_HOST=0.0.0.0), und dessen Firewall "
+                            "muss den Port freigeben." if netz else "")
                          + " Ist ein anderes Programm gemeint, Anbieter und Adresse unter Einstellungen ändern.")
     if not s["bereit"]:
         return _ergebnis("warnung", s["hinweis"] or "Das lokale Modell ist nicht bereit.", details,
@@ -172,7 +178,7 @@ def _ki_extern(k: Any) -> dict:
         return _ergebnis("aus", "Externe KI ist nicht eingebunden; Dokumente bleiben auf dem Gerät.")
     s = ki_anbieter.status_extern(e, k._schluessel(e), verbindung=True)
     details = [f"Anbieter: {s['anbieter_titel']}", f"Modell: {s['modell'] or '–'}",
-               "Gewählt für Analyse und Chat" if e.extern else "Hinterlegt, aber „Nur lokal“ ist gewählt",
+               "Gewählt für Analyse und Chat" if e.extern else "Hinterlegt, aber „Lokal“ ist gewählt",
                "Abgefragt wurde nur die Modellliste, keine Inhalte."]
     if s["bereit"]:
         return _ergebnis("ok", f"{s['anbieter_titel']} ist erreichbar, der Schlüssel gilt.", details)
