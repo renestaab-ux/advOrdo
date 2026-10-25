@@ -378,6 +378,7 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .chat-aussagen > li { padding: 10px 0; border-top: 1px solid var(--linie); line-height: 1.5; }
 .chat-aussagen > li:first-child { border-top: none; }
 .chat-aussagen .belege { margin-top: 6px; }
+.chat-aussagen .belege + .belege { margin-top: 4px; }
 button.quelle { font-size: 12px; padding: 1px 9px; border-radius: 999px; background: color-mix(in srgb, var(--akzent) 8%, transparent); border: 1px solid color-mix(in srgb, var(--akzent) 30%, transparent); color: var(--akzent); font-weight: 400; }
 button.quelle .quelle-partei { color: var(--text-leise); }
 button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var(--akzent) 20%, transparent); }
