@@ -298,14 +298,17 @@ function PostenListe({
   );
 }
 
-function ZinsAusgabe({ e }: { e: ZinsErgebnis }) {
+/** Ergebnis des Zinsrechners; auch im KI-Chat, dort ohne Drucken. */
+export function ZinsAusgabe({ e, mitDruck = true }: { e: ZinsErgebnis; mitDruck?: boolean }) {
   return (
     <div className="rechner-ergebnis">
       <div className="kopf">
         <h2>Ergebnis</h2>
-        <button className="zweitrangig nicht-drucken" onClick={() => void drucken()}>
-          Drucken …
-        </button>
+        {mitDruck && (
+          <button className="zweitrangig nicht-drucken" onClick={() => void drucken()}>
+            Drucken …
+          </button>
+        )}
       </div>
       <dl className="summen">
         <dt>Offene Hauptforderung</dt>
@@ -451,7 +454,7 @@ function BasiszinsVerwaltung() {
   );
 }
 
-function gespeichertesLand(): string {
+export function gespeichertesLand(): string {
   try {
     return localStorage.getItem("toolbox.land") ?? "BY";
   } catch {
@@ -561,48 +564,55 @@ function Fristen() {
         </fieldset>
       </form>
       {fehler && <p className="fehler">{fehler}</p>}
-      {ergebnis && (
-        <div className="rechner-ergebnis">
-          <div className="kopf">
-            <h2>
-              Fristende: {ergebnis.wochentag}, {datumDe(ergebnis.ende)}
-            </h2>
-            <button className="zweitrangig nicht-drucken" onClick={() => void drucken()}>
-              Drucken …
-            </button>
-          </div>
-          <dl className="summen">
-            <dt>Ereignis</dt>
-            <dd>
-              {ergebnis.wochentag_bezugstag}, {datumDe(ergebnis.bezugstag)}
-            </dd>
-            <dt>Fristbeginn</dt>
-            <dd>
-              {ergebnis.wochentag_fristbeginn}, {datumDe(ergebnis.fristbeginn)}
-            </dd>
-            <dt>Rechnerisches Ende</dt>
-            <dd>
-              {ergebnis.wochentag_rechnerisch}, {datumDe(ergebnis.rechnerisches_ende)}
-            </dd>
-            {ergebnis.verschoben && (
-              <>
-                <dt>Verschoben wegen</dt>
-                <dd>{ergebnis.grund}</dd>
-              </>
-            )}
-          </dl>
-          {ergebnis.hinweise.map((h) => (
-            <p key={h} className="hinweis">
-              {h}
-            </p>
-          ))}
-          <p className="grundlagen">
-            Grundlage: {ergebnis.grundlagen.join(", ")}. Feiertage: {ergebnis.land}, ohne örtliche Sonderfeiertage wie
-            das Augsburger Friedensfest (Stand {ergebnis.feiertage_stand}). Rückwärtsfristen (z. B. Ladungsfristen)
-            rechnet dieses Werkzeug nicht. Ohne Gewähr.
-          </p>
-        </div>
-      )}
+      {ergebnis && <FristAusgabe e={ergebnis} />}
     </section>
+  );
+}
+
+/** Ergebnis des Fristenrechners; auch im KI-Chat, dort ohne Drucken. */
+export function FristAusgabe({ e, mitDruck = true }: { e: FristErgebnis; mitDruck?: boolean }) {
+  return (
+    <div className="rechner-ergebnis">
+      <div className="kopf">
+        <h2>
+          Fristende: {e.wochentag}, {datumDe(e.ende)}
+        </h2>
+        {mitDruck && (
+          <button className="zweitrangig nicht-drucken" onClick={() => void drucken()}>
+            Drucken …
+          </button>
+        )}
+      </div>
+      <dl className="summen">
+        <dt>Ereignis</dt>
+        <dd>
+          {e.wochentag_bezugstag}, {datumDe(e.bezugstag)}
+        </dd>
+        <dt>Fristbeginn</dt>
+        <dd>
+          {e.wochentag_fristbeginn}, {datumDe(e.fristbeginn)}
+        </dd>
+        <dt>Rechnerisches Ende</dt>
+        <dd>
+          {e.wochentag_rechnerisch}, {datumDe(e.rechnerisches_ende)}
+        </dd>
+        {e.verschoben && (
+          <>
+            <dt>Verschoben wegen</dt>
+            <dd>{e.grund}</dd>
+          </>
+        )}
+      </dl>
+      {e.hinweise.map((h) => (
+        <p key={h} className="hinweis">
+          {h}
+        </p>
+      ))}
+      <p className="grundlagen">
+        Grundlage: {e.grundlagen.join(", ")}. Feiertage: {e.land}, ohne örtliche Sonderfeiertage wie
+        das Augsburger Friedensfest (Stand {e.feiertage_stand}). Rückwärtsfristen (z. B. Ladungsfristen)
+        rechnet dieses Werkzeug nicht. Ohne Gewähr.
+      </p>
+    </div>
   );
 }

@@ -18,6 +18,9 @@ wird in Aktenreihenfolge aufgefüllt. Die Antwort nennt, wie viel vorlag.
 
 Der Verlauf wird je Akte bzw. Dokument in ``ki_chat`` gespeichert; die letzten
 Fragen und Antworten gehen als Zusammenhang mit in die nächste Anfrage.
+
+Zuschaltbares Zusatzwissen (``wissen.py``): Rechner der Toolbox für Zinsen und
+Fristen und Gesetze aus der Wissensbasis.
 """
 
 from __future__ import annotations
@@ -25,14 +28,15 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from ..abgleich.abgleich import PARTEIEN
-from . import belege
+from ..rechner.basiszins import Basiszins
+from . import belege, wissen
 from .analyse import BELEGT, OHNE_BELEG, Fortschritt, OhneFortschritt
 from .anbieter import ANTWORT_TOKEN, Anbieter, KiFehler
 
-FASSUNG = 1
+FASSUNG = 3
 
 # Fragen und Antworten aus dem Verlauf, die als Zusammenhang mitgehen.
 VERLAUF = 6
@@ -43,6 +47,7 @@ HOECHSTENS = 12  # Aussagen je Antwort
 TATSACHE = "tatsache"
 EINSCHAETZUNG = "einschaetzung"
 HINWEIS = "hinweis"
+BERECHNUNG = "berechnung"
 
 SYSTEM = (
     "Du bist ein sorgfältiger juristischer Assistent in einer deutschen Anwaltskanzlei. Du beantwortest Fragen zu "
@@ -197,10 +202,22 @@ def frage(
     dokument_id: int | None = None,
     fortschritt: Fortschritt | None = None,
     extern: str | None = None,
+    rechner: bool = False,
+    gesetze: sqlite3.Connection | None = None,
+    gesetze_suche: bool = True,
+    gesetze_ergaenzt: list[str] | None = None,
+    basiszins: Basiszins | None = None,
+    land: str = "BY",
+    heute: date | None = None,
 ) -> dict:
     """Beantwortet eine Frage zur Akte bzw. zum Dokument, speichert Frage und Antwort und gibt die Antwort zurück.
 
     ``extern``: Name des externen Anbieters, an den die Anfrage geht (wird mit der Antwort vermerkt).
+    ``rechner``: Zinsen und Fristen rechnet die App mit den Angaben des Modells (Toolbox).
+    ``gesetze``: Verbindung zur Wissensbasis; dann gehen die zitierten Normen mit in die Anfrage und, mit
+    ``gesetze_suche``, die zur Frage passenden Treffer der Volltextsuche; ``gesetze_ergaenzt``: vom Nutzer
+    ergänzte Normen und Gesetze (siehe ``wissen.waehle_normen``).
+    ``land``: Bundesland für Feiertage beim Fristenrechner.
     """
     fortschritt = fortschritt or OhneFortschritt()
     einrichten(con)
@@ -223,62 +240,167 @@ def frage(
     texte = [belege.lade_text(con, i, PARTEIEN) for i in ids]
 
     bisher = _zusammenhang(verlauf(con, akte_id, dokument_id))
-    # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung und Verlauf, rund 3 Zeichen je Token.
-    budget = max(3000, (kontext - ANTWORT_TOKEN - 1200) * 3 - len(bisher) - len(text))
-    fortschritt.melde("Wähle die passenden Absätze aus")
-    stuecke, auswahl = waehle(texte, text + " " + bisher[-300:], budget)
+    rechnen = rechner and wissen.soll_rechnen(text)
+    normen: list[dict] = []
+    fehlende_normen: list[str] = []
+    if gesetze is not None:
+        fortschritt.melde("Suche passende Normen in der Wissensbasis")
+        zusaetzlich = ["§ 288 BGB", "§ 247 BGB", "§ 187 BGB", "§ 188 BGB", "§ 193 BGB"] if rechnen else []
+        normen, fehlende_normen = wissen.waehle_normen(gesetze, con, akte_id, dokument_id, text, zusaetzlich,
+                                                       suche=gesetze_suche, ergaenzt=gesetze_ergaenzt)
 
-    teile = []
-    for nr, (t, abschnitte) in enumerate(zip(texte, stuecke, strict=True), 1):
-        if not abschnitte:
-            continue
-        kopf = f"Dokument {nr}: {t.dateiname}" + (f" (Beteiligte: {', '.join(t.parteien)})" if t.parteien else "")
-        zeilen = "\n".join(f"[{nr}.{a['nr']}] " + " ".join(a["text"].split()) for a in abschnitte)
-        teile.append(f"{kopf}\n{zeilen}")
-    umfang = (
-        "Dir liegen die Dokumente vollständig vor."
-        if auswahl["vollstaendig"]
-        else "Dir liegt nur eine Auswahl der Absätze vor (die zur Frage passendsten). Steht die Antwort nicht darin, "
-        "sage das als Hinweis, statt zu raten."
-    )
-    nutzer = (
-        f"{chr(10).join(teile)}\n\n"
-        + (f"Bisheriger Verlauf des Gesprächs:\n{bisher}\n\n" if bisher else "")
-        + f"Frage: {text}\n\n"
-        f"Aufgabe: Beantworte die Frage in höchstens {HOECHSTENS} kurzen Aussagen, die wichtigste zuerst. {umfang}\n"
-        "Ordne jede Aussage einer Art zu:\n"
-        "- tatsache: was in den Dokumenten steht oder eine Partei dort vorträgt; nenne, wer es sagt\n"
-        "- einschaetzung: deine rechtliche oder inhaltliche Würdigung; Normen und Urteile nennst du nur hier, "
-        "ohne Aktenzeichen oder Randnummern zu erfinden\n"
-        "- hinweis: etwa, dass die Dokumente zu der Frage nichts enthalten\n\n"
-        "Belege jede Tatsache mit der Nummer des Dokuments und des Absatzes (die Zahlen in eckigen Klammern, "
-        "[Dokument.Absatz]) und einem wörtlichen Zitat aus genau diesem Absatz: eine zusammenhängende Wortfolge "
-        "von 4 bis 25 Wörtern, Zeichen für Zeichen abgeschrieben, ohne Auslassungen. Eine Einschätzung belegst du "
-        "mit den Stellen, auf die sie sich stützt."
-    )
+    def baue(normen: list[dict]) -> tuple[str, dict, list[str], dict, str]:
+        """Anfrage an das Modell: Text, Schema, vorgelegte Dokumente, Auswahl und Gesetzestext."""
+        normtext = wissen.normen_text(normen)
+        zusatz = (len(wissen.ANWEISUNG_RECHNER) if rechnen else 0) + len(normtext) + (400 if normen else 0)
+        # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung, Verlauf und Zusatzwissen,
+        # rund 3 Zeichen je Token.
+        budget = max(3000, (kontext - ANTWORT_TOKEN - 1200) * 3 - len(bisher) - len(text) - zusatz)
+        stuecke, auswahl = waehle(texte, text + " " + bisher[-300:], budget)
+
+        teile = []
+        for nr, (t, abschnitte) in enumerate(zip(texte, stuecke, strict=True), 1):
+            if not abschnitte:
+                continue
+            kopf = f"Dokument {nr}: {t.dateiname}" + (f" (Beteiligte: {', '.join(t.parteien)})" if t.parteien else "")
+            zeilen = "\n".join(f"[{nr}.{a['nr']}] " + " ".join(a["text"].split()) for a in abschnitte)
+            teile.append(f"{kopf}\n{zeilen}")
+        umfang = (
+            "Dir liegen die Dokumente vollständig vor."
+            if auswahl["vollstaendig"]
+            else "Dir liegt nur eine Auswahl der Absätze vor (die zur Frage passendsten). Steht die Antwort nicht "
+            "darin, sage das als Hinweis, statt zu raten."
+        )
+        nutzer = (
+            f"{chr(10).join(teile)}\n\n"
+            + (f"Gesetze aus der Wissensbasis:\n{normtext}\n\n" if normen else "")
+            + (f"Bisheriger Verlauf des Gesprächs:\n{bisher}\n\n" if bisher else "")
+            + f"Frage: {text}\n\n"
+            f"Aufgabe: Beantworte die Frage in höchstens {HOECHSTENS} kurzen Aussagen, die wichtigste zuerst. "
+            f"{umfang}\n"
+            "Ordne jede Aussage einer Art zu:\n"
+            "- tatsache: was in den Dokumenten steht oder eine Partei dort vorträgt; nenne, wer es sagt\n"
+            "- einschaetzung: deine rechtliche oder inhaltliche Würdigung; Normen und Urteile nennst du nur hier, "
+            "ohne Aktenzeichen oder Randnummern zu erfinden\n"
+            "- hinweis: etwa, dass die Dokumente zu der Frage nichts enthalten\n\n"
+            "Belege jede Tatsache mit der Nummer des Dokuments und des Absatzes (die Zahlen in eckigen Klammern, "
+            "[Dokument.Absatz]) und einem wörtlichen Zitat aus genau diesem Absatz: eine zusammenhängende Wortfolge "
+            "von 4 bis 25 Wörtern, Zeichen für Zeichen abgeschrieben, ohne Auslassungen. Eine Einschätzung belegst du "
+            "mit den Stellen, auf die sie sich stützt.\n\n"
+            "Fragt die Frage nach einer rechtlichen Prüfung (etwa ob Voraussetzungen erfüllt, ein Anspruch begründet "
+            "oder eine Norm anwendbar ist), beginne mit einer Einschätzung, die das Ergebnis nennt. Prüfe danach jede "
+            "Voraussetzung einzeln als Einschätzung („Voraussetzung …: erfüllt/nicht erfüllt/offen, weil …“), belegt "
+            "mit den Stellen der Akte und, wenn vorgelegt, dem Wortlaut der Norm. Gib den Sachverhalt nicht bloß "
+            "wieder."
+            + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
+            + (f"\n\n{wissen.ANWEISUNG_RECHNER}" if rechnen else "")
+        )
+        # Zusatzfelder sind Pflicht: Lokale Modelle mit erzwungener JSON-Ausgabe (LM Studio) lassen freiwillige
+        # Felder sonst einfach weg.
+        schema = SCHEMA
+        if normen or rechnen:
+            schema = json.loads(json.dumps(SCHEMA))
+            if normen:
+                aussage = schema["properties"]["aussagen"]["items"]
+                aussage["properties"]["normbelege"] = wissen.SCHEMA_NORMBELEGE
+                aussage["required"] = [*aussage["required"], "normbelege"]
+            if rechnen:
+                schema["properties"]["berechnungen"] = wissen.SCHEMA_BERECHNUNG
+                schema["required"] = [*schema["required"], "berechnungen"]
+        return nutzer, _begrenzt(schema), teile, auswahl, normtext
+
+    fortschritt.melde("Wähle die passenden Absätze aus")
+    nutzer, schema, teile, auswahl, normtext = baue(normen)
 
     fortschritt.melde("Das Sprachmodell beantwortet die Frage")
     fortschritt.pruefe()
+    gekuerzt = False
     try:
-        antwort = anbieter.chat(SYSTEM, nutzer, SCHEMA)
+        antwort = anbieter.chat(SYSTEM, nutzer, schema)
     except KiFehler as fehler:
-        if "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
+        if _zu_lang(fehler) and normen:
+            # Der im Programm eingestellte Kontext ist kleiner als angegeben: noch einmal mit weniger Gesetzestext.
+            fortschritt.melde("Die Anfrage war zu lang; frage noch einmal mit weniger Gesetzestext")
+            fortschritt.pruefe()
+            normen = [n for n in normen if n["herkunft"] == "zitiert"][:3]
+            for i, n in enumerate(normen, 1):
+                n["nr"] = i
+            nutzer, schema, teile, auswahl, normtext = baue(normen)
+            gekuerzt = True
+            try:
+                antwort = anbieter.chat(SYSTEM, nutzer, schema)
+            except KiFehler as noch:
+                if not _zu_lang(noch):
+                    raise
+                raise KiFehler(_zu_lang_text(noch)) from noch
+        elif _zu_lang(fehler):
+            raise KiFehler(_zu_lang_text(fehler)) from fehler
+        elif "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
             raise
-        fortschritt.pruefe()
-        antwort = anbieter.chat(SYSTEM, nutzer, SCHEMA)  # ein zweiter Versuch bei unbrauchbarem JSON
+        else:
+            fortschritt.pruefe()
+            antwort = anbieter.chat(SYSTEM, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
 
     aussagen = []
+    gesehen: set[str] = set()
     for a in (antwort.get("aussagen") or [])[:HOECHSTENS]:
         if not isinstance(a, dict) or not str(a.get("text", "")).strip():
             continue
+        # Dieselbe Aussage noch einmal (etwa als Tatsache und als Einschätzung) zeigt nur die erste.
+        schluessel = re.sub(r"\W+", " ", str(a["text"]).lower()).strip()
+        if schluessel in gesehen:
+            continue
+        gesehen.add(schluessel)
         art = a.get("art") if a.get("art") in (TATSACHE, EINSCHAETZUNG, HINWEIS) else TATSACHE
         fundstellen = []
         for b in a.get("belege") or []:
             if isinstance(b, dict) and (f := _beleg(texte, b.get("dokument"), b.get("absatz"), b.get("zitat"))):
-                if f not in fundstellen:
+                # Mehrere Zitate aus demselben Absatz ergäben gleiche Fundstellen; die erste genügt.
+                if not any(_ort(f) == _ort(x) for x in fundstellen):
                     fundstellen.append(f)
-        status = HINWEIS if art == HINWEIS and not fundstellen else (BELEGT if fundstellen else OHNE_BELEG)
-        aussagen.append({"text": str(a["text"]).strip(), "art": art, "status": status, "fundstellen": fundstellen})
+        normbelege = []
+        for b in (a.get("normbelege") or []) if normen else []:
+            if isinstance(b, dict) and (f := wissen.normbeleg(normen, b.get("norm"), b.get("zitat"))):
+                if not any(f["norm"] == x["norm"] for x in normbelege):
+                    normbelege.append(f)
+        # Eine Tatsache aus der Akte belegt nur das Dokument, eine Einschätzung auch der Wortlaut einer Norm.
+        belegt = fundstellen or (normbelege and art != TATSACHE)
+        status = HINWEIS if art == HINWEIS and not belegt else (BELEGT if belegt else OHNE_BELEG)
+        eintrag = {"text": str(a["text"]).strip(), "art": art, "status": status, "fundstellen": fundstellen}
+        if normbelege:
+            eintrag["normbelege"] = normbelege
+        aussagen.append(eintrag)
+
+    berechnungen = []
+    if rechnen:
+        fortschritt.melde("Rechne mit den Rechnern der Toolbox")
+
+        def belegen(dokument: object, absatz: object, zitat: object) -> tuple[dict, str] | None:
+            f = _beleg(texte, dokument, absatz, zitat)
+            if f is None:
+                return None
+            t = next(t for t in texte if t.dokument_id == f["dokument_id"])
+            return f, t.nach_nr[f["abschnitt"]]
+
+        vorschlaege = antwort.get("berechnungen")
+        if not wissen.brauchbar(vorschlaege):
+            # Zweiter, schmaler Auftrag nur für die Angaben des Rechners; kleine Modelle übergehen das Feld neben
+            # der eigentlichen Antwort gern.
+            fortschritt.melde("Das Sprachmodell sucht die Angaben für den Rechner")
+            fortschritt.pruefe()
+            try:
+                vorschlaege = anbieter.chat(SYSTEM, wissen.rechner_auftrag(chr(10).join(teile), text),
+                                            wissen.SCHEMA_NUR_BERECHNUNG).get("berechnungen")
+            except KiFehler:
+                vorschlaege = None
+        berechnungen = wissen.berechne(vorschlaege, belegen, text, heute or date.today(), basiszins, land)
+    for b in reversed(berechnungen):
+        aussagen.insert(0, {"text": b["text"], "art": BERECHNUNG, "status": BELEGT if b["belegt"] else OHNE_BELEG,
+                            "fundstellen": [], "berechnung": b})
+    if any(b["ergebnis"] for b in berechnungen):
+        # Die App hat gerechnet; Hinweise des Modells, es könne nicht rechnen, wären jetzt falsch.
+        aussagen = [a for a in aussagen
+                    if not (a["art"] == HINWEIS and re.search(r"basiszins|berechn|rechn", a["text"], re.I))]
 
     jetzt = _jetzt()
     ergebnis = {
@@ -288,6 +410,15 @@ def frage(
         "extern": extern,
         "fassung": FASSUNG,
     }
+    if gesetze is not None:
+        ergebnis["wissen"] = {
+            "gesetze": [f"{n['bezeichnung']} {n['gesetz']}" for n in normen],
+            "fehlend": fehlende_normen,
+            "zeichen": len(normtext),
+            "gekuerzt": gekuerzt,
+        }
+    if rechnen:
+        ergebnis.setdefault("wissen", {})["rechner"] = True
     with con:
         con.execute("INSERT INTO ki_chat (akte_id, dokument_id, rolle, inhalt, erstellt_am) VALUES (?, ?, ?, ?, ?)",
                     (akte_id, dokument_id, "frage", json.dumps({"text": text}, ensure_ascii=False), jetzt))
@@ -296,6 +427,43 @@ def frage(
             (akte_id, dokument_id, "antwort", json.dumps(ergebnis, ensure_ascii=False), jetzt),
         )
     return {"id": cur.lastrowid, "rolle": "antwort", "erstellt_am": jetzt, **ergebnis}
+
+
+def _begrenzt(schema: dict) -> dict:
+    """Längengrenzen für die Antwort, damit sich ein lokales Modell nicht in endlosen Listen verfängt."""
+    schema = json.loads(json.dumps(schema))
+    aussagen = schema["properties"]["aussagen"]
+    aussagen["maxItems"] = HOECHSTENS
+    aussage = aussagen["items"]["properties"]
+    aussage["text"]["maxLength"] = 600
+    aussage["belege"]["maxItems"] = 3
+    aussage["belege"]["items"]["properties"]["zitat"]["maxLength"] = 400
+    if "normbelege" in aussage:
+        aussage["normbelege"]["maxItems"] = 2
+        aussage["normbelege"]["items"]["properties"]["zitat"]["maxLength"] = 400
+    if "berechnungen" in schema["properties"]:
+        b = schema["properties"]["berechnungen"]
+        b["maxItems"] = wissen.HOECHSTENS_BERECHNUNGEN
+        b["items"]["properties"]["angaben"]["maxItems"] = 6
+    return schema
+
+
+def _ort(f: dict) -> tuple:
+    return f["dokument_id"], f["abschnitt"], f.get("seite"), f.get("rn")
+
+
+_ZU_LANG = re.compile(r"context|n_ctx|tokens to keep|too long|exceed", re.I)
+
+
+def _zu_lang(fehler: Exception) -> bool:
+    """Ob das Programm die Anfrage abgelehnt hat, weil sie nicht in seinen Kontext passt."""
+    return bool(_ZU_LANG.search(str(fehler)))
+
+
+def _zu_lang_text(fehler: Exception) -> str:
+    return ("Die Anfrage passt nicht in den Kontext, mit dem das Modell im Programm geladen ist. In LM Studio die "
+            "„Context Length“ des Modells prüfen (empfohlen 32768, wie unter „Einstellungen“ angegeben) oder weniger "
+            f"Gesetze einbeziehen. Meldung des Programms: {fehler}")
 
 
 def _beleg(texte: list[belege.Text], dokument: object, absatz: object, zitat: object) -> dict | None:

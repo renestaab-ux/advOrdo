@@ -12,6 +12,11 @@ export function Zitatbereich({ children, zeigen: anfang = false }: { children: R
   return <ZitateKontext.Provider value={{ zeigen, setZeigen }}>{children}</ZitateKontext.Provider>;
 }
 
+/** Ob die Zitate gerade eingeblendet sind. */
+export function useZitateZeigen(): boolean {
+  return useContext(ZitateKontext).zeigen;
+}
+
 export function ZitateSchalter() {
   const { zeigen, setZeigen } = useContext(ZitateKontext);
   return (

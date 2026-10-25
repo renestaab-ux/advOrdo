@@ -31,6 +31,7 @@ from .ki import anbieter as ki_anbieter
 from .ki import chat as ki_chat
 from .ki import export as ki_export
 from .ki import speicher as ki_speicher
+from .ki import wissen as ki_wissen
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
 from .rechner import basiszins, fristen, verzugszinsen
@@ -43,6 +44,7 @@ log = logging.getLogger("juracore.rpc")
 class Kern:
     def __init__(self, db_pfad: Path, archiv: Path):
         self.con = db.oeffne(db_pfad)
+        self.db_pfad = Path(db_pfad)
         self.archiv = archiv
         self.eigene_liste = Path(db_pfad).parent / "gesetze.json"
         # Akten getrennt von der Wissensbasis: eigene Datenbank, Originale je Akte in einem eigenen Ordner.
@@ -515,8 +517,18 @@ class Kern:
             raise ValueError("Kein Sprachmodell gewählt. Bitte unter „Einstellungen“ ein Modell auswählen.")
         return e, self.ki_fabrik(e, self._schluessel(e) if e.extern else None)
 
-    def ki_chat_fragen(self, akte_id: int, frage: str, dokument_id: int | None = None) -> dict:
-        """Stellt eine Frage an die Akte bzw. an ein Dokument im Hintergrund; die Antwort liefert ``ki.auftrag``."""
+    def ki_chat_fragen(self, akte_id: int, frage: str, dokument_id: int | None = None, rechner: bool = False,
+                       gesetze: bool | str = False, land: str = "BY",
+                       gesetze_ergaenzt: list[str] | None = None) -> dict:
+        """Stellt eine Frage an die Akte bzw. an ein Dokument im Hintergrund; die Antwort liefert ``ki.auftrag``.
+
+        ``rechner``: Zinsen und Fristen rechnet die App (Toolbox); ``gesetze``: "aus", "zitiert" (die in der Akte
+        zitierten Normen) oder "suche" (dazu Treffer zur Frage), ``True`` gilt als "suche"; ``land``: Bundesland für
+        Feiertage beim Fristenrechner; ``gesetze_ergaenzt``: Normzitate, die immer mitgehen, und Gesetze, in denen
+        zusätzlich gesucht wird."""
+        stufe = ki_wissen.GESETZE_SUCHE if gesetze is True else ki_wissen.GESETZE_AUS if not gesetze else gesetze
+        if stufe not in ki_wissen.GESETZE_STUFEN:
+            raise ValueError(f"Unbekannte Stufe für Gesetze: {gesetze}")
         if not str(frage).strip():
             raise ValueError("Die Frage ist leer.")
         e, modell = self._ki_modell()
@@ -524,11 +536,18 @@ class Kern:
 
         def arbeit(auftrag) -> dict:
             con = akte.oeffne(self.akten_pfad)
+            wb = db.oeffne(self.db_pfad) if stufe != ki_wissen.GESETZE_AUS else None
             try:
                 return ki_chat.frage(con, modell, e.aktiver_kontext, int(akte_id), str(frage),
-                                     None if dokument_id is None else int(dokument_id), auftrag, extern)
+                                     None if dokument_id is None else int(dokument_id), auftrag, extern,
+                                     rechner=bool(rechner), gesetze=wb,
+                                     gesetze_suche=stufe == ki_wissen.GESETZE_SUCHE,
+                                     gesetze_ergaenzt=[str(x) for x in gesetze_ergaenzt or []],
+                                     basiszins=basiszins.lade(self.basiszins_datei), land=str(land))
             finally:
                 con.close()
+                if wb is not None:
+                    wb.close()
 
         return self.auftraege.starte("chat", arbeit)
 

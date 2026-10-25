@@ -1,10 +1,14 @@
 import { KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
 import { FundstelleZeile, Offen } from "./Analyse";
-import { Zitatbereich, ZitateSchalter } from "./Belege";
+import { Zitatbereich, ZitateSchalter, useZitateZeigen } from "./Belege";
+import { gemerkt, merke } from "./merken";
+import { FristAusgabe, ZinsAusgabe, gespeichertesLand } from "./Toolbox";
 import {
   ChatAussage,
+  ChatBerechnung,
   ChatEintrag,
+  ChatNormbeleg,
   DokumentInhalt,
   KiAuftrag,
   KiFundstelle,
@@ -15,10 +19,43 @@ import {
   zeitpunkt,
 } from "./kern";
 
+type GesetzeStufe = "aus" | "zitiert" | "suche";
+
+function gemerkteStufe(): GesetzeStufe {
+  try {
+    const wert = localStorage.getItem("chat.gesetze_stufe");
+    if (wert === "aus" || wert === "zitiert" || wert === "suche") return wert;
+  } catch {
+    // ohne Speicher: aus
+  }
+  return gemerkt("chat.gesetze") ? "suche" : "aus";
+}
+
+function merkeStufe(stufe: GesetzeStufe) {
+  merkeText("chat.gesetze_stufe", stufe);
+}
+
+function gemerkterText(schluessel: string): string {
+  try {
+    return localStorage.getItem(schluessel) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function merkeText(schluessel: string, wert: string) {
+  try {
+    localStorage.setItem(schluessel, wert);
+  } catch {
+    // ohne Speicher gilt die Eingabe bis zum Neustart
+  }
+}
+
 const ART_TEXT: Record<ChatAussage["art"], string> = {
   tatsache: "Aus der Akte",
   einschaetzung: "Einschätzung des Modells",
   hinweis: "Hinweis",
+  berechnung: "Berechnung der App",
 };
 
 /** Fragen an die ganze Akte oder an ein Dokument; jede Antwort mit Fundstellen, die die App am Originaltext prüft. */
@@ -39,6 +76,11 @@ export default function Chat({
   const [auftrag, setAuftrag] = useState<KiAuftrag | null>(null);
   const [offen, setOffen] = useState<Offen>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  // Zusatzwissen je Gerät gemerkt: Rechner standardmäßig an (kostet kaum Token), Gesetze aus.
+  const [rechner, setRechner] = useState(() => !gemerkt("chat.ohne_rechner"));
+  const [gesetze, setGesetze] = useState<GesetzeStufe>(gemerkteStufe);
+  const [ergaenzt, setErgaenzt] = useState(() => gemerkterText("chat.gesetze_ergaenzt"));
+  const [geladeneGesetze, setGeladeneGesetze] = useState<string[]>([]);
   const ende = useRef<HTMLDivElement>(null);
   const seite = useRef<HTMLDivElement>(null);
 
@@ -54,6 +96,7 @@ export default function Chat({
       try {
         await ladeVerlauf();
         setStatus(await kern<KiStatus>("ki.status"));
+        setGeladeneGesetze((await kern<{ abk: string }[]>("gesetze.liste")).map((g) => g.abk));
         const laufend = await kern<KiAuftrag | null>("ki.laufend");
         if (laufend?.aufgabe === "chat") setAuftrag(laufend);
       } catch (e) {
@@ -102,7 +145,20 @@ export default function Chat({
     if (!frage) return;
     setFehler(null);
     try {
-      setAuftrag(await kern<KiAuftrag>("ki.chat_fragen", { akte_id: akteId, dokument_id: dokumentId, frage }));
+      setAuftrag(
+        await kern<KiAuftrag>("ki.chat_fragen", {
+          akte_id: akteId,
+          dokument_id: dokumentId,
+          frage,
+          rechner,
+          gesetze,
+          gesetze_ergaenzt: ergaenzt
+            .split(/[;,\n]/)
+            .map((x) => x.trim())
+            .filter(Boolean),
+          land: gespeichertesLand(),
+        }),
+      );
       setGestellt(frage);
       setEingabe("");
     } catch (e) {
@@ -204,6 +260,54 @@ export default function Chat({
             placeholder={`Frage zu ${gegenstand} … (Eingabe stellt die Frage, Umschalt+Eingabe für eine neue Zeile)`}
             aria-label={`Frage zu ${gegenstand}`}
           />
+          <div className="chat-wissen" role="group" aria-label="Zusatzwissen für die Antwort">
+            <label title="Zinsen und Fristen rechnet die App mit dem Rechner der Toolbox; das Modell liefert nur die Angaben aus den Dokumenten.">
+              <input
+                type="checkbox"
+                checked={rechner}
+                onChange={(e) => {
+                  setRechner(e.target.checked);
+                  merke("chat.ohne_rechner", !e.target.checked);
+                }}
+              />{" "}
+              Rechner (Zinsen, Fristen)
+            </label>
+            <label title="Normen gehen mit Wortlaut und Fassung an das Modell. Das braucht mehr Kontext (bis etwa 4.000 Token) und dauert länger; die Suche zur Frage am längsten.">
+              Gesetze:{" "}
+              <select
+                value={gesetze}
+                onChange={(e) => {
+                  const stufe = e.target.value as GesetzeStufe;
+                  setGesetze(stufe);
+                  merkeStufe(stufe);
+                }}
+              >
+                <option value="aus">nicht einbeziehen</option>
+                <option value="zitiert">nur in der Akte zitierte Normen</option>
+                <option value="suche">zitierte und zur Frage passende Normen</option>
+              </select>
+            </label>
+            {gesetze !== "aus" && (
+              <label title="Normen wie „§ 288 BGB“ gehen immer mit; Gesetze wie „HGB“ erweitern die Suche zur Frage. Mehrere mit Komma trennen.">
+                Ergänzen:{" "}
+                <input
+                  type="text"
+                  list="chat-gesetze"
+                  value={ergaenzt}
+                  placeholder="z. B. § 288 BGB, HGB"
+                  onChange={(e) => {
+                    setErgaenzt(e.target.value);
+                    merkeText("chat.gesetze_ergaenzt", e.target.value);
+                  }}
+                />
+                <datalist id="chat-gesetze">
+                  {geladeneGesetze.map((g) => (
+                    <option key={g} value={g} />
+                  ))}
+                </datalist>
+              </label>
+            )}
+          </div>
           <div className="aktionen">
             <button onClick={fragen} disabled={!bereit || laeuft || !eingabe.trim()}>
               Fragen
@@ -257,8 +361,18 @@ function ChatAntwort({
             <li key={i} className={`${a.status} chat-${a.art}`}>
               <div>
                 {a.art !== "tatsache" && <span className="art">{ART_TEXT[a.art]}</span>} {a.text}
-                {a.art === "tatsache" && a.status === "ohne_beleg" && <span className="ohne-beleg">ohne Beleg</span>}
+                {(a.art === "tatsache" || a.art === "berechnung") && a.status === "ohne_beleg" && (
+                  <span className="ohne-beleg">{a.art === "berechnung" ? "Angaben nicht alle belegt" : "ohne Beleg"}</span>
+                )}
               </div>
+              {a.berechnung && <Berechnung b={a.berechnung} offen={offen} onFundstelle={onFundstelle} />}
+              {a.normbelege && a.normbelege.length > 0 && (
+                <ul className="belege">
+                  {a.normbelege.map((n, j) => (
+                    <Normbeleg key={j} n={n} />
+                  ))}
+                </ul>
+              )}
               {a.fundstellen.length > 0 && (
                 <ul className="belege">
                   {a.fundstellen.map((f, j) => (
@@ -274,10 +388,91 @@ function ChatAntwort({
             {zeitpunkt(eintrag.erstellt_am)} · {eintrag.modell}
             {eintrag.extern ? ` über ${eintrag.extern} (extern)` : ", auf diesem Gerät"}
             {eintrag.auswahl && <> · Vorgelegt: {auswahlText(eintrag.auswahl)}</>}
+            {eintrag.wissen?.gesetze && (
+              <>
+                {" "}
+                · Gesetze:{" "}
+                {eintrag.wissen.gesetze.length ? eintrag.wissen.gesetze.join(", ") : "keine passenden in der Wissensbasis"}
+              </>
+            )}
+            {eintrag.wissen?.gekuerzt && <> (gekürzt, weil die Anfrage nicht in den Kontext des Modells passte)</>}
+            {eintrag.wissen?.fehlend && eintrag.wissen.fehlend.length > 0 && (
+              <> · Nicht in der Wissensbasis: {eintrag.wissen.fehlend.join(", ")}</>
+            )}
           </span>
-          {aussagen.some((a) => a.fundstellen.length > 0) && <ZitateSchalter />}
+          {aussagen.some((a) => a.fundstellen.length > 0 || (a.normbelege?.length ?? 0) > 0) && <ZitateSchalter />}
         </p>
       </div>
     </Zitatbereich>
+  );
+}
+
+/** Berechnung der App: die Angaben aus den Dokumenten mit Fundstelle, das Ergebnis und auf Wunsch der Rechenweg. */
+function Berechnung({
+  b,
+  offen,
+  onFundstelle,
+}: {
+  b: ChatBerechnung;
+  offen: Offen;
+  onFundstelle: (f: KiFundstelle) => void;
+}) {
+  return (
+    <div className="chat-rechnung">
+      <ul className="chat-eingaben">
+        {b.eingaben.map((e) => (
+          <li key={e.feld} className={e.status}>
+            <span className="leise">{e.titel}:</span> {e.wert}{" "}
+            {e.quelle === "frage" && <span className="leise">(aus der Frage)</span>}
+            {e.status === "ohne_beleg" && <span className="ohne-beleg">ohne Beleg</span>}
+            {e.fundstelle && (
+              <ul className="belege">
+                <FundstelleZeile f={e.fundstelle} offen={offen} onFundstelle={onFundstelle} />
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+      {b.ergebnis && (
+        <details>
+          <summary>Rechenweg wie in der Toolbox</summary>
+          {b.rechner === "zinsen" ? (
+            <ZinsAusgabe e={b.ergebnis} mitDruck={false} />
+          ) : (
+            <FristAusgabe e={b.ergebnis} mitDruck={false} />
+          )}
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** Zitat aus einer Norm der Wissensbasis, mit Fassung. */
+function Normbeleg({ n }: { n: ChatNormbeleg }) {
+  const zeigen = useZitateZeigen();
+  const titel = `${n.norm}${n.titel ? ` – ${n.titel}` : ""}\nFassung: ${n.fassung}\n„${n.ausschnitt.wert}“`;
+  if (!zeigen) {
+    return (
+      <li className="kompakt">
+        <span className="quelle norm" title={titel}>
+          {n.norm}
+        </span>
+      </li>
+    );
+  }
+  return (
+    <li>
+      <span className="fundort">
+        {n.norm}
+        {n.titel && ` – ${n.titel}`}
+      </span>
+      <span className="leise">Fassung: {n.fassung}</span>
+      {n.treffer === "angenaehert" && <span className="leise">angenähert</span>}
+      <div className="ausschnitt">
+        {n.ausschnitt.davor}
+        <mark>{n.ausschnitt.wert}</mark>
+        {n.ausschnitt.danach}
+      </div>
+    </li>
   );
 }

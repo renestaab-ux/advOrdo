@@ -1304,11 +1304,42 @@ export function zeitpunkt(iso: string): string {
 
 export interface ChatAussage {
   text: string;
-  /** tatsache: aus den Dokumenten; einschaetzung: Würdigung des Modells; hinweis: etwa „steht nicht in der Akte“. */
-  art: "tatsache" | "einschaetzung" | "hinweis";
+  /** tatsache: aus den Dokumenten; einschaetzung: Würdigung des Modells; hinweis: etwa „steht nicht in der Akte“;
+   * berechnung: von der App mit dem Rechner der Toolbox gerechnet. */
+  art: "tatsache" | "einschaetzung" | "hinweis" | "berechnung";
   status: "belegt" | "ohne_beleg" | "hinweis";
   fundstellen: KiFundstelle[];
+  /** Zitate aus Normen der Wissensbasis, am gespeicherten Wortlaut geprüft. */
+  normbelege?: ChatNormbeleg[];
+  berechnung?: ChatBerechnung;
 }
+
+export interface ChatNormbeleg {
+  /** z. B. „§ 280 Abs. 1 BGB“ */
+  norm: string;
+  gesetz: string;
+  bezeichnung: string;
+  titel: string | null;
+  /** Stand der Fassung in der Wissensbasis. */
+  fassung: string;
+  fassung_id: number;
+  treffer: "woertlich" | "angenaehert";
+  ausschnitt: { davor: string; wert: string; danach: string };
+}
+
+export interface ChatEingabe {
+  feld: string;
+  titel: string;
+  wert: string;
+  status: "belegt" | "ohne_beleg";
+  fundstelle: KiFundstelle | null;
+  /** frage: aus der Frage übernommen; heute: Tag der Frage. */
+  quelle: "frage" | "heute" | null;
+}
+
+export type ChatBerechnung =
+  | { rechner: "zinsen"; ergebnis: ZinsErgebnis | null; eingaben: ChatEingabe[]; fehlt: string[]; fehler: string | null; belegt: boolean; text: string }
+  | { rechner: "frist"; ergebnis: FristErgebnis | null; eingaben: ChatEingabe[]; fehlt: string[]; fehler: string | null; belegt: boolean; text: string };
 
 export interface ChatAuswahl {
   vollstaendig: boolean;
@@ -1329,6 +1360,8 @@ export interface ChatEintrag {
   modell?: string;
   /** Name des externen Anbieters, wenn die Frage das Gerät verlassen hat. */
   extern?: string | null;
+  /** Zusatzwissen, das mit der Frage ging. */
+  wissen?: { rechner?: boolean; gesetze?: string[]; fehlend?: string[]; zeichen?: number; gekuerzt?: boolean };
 }
 
 /** Was dem Modell vorlag, z. B. „alle 3 Dokumente vollständig“ oder „120 von 450 Absätzen aus 6 von 8 Dokumenten“. */
