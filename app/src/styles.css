@@ -398,7 +398,7 @@ button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var
 .chat-rechnung details summary { cursor: pointer; font-size: 13px; color: var(--akzent); }
 .chat-rechnung .rechner-ergebnis { margin-top: 8px; }
 .chat-aussagen > li.chat-berechnung > div:first-child { font-weight: 600; }
-span.quelle.norm { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--linie); color: var(--text-leise); }
+span.quelle.norm, span.quelle.urteil { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--linie); color: var(--text-leise); }
 @media (max-width: 1100px) {
   .chat.mit-seite { grid-template-columns: 1fr; }
 }

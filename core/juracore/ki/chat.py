@@ -206,6 +206,7 @@ def frage(
     gesetze: sqlite3.Connection | None = None,
     gesetze_suche: bool = True,
     gesetze_ergaenzt: list[str] | None = None,
+    rechtsprechung: str = "aus",
     basiszins: Basiszins | None = None,
     land: str = "BY",
     heute: date | None = None,
@@ -217,6 +218,8 @@ def frage(
     ``gesetze``: Verbindung zur Wissensbasis; dann gehen die zitierten Normen mit in die Anfrage und, mit
     ``gesetze_suche``, die zur Frage passenden Treffer der Volltextsuche; ``gesetze_ergaenzt``: vom Nutzer
     ergänzte Normen und Gesetze (siehe ``wissen.waehle_normen``).
+    ``rechtsprechung``: ``akte`` legt Leitsätze und zitierte Randnummern der Entscheidungen der Akte vor, ``suche``
+    dazu die zur Frage passenden Randnummern (siehe ``wissen.waehle_urteile``); ``aus`` keine.
     ``land``: Bundesland für Feiertage beim Fristenrechner.
     """
     fortschritt = fortschritt or OhneFortschritt()
@@ -248,11 +251,20 @@ def frage(
         zusaetzlich = ["§ 288 BGB", "§ 247 BGB", "§ 187 BGB", "§ 188 BGB", "§ 193 BGB"] if rechnen else []
         normen, fehlende_normen = wissen.waehle_normen(gesetze, con, akte_id, dokument_id, text, zusaetzlich,
                                                        suche=gesetze_suche, ergaenzt=gesetze_ergaenzt)
+    urteile: list[dict] = []
+    fehlende_urteile: list[str] = []
+    mit_rechtsprechung = rechtsprechung in (wissen.RECHTSPRECHUNG_AKTE, wissen.RECHTSPRECHUNG_SUCHE)
+    if mit_rechtsprechung:
+        fortschritt.melde("Suche passende Stellen in der Rechtsprechung der Akte")
+        urteile, fehlende_urteile = wissen.waehle_urteile(
+            con, akte_id, dokument_id, text, suche=rechtsprechung == wissen.RECHTSPRECHUNG_SUCHE)
 
-    def baue(normen: list[dict]) -> tuple[str, dict, list[str], dict, str]:
-        """Anfrage an das Modell: Text, Schema, vorgelegte Dokumente, Auswahl und Gesetzestext."""
+    def baue(normen: list[dict], urteile: list[dict]) -> tuple[str, dict, list[str], dict, str, str]:
+        """Anfrage an das Modell: Text, Schema, vorgelegte Dokumente, Auswahl, Gesetzes- und Urteilstext."""
         normtext = wissen.normen_text(normen)
-        zusatz = (len(wissen.ANWEISUNG_RECHNER) if rechnen else 0) + len(normtext) + (400 if normen else 0)
+        urteiltext = wissen.urteile_text(urteile)
+        zusatz = ((len(wissen.ANWEISUNG_RECHNER) if rechnen else 0) + len(normtext) + (400 if normen else 0)
+                  + len(urteiltext) + (500 if urteile else 0))
         # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung, Verlauf und Zusatzwissen,
         # rund 3 Zeichen je Token.
         budget = max(3000, (kontext - ANTWORT_TOKEN - 1200) * 3 - len(bisher) - len(text) - zusatz)
@@ -274,6 +286,7 @@ def frage(
         nutzer = (
             f"{chr(10).join(teile)}\n\n"
             + (f"Gesetze aus der Wissensbasis:\n{normtext}\n\n" if normen else "")
+            + (f"Rechtsprechung aus der Akte:\n{urteiltext}\n\n" if urteile else "")
             + (f"Bisheriger Verlauf des Gesprächs:\n{bisher}\n\n" if bisher else "")
             + f"Frage: {text}\n\n"
             f"Aufgabe: Beantworte die Frage in höchstens {HOECHSTENS} kurzen Aussagen, die wichtigste zuerst. "
@@ -293,24 +306,28 @@ def frage(
             "mit den Stellen der Akte und, wenn vorgelegt, dem Wortlaut der Norm. Gib den Sachverhalt nicht bloß "
             "wieder."
             + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
+            + (f"\n\n{wissen.ANWEISUNG_RECHTSPRECHUNG}" if urteile else "")
             + (f"\n\n{wissen.ANWEISUNG_RECHNER}" if rechnen else "")
         )
         # Zusatzfelder sind Pflicht: Lokale Modelle mit erzwungener JSON-Ausgabe (LM Studio) lassen freiwillige
         # Felder sonst einfach weg.
         schema = SCHEMA
-        if normen or rechnen:
+        if normen or urteile or rechnen:
             schema = json.loads(json.dumps(SCHEMA))
+            aussage = schema["properties"]["aussagen"]["items"]
             if normen:
-                aussage = schema["properties"]["aussagen"]["items"]
                 aussage["properties"]["normbelege"] = wissen.SCHEMA_NORMBELEGE
                 aussage["required"] = [*aussage["required"], "normbelege"]
+            if urteile:
+                aussage["properties"]["urteilsbelege"] = wissen.SCHEMA_URTEILSBELEGE
+                aussage["required"] = [*aussage["required"], "urteilsbelege"]
             if rechnen:
                 schema["properties"]["berechnungen"] = wissen.SCHEMA_BERECHNUNG
                 schema["required"] = [*schema["required"], "berechnungen"]
-        return nutzer, _begrenzt(schema), teile, auswahl, normtext
+        return nutzer, _begrenzt(schema), teile, auswahl, normtext, urteiltext
 
     fortschritt.melde("Wähle die passenden Absätze aus")
-    nutzer, schema, teile, auswahl, normtext = baue(normen)
+    nutzer, schema, teile, auswahl, normtext, urteiltext = baue(normen, urteile)
 
     fortschritt.melde("Das Sprachmodell beantwortet die Frage")
     fortschritt.pruefe()
@@ -318,14 +335,16 @@ def frage(
     try:
         antwort = anbieter.chat(SYSTEM, nutzer, schema)
     except KiFehler as fehler:
-        if _zu_lang(fehler) and normen:
-            # Der im Programm eingestellte Kontext ist kleiner als angegeben: noch einmal mit weniger Gesetzestext.
-            fortschritt.melde("Die Anfrage war zu lang; frage noch einmal mit weniger Gesetzestext")
+        if _zu_lang(fehler) and (normen or urteile):
+            # Der im Programm eingestellte Kontext ist kleiner als angegeben: noch einmal mit weniger Gesetzes-
+            # und Urteilstext (zitierte Normen, nur Leitsätze).
+            fortschritt.melde("Die Anfrage war zu lang; frage noch einmal mit weniger Gesetzes- und Urteilstext")
             fortschritt.pruefe()
             normen = [n for n in normen if n["herkunft"] == "zitiert"][:3]
             for i, n in enumerate(normen, 1):
                 n["nr"] = i
-            nutzer, schema, teile, auswahl, normtext = baue(normen)
+            urteile = wissen.nur_leitsaetze(urteile)
+            nutzer, schema, teile, auswahl, normtext, urteiltext = baue(normen, urteile)
             gekuerzt = True
             try:
                 antwort = anbieter.chat(SYSTEM, nutzer, schema)
@@ -363,12 +382,20 @@ def frage(
             if isinstance(b, dict) and (f := wissen.normbeleg(normen, b.get("norm"), b.get("zitat"))):
                 if not any(f["norm"] == x["norm"] for x in normbelege):
                     normbelege.append(f)
-        # Eine Tatsache aus der Akte belegt nur das Dokument, eine Einschätzung auch der Wortlaut einer Norm.
-        belegt = fundstellen or (normbelege and art != TATSACHE)
+        urteilsbelege = []
+        for b in (a.get("urteilsbelege") or []) if urteile else []:
+            if isinstance(b, dict) and (f := wissen.urteilsbeleg(urteile, b.get("urteil"), b.get("zitat"))):
+                if not any((f["urteil_id"], f["stelle"]) == (x["urteil_id"], x["stelle"]) for x in urteilsbelege):
+                    urteilsbelege.append(f)
+        # Eine Tatsache aus der Akte belegt nur das Dokument, eine Einschätzung auch der Wortlaut einer Norm oder
+        # eine Stelle aus einer Entscheidung.
+        belegt = fundstellen or ((normbelege or urteilsbelege) and art != TATSACHE)
         status = HINWEIS if art == HINWEIS and not belegt else (BELEGT if belegt else OHNE_BELEG)
         eintrag = {"text": str(a["text"]).strip(), "art": art, "status": status, "fundstellen": fundstellen}
         if normbelege:
             eintrag["normbelege"] = normbelege
+        if urteilsbelege:
+            eintrag["urteilsbelege"] = urteilsbelege
         aussagen.append(eintrag)
 
     berechnungen = []
@@ -417,6 +444,12 @@ def frage(
             "zeichen": len(normtext),
             "gekuerzt": gekuerzt,
         }
+    if mit_rechtsprechung:
+        w = ergebnis.setdefault("wissen", {})
+        w["urteile"] = [u["bezeichnung"] for u in urteile]
+        w["urteile_fehlend"] = fehlende_urteile
+        w["urteile_zeichen"] = len(urteiltext)
+        w["gekuerzt"] = w.get("gekuerzt", False) or gekuerzt
     if rechnen:
         ergebnis.setdefault("wissen", {})["rechner"] = True
     with con:
@@ -441,6 +474,9 @@ def _begrenzt(schema: dict) -> dict:
     if "normbelege" in aussage:
         aussage["normbelege"]["maxItems"] = 2
         aussage["normbelege"]["items"]["properties"]["zitat"]["maxLength"] = 400
+    if "urteilsbelege" in aussage:
+        aussage["urteilsbelege"]["maxItems"] = 2
+        aussage["urteilsbelege"]["items"]["properties"]["zitat"]["maxLength"] = 400
     if "berechnungen" in schema["properties"]:
         b = schema["properties"]["berechnungen"]
         b["maxItems"] = wissen.HOECHSTENS_BERECHNUNGEN
@@ -463,7 +499,7 @@ def _zu_lang(fehler: Exception) -> bool:
 def _zu_lang_text(fehler: Exception) -> str:
     return ("Die Anfrage passt nicht in den Kontext, mit dem das Modell im Programm geladen ist. In LM Studio die "
             "„Context Length“ des Modells prüfen (empfohlen 32768, wie unter „Einstellungen“ angegeben) oder weniger "
-            f"Gesetze einbeziehen. Meldung des Programms: {fehler}")
+            f"Gesetze oder Rechtsprechung einbeziehen. Meldung des Programms: {fehler}")
 
 
 def _beleg(texte: list[belege.Text], dokument: object, absatz: object, zitat: object) -> dict | None:

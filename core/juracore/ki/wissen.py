@@ -1,4 +1,5 @@
-"""Zusatzwissen für den KI-Chat: Rechner der Toolbox und Gesetze aus der Wissensbasis, beides zuschaltbar.
+"""Zusatzwissen für den KI-Chat: Rechner der Toolbox, Gesetze aus der Wissensbasis und Rechtsprechung der Akte,
+jedes zuschaltbar.
 
 Rechner („Beleg vor Behauptung“): Das Modell rechnet nicht selbst. Es nennt nur die Angaben, die der Rechner
 braucht (etwa Hauptforderung, Zinsbeginn, Zinssatz), jede mit Dokument, Absatz und wörtlichem Zitat. Die App prüft
@@ -8,6 +9,10 @@ Verzugszinsen- bzw. Fristenrechner der Toolbox. Angaben ohne Beleg werden so gek
 Gesetze: Die in der Akte zitierten Normen und die zur Frage passenden Treffer der Wissensbasis gehen mit Wortlaut
 und Fassung in die Anfrage, begrenzt auf ``GESETZE_ZEICHEN``. Zitiert das Modell daraus, prüft die App das Zitat am
 gespeicherten Wortlaut der Norm.
+
+Rechtsprechung: Von den Entscheidungen, die der Akte im Volltext vorliegen, gehen Leitsätze und die in der Akte
+zitierten Randnummern in die Anfrage, auf Wunsch auch die zur Frage passenden Randnummern, begrenzt auf
+``URTEILE_ZEICHEN``. Zitate daraus prüft die App am gespeicherten Volltext.
 """
 
 from __future__ import annotations
@@ -24,6 +29,7 @@ from ..gesetze import wissensbasis
 from ..gesetze.zitate import finde_zitate
 from ..rechner import fristen, verzugszinsen
 from ..rechner.basiszins import Basiszins
+from ..rechtsprechung.zitate import az_kern
 from . import belege
 
 # Zeichen für Gesetzestexte in der Anfrage (rund 4.000 Token), damit bei 32k Kontext genug Platz für die Akte bleibt.
@@ -492,3 +498,166 @@ def normbeleg(normen: list[dict], nr: object, zitat: object) -> dict | None:
             },
         }
     return None
+
+
+# --- Rechtsprechung -------------------------------------------------------------------------------
+
+# Zeichen für Entscheidungstexte in der Anfrage (rund 3.000 Token) und je Absatz.
+URTEILE_ZEICHEN = 9000
+URTEIL_ABSATZ_ZEICHEN = 1500
+URTEIL_SUCHTREFFER = 6  # Randnummern zur Frage über alle Entscheidungen der Akte
+_LEITSAETZE = ("leitsatz", "sonstosatz")
+
+RECHTSPRECHUNG_AUS = "aus"
+RECHTSPRECHUNG_AKTE = "akte"  # Leitsätze und in der Akte zitierte Randnummern
+RECHTSPRECHUNG_SUCHE = "suche"  # dazu die zur Frage passenden Randnummern
+RECHTSPRECHUNG_STUFEN = (RECHTSPRECHUNG_AUS, RECHTSPRECHUNG_AKTE, RECHTSPRECHUNG_SUCHE)
+
+SCHEMA_URTEILSBELEGE = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {"urteil": {"type": "integer"}, "zitat": {"type": "string"}},
+        "required": ["urteil", "zitat"],
+    },
+}
+
+ANWEISUNG_RECHTSPRECHUNG = (
+    "Rechtsprechung: Die Entscheidungen oben (mit [U…] nummeriert) liegen der Akte im Volltext vor; vorgelegt sind "
+    "Leitsätze und einzelne Randnummern. Stützt sich eine Einschätzung auf eine davon, belege sie unter "
+    "\"urteilsbelege\" mit der Nummer der Entscheidung (die Zahl nach U) und einem wörtlichen Zitat aus dem "
+    "vorgelegten Text (4 bis 25 Wörter). Andere Entscheidungen nennst du nur ohne Zitat und ohne Randnummer."
+)
+
+
+def _bezeichnung(u: sqlite3.Row) -> str:
+    datum = u["datum"]
+    wann = f" vom {datum[8:10]}.{datum[5:7]}.{datum[:4]}" if datum and len(datum) >= 10 else ""
+    return f"{u['gericht']}, Entscheidung{wann}" + (f" – {u['aktenzeichen']}" if u["aktenzeichen"] else "")
+
+
+def _stelle(a: dict) -> str:
+    if a["rn"] is not None:
+        return f"Rn. {a['rn']}"
+    if a["teil"] in _LEITSAETZE:
+        return "Leitsatz"
+    return f"Abschn. {a['nr']}" + (f", S. {a['seite']}" if a.get("seite") else "")
+
+
+def waehle_urteile(
+    akten: sqlite3.Connection, akte_id: int, dokument_id: int | None, frage: str, suche: bool = True,
+    budget: int = URTEILE_ZEICHEN,
+) -> tuple[list[dict], list[str]]:
+    """Entscheidungen der Akte für die Anfrage: je Entscheidung die Leitsätze und die in der Akte zitierten
+    Randnummern, mit ``suche`` dazu die Randnummern, die die meisten Begriffe der Frage enthalten. Zweite Liste:
+    in der Akte zitierte Entscheidungen, deren Volltext nicht vorliegt."""
+    zitate = akten.execute(
+        """SELECT z.zitat, z.gericht, z.aktenzeichen, z.rn_zitiert FROM urteilszitat z
+           JOIN abschnitt a ON a.id = z.abschnitt_id JOIN dokument d ON d.id = a.dokument_id
+           WHERE d.akte_id = ? AND (? IS NULL OR d.id = ?)""", (akte_id, dokument_id, dokument_id)).fetchall()
+    alle = akten.execute("SELECT * FROM urteil WHERE akte_id = ? ORDER BY datum, id", (akte_id,)).fetchall()
+    rns: dict[int, set[int]] = {}
+    fehlend: list[str] = []
+    gewaehlt_ids: list[int] = []
+    for z in zitate:
+        u = next((u for u in alle if u["zitat"] == z["zitat"] or (
+            z["aktenzeichen"] and u["aktenzeichen"] and az_kern(u["aktenzeichen"]) == az_kern(z["aktenzeichen"])
+            and u["gericht"].casefold() == z["gericht"].casefold())), None)
+        if u is None:
+            if z["zitat"] not in fehlend:
+                fehlend.append(z["zitat"])
+            continue
+        if u["id"] not in gewaehlt_ids:
+            gewaehlt_ids.append(u["id"])
+        if z["rn_zitiert"] is not None:
+            rns.setdefault(u["id"], set()).add(int(z["rn_zitiert"]))
+    if dokument_id is None:  # im Chat mit der Akte auch selbst ergänzte Entscheidungen ohne Zitat
+        gewaehlt_ids += [u["id"] for u in alle if u["id"] not in gewaehlt_ids]
+
+    urteile: list[dict] = []
+    abschnitte: dict[int, list[dict]] = {}
+    for uid in gewaehlt_ids:
+        u = next(u for u in alle if u["id"] == uid)
+        urteile.append({"urteil_id": uid, "bezeichnung": _bezeichnung(u), "absaetze": [], "nr": 0})
+        abschnitte[uid] = [dict(a) for a in akten.execute(
+            "SELECT nr, seite, rn, text, teil FROM urteil_abschnitt WHERE urteil_id = ? ORDER BY nr", (uid,))]
+
+    rest = budget
+
+    def nimm(u: dict, a: dict) -> None:
+        nonlocal rest
+        if any(x["nr"] == a["nr"] for x in u["absaetze"]):
+            return
+        text = " ".join(a["text"].split())
+        if len(text) > URTEIL_ABSATZ_ZEICHEN:
+            text = text[:URTEIL_ABSATZ_ZEICHEN].rsplit(" ", 1)[0] + " …"
+        if len(text) + 20 > rest:
+            return
+        rest -= len(text) + 20
+        u["absaetze"].append({**a, "text": text})
+
+    for u in urteile:  # Leitsätze zuerst, ohne Leitsatz (eigene Dateien) der Anfang der Entscheidung
+        eigene = abschnitte[u["urteil_id"]]
+        leit = [a for a in eigene if a["teil"] in _LEITSAETZE] or eigene[:1]
+        for a in leit[:3]:
+            nimm(u, a)
+    for u in urteile:
+        for a in abschnitte[u["urteil_id"]]:
+            if a["rn"] is not None and a["rn"] in rns.get(u["urteil_id"], set()):
+                nimm(u, a)
+    if suche and (woerter := _suchwoerter(frage)):
+        bewertet = sorted(
+            ((sum(1 for w in woerter if w in a["text"].lower()), i, a) for i, u in enumerate(urteile)
+             for a in abschnitte[u["urteil_id"]] if a["teil"] not in _LEITSAETZE),
+            key=lambda x: (-x[0], x[1], x[2]["nr"]))
+        for punkte, i, a in bewertet[:URTEIL_SUCHTREFFER]:
+            if punkte > 0:
+                nimm(urteile[i], a)
+    urteile = [u for u in urteile if u["absaetze"]]
+    for i, u in enumerate(urteile, 1):
+        u["nr"] = i
+        u["absaetze"].sort(key=lambda a: a["nr"])
+    return urteile, fehlend
+
+
+def urteile_text(urteile: list[dict]) -> str:
+    teile = []
+    for u in urteile:
+        zeilen = "\n".join(f"[U{u['nr']} {_stelle(a)}] {a['text']}" for a in u["absaetze"])
+        teile.append(f"[U{u['nr']}] {u['bezeichnung']}\n{zeilen}")
+    return "\n\n".join(teile)
+
+
+def urteilsbeleg(urteile: list[dict], nr: object, zitat: object) -> dict | None:
+    """Fundstelle eines Zitats aus einer vorgelegten Entscheidung, geprüft am gespeicherten Volltext."""
+    if not isinstance(zitat, str):
+        return None
+    for u in [u for u in urteile if u["nr"] == nr] + [u for u in urteile if u["nr"] != nr]:
+        fund = belege.finde(zitat, {i: a["text"] for i, a in enumerate(u["absaetze"])})
+        if fund is None:
+            continue
+        a = u["absaetze"][fund.abschnitt]
+        text = a["text"]
+        von, bis = max(0, fund.start - belege.UMFELD), min(len(text), fund.ende + belege.UMFELD)
+        return {
+            "urteil_id": u["urteil_id"],
+            "urteil": u["bezeichnung"],
+            "stelle": _stelle(a),
+            "rn": a["rn"],
+            "treffer": fund.treffer,
+            "ausschnitt": {
+                "davor": ("… " if von > 0 else "") + text[von : fund.start].lstrip(),
+                "wert": text[fund.start : fund.ende],
+                "danach": text[fund.ende : bis].rstrip() + (" …" if bis < len(text) else ""),
+            },
+        }
+    return None
+
+
+def nur_leitsaetze(urteile: list[dict]) -> list[dict]:
+    """Für eine zweite, kürzere Anfrage: je Entscheidung nur Leitsätze (bzw. der erste Absatz), höchstens drei."""
+    kurz = []
+    for u in urteile[:3]:
+        leit = [a for a in u["absaetze"] if a["teil"] in _LEITSAETZE] or u["absaetze"][:1]
+        kurz.append({**u, "nr": len(kurz) + 1, "absaetze": leit[:2]})
+    return kurz

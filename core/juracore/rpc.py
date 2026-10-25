@@ -519,16 +519,19 @@ class Kern:
 
     def ki_chat_fragen(self, akte_id: int, frage: str, dokument_id: int | None = None, rechner: bool = False,
                        gesetze: bool | str = False, land: str = "BY",
-                       gesetze_ergaenzt: list[str] | None = None) -> dict:
+                       gesetze_ergaenzt: list[str] | None = None, rechtsprechung: str = "aus") -> dict:
         """Stellt eine Frage an die Akte bzw. an ein Dokument im Hintergrund; die Antwort liefert ``ki.auftrag``.
 
         ``rechner``: Zinsen und Fristen rechnet die App (Toolbox); ``gesetze``: "aus", "zitiert" (die in der Akte
         zitierten Normen) oder "suche" (dazu Treffer zur Frage), ``True`` gilt als "suche"; ``land``: Bundesland für
         Feiertage beim Fristenrechner; ``gesetze_ergaenzt``: Normzitate, die immer mitgehen, und Gesetze, in denen
-        zusätzlich gesucht wird."""
+        zusätzlich gesucht wird; ``rechtsprechung``: "aus", "akte" (Leitsätze und zitierte Randnummern der
+        Entscheidungen der Akte) oder "suche" (dazu die zur Frage passenden Randnummern)."""
         stufe = ki_wissen.GESETZE_SUCHE if gesetze is True else ki_wissen.GESETZE_AUS if not gesetze else gesetze
         if stufe not in ki_wissen.GESETZE_STUFEN:
             raise ValueError(f"Unbekannte Stufe für Gesetze: {gesetze}")
+        if rechtsprechung not in ki_wissen.RECHTSPRECHUNG_STUFEN:
+            raise ValueError(f"Unbekannte Stufe für Rechtsprechung: {rechtsprechung}")
         if not str(frage).strip():
             raise ValueError("Die Frage ist leer.")
         e, modell = self._ki_modell()
@@ -543,6 +546,7 @@ class Kern:
                                      rechner=bool(rechner), gesetze=wb,
                                      gesetze_suche=stufe == ki_wissen.GESETZE_SUCHE,
                                      gesetze_ergaenzt=[str(x) for x in gesetze_ergaenzt or []],
+                                     rechtsprechung=rechtsprechung,
                                      basiszins=basiszins.lade(self.basiszins_datei), land=str(land))
             finally:
                 con.close()

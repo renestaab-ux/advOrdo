@@ -1311,6 +1311,7 @@ export interface ChatAussage {
   fundstellen: KiFundstelle[];
   /** Zitate aus Normen der Wissensbasis, am gespeicherten Wortlaut geprüft. */
   normbelege?: ChatNormbeleg[];
+  urteilsbelege?: ChatUrteilsbeleg[];
   berechnung?: ChatBerechnung;
 }
 
@@ -1323,6 +1324,18 @@ export interface ChatNormbeleg {
   /** Stand der Fassung in der Wissensbasis. */
   fassung: string;
   fassung_id: number;
+  treffer: "woertlich" | "angenaehert";
+  ausschnitt: { davor: string; wert: string; danach: string };
+}
+
+/** Zitat aus einer Entscheidung, die der Akte im Volltext vorliegt. */
+export interface ChatUrteilsbeleg {
+  urteil_id: number;
+  /** z. B. „BGH, Entscheidung vom 14.01.2021 – VII ZR 193/19“ */
+  urteil: string;
+  /** „Rn. 22“, „Leitsatz“ oder „Abschn. 3“ */
+  stelle: string;
+  rn: number | null;
   treffer: "woertlich" | "angenaehert";
   ausschnitt: { davor: string; wert: string; danach: string };
 }
@@ -1361,7 +1374,16 @@ export interface ChatEintrag {
   /** Name des externen Anbieters, wenn die Frage das Gerät verlassen hat. */
   extern?: string | null;
   /** Zusatzwissen, das mit der Frage ging. */
-  wissen?: { rechner?: boolean; gesetze?: string[]; fehlend?: string[]; zeichen?: number; gekuerzt?: boolean };
+  wissen?: {
+    rechner?: boolean;
+    gesetze?: string[];
+    fehlend?: string[];
+    zeichen?: number;
+    gekuerzt?: boolean;
+    urteile?: string[];
+    urteile_fehlend?: string[];
+    urteile_zeichen?: number;
+  };
 }
 
 /** Was dem Modell vorlag, z. B. „alle 3 Dokumente vollständig“ oder „120 von 450 Absätzen aus 6 von 8 Dokumenten“. */
