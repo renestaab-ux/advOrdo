@@ -1,10 +1,13 @@
 """Anbindung von Sprachmodellen: lokal (Ollama, LM Studio) und, nur ausdrücklich freigeschaltet, externe Anbieter.
 
-Im Modus „Nur lokal“ darf der Endpunkt nur auf diesem Gerät liegen (localhost,
-127.0.0.1, ::1). Andere Adressen werden abgelehnt, bevor eine Verbindung
-entsteht; der Kern öffnet dabei selbst keinen Port, er ist nur Client des
-lokalen Modellprogramms. Proxy-Einstellungen des Systems werden bewusst
-umgangen, damit Dokumentinhalte nicht über einen Proxy laufen.
+Im Modus „Lokal“ darf der Endpunkt nur auf diesem Gerät (localhost, 127.0.0.1,
+::1) oder im eigenen Netzwerk liegen: private Adressen (192.168.x.x, 10.x.x.x,
+172.16–31.x.x, fc00::/7, fe80::/10) und Rechnernamen ohne Punkt oder mit einer
+Endung des Heimnetzes (.local, .lan, .fritz.box, .home.arpa …). Ein Name muss
+beim Verbinden auf eine solche Adresse zeigen. Andere Adressen werden
+abgelehnt, bevor eine Verbindung entsteht; der Kern öffnet dabei selbst keinen
+Port, er ist nur Client des Modellprogramms. Proxy-Einstellungen des Systems
+werden bewusst umgangen, damit Dokumentinhalte nicht über einen Proxy laufen.
 
 Der Modus „Externer Anbieter“ (Anthropic, OpenAI, Google, Mistral oder ein
 anderer Dienst mit OpenAI-kompatibler Schnittstelle) sendet Fragen und
@@ -26,6 +29,7 @@ import json
 import logging
 import os
 import re
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -125,25 +129,88 @@ def _pruefe_kontext(kontext: object) -> int:
     return kontext
 
 
+GERAET = "geraet"  # das Modell läuft auf diesem Rechner
+NETZWERK = "netzwerk"  # das Modell läuft auf einem anderen Rechner im eigenen Netzwerk
+
+# Namensendungen, die nur im eigenen Netz aufgelöst werden (mDNS, Router, RFC 8375).
+_HEIMNETZ_ENDUNGEN = (".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain", ".fritz.box",
+                      ".speedport.ip")
+
+
+def _adresse_ort(adresse: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str | None:
+    if adresse.is_loopback:
+        return GERAET
+    if isinstance(adresse, ipaddress.IPv6Address) and adresse.ipv4_mapped:
+        return _adresse_ort(adresse.ipv4_mapped)
+    if adresse.is_unspecified or adresse.is_multicast or adresse.is_reserved:
+        return None
+    netze = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "fc00::/7", "fe80::/10")
+    if any(adresse in ipaddress.ip_network(n) for n in netze):
+        return NETZWERK
+    return None
+
+
+def ort(host: str) -> str | None:
+    """Wo ein Host liegt: ``GERAET``, ``NETZWERK`` oder ``None`` (außerhalb des eigenen Netzes).
+
+    Nur nach der Schreibweise, ohne Namensauflösung; die Auflösung prüft ``_pruefe_aufloesung`` beim Verbinden.
+    """
+    host = host.strip().strip("[]").lower().rstrip(".")
+    if host == "localhost":
+        return GERAET
+    try:
+        return _adresse_ort(ipaddress.ip_address(host.split("%")[0]))
+    except ValueError:
+        pass
+    if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*", host):
+        return None
+    if host.endswith(".localhost"):
+        return GERAET
+    if "." not in host or host.endswith(_HEIMNETZ_ENDUNGEN):
+        return NETZWERK
+    return None
+
+
+def endpunkt_ort(endpunkt: str) -> str:
+    """``GERAET`` oder ``NETZWERK`` für einen zulässigen lokalen Endpunkt."""
+    return ort(urlsplit(endpunkt).hostname or "") or NETZWERK
+
+
 def pruefe_lokal(endpunkt: str) -> str:
-    """Lässt nur Endpunkte auf diesem Gerät zu; liefert die Adresse ohne abschließenden Schrägstrich."""
+    """Lässt nur Endpunkte auf diesem Gerät oder im eigenen Netzwerk zu; liefert die Adresse ohne Schrägstrich."""
     endpunkt = endpunkt.strip().rstrip("/")
     teile = urlsplit(endpunkt)
     if teile.scheme not in ("http", "https") or not teile.hostname:
-        raise ValueError(f"Ungültiger Endpunkt: {endpunkt!r} (erwartet z. B. http://127.0.0.1:11434)")
-    host = teile.hostname
-    lokal = host == "localhost"
-    if not lokal:
-        try:
-            lokal = ipaddress.ip_address(host).is_loopback
-        except ValueError:
-            lokal = False
-    if not lokal:
+        raise ValueError(f"Ungültiger Endpunkt: {endpunkt!r} (erwartet z. B. http://127.0.0.1:11434 oder "
+                         "http://192.168.178.20:1234)")
+    if ort(teile.hostname) is None:
         raise ValueError(
-            f"Im Modus „Nur lokal“ muss das Sprachmodell auf diesem Gerät laufen (localhost oder 127.0.0.1), "
-            f"nicht unter {host}. Dokumentinhalte verlassen das Gerät nicht."
+            f"Im Modus „Lokal“ muss das Sprachmodell auf diesem Gerät oder im eigenen Netzwerk laufen (etwa "
+            f"127.0.0.1, 192.168.x.x, 10.x.x.x oder ein Rechnername wie pc-buero.local), nicht unter "
+            f"{teile.hostname}. Dokumentinhalte verlassen das eigene Netz nicht."
         )
     return endpunkt
+
+
+def _pruefe_aufloesung(endpunkt: str) -> None:
+    """Ein Rechnername muss ausschließlich auf Adressen des Geräts oder des eigenen Netzes zeigen."""
+    teile = urlsplit(endpunkt)
+    host = teile.hostname or ""
+    try:
+        ipaddress.ip_address(host.split("%")[0])
+        return  # eine Adresse hat pruefe_lokal schon beurteilt
+    except ValueError:
+        pass
+    try:
+        eintraege = socket.getaddrinfo(host, teile.port or 80, proto=socket.IPPROTO_TCP)
+    except OSError as fehler:
+        raise KiFehler(f"Der Rechnername {host} lässt sich nicht auflösen ({fehler}). Läuft der Rechner, und "
+                       "stimmt der Name? Sonst die IP-Adresse eintragen.") from fehler
+    for eintrag in eintraege:
+        adresse = ipaddress.ip_address(str(eintrag[4][0]).split("%")[0])
+        if _adresse_ort(adresse) is None:
+            raise KiFehler(f"Der Rechnername {host} zeigt auf {adresse}, eine Adresse außerhalb des eigenen "
+                           "Netzes. Im Modus „Lokal“ wird dorthin nichts gesendet.")
 
 
 def pruefe_extern(adresse: str) -> str:
@@ -252,6 +319,8 @@ class _Http:
             method="GET" if daten is None else "POST",
         )
         oeffner = _OEFFNER_EXTERN if self.extern else _OEFFNER
+        if not self.extern:
+            _pruefe_aufloesung(self.endpunkt)
         try:
             with oeffner.open(req, timeout=timeout) as antwort:
                 return json.loads(antwort.read().decode("utf-8"))

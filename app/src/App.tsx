@@ -13,7 +13,7 @@ import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
 import { useErinnerungen } from "./erinnerungen";
-import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern } from "./kern";
+import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
 type Bereich = "start" | "eigene" | "toolbox" | "diagnose" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
@@ -24,8 +24,8 @@ const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
   { id: "akten", titel: "Akten", symbol: "akten" },
   { id: "beteiligte", titel: "Beteiligte", symbol: "beteiligte" },
   { id: "suche", titel: "Suche", symbol: "suche" },
-  { id: "gesetze", titel: "Gesetze", symbol: "gesetze" },
   { id: "rechtsprechung", titel: "Rechtsprechung", symbol: "rechtsprechung" },
+  { id: "gesetze", titel: "Gesetze", symbol: "gesetze" },
   { id: "einstellungen", titel: "Einstellungen", symbol: "einstellungen" },
 ];
 
@@ -125,12 +125,19 @@ export default function App() {
               title="Analyse und Chat senden Fragen und Dokumenttexte an diesen Anbieter. Umstellen unter „Einstellungen“."
             >
               <span className="modus-punkt" aria-hidden />
-              <span className="nav-text">KI-Modus: Externer Anbieter ({modus.titel})</span>
+              <span className="nav-text">KI-Modus: {kiModusName(modus)}</span>
             </button>
           ) : (
-            <div className="modus" title="KI-Modus: nur lokal. Das Sprachmodell läuft auf diesem Gerät; Dokumentinhalte verlassen es nicht.">
+            <div
+              className="modus"
+              title={
+                modus?.ort === "netzwerk"
+                  ? "KI-Modus: Lokales Netzwerk. Das Sprachmodell läuft auf einem anderen Rechner im eigenen Netzwerk; Dokumentinhalte verlassen das eigene Netz nicht."
+                  : "KI-Modus: Eigener Rechner. Das Sprachmodell läuft auf diesem Gerät; Dokumentinhalte verlassen es nicht."
+              }
+            >
               <span className="modus-punkt" aria-hidden />
-              <span className="nav-text">KI-Modus: nur lokal</span>
+              <span className="nav-text">KI-Modus: {kiModusName(modus)}</span>
             </div>
           )}
           {umgebung && (

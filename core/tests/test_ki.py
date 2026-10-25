@@ -5,6 +5,7 @@ Die Dokumente sind frei erfunden (angelehnt an die fiktive Testakte Brückner).
 
 import json
 import re
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -146,20 +147,52 @@ def _akte(akten, con, tmp_path):
     return a["id"], ids
 
 
-# --- Nur lokal ------------------------------------------------------------------------------------
+# --- Lokal: dieses Gerät oder das eigene Netzwerk ------------------------------------------------
 
 
 @pytest.mark.parametrize("endpunkt", ["http://localhost:11434", "http://127.0.0.1:11434/", "http://[::1]:1234",
-                                      "https://127.0.0.2:8443"])
+                                      "https://127.0.0.2:8443", "http://192.168.1.20:11434", "http://10.0.0.5:1234",
+                                      "http://172.20.1.2:1234", "http://[fd00::12]:1234", "http://gaming-pc:1234",
+                                      "http://pc-buero.local:1234", "http://ki.fritz.box:11434"])
 def test_lokale_endpunkte_sind_erlaubt(endpunkt):
     assert anbieter.pruefe_lokal(endpunkt) == endpunkt.rstrip("/")
 
 
-@pytest.mark.parametrize("endpunkt", ["http://192.168.1.20:11434", "https://api.example.com", "http://localhost.evil.de",
-                                      "ftp://127.0.0.1", "127.0.0.1:11434"])
+@pytest.mark.parametrize("endpunkt", ["https://api.example.com", "http://localhost.evil.de", "http://8.8.8.8:1234",
+                                      "http://172.32.0.1:1234", "http://100.64.1.1:1234", "http://0.0.0.0:1234",
+                                      "http://224.0.0.1:1234", "http://[2001:db8::1]:1234", "ftp://127.0.0.1",
+                                      "127.0.0.1:11434"])
 def test_entfernte_endpunkte_werden_abgelehnt(endpunkt):
     with pytest.raises(ValueError):
         anbieter.pruefe_lokal(endpunkt)
+
+
+@pytest.mark.parametrize(("endpunkt", "ort"), [
+    ("http://127.0.0.1:1234", "geraet"), ("http://localhost:11434", "geraet"), ("http://[::1]:1234", "geraet"),
+    ("http://192.168.178.20:1234", "netzwerk"), ("http://gaming-pc:1234", "netzwerk"),
+    ("http://mac-mini.local:11434", "netzwerk")])
+def test_endpunkt_ort(endpunkt, ort):
+    assert anbieter.endpunkt_ort(endpunkt) == ort
+
+
+def test_rechnername_muss_ins_eigene_netz_zeigen(monkeypatch):
+    def aufloesen(adresse):
+        return lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (adresse, 1234))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", aufloesen("192.168.178.20"))
+    anbieter._pruefe_aufloesung("http://gaming-pc:1234")
+    monkeypatch.setattr(socket, "getaddrinfo", aufloesen("203.0.113.7"))
+    with pytest.raises(anbieter.KiFehler, match="außerhalb des eigenen Netzes"):
+        anbieter._pruefe_aufloesung("http://gaming-pc:1234")
+    with pytest.raises(anbieter.KiFehler, match="außerhalb des eigenen Netzes"):
+        anbieter.Ollama("http://gaming-pc:1234", "m").modelle()
+
+
+def test_modus_nennt_den_ort(tmp_path):
+    kern = rpc.Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
+    assert kern.ki_modus()["ort"] == "geraet"
+    anbieter.speichere_einstellungen(kern.ki_datei, anbieter.KiEinstellungen("openai", "http://192.168.178.20:1234"))
+    assert kern.ki_modus() == {"aktiv": "lokal", "titel": None, "modell": "", "ort": "netzwerk"}
 
 
 def test_einstellungen_speichern_und_laden(tmp_path):
@@ -168,9 +201,9 @@ def test_einstellungen_speichern_und_laden(tmp_path):
     anbieter.speichere_einstellungen(pfad, anbieter.KiEinstellungen("ollama", "http://localhost:11434", "qwen3:14b"))
     assert anbieter.lade_einstellungen(pfad).modell == "qwen3:14b"
     with pytest.raises(ValueError):
-        anbieter.speichere_einstellungen(pfad, anbieter.KiEinstellungen("ollama", "http://10.0.0.5:11434", "x"))
+        anbieter.speichere_einstellungen(pfad, anbieter.KiEinstellungen("ollama", "http://203.0.113.5:11434", "x"))
     # Eine von Hand auf eine fremde Adresse geänderte Datei fällt auf die Voreinstellung zurück.
-    pfad.write_text(json.dumps({"endpunkt": "http://10.0.0.5:11434", "modell": "x"}), encoding="utf-8")
+    pfad.write_text(json.dumps({"endpunkt": "http://203.0.113.5:11434", "modell": "x"}), encoding="utf-8")
     assert anbieter.lade_einstellungen(pfad).endpunkt == "http://127.0.0.1:11434"
 
 
@@ -416,8 +449,8 @@ def test_rpc_startet_analyse_im_hintergrund(con, tmp_path):
                                                                                      "akte_id": akte_id}}))
     assert "Kein Sprachmodell gewählt" in fehler["error"]["message"]
     fehler = kern.bearbeite(json.dumps({"id": 3, "method": "ki.einstellungen_setzen", "params": {
-        "anbieter": "ollama", "endpunkt": "http://192.168.0.9:11434", "modell": "x"}}))
-    assert "Nur lokal" in fehler["error"]["message"]
+        "anbieter": "ollama", "endpunkt": "http://203.0.113.9:11434", "modell": "x"}}))
+    assert "eigenen Netzwerk" in fehler["error"]["message"]
 
     # Ein Port, an dem nichts läuft: Status meldet „nicht erreichbar“, speichert aber die Wahl.
     stand = aufruf("ki.einstellungen_setzen", anbieter="ollama", endpunkt="http://127.0.0.1:9", modell=Attrappe.modell)

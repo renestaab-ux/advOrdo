@@ -303,6 +303,7 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .ki-formular label { display: contents; }
 .ki-formular input, .ki-formular select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--hintergrund); color: var(--text); }
 .ki-formular .aktionen { grid-column: 2; }
+.ki-formular .feld-hinweis { grid-column: 2; margin-top: -6px; font-size: 12px; }
 .ki-anleitung { margin-top: 14px; font-size: 13px; }
 .ki-anleitung summary { cursor: pointer; color: var(--akzent); }
 .ki-anleitung li { margin: 6px 0; }

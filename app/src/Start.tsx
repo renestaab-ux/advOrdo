@@ -5,6 +5,7 @@ import {
   EigeneKurzstand,
   KalenderEintrag,
   KiModus,
+  kiModusName,
   abstandText,
   akteTitel,
   datumLang,
@@ -57,7 +58,7 @@ export default function Start({
         </div>
         <span className={extern ? "modus-pille extern" : "modus-pille"}>
           <span className="modus-punkt" aria-hidden />
-          {extern ? `KI: Externer Anbieter (${modus?.titel})` : "KI: nur lokal"}
+          KI: {kiModusName(modus)}
         </span>
       </header>
       <div className="start-inhalt">
@@ -130,7 +131,9 @@ export default function Start({
               <dd className={extern ? "hinweis" : "gut"}>
                 {extern
                   ? `Externer Anbieter (${modus?.titel}): Analyse und Chat senden Dokumenttexte dorthin.`
-                  : "Nur lokal: Dokumente und Akten bleiben auf diesem Gerät."}
+                  : modus?.ort === "netzwerk"
+                    ? "Lokales Netzwerk: Das Sprachmodell läuft auf einem anderen Rechner im eigenen Netz; Dokumente und Akten verlassen es nicht."
+                    : "Eigener Rechner: Dokumente und Akten bleiben auf diesem Gerät."}
               </dd>
               {umgebung && (
                 <>

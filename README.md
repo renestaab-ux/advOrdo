@@ -140,7 +140,7 @@ Linux: `sudo apt install tesseract-ocr tesseract-ocr-deu`. macOS: `brew install 
 
 Die App öffnet mit einem Startbildschirm: **Akte anlegen** (öffnet in den Akten das Feld für eine neue Akte),
 **Akten**, **Eigene Daten**, **Toolbox**, die **zuletzt geöffneten Akten** und **Ihr Arbeitsbereich** mit Modus
-(nur lokal oder externer Anbieter) und Arbeitsumgebung. Über „Start“ in der Navigation geht es jederzeit zurück.
+(eigener Rechner, lokales Netzwerk oder externer Anbieter) und Arbeitsumgebung. Über „Start“ in der Navigation geht es jederzeit zurück.
 
 Die Navigation links zeigt Symbole und Namen; **Einklappen** (unten) lässt nur die Symbole stehen, mit dem Namen als
 Tooltip. Die App merkt sich die Wahl auf diesem Gerät. Vergleich und Analyse sind Reiter in der geöffneten Akte.
@@ -375,8 +375,14 @@ eine Nachbesserung angeboten oder abgelehnt wurde) prüft der Reiter **Analyse**
 
 Der Reiter **Analyse** einer Akte fasst Dokumente und die ganze Akte zusammen und sucht inhaltliche
 Widersprüche, auch solche ohne Zahl oder Datum („Nachbesserung abgelehnt“ gegenüber „Nachbesserung
-angeboten“). Dafür läuft ein Sprachmodell auf diesem Gerät, über Ollama oder LM Studio. Die App
-spricht nur mit Adressen auf diesem Gerät (`localhost`, `127.0.0.1`); andere lehnt sie ab.
+angeboten“). Dafür läuft ein Sprachmodell über Ollama oder LM Studio, auf diesem Gerät oder auf einem
+anderen Rechner im eigenen Netzwerk. Die App spricht nur mit Adressen auf diesem Gerät (`localhost`,
+`127.0.0.1`) oder im eigenen Netz (private Adressen wie `192.168.x.x`, `10.x.x.x`, Rechnernamen ohne
+Punkt oder mit `.local`, `.lan`, `.fritz.box`); ein Name muss beim Verbinden auf eine private Adresse
+zeigen. Andere Adressen lehnt sie ab. Die Navigation zeigt „KI-Modus: Eigener Rechner“ oder
+„KI-Modus: Lokales Netzwerk“. Auf dem anderen Rechner muss das Programm Verbindungen aus dem Netz
+annehmen (LM Studio: „Serve on Local Network“, Ollama: `OLLAMA_HOST=0.0.0.0`) und die Firewall den
+Port freigeben.
 
 **Beleg vor Behauptung:** Das Modell muss zu jeder Aussage den Absatz und ein wörtliches Zitat
 nennen. Die App sucht das Zitat im gespeicherten Originaltext und zeigt die Fundstelle (Seite,

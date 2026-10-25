@@ -133,10 +133,11 @@ export default function Einstellungen({
       <Programme />
 
       <section className="karte">
-        <h2>Sprachmodell auf diesem Gerät</h2>
+        <h2>Lokales Sprachmodell</h2>
         <p className="erklaerung">
-          Modus <strong>nur lokal</strong>: Das Sprachmodell läuft auf diesem Gerät (Ollama oder LM Studio). Die App
-          spricht nur mit Adressen auf diesem Gerät; Dokumentinhalte verlassen es nicht. Das ist die Voreinstellung.
+          Modus <strong>lokal</strong>: Das Sprachmodell (Ollama oder LM Studio) läuft auf diesem Gerät oder auf einem
+          anderen Rechner im eigenen Netzwerk. Die App spricht nur mit solchen Adressen; Dokumentinhalte verlassen das
+          eigene Netz nicht. Voreingestellt ist dieses Gerät (127.0.0.1).
         </p>
 
         <form className="ki-formular" onSubmit={speichern}>
@@ -160,6 +161,10 @@ export default function Einstellungen({
           <label>
             Adresse
             <input value={endpunkt} onChange={(e) => setEndpunkt(e.target.value)} spellCheck={false} />
+            <span className="leise feld-hinweis">
+              Anderer Rechner im Netzwerk: dessen IP-Adresse oder Namen eintragen, z. B. http://192.168.178.20:1234
+              oder http://pc-buero.local:11434.
+            </span>
           </label>
           <label>
             Modell
@@ -227,6 +232,12 @@ export default function Einstellungen({
           <p className="leise">
             Ollama lauscht nur auf diesem Gerät (127.0.0.1:11434), solange man das nicht ausdrücklich ändert. Linux:{" "}
             <code>curl -fsSL https://ollama.com/install.sh | sh</code>, macOS: <code>brew install ollama</code>.
+          </p>
+          <p className="leise">
+            Modell auf einem anderen Rechner im Netzwerk: Dort muss das Programm Verbindungen aus dem Netzwerk annehmen
+            (LM Studio: Developer → Settings → „Serve on Local Network“; Ollama: Umgebungsvariable{" "}
+            <code>OLLAMA_HOST=0.0.0.0</code>), und die Firewall dieses Rechners muss den Port (1234 bzw. 11434) für das
+            private Netzwerk freigeben. Die Verbindung im Heimnetz ist unverschlüsselt; sie bleibt aber im eigenen Netz.
           </p>
         </details>
       </section>

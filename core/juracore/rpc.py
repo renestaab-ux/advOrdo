@@ -473,7 +473,7 @@ class Kern:
         e = ki_anbieter.lade_einstellungen(self.ki_datei)
         titel = ki_anbieter.EXTERNE[e.extern_anbieter]["titel"] if e.extern else None
         return {"aktiv": ki_anbieter.EXTERN if e.extern else ki_anbieter.LOKAL, "titel": titel,
-                "modell": e.aktives_modell}
+                "modell": e.aktives_modell, "ort": None if e.extern else ki_anbieter.endpunkt_ort(e.endpunkt)}
 
     def ki_einstellungen_setzen(self, anbieter: str, endpunkt: str, modell: str = "", kontext: int = 16384) -> dict:
         """Das lokale Modell; die Einstellungen der externen KI bleiben, wie sie sind."""
