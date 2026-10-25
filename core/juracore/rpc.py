@@ -30,6 +30,7 @@ from .gesetze import quelle, wissensbasis
 from .ki import anbieter as ki_anbieter
 from .ki import chat as ki_chat
 from .ki import export as ki_export
+from .ki import gegenueberstellung as ki_gegenueberstellung
 from .ki import speicher as ki_speicher
 from .ki import wissen as ki_wissen
 from .ki.analyse import Analyse
@@ -216,6 +217,7 @@ class Kern:
                 self.akten, akte_id, self.aktives_modell(), teile, zitate),
             "ki.chat_verlauf": lambda akte_id, dokument_id=None: ki_chat.verlauf(self.akten, akte_id, dokument_id),
             "ki.chat_fragen": self.ki_chat_fragen,
+            "ki.gegenueberstellung": self.ki_gegenueberstellung,
             "rechner.verzugszinsen": lambda **p: verzugszinsen.berechne(
                 verzugszinsen.aus_params(p), basiszins.lade(self.basiszins_datei)),
             "rechner.frist": lambda **p: fristen.aus_params(p),
@@ -519,16 +521,19 @@ class Kern:
 
     def ki_chat_fragen(self, akte_id: int, frage: str, dokument_id: int | None = None, rechner: bool = False,
                        gesetze: bool | str = False, land: str = "BY",
-                       gesetze_ergaenzt: list[str] | None = None) -> dict:
+                       gesetze_ergaenzt: list[str] | None = None, rechtsprechung: str = "aus") -> dict:
         """Stellt eine Frage an die Akte bzw. an ein Dokument im Hintergrund; die Antwort liefert ``ki.auftrag``.
 
         ``rechner``: Zinsen und Fristen rechnet die App (Toolbox); ``gesetze``: "aus", "zitiert" (die in der Akte
         zitierten Normen) oder "suche" (dazu Treffer zur Frage), ``True`` gilt als "suche"; ``land``: Bundesland für
         Feiertage beim Fristenrechner; ``gesetze_ergaenzt``: Normzitate, die immer mitgehen, und Gesetze, in denen
-        zusätzlich gesucht wird."""
+        zusätzlich gesucht wird; ``rechtsprechung``: "aus", "akte" (Leitsätze und zitierte Randnummern der
+        Entscheidungen der Akte) oder "suche" (dazu die zur Frage passenden Randnummern)."""
         stufe = ki_wissen.GESETZE_SUCHE if gesetze is True else ki_wissen.GESETZE_AUS if not gesetze else gesetze
         if stufe not in ki_wissen.GESETZE_STUFEN:
             raise ValueError(f"Unbekannte Stufe für Gesetze: {gesetze}")
+        if rechtsprechung not in ki_wissen.RECHTSPRECHUNG_STUFEN:
+            raise ValueError(f"Unbekannte Stufe für Rechtsprechung: {rechtsprechung}")
         if not str(frage).strip():
             raise ValueError("Die Frage ist leer.")
         e, modell = self._ki_modell()
@@ -543,6 +548,7 @@ class Kern:
                                      rechner=bool(rechner), gesetze=wb,
                                      gesetze_suche=stufe == ki_wissen.GESETZE_SUCHE,
                                      gesetze_ergaenzt=[str(x) for x in gesetze_ergaenzt or []],
+                                     rechtsprechung=rechtsprechung,
                                      basiszins=basiszins.lade(self.basiszins_datei), land=str(land))
             finally:
                 con.close()
@@ -551,7 +557,8 @@ class Kern:
 
         return self.auftraege.starte("chat", arbeit)
 
-    KI_AUFGABEN = ("zusammenfassung_dokument", "zusammenfassung_akte", "widersprueche", "chronologie")
+    KI_AUFGABEN = ("zusammenfassung_dokument", "zusammenfassung_akte", "widersprueche", "chronologie",
+                   "gegenueberstellung")
 
     def ki_starten(
         self, aufgabe: str, akte_id: int | None = None, dokument_id: int | None = None,
@@ -575,11 +582,24 @@ class Kern:
                     return analyse.zusammenfassung_akte(int(akte_id))
                 if aufgabe == "chronologie":
                     return analyse.chronologie(int(akte_id))
+                if aufgabe == "gegenueberstellung":
+                    return ki_gegenueberstellung.gegenueberstellen(
+                        analyse, int(akte_id), None if dokument_id is None else int(dokument_id))
                 return analyse.widersprueche(int(akte_id), dokument_ids)
             finally:
                 con.close()
 
         return self.auftraege.starte(aufgabe, arbeit)
+
+    def ki_gegenueberstellung(self, akte_id: int, dokument_id: int | None = None) -> dict:
+        """Gespeicherte Gegenüberstellungen (Schriftsatz und zitierte Entscheidung), ohne das Modell zu fragen."""
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        if not e.aktives_modell:
+            return {"zitate": [], "offen": 0, "anzahl": 0, "modell": None}
+        _, modell = self._ki_modell()
+        return ki_gegenueberstellung.gegenueberstellen(
+            Analyse(self.akten, modell, e.aktiver_kontext), int(akte_id),
+            None if dokument_id is None else int(dokument_id), nur_gespeichert=True)
 
     def _online_quellen(self) -> set[str]:
         return online.quellen(online.einstellungen(self.quellen_datei))

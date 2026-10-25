@@ -2,6 +2,7 @@ import { KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
 import { FundstelleZeile, Offen } from "./Analyse";
 import { Zitatbereich, ZitateSchalter, useZitateZeigen } from "./Belege";
+import { GegenueberstellungListe } from "./Gegenueberstellung";
 import { gemerkt, merke } from "./merken";
 import { FristAusgabe, ZinsAusgabe, gespeichertesLand } from "./Toolbox";
 import {
@@ -9,6 +10,7 @@ import {
   ChatBerechnung,
   ChatEintrag,
   ChatNormbeleg,
+  ChatUrteilsbeleg,
   DokumentInhalt,
   KiAuftrag,
   KiFundstelle,
@@ -33,6 +35,13 @@ function gemerkteStufe(): GesetzeStufe {
 
 function merkeStufe(stufe: GesetzeStufe) {
   merkeText("chat.gesetze_stufe", stufe);
+}
+
+type RechtsprechungStufe = "aus" | "akte" | "suche";
+
+function gemerkteRechtsprechung(): RechtsprechungStufe {
+  const wert = gemerkterText("chat.rechtsprechung");
+  return wert === "akte" || wert === "suche" ? wert : "aus";
 }
 
 function gemerkterText(schluessel: string): string {
@@ -79,6 +88,7 @@ export default function Chat({
   // Zusatzwissen je Gerät gemerkt: Rechner standardmäßig an (kostet kaum Token), Gesetze aus.
   const [rechner, setRechner] = useState(() => !gemerkt("chat.ohne_rechner"));
   const [gesetze, setGesetze] = useState<GesetzeStufe>(gemerkteStufe);
+  const [rechtsprechung, setRechtsprechung] = useState<RechtsprechungStufe>(gemerkteRechtsprechung);
   const [ergaenzt, setErgaenzt] = useState(() => gemerkterText("chat.gesetze_ergaenzt"));
   const [geladeneGesetze, setGeladeneGesetze] = useState<string[]>([]);
   const ende = useRef<HTMLDivElement>(null);
@@ -157,6 +167,7 @@ export default function Chat({
             .map((x) => x.trim())
             .filter(Boolean),
           land: gespeichertesLand(),
+          rechtsprechung,
         }),
       );
       setGestellt(frage);
@@ -307,6 +318,21 @@ export default function Chat({
                 </datalist>
               </label>
             )}
+            <label title="Entscheidungen, die der Akte im Volltext vorliegen (Bereich Rechtsprechung), gehen mit Leitsätzen und den in der Akte zitierten Randnummern an das Modell, auf Wunsch auch mit den zur Frage passenden Randnummern. Das braucht bis etwa 3.000 Token mehr Kontext.">
+              Rechtsprechung:{" "}
+              <select
+                value={rechtsprechung}
+                onChange={(e) => {
+                  const stufe = e.target.value as RechtsprechungStufe;
+                  setRechtsprechung(stufe);
+                  merkeText("chat.rechtsprechung", stufe);
+                }}
+              >
+                <option value="aus">nicht einbeziehen</option>
+                <option value="akte">Leitsätze und zitierte Randnummern</option>
+                <option value="suche">dazu zur Frage passende Randnummern</option>
+              </select>
+            </label>
           </div>
           <div className="aktionen">
             <button onClick={fragen} disabled={!bereit || laeuft || !eingabe.trim()}>
@@ -373,6 +399,13 @@ function ChatAntwort({
                   ))}
                 </ul>
               )}
+              {a.urteilsbelege && a.urteilsbelege.length > 0 && (
+                <ul className="belege">
+                  {a.urteilsbelege.map((u, j) => (
+                    <Urteilsbeleg key={j} u={u} />
+                  ))}
+                </ul>
+              )}
               {a.fundstellen.length > 0 && (
                 <ul className="belege">
                   {a.fundstellen.map((f, j) => (
@@ -383,11 +416,23 @@ function ChatAntwort({
             </li>
           ))}
         </ul>
+        {eintrag.gegenueberstellung && eintrag.gegenueberstellung.zitate.length > 0 && (
+          <details className="chat-gegenueber" open>
+            <summary>Gegenüberstellung je Zitat ({eintrag.gegenueberstellung.zitate.length})</summary>
+            <GegenueberstellungListe
+              zitate={eintrag.gegenueberstellung.zitate}
+              onFundstelle={onFundstelle}
+            />
+          </details>
+        )}
         <p className="ki-herkunft chat-fuss">
           <span>
             {zeitpunkt(eintrag.erstellt_am)} · {eintrag.modell}
             {eintrag.extern ? ` über ${eintrag.extern} (extern)` : ", auf diesem Gerät"}
             {eintrag.auswahl && <> · Vorgelegt: {auswahlText(eintrag.auswahl)}</>}
+            {eintrag.gegenueberstellung && (
+              <> · Vorgelegt: je Zitat die zitierende Stelle und die passenden Stellen der Entscheidung</>
+            )}
             {eintrag.wissen?.gesetze && (
               <>
                 {" "}
@@ -395,12 +440,26 @@ function ChatAntwort({
                 {eintrag.wissen.gesetze.length ? eintrag.wissen.gesetze.join(", ") : "keine passenden in der Wissensbasis"}
               </>
             )}
-            {eintrag.wissen?.gekuerzt && <> (gekürzt, weil die Anfrage nicht in den Kontext des Modells passte)</>}
             {eintrag.wissen?.fehlend && eintrag.wissen.fehlend.length > 0 && (
               <> · Nicht in der Wissensbasis: {eintrag.wissen.fehlend.join(", ")}</>
             )}
+            {eintrag.wissen?.urteile && (
+              <>
+                {" "}
+                · Rechtsprechung:{" "}
+                {eintrag.wissen.urteile.length
+                  ? eintrag.wissen.urteile.join("; ")
+                  : "keine Entscheidung der Akte im Volltext"}
+              </>
+            )}
+            {eintrag.wissen?.urteile_fehlend && eintrag.wissen.urteile_fehlend.length > 0 && (
+              <> · Zitiert, aber ohne Volltext: {eintrag.wissen.urteile_fehlend.join("; ")}</>
+            )}
+            {eintrag.wissen?.gekuerzt && <> (gekürzt, weil die Anfrage nicht in den Kontext des Modells passte)</>}
           </span>
-          {aussagen.some((a) => a.fundstellen.length > 0 || (a.normbelege?.length ?? 0) > 0) && <ZitateSchalter />}
+          {aussagen.some(
+            (a) => a.fundstellen.length > 0 || (a.normbelege?.length ?? 0) > 0 || (a.urteilsbelege?.length ?? 0) > 0,
+          ) && <ZitateSchalter />}
         </p>
       </div>
     </Zitatbereich>
@@ -444,6 +503,35 @@ function Berechnung({
         </details>
       )}
     </div>
+  );
+}
+
+/** Zitat aus einer Entscheidung der Akte, geprüft am gespeicherten Volltext. */
+function Urteilsbeleg({ u }: { u: ChatUrteilsbeleg }) {
+  const zeigen = useZitateZeigen();
+  const az = u.urteil.split(" – ")[1];
+  const kurz = `${u.urteil.split(",")[0]}${az ? ` ${az}` : ""}, ${u.stelle}`;
+  if (!zeigen) {
+    return (
+      <li className="kompakt">
+        <span className="quelle urteil" title={`${u.urteil}, ${u.stelle}\n„${u.ausschnitt.wert}“`}>
+          {kurz}
+        </span>
+      </li>
+    );
+  }
+  return (
+    <li>
+      <span className="fundort">
+        {u.urteil}, {u.stelle}
+      </span>
+      {u.treffer === "angenaehert" && <span className="leise">angenähert</span>}
+      <div className="ausschnitt">
+        {u.ausschnitt.davor}
+        <mark>{u.ausschnitt.wert}</mark>
+        {u.ausschnitt.danach}
+      </div>
+    </li>
   );
 }
 

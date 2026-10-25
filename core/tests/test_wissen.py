@@ -286,3 +286,113 @@ def test_antwort_ist_begrenzt_aber_nicht_fuer_externe(akten, con, tmp_path):
     assert s["properties"]["aussagen"]["maxItems"] == chat.HOECHSTENS
     assert s["properties"]["aussagen"]["items"]["properties"]["normbelege"]["maxItems"] == 2
     assert "maxItems" not in json.dumps(_streng(s)) and "maxLength" not in json.dumps(_streng(s))
+
+
+# --- Rechtsprechung (Entscheidungen frei erfunden) -------------------------------------------------
+
+SCHRIFTSATZ_MIT_URTEIL = (
+    "Klageerwiderung\n\n"
+    "Die Abnahme wurde nicht verweigert. Der Bundesgerichtshof hat entschieden, dass eine Abnahme auch "
+    "stillschweigend erfolgen kann (BGH, Urteil vom 14.01.2021 – VII ZR 999/19, Rn. 22).\n\n"
+    "Ferner verweist die Beklagte auf OLG München, Urteil vom 03.05.2022 – 28 U 9999/21."
+)
+LEITSATZ = "Eine konkludente Abnahme setzt ein Verhalten des Bestellers voraus, das die Billigung des Werks erkennen lässt."
+RN_22 = ("Eine stillschweigende Abnahme kann insbesondere in der vorbehaltlosen Zahlung des restlichen Werklohns "
+         "oder im Bezug des fertiggestellten Hauses liegen.")
+RN_30 = "Die Mängelrüge nach Ablauf der Prüffrist steht der Annahme einer Billigung regelmäßig nicht entgegen."
+
+
+def _akte_mit_urteil(akten, con, tmp_path) -> tuple[int, int]:
+    a = akte.akte_anlegen(akten, "Weber ./. Bau GmbH")
+    pfad = tmp_path / "05_Klageerwiderung.md"
+    pfad.write_text(SCHRIFTSATZ_MIT_URTEIL, encoding="utf-8")
+    akte.importiere(akten, con, a["id"], pfad, tmp_path / "ablage", ocr=False)
+    with akten:
+        uid = akten.execute(
+            """INSERT INTO urteil (akte_id, zitat, gericht, aktenzeichen, az_norm, datum, quelle, herkunft, dateiname,
+                                   format, sha256, original, lesart, hinweise, hinzugefuegt_am)
+               VALUES (?, ?, 'BGH', 'VII ZR 999/19', 'VII ZR 999/19', '2021-01-14', 'rii', 'Test', 'x.zip', 'rii',
+                       'abc', 'x', 'datei', '[]', '2026-10-25')""",
+            (a["id"], "BGH, Urteil vom 14.01.2021 – VII ZR 999/19")).lastrowid
+        akten.executemany(
+            "INSERT INTO urteil_abschnitt (urteil_id, nr, seite, rn, text, teil) VALUES (?, ?, NULL, ?, ?, ?)",
+            [(uid, 1, None, LEITSATZ, "leitsatz"), (uid, 2, 22, RN_22, "gruende"),
+             (uid, 3, 30, RN_30, "gruende"), (uid, 4, 31, "Die Kosten trägt die Beklagte.", "gruende")])
+    return a["id"], uid
+
+
+def test_urteile_der_akte_leitsatz_zitierte_rn_und_fehlende(akten, con, tmp_path):
+    akte_id, uid = _akte_mit_urteil(akten, con, tmp_path)
+    urteile, fehlend = wissen.waehle_urteile(akten, akte_id, None, "Wann ist eine Abnahme erfolgt?", suche=False)
+    assert [u["urteil_id"] for u in urteile] == [uid]
+    assert [wissen._stelle(a) for a in urteile[0]["absaetze"]] == ["Leitsatz", "Rn. 22"]
+    assert fehlend == ["OLG München, Urteil vom 03.05.2022 – 28 U 9999/21"]
+    text = wissen.urteile_text(urteile)
+    assert "[U1] BGH, Entscheidung vom 14.01.2021 – VII ZR 999/19" in text and "[U1 Rn. 22]" in text
+
+    mit_suche, _ = wissen.waehle_urteile(akten, akte_id, None, "Hindert die Mängelrüge die Billigung?")
+    assert "Rn. 30" in [wissen._stelle(a) for a in mit_suche[0]["absaetze"]]
+    assert "Rn. 31" not in [wissen._stelle(a) for a in mit_suche[0]["absaetze"]]
+
+
+def test_urteilsbelege_werden_am_volltext_geprueft(akten, con, tmp_path):
+    akte_id, uid = _akte_mit_urteil(akten, con, tmp_path)
+    gesehen = []
+
+    def antwort(prompt, schema):
+        gesehen.append((prompt, schema))
+        d, n = _zeile(prompt, "stillschweigend")
+        return {"aussagen": [
+            {"text": "Die Zahlung des Restwerklohns kann eine Abnahme sein.", "art": "einschaetzung", "belege": [],
+             "urteilsbelege": [{"urteil": 1, "zitat": "in der vorbehaltlosen Zahlung des restlichen Werklohns"}]},
+            {"text": "Laut BGH genügt jede Mitteilung.", "art": "einschaetzung", "belege": [],
+             "urteilsbelege": [{"urteil": 1, "zitat": "jede Mitteilung des Bestellers genügt stets"}]},
+            {"text": "Die Beklagte beruft sich auf den BGH.", "art": "tatsache",
+             "belege": [{"dokument": d, "absatz": n, "zitat": "eine Abnahme auch stillschweigend erfolgen kann"}],
+             "urteilsbelege": []},
+        ]}
+
+    e = chat.frage(akten, Attrappe(antwort), 32768, akte_id, "Liegt eine Abnahme vor?", rechtsprechung="akte")
+    prompt, schema = gesehen[0]
+    assert "Rechtsprechung aus der Akte:" in prompt and wissen.ANWEISUNG_RECHTSPRECHUNG in prompt
+    assert "urteilsbelege" in schema["properties"]["aussagen"]["items"]["required"]
+    erste, zweite, dritte = e["aussagen"]
+    assert erste["status"] == "belegt"
+    assert erste["urteilsbelege"][0]["urteil_id"] == uid and erste["urteilsbelege"][0]["stelle"] == "Rn. 22"
+    assert erste["urteilsbelege"][0]["ausschnitt"]["wert"].startswith("in der vorbehaltlosen")
+    assert zweite["status"] == "ohne_beleg" and "urteilsbelege" not in zweite
+    assert dritte["status"] == "belegt"
+    assert e["wissen"]["urteile"] == ["BGH, Entscheidung vom 14.01.2021 – VII ZR 999/19"]
+    assert e["wissen"]["urteile_fehlend"] == ["OLG München, Urteil vom 03.05.2022 – 28 U 9999/21"]
+
+
+def test_ohne_rechtsprechung_kein_urteilstext(akten, con, tmp_path):
+    akte_id, _ = _akte_mit_urteil(akten, con, tmp_path)
+    gesehen = []
+    e = chat.frage(akten, Attrappe(lambda p, s: gesehen.append((p, s)) or {"aussagen": []}), 32768, akte_id,
+                   "Liegt eine Abnahme vor?")
+    assert "Rechtsprechung aus der Akte" not in gesehen[0][0] and "wissen" not in e
+    assert "urteilsbelege" not in json.dumps(gesehen[0][1])
+
+
+def test_zu_lang_mit_rechtsprechung_nur_leitsaetze(akten, con, tmp_path):
+    akte_id, _ = _akte_mit_urteil(akten, con, tmp_path)
+    gesehen = []
+
+    def antwort(prompt, schema):
+        gesehen.append(prompt)
+        if len(gesehen) == 1:
+            raise KiFehler("Trying to keep the first 9000 tokens when context the overflows.")
+        return {"aussagen": []}
+
+    e = chat.frage(akten, Attrappe(antwort), 32768, akte_id, "Hindert die Mängelrüge die Billigung?",
+                   rechtsprechung="suche")
+    assert "[U1 Rn. 30]" in gesehen[0] and "[U1 Rn. 30]" not in gesehen[1] and "[U1 Leitsatz]" in gesehen[1]
+    assert e["wissen"]["gekuerzt"] is True
+
+
+def test_rpc_prueft_die_stufe_der_rechtsprechung(tmp_path):
+    kern = rpc.Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
+    a = kern.bearbeite(json.dumps({"id": 1, "method": "ki.chat_fragen",
+                                   "params": {"akte_id": 1, "frage": "x", "rechtsprechung": "alles"}}))
+    assert "Rechtsprechung" in a["error"]["message"]

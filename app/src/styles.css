@@ -398,7 +398,7 @@ button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var
 .chat-rechnung details summary { cursor: pointer; font-size: 13px; color: var(--akzent); }
 .chat-rechnung .rechner-ergebnis { margin-top: 8px; }
 .chat-aussagen > li.chat-berechnung > div:first-child { font-weight: 600; }
-span.quelle.norm { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--linie); color: var(--text-leise); }
+span.quelle.norm, span.quelle.urteil { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--linie); color: var(--text-leise); }
 @media (max-width: 1100px) {
   .chat.mit-seite { grid-template-columns: 1fr; }
 }
@@ -905,4 +905,25 @@ details.kurz-hinweis summary { cursor: pointer; }
   body:has(#druckbereich) { background: #fff; }
   body:has(#druckbereich) > #root { display: none !important; }
   #druckbereich { display: block; }
+}
+
+/* Gegenüberstellung Schriftsatz ↔ Entscheidung */
+.gegenueber-bereich { margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--linie); border-radius: 8px; }
+.gegenueber-bereich > summary { cursor: pointer; font-weight: 600; }
+.gegenueber { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 12px; }
+.gegenueber > li { border: 1px solid var(--linie); border-radius: 8px; padding: 10px 12px; }
+.gegenueber-kopf { margin-bottom: 6px; }
+.gegenueber-spalten { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.gegenueber-spalten p { margin: 0 0 4px; }
+.gegenueber-titel { font-size: 12px; color: var(--text-leise); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+.gegenueber-begruendung { margin: 8px 0 0; }
+.marke-status.gegenueber-traegt { background: color-mix(in srgb, var(--gut) 18%, transparent); color: var(--gut); }
+.marke-status.gegenueber-traegt_teilweise { background: color-mix(in srgb, var(--warnung) 20%, transparent); color: var(--warnung); }
+.marke-status.gegenueber-traegt_nicht { background: color-mix(in srgb, var(--fehler) 18%, transparent); color: var(--fehler); }
+.marke-status.gegenueber-nicht_beurteilbar,
+.marke-status.gegenueber-nicht_pruefbar { border: 1px solid var(--linie); color: var(--text-leise); }
+.chat-gegenueber { margin-top: 10px; }
+.chat-gegenueber > summary { cursor: pointer; color: var(--text-leise); }
+@media (max-width: 1100px) {
+  .gegenueber-spalten { grid-template-columns: 1fr; }
 }
