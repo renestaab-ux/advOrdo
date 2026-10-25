@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from .analyse import Analyse
 
 AUFGABE = "gegenueberstellung"
-FASSUNG = 1
+FASSUNG = 2  # 2: Zitat vorrangig aus der zitierten Randnummer
 
 TRAEGT = "traegt"
 TEILWEISE = "traegt_teilweise"
@@ -176,7 +176,9 @@ def _anweisung(t: belege.Text, schrift: list[dict], zitierend: int, zitat: str, 
                stellen: list[dict]) -> str:
     s = "\n".join(f"[S{a['nr']}]{' (zitierende Stelle)' if a['nr'] == zitierend else ''} {a['text']}"
                   for a in schrift)
-    u = "\n".join(f"[U{a['u']} {a['stelle']}] {a['text']}" for a in stellen)
+    zitiert = next((a for a in stellen if rn is not None and a["rn"] == rn), None)
+    u = "\n".join(f"[U{a['u']} {a['stelle']}]{' (zitierte Stelle)' if a is zitiert else ''} {a['text']}"
+                  for a in stellen)
     return (
         f"Schriftsatz: {t.dateiname}" + (f" (Beteiligte: {', '.join(t.parteien)})" if t.parteien else "") + "\n"
         f"{s}\n\n"
@@ -187,7 +189,9 @@ def _anweisung(t: belege.Text, schrift: list[dict], zitierend: int, zitat: str, 
         "1. behauptung: Was entnimmt der Schriftsatz der Entscheidung? Ein Satz, mit wem es vorträgt. Belege es "
         "unter schriftsatz_belege mit der Nummer nach S und einem wörtlichen Zitat aus diesem Absatz.\n"
         "2. entscheidung: Was sagt die Entscheidung an den vorgelegten Stellen dazu? Ein bis zwei Sätze. Belege es "
-        "unter urteil_belege mit der Nummer nach U und einem wörtlichen Zitat aus dieser Stelle.\n"
+        "unter urteil_belege mit der Nummer nach U und einem wörtlichen Zitat aus dieser Stelle."
+        + (f" Zitiere zuerst aus der zitierten Stelle [U{zitiert['u']} {zitiert['stelle']}]; den Leitsatz nur "
+           "zusätzlich, wenn er etwas anderes oder mehr sagt." if zitiert else "") + "\n"
         "3. ergebnis: traegt (die Stelle sagt das so), traegt_teilweise (nur mit Einschränkung, unter anderen "
         "Voraussetzungen oder weniger weit), traegt_nicht (die Stelle sagt etwas anderes oder das Gegenteil), "
         "nicht_beurteilbar (die vorgelegten Stellen enthalten dazu nichts).\n"
@@ -262,6 +266,12 @@ def _pruefe(analyse: Analyse, t: belege.Text, eintrag: dict, nur_gespeichert: bo
         if isinstance(b, dict) and (f := _urteilsbeleg(stellen, b.get("nr"), b.get("zitat"))):
             if not any(f["stelle"] == x["stelle"] for x in urteil_belege):
                 urteil_belege.append(f)
+    if rn_da:
+        # Die zitierte Randnummer zuerst; fehlt ein Zitat aus ihr, sagt die App das.
+        urteil_belege.sort(key=lambda f: f["rn"] != rn)
+        if urteil_belege and urteil_belege[0]["rn"] != rn:
+            hinweis = (f"Belegt nur mit {', '.join(f['stelle'] for f in urteil_belege)}, nicht mit der zitierten "
+                       f"Rn. {rn}.")
     ergebnis = antwort.get("ergebnis") if antwort.get("ergebnis") in ERGEBNISSE else OFFEN
     # „Trägt nicht“ und „nicht beurteilbar“ dürfen ohne Zitat stehen (es fehlt ja gerade die Stelle); „trägt“
     # braucht ein geprüftes Zitat aus der Entscheidung.

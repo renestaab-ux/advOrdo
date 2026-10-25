@@ -131,3 +131,27 @@ def test_rpc_starten_und_gespeichert(con, tmp_path):
     assert stand["status"] == "fertig", stand
     nachher = aufruf("ki.gegenueberstellung", akte_id=akte_id)
     assert nachher["offen"] == 0 and {z["ergebnis"] for z in nachher["zitate"]} == {"traegt", "nicht_pruefbar"}
+
+
+def test_zitierte_rn_zuerst_und_hinweis_wenn_nur_leitsatz(akten, con, tmp_path):  # noqa: F811
+    akte_id, _ = _akte_mit_urteil(akten, con, tmp_path)
+    gesehen = []
+
+    def antwort(prompt, schema):
+        gesehen.append(prompt)
+        a = antwort_traegt(prompt, schema)
+        a["urteil_belege"] = [{"nr": _nr(prompt, "U", "konkludente"), "zitat": "Eine konkludente Abnahme setzt ein "
+                               "Verhalten des Bestellers voraus"}]
+        return a
+
+    g = gegenueberstellung.gegenueberstellen(Analyse(akten, Attrappe(antwort)), akte_id)
+    assert re.search(r"\[U\d+ Rn\. 22\] \(zitierte Stelle\)", gesehen[0]) and "Zitiere zuerst aus" in gesehen[0]
+    bgh = next(z for z in g["zitate"] if z["urteil_id"])
+    assert bgh["urteil_belege"][0]["stelle"] == "Leitsatz"
+    assert bgh["hinweis"] == "Belegt nur mit Leitsatz, nicht mit der zitierten Rn. 22."
+
+
+def test_umformulierte_wiederholung_nur_einmal():
+    assert chat._aehnlich(set("zitierte entscheidung stützt ausführungen klägers".split()),
+                          set("entscheidung stützt ausführungen klägers klageschrift".split()))
+    assert not chat._aehnlich(set("entscheidung stützt ausführungen".split()), set("volltext fehlt olg".split()))

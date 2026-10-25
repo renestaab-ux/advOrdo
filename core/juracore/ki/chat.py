@@ -506,6 +506,8 @@ def _antwort_aus_gegenueberstellung(anbieter: Anbieter, frage: str, zitate: list
     if not zitate:
         return [{"text": "In diesem Dokument bzw. dieser Akte wurden keine Rechtsprechungszitate erkannt.",
                  "art": HINWEIS, "status": HINWEIS, "fundstellen": []}]
+    geprueft = [z for z in zitate if z["ergebnis"] != gegenueberstellung.NICHT_PRUEFBAR]
+    hoechstens = 2 if len(geprueft) <= 1 else min(8, len(geprueft) + 2)
     bloecke = []
     for i, z in enumerate(zitate, 1):
         zeilen = [f"[Z{i}] {z['zitat']}" + (f", Rn. {z['rn_zitiert']}" if z["rn_zitiert"] is not None else "")
@@ -526,27 +528,33 @@ def _antwort_aus_gegenueberstellung(anbieter: Anbieter, frage: str, zitate: list
     nutzer = (
         "Geprüfte Gegenüberstellungen von Schriftsatz und zitierter Entscheidung (Zitate am Originaltext "
         "geprüft):\n\n" + "\n\n".join(bloecke) + f"\n\nFrage: {frage}\n\n"
-        "Aufgabe: Beantworte die Frage nur auf Grundlage dieser Gegenüberstellungen, in höchstens 8 Aussagen. "
-        "Die erste Aussage nennt das Ergebnis insgesamt. Danach je Entscheidung eine Aussage: was der Schriftsatz "
-        "ihr entnimmt, was sie an der Stelle tatsächlich sagt und ob das den Vortrag trägt, mit Begründung "
-        "(Unterschiede im Sachverhalt, Einschränkungen, Überdehnung). Fragt die Frage nach einer bestimmten "
-        "Entscheidung, behandle vor allem diese. Gib unter \"zitate\" die Nummern der Gegenüberstellungen an "
-        "(die Zahl nach Z), auf die sich die Aussage stützt. Wiederhole dich nicht. Was nicht geprüft werden "
-        "konnte, nennst du als Hinweis."
+        f"Aufgabe: Beantworte die Frage nur auf Grundlage dieser Gegenüberstellungen, knapp, in höchstens "
+        f"{hoechstens} Aussagen. "
+        + ("Die erste Aussage nennt das Ergebnis mit dem tragenden Grund. Eine zweite Aussage nur, wenn es eine "
+           "Einschränkung, einen Unterschied im Sachverhalt oder eine Überdehnung gibt."
+           if len(geprueft) <= 1 else
+           "Die erste Aussage nennt das Ergebnis insgesamt in einem Satz. Danach je Entscheidung genau eine "
+           "Aussage: was der Schriftsatz ihr entnimmt, was sie an der Stelle sagt und ob das trägt, mit Grund "
+           "(Unterschiede im Sachverhalt, Einschränkungen, Überdehnung).")
+        + " Fragt die Frage nach einer bestimmten Entscheidung, behandle nur diese. Gib unter \"zitate\" die "
+        "Nummern der Gegenüberstellungen an (die Zahl nach Z), auf die sich die Aussage stützt. Keine Aussage "
+        "darf eine andere wiederholen oder nur umformulieren. Was nicht geprüft werden konnte, nennst du in "
+        "einem Hinweis."
     )
     try:
         antwort = anbieter.chat(SYSTEM, nutzer, SCHEMA_SYNTHESE)
     except KiFehler:
         antwort = {"aussagen": []}
     aussagen: list[dict] = []
-    gesehen: set[str] = set()
-    for a in antwort.get("aussagen") or []:
+    gesehen: list[set[str]] = []
+    for a in (antwort.get("aussagen") or [])[:hoechstens + 1]:
         if not isinstance(a, dict) or not str(a.get("text", "")).strip():
             continue
-        schluessel = re.sub(r"\W+", " ", str(a["text"]).lower()).strip()
-        if schluessel in gesehen:
+        # Dieselbe Aussage mit anderen Worten (kleine Modelle wiederholen das Ergebnis gern) nur einmal.
+        woerter = set(re.findall(r"\w{4,}", str(a["text"]).lower()))
+        if any(_aehnlich(woerter, w) for w in gesehen):
             continue
-        gesehen.add(schluessel)
+        gesehen.append(woerter)
         art = HINWEIS if a.get("art") == HINWEIS else EINSCHAETZUNG
         fundstellen: list[dict] = []
         urteilsbelege: list[dict] = []
@@ -568,6 +576,10 @@ def _antwort_aus_gegenueberstellung(anbieter: Anbieter, frage: str, zitate: list
             eintrag["urteilsbelege"] = urteilsbelege
         aussagen.append(eintrag)
     return aussagen
+
+
+def _aehnlich(a: set[str], b: set[str]) -> bool:
+    return bool(a and b) and len(a & b) / min(len(a), len(b)) >= 0.7
 
 
 def soll_gegenueberstellen(frage: str) -> bool:
