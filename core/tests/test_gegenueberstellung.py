@@ -160,8 +160,10 @@ def test_umformulierte_wiederholung_nur_einmal():
 def test_kennungen_werden_lesbar():
     stellen = [{"u": 1, "stelle": "Leitsatz"}, {"u": 3, "stelle": "Rn. 67"}]
     t = gegenueberstellung._ohne_marken(
-        "Der Schriftsatz behauptet in [S25], dass die Entscheidung in [U3 Rn. 67] und U1 das sagt (S31).", stellen)
-    assert t == "Der Schriftsatz behauptet, dass die Entscheidung in Rn. 67 und Leitsatz das sagt."
+        "Der Schriftsatz behauptet in [S25], dass die Entscheidung in [U3 Rn. 67] und U1 das sagt (S31). Das steht "
+        "nicht in den vorgelegten Stellen [Leitsatz-Rn. 68].", stellen)
+    assert t == ("Der Schriftsatz behauptet, dass die Entscheidung in Rn. 67 und Leitsatz das sagt. Das steht nicht "
+                 "in den vorgelegten Stellen.")
 
 
 def test_falsche_rn_zweiter_blick(akten, con, tmp_path):  # noqa: F811
@@ -169,6 +171,8 @@ def test_falsche_rn_zweiter_blick(akten, con, tmp_path):  # noqa: F811
     with akten:
         akten.execute("UPDATE urteil_abschnitt SET text = ? WHERE urteil_id = ? AND rn = 30",
                       ("Eine Abnahme kann stillschweigend erfolgen, wenn der Besteller das Werk nutzt.", uid))
+        akten.execute("INSERT INTO urteil_abschnitt (urteil_id, nr, seite, rn, text, teil) VALUES (?, 0, NULL, NULL, ?, "
+                      "'tenor')", (uid, "Die Beklagte wird verurteilt, an die Klägerin 200 Euro zu zahlen."))
     gesehen = []
 
     def antwort(prompt, schema):
@@ -181,6 +185,7 @@ def test_falsche_rn_zweiter_blick(akten, con, tmp_path):  # noqa: F811
 
     g = gegenueberstellung.gegenueberstellen(Analyse(akten, Attrappe(antwort)), akte_id)
     assert len(gesehen) == 2 and "Rn. 22]" not in gesehen[1] and "Rn. 30]" in gesehen[1]
+    assert re.search(r"\[U1 Tenor\] Die Beklagte wird verurteilt", gesehen[1]) and "Leitsatz]" not in gesehen[1]
     bgh = next(z for z in g["zitate"] if z["urteil_id"])
     assert bgh["ergebnis"] == "traegt" and bgh["urteil_belege"][0]["stelle"] == "Rn. 30"
     assert "findet sich aber in Rn. 30" in bgh["hinweis"] and bgh["rn_zitiert"] == 22

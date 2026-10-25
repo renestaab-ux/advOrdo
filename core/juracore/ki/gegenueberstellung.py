@@ -25,7 +25,9 @@ if TYPE_CHECKING:
     from .analyse import Analyse
 
 AUFGABE = "gegenueberstellung"
-FASSUNG = 3  # 2: Zitat vorrangig aus der zitierten Randnummer; 3: zweiter Blick in die übrigen Stellen
+# 2: Zitat vorrangig aus der zitierten Randnummer; 3: zweiter Blick in die übrigen Stellen; 4: dabei Tenor und
+# Tatbestand
+FASSUNG = 4
 
 TRAEGT = "traegt"
 TEILWEISE = "traegt_teilweise"
@@ -82,6 +84,8 @@ def _stelle(a: dict) -> str:
         return f"Rn. {a['rn']}"
     if a["teil"] in _LEITSAETZE:
         return "Leitsatz"
+    if a["teil"] in ("tenor", "tatbestand"):
+        return a["teil"].capitalize()
     return f"Abschn. {a['nr']}" + (f", S. {a['seite']}" if a.get("seite") else "")
 
 
@@ -141,9 +145,11 @@ def _schriftsatz(t: belege.Text, nr: int) -> list[dict]:
 
 
 def _urteilsstellen(con: sqlite3.Connection, urteil_id: int, rn: int | None, bezug: str,
-                    ohne: set[int] | frozenset[int] = frozenset()) -> tuple[list[dict], bool]:
+                    ohne: set[int] | frozenset[int] = frozenset(), breit: bool = False) -> tuple[list[dict], bool]:
     """Stellen der Entscheidung für die Anfrage und ob die zitierte Randnummer im Volltext vorkommt. ``ohne``:
-    Abschnitte (außer Leitsätzen), die schon vorgelegt waren."""
+    Abschnitte (außer Leitsätzen), die schon vorgelegt waren. ``breit`` (zweiter Blick): ohne Leitsätze, dafür der
+    Tenor und die passendsten Absätze des Tatbestands – dort stehen Sachverhalt und Verurteilung des zitierten
+    Falls, die Schriftsätze oft wiedergeben."""
     alle = [dict(a) for a in con.execute(
         "SELECT nr, seite, rn, text, teil FROM urteil_abschnitt WHERE urteil_id = ? ORDER BY nr", (urteil_id,))
         if a["teil"] in _LEITSAETZE or a["nr"] not in ohne]
@@ -151,13 +157,23 @@ def _urteilsstellen(con: sqlite3.Connection, urteil_id: int, rn: int | None, bez
     rn_da = rn is not None and any(a["rn"] == rn for a in alle)
     if rn_da:
         gewaehlt = [a for a in alle if a["rn"] is not None and abs(a["rn"] - rn) <= NACHBARN]
-    leit = [a for a in alle if a["teil"] in _LEITSAETZE][:3]
+    leit = [] if breit else [a for a in alle if a["teil"] in _LEITSAETZE][:3]
     if not rn_da:
         woerter = _woerter(bezug)
-        bewertet = sorted(((sum(1 for w in woerter if w in a["text"].lower()), a["nr"], a) for a in alle
-                           if a["teil"] not in _LEITSAETZE), key=lambda x: (-x[0], x[1]))
-        gewaehlt = [a for punkte, _, a in bewertet[:TREFFER] if punkte > 0]
-        if not leit and not gewaehlt:
+
+        def beste(teile: list[dict], n: int) -> list[dict]:
+            bewertet = sorted(((sum(1 for w in woerter if w in a["text"].lower()), a["nr"], a) for a in teile),
+                              key=lambda x: (-x[0], x[1]))
+            return [a for punkte, _, a in bewertet[:n] if punkte > 0]
+
+        if breit:
+            gewaehlt = ([a for a in alle if a["teil"] == "tenor"][:2]
+                        + beste([a for a in alle if a["teil"] == "tatbestand"], 2))
+            gewaehlt += [a for a in beste([a for a in alle if a["teil"] not in _LEITSAETZE], TREFFER + 2)
+                         if a not in gewaehlt][:TREFFER]
+        else:
+            gewaehlt = beste([a for a in alle if a["teil"] not in _LEITSAETZE], TREFFER)
+        if not leit and not gewaehlt and not breit:
             gewaehlt = alle[:2]
     stellen = []
     rest = URTEIL_ZEICHEN
@@ -261,12 +277,12 @@ def _pruefe(analyse: Analyse, t: belege.Text, eintrag: dict, nur_gespeichert: bo
         # Vielleicht steht die Aussage nur an einer anderen Stelle (falsche Randnummer): ein zweiter Blick auf die
         # Stellen mit den meisten gemeinsamen Begriffen.
         weitere, _ = _urteilsstellen(analyse.con, u["id"], None, " ".join(a["text"] for a in schrift),
-                                     ohne={a["nr"] for a in stellen})
-        if any(a["teil"] not in _LEITSAETZE for a in weitere):
+                                     ohne={a["nr"] for a in stellen}, breit=True)
+        if weitere:
             analyse.fortschritt.pruefe()
             zweit = _auswerten(analyse, t, schrift, weitere, None, False, analyse._frage(
                 _anweisung(t, schrift, z["abschnitt"], z["zitat"], rn, basis["urteil"], weitere, True), SCHEMA))
-            andere = ", ".join(a["stelle"] for a in weitere if a["teil"] not in _LEITSAETZE)
+            andere = ", ".join(a["stelle"] for a in weitere)
             if zweit["ergebnis"] in (TRAEGT, TEILWEISE) and any(f["stelle"] != "Leitsatz"
                                                                  for f in zweit["urteil_belege"]):
                 aus = {**zweit, "hinweis": f"Die zitierte Rn. {rn} trägt die Aussage nicht; sie findet sich aber "
@@ -287,6 +303,8 @@ def _ohne_marken(text: object, stellen: list[dict]) -> str:
     text = re.sub(r"\[U(\d+)(?:\s+[^\]]*)?\]", lambda m: nach_u.get(int(m.group(1)), ""), text)
     text = re.sub(r"\bU(\d+)\b", lambda m: nach_u.get(int(m.group(1)), m.group(0)), text)
     text = re.sub(r"\s+in\s+\[S\d+\]", "", text)
+    # Erfundene Mischformen wie „[Leitsatz-Rn. 68]“ ganz weglassen.
+    text = re.sub(r"\s*\[[^\]]*(?:Rn\.|Leitsatz|U\d|S\d)[^\]]*\]", "", text)
     text = re.sub(r"\s*\(?\[S\d+\]\)?|\s*\(S\d+\)", "", text)
     return re.sub(r"\s+([,.;:])", r"\1", re.sub(r"  +", " ", text)).strip()
 
