@@ -156,7 +156,15 @@ export function GegenueberstellungBereich({
   async function starte() {
     setFehler(null);
     try {
-      setAuftrag(await kern<KiAuftrag>("ki.starten", { aufgabe: "gegenueberstellung", akte_id: akteId, dokument_id: dokumentId }));
+      // „Erneut gegenüberstellen“ (nichts mehr offen) fragt das Modell wirklich neu, statt Gespeichertes zu zeigen.
+      setAuftrag(
+        await kern<KiAuftrag>("ki.starten", {
+          aufgabe: "gegenueberstellung",
+          akte_id: akteId,
+          dokument_id: dokumentId,
+          neu: (daten?.offen ?? 0) === 0,
+        }),
+      );
     } catch (e) {
       setFehler(String(e));
     }
