@@ -273,3 +273,16 @@ def test_doppelte_aussagen_und_fundstellen_einmal(akten, con, tmp_path):
 
     erg = chat.frage(akten, Attrappe(antwort), 32768, akte_id, "Seit wann besteht Verzug?")
     assert len(erg["aussagen"]) == 1 and len(erg["aussagen"][0]["fundstellen"]) == 1
+
+
+def test_antwort_ist_begrenzt_aber_nicht_fuer_externe(akten, con, tmp_path):
+    from juracore.ki.anbieter import _streng
+
+    akte_id = _akte(akten, con, tmp_path)
+    schemas = []
+    chat.frage(akten, Attrappe(lambda p, s: schemas.append(s) or {"aussagen": [], "berechnungen": []}), 32768,
+               akte_id, "Rechne die Zinsen aus.", rechner=True, gesetze=con)
+    s = schemas[0]
+    assert s["properties"]["aussagen"]["maxItems"] == chat.HOECHSTENS
+    assert s["properties"]["aussagen"]["items"]["properties"]["normbelege"]["maxItems"] == 2
+    assert "maxItems" not in json.dumps(_streng(s)) and "maxLength" not in json.dumps(_streng(s))

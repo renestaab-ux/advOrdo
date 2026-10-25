@@ -262,6 +262,10 @@ class _Http:
             raise KiFehler(f"{self.titel} meldet Fehler {fehler.code}: {text}") from fehler
         except (urllib.error.URLError, TimeoutError, ConnectionError) as fehler:
             grund = getattr(fehler, "reason", fehler)
+            if isinstance(grund, TimeoutError) or "timed out" in str(grund):
+                raise KiFehler(f"{self.titel} hat nicht innerhalb von {int(timeout / 60)} Minuten geantwortet. Das "
+                               "Modell braucht für diese Anfrage zu lange; weniger Zusatzwissen (etwa ohne Gesetze) "
+                               "oder eine kürzere Frage hilft.") from fehler
             frage = "Besteht eine Internetverbindung?" if self.extern else "Läuft das Programm?"
             raise KiFehler(f"{self.titel} ist unter {self.endpunkt} nicht erreichbar ({grund}). {frage}") from fehler
         except ValueError as fehler:
@@ -400,9 +404,12 @@ EXTERN_ANTWORT_TOKEN = 16000
 
 
 def _streng(schema: Any) -> Any:
-    """Das Schema mit ``additionalProperties: false`` an jedem Objekt, wie es die strukturierte Ausgabe verlangt."""
+    """Das Schema mit ``additionalProperties: false`` an jedem Objekt, wie es die strukturierte Ausgabe verlangt.
+
+    Längengrenzen (``maxItems``, ``maxLength``) entfallen: Sie bremsen nur lokale Modelle, die sich in Wiederholungen
+    verfangen, und nicht jeder externe Anbieter nimmt sie an."""
     if isinstance(schema, dict):
-        neu = {k: _streng(v) for k, v in schema.items()}
+        neu = {k: _streng(v) for k, v in schema.items() if k not in ("maxItems", "maxLength")}
         if neu.get("type") == "object":
             neu.setdefault("additionalProperties", False)
         return neu

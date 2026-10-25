@@ -302,7 +302,7 @@ def frage(
             if rechnen:
                 schema["properties"]["berechnungen"] = wissen.SCHEMA_BERECHNUNG
                 schema["required"] = [*schema["required"], "berechnungen"]
-        return nutzer, schema, teile, auswahl, normtext
+        return nutzer, _begrenzt(schema), teile, auswahl, normtext
 
     fortschritt.melde("Wähle die passenden Absätze aus")
     nutzer, schema, teile, auswahl, normtext = baue(normen)
@@ -422,6 +422,25 @@ def frage(
             (akte_id, dokument_id, "antwort", json.dumps(ergebnis, ensure_ascii=False), jetzt),
         )
     return {"id": cur.lastrowid, "rolle": "antwort", "erstellt_am": jetzt, **ergebnis}
+
+
+def _begrenzt(schema: dict) -> dict:
+    """Längengrenzen für die Antwort, damit sich ein lokales Modell nicht in endlosen Listen verfängt."""
+    schema = json.loads(json.dumps(schema))
+    aussagen = schema["properties"]["aussagen"]
+    aussagen["maxItems"] = HOECHSTENS
+    aussage = aussagen["items"]["properties"]
+    aussage["text"]["maxLength"] = 600
+    aussage["belege"]["maxItems"] = 3
+    aussage["belege"]["items"]["properties"]["zitat"]["maxLength"] = 400
+    if "normbelege" in aussage:
+        aussage["normbelege"]["maxItems"] = 2
+        aussage["normbelege"]["items"]["properties"]["zitat"]["maxLength"] = 400
+    if "berechnungen" in schema["properties"]:
+        b = schema["properties"]["berechnungen"]
+        b["maxItems"] = wissen.HOECHSTENS_BERECHNUNGEN
+        b["items"]["properties"]["angaben"]["maxItems"] = 6
+    return schema
 
 
 def _ort(f: dict) -> tuple:
