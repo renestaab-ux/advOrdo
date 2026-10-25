@@ -36,7 +36,7 @@ from . import belege, wissen
 from .analyse import BELEGT, OHNE_BELEG, Fortschritt, OhneFortschritt
 from .anbieter import ANTWORT_TOKEN, Anbieter, KiFehler
 
-FASSUNG = 2
+FASSUNG = 3
 
 # Fragen und Antworten aus dem Verlauf, die als Zusammenhang mitgehen.
 VERLAUF = 6
@@ -286,7 +286,12 @@ def frage(
             "Belege jede Tatsache mit der Nummer des Dokuments und des Absatzes (die Zahlen in eckigen Klammern, "
             "[Dokument.Absatz]) und einem wörtlichen Zitat aus genau diesem Absatz: eine zusammenhängende Wortfolge "
             "von 4 bis 25 Wörtern, Zeichen für Zeichen abgeschrieben, ohne Auslassungen. Eine Einschätzung belegst du "
-            "mit den Stellen, auf die sie sich stützt."
+            "mit den Stellen, auf die sie sich stützt.\n\n"
+            "Fragt die Frage nach einer rechtlichen Prüfung (etwa ob Voraussetzungen erfüllt, ein Anspruch begründet "
+            "oder eine Norm anwendbar ist), beginne mit einer Einschätzung, die das Ergebnis nennt. Prüfe danach jede "
+            "Voraussetzung einzeln als Einschätzung („Voraussetzung …: erfüllt/nicht erfüllt/offen, weil …“), belegt "
+            "mit den Stellen der Akte und, wenn vorgelegt, dem Wortlaut der Norm. Gib den Sachverhalt nicht bloß "
+            "wieder."
             + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
             + (f"\n\n{wissen.ANWEISUNG_RECHNER}" if rechnen else "")
         )
