@@ -155,3 +155,32 @@ def test_umformulierte_wiederholung_nur_einmal():
     assert chat._aehnlich(set("zitierte entscheidung stützt ausführungen klägers".split()),
                           set("entscheidung stützt ausführungen klägers klageschrift".split()))
     assert not chat._aehnlich(set("entscheidung stützt ausführungen".split()), set("volltext fehlt olg".split()))
+
+
+def test_kennungen_werden_lesbar():
+    stellen = [{"u": 1, "stelle": "Leitsatz"}, {"u": 3, "stelle": "Rn. 67"}]
+    t = gegenueberstellung._ohne_marken(
+        "Der Schriftsatz behauptet in [S25], dass die Entscheidung in [U3 Rn. 67] und U1 das sagt (S31).", stellen)
+    assert t == "Der Schriftsatz behauptet, dass die Entscheidung in Rn. 67 und Leitsatz das sagt."
+
+
+def test_falsche_rn_zweiter_blick(akten, con, tmp_path):  # noqa: F811
+    akte_id, uid = _akte_mit_urteil(akten, con, tmp_path)
+    with akten:
+        akten.execute("UPDATE urteil_abschnitt SET text = ? WHERE urteil_id = ? AND rn = 30",
+                      ("Eine Abnahme kann stillschweigend erfolgen, wenn der Besteller das Werk nutzt.", uid))
+    gesehen = []
+
+    def antwort(prompt, schema):
+        gesehen.append(prompt)
+        if "trägt die Aussage nicht. Prüfe" not in prompt:
+            return {**antwort_traegt(prompt, schema), "ergebnis": "traegt_nicht", "urteil_belege": []}
+        return {"behauptung": "x", "schriftsatz_belege": [], "entscheidung": "y", "ergebnis": "traegt",
+                "begruendung": "z", "urteil_belege": [{"nr": _nr(prompt, "U", "Werk nutzt"),
+                                                        "zitat": "Eine Abnahme kann stillschweigend erfolgen"}]}
+
+    g = gegenueberstellung.gegenueberstellen(Analyse(akten, Attrappe(antwort)), akte_id)
+    assert len(gesehen) == 2 and "Rn. 22]" not in gesehen[1] and "Rn. 30]" in gesehen[1]
+    bgh = next(z for z in g["zitate"] if z["urteil_id"])
+    assert bgh["ergebnis"] == "traegt" and bgh["urteil_belege"][0]["stelle"] == "Rn. 30"
+    assert "findet sich aber in Rn. 30" in bgh["hinweis"] and bgh["rn_zitiert"] == 22

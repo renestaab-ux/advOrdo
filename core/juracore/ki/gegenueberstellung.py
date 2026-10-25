@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from .analyse import Analyse
 
 AUFGABE = "gegenueberstellung"
-FASSUNG = 2  # 2: Zitat vorrangig aus der zitierten Randnummer
+FASSUNG = 3  # 2: Zitat vorrangig aus der zitierten Randnummer; 3: zweiter Blick in die übrigen Stellen
 
 TRAEGT = "traegt"
 TEILWEISE = "traegt_teilweise"
@@ -140,10 +140,13 @@ def _schriftsatz(t: belege.Text, nr: int) -> list[dict]:
     return aus
 
 
-def _urteilsstellen(con: sqlite3.Connection, urteil_id: int, rn: int | None, bezug: str) -> tuple[list[dict], bool]:
-    """Stellen der Entscheidung für die Anfrage und ob die zitierte Randnummer im Volltext vorkommt."""
+def _urteilsstellen(con: sqlite3.Connection, urteil_id: int, rn: int | None, bezug: str,
+                    ohne: set[int] | frozenset[int] = frozenset()) -> tuple[list[dict], bool]:
+    """Stellen der Entscheidung für die Anfrage und ob die zitierte Randnummer im Volltext vorkommt. ``ohne``:
+    Abschnitte (außer Leitsätzen), die schon vorgelegt waren."""
     alle = [dict(a) for a in con.execute(
-        "SELECT nr, seite, rn, text, teil FROM urteil_abschnitt WHERE urteil_id = ? ORDER BY nr", (urteil_id,))]
+        "SELECT nr, seite, rn, text, teil FROM urteil_abschnitt WHERE urteil_id = ? ORDER BY nr", (urteil_id,))
+        if a["teil"] in _LEITSAETZE or a["nr"] not in ohne]
     gewaehlt: list[dict] = []
     rn_da = rn is not None and any(a["rn"] == rn for a in alle)
     if rn_da:
@@ -173,7 +176,7 @@ def _urteilsstellen(con: sqlite3.Connection, urteil_id: int, rn: int | None, bez
 
 
 def _anweisung(t: belege.Text, schrift: list[dict], zitierend: int, zitat: str, rn: int | None, urteil: str,
-               stellen: list[dict]) -> str:
+               stellen: list[dict], zweiter_blick: bool = False) -> str:
     s = "\n".join(f"[S{a['nr']}]{' (zitierende Stelle)' if a['nr'] == zitierend else ''} {a['text']}"
                   for a in schrift)
     zitiert = next((a for a in stellen if rn is not None and a["rn"] == rn), None)
@@ -184,6 +187,9 @@ def _anweisung(t: belege.Text, schrift: list[dict], zitierend: int, zitat: str, 
         f"{s}\n\n"
         f"Zitiert wird: {zitat}" + (f", Rn. {rn}" if rn is not None else "") + "\n\n"
         f"Vorgelegte Stellen aus dem Volltext ({urteil}):\n{u}\n\n"
+        + (f"Die zitierte Rn. {rn} trägt die Aussage nicht. Prüfe, ob eine dieser anderen Stellen sie trägt.\n\n"
+           if zweiter_blick else "")
+        + 
         "Aufgabe: Prüfe, ob die vorgelegten Stellen der Entscheidung die Aussage tragen, für die der Schriftsatz "
         "sie zitiert.\n"
         "1. behauptung: Was entnimmt der Schriftsatz der Entscheidung? Ein Satz, mit wem es vorträgt. Belege es "
@@ -250,7 +256,44 @@ def _pruefe(analyse: Analyse, t: belege.Text, eintrag: dict, nur_gespeichert: bo
         return {**gespeichert, "gespeichert": True}
     if nur_gespeichert:
         return None
-    antwort = analyse._frage(nutzer, SCHEMA)
+    aus = _auswerten(analyse, t, schrift, stellen, rn, rn_da, analyse._frage(nutzer, SCHEMA))
+    if rn_da and aus["ergebnis"] in (TRAEGT_NICHT, OFFEN):
+        # Vielleicht steht die Aussage nur an einer anderen Stelle (falsche Randnummer): ein zweiter Blick auf die
+        # Stellen mit den meisten gemeinsamen Begriffen.
+        weitere, _ = _urteilsstellen(analyse.con, u["id"], None, " ".join(a["text"] for a in schrift),
+                                     ohne={a["nr"] for a in stellen})
+        if any(a["teil"] not in _LEITSAETZE for a in weitere):
+            analyse.fortschritt.pruefe()
+            zweit = _auswerten(analyse, t, schrift, weitere, None, False, analyse._frage(
+                _anweisung(t, schrift, z["abschnitt"], z["zitat"], rn, basis["urteil"], weitere, True), SCHEMA))
+            andere = ", ".join(a["stelle"] for a in weitere if a["teil"] not in _LEITSAETZE)
+            if zweit["ergebnis"] in (TRAEGT, TEILWEISE) and any(f["stelle"] != "Leitsatz"
+                                                                 for f in zweit["urteil_belege"]):
+                aus = {**zweit, "hinweis": f"Die zitierte Rn. {rn} trägt die Aussage nicht; sie findet sich aber "
+                                           f"in {', '.join(f['stelle'] for f in zweit['urteil_belege'])}. "
+                                           "Die Randnummer im Schriftsatz ist wohl falsch."}
+            else:
+                aus["hinweis"] = f"Auch die übrigen passenden Stellen ({andere}) tragen die Aussage nicht."
+    aus = {**basis, **aus, "hinweis": aus.get("hinweis") or hinweis}
+    speicher.schreibe(analyse.con, key, AUFGABE, analyse.modell, aus, analyse._akte(t.dokument_id), t.dokument_id,
+                      bezug=f"zitat:{z['id']}")
+    return {**aus, "gespeichert": False}
+
+
+def _ohne_marken(text: object, stellen: list[dict]) -> str:
+    """Die Kennungen der Anfrage ([S25], [U3 Rn. 67], U2) durch lesbare Stellen ersetzen bzw. streichen."""
+    text = str(text or "").strip()
+    nach_u = {a["u"]: a["stelle"] for a in stellen}
+    text = re.sub(r"\[U(\d+)(?:\s+[^\]]*)?\]", lambda m: nach_u.get(int(m.group(1)), ""), text)
+    text = re.sub(r"\bU(\d+)\b", lambda m: nach_u.get(int(m.group(1)), m.group(0)), text)
+    text = re.sub(r"\s+in\s+\[S\d+\]", "", text)
+    text = re.sub(r"\s*\(?\[S\d+\]\)?|\s*\(S\d+\)", "", text)
+    return re.sub(r"\s+([,.;:])", r"\1", re.sub(r"  +", " ", text)).strip()
+
+
+def _auswerten(analyse: Analyse, t: belege.Text, schrift: list[dict], stellen: list[dict], rn: int | None,
+               rn_da: bool, antwort: dict) -> dict:
+    """Prüft die Zitate einer Antwort an Schriftsatz und Entscheidung."""
 
     schriftsatz_belege = []
     for b in antwort.get("schriftsatz_belege") or []:
@@ -266,6 +309,7 @@ def _pruefe(analyse: Analyse, t: belege.Text, eintrag: dict, nur_gespeichert: bo
         if isinstance(b, dict) and (f := _urteilsbeleg(stellen, b.get("nr"), b.get("zitat"))):
             if not any(f["stelle"] == x["stelle"] for x in urteil_belege):
                 urteil_belege.append(f)
+    hinweis = None
     if rn_da:
         # Die zitierte Randnummer zuerst; fehlt ein Zitat aus ihr, sagt die App das.
         urteil_belege.sort(key=lambda f: f["rn"] != rn)
@@ -276,19 +320,15 @@ def _pruefe(analyse: Analyse, t: belege.Text, eintrag: dict, nur_gespeichert: bo
     # „Trägt nicht“ und „nicht beurteilbar“ dürfen ohne Zitat stehen (es fehlt ja gerade die Stelle); „trägt“
     # braucht ein geprüftes Zitat aus der Entscheidung.
     status = "belegt" if urteil_belege or ergebnis in (TRAEGT_NICHT, OFFEN) else "ohne_beleg"
-    aus = {
-        **basis,
+    return {
         "ergebnis": ergebnis, "status": status, "hinweis": hinweis,
         "stellen": [a["stelle"] for a in stellen],
-        "behauptung": str(antwort.get("behauptung") or "").strip(),
-        "entscheidung": str(antwort.get("entscheidung") or "").strip(),
-        "begruendung": str(antwort.get("begruendung") or "").strip(),
+        "behauptung": _ohne_marken(antwort.get("behauptung"), stellen),
+        "entscheidung": _ohne_marken(antwort.get("entscheidung"), stellen),
+        "begruendung": _ohne_marken(antwort.get("begruendung"), stellen),
         "schriftsatz_belege": schriftsatz_belege,
         "urteil_belege": urteil_belege,
     }
-    speicher.schreibe(analyse.con, key, AUFGABE, analyse.modell, aus, analyse._akte(t.dokument_id), t.dokument_id,
-                      bezug=f"zitat:{z['id']}")
-    return {**aus, "gespeichert": False}
 
 
 def gegenueberstellen(analyse: Analyse, akte_id: int, dokument_id: int | None = None,
