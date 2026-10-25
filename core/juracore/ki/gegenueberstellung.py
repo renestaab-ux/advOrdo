@@ -26,8 +26,8 @@ if TYPE_CHECKING:
 
 AUFGABE = "gegenueberstellung"
 # 2: Zitat vorrangig aus der zitierten Randnummer; 3: zweiter Blick in die übrigen Stellen; 4: dabei Tenor und
-# Tatbestand; 5: zweiter Blick auch bei „trägt teilweise“
-FASSUNG = 5
+# Tatbestand; 5: zweiter Blick auch bei „trägt teilweise“; 6: Stellen im Hinweis nur einmal
+FASSUNG = 6
 
 TRAEGT = "traegt"
 TEILWEISE = "traegt_teilweise"
