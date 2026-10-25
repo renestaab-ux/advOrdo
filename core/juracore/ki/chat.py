@@ -465,10 +465,11 @@ def frage(
 
 
 _GEGENUEBER = re.compile(
-    r"(stütz|trag|trägt|belegen|deck|gegenüberst|vereinbar|passt|passen|richtig zitiert|zutreffend zitiert)",
-    re.I)
-_URTEILSWORT = re.compile(r"(urteil|entscheidung|beschluss|rechtsprechung|\bbgh\b|\bolg\b|\blg\b|zitat|zitiert)",
-                          re.I)
+    r"(stütz|trag|trägt|belegen|deck|gegenüber|vereinbar|passt|passen|richtig zitiert|zutreffend zitiert)", re.I)
+_URTEILSWORT = re.compile(
+    r"(urteil|entscheidung|beschluss|rechtsprechung|\bbgh\b|\bolg\b|\blg\b|zitat|zitiert|\brspr)", re.I)
+# „Stützen die in der Klageerwiderung … die dort Ausführungen?“: auch ohne das Wort „Urteil“ gemeint.
+_VORTRAG = re.compile(r"^\W*(stütz|trag|trägt|deck)\w*\b.*\b(ausführung|vortrag|vorbringen|argument)", re.I | re.S)
 
 
 _ERGEBNIS_TEXT = {
@@ -584,7 +585,7 @@ def _aehnlich(a: set[str], b: set[str]) -> bool:
 
 def soll_gegenueberstellen(frage: str) -> bool:
     """Fragt die Frage, ob zitierte Entscheidungen den Vortrag tragen?"""
-    return bool(_GEGENUEBER.search(frage) and _URTEILSWORT.search(frage))
+    return bool((_GEGENUEBER.search(frage) and _URTEILSWORT.search(frage)) or _VORTRAG.search(frage))
 
 
 def _speichere(con: sqlite3.Connection, akte_id: int, dokument_id: int | None, text: str, ergebnis: dict) -> dict:

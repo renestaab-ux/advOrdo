@@ -212,3 +212,12 @@ def test_teilweise_zweiter_blick_findet_den_rest(akten, con, tmp_path):  # noqa:
     bgh = next(z for z in g["zitate"] if z["urteil_id"])
     assert bgh["ergebnis"] == "traegt" and [f["stelle"] for f in bgh["urteil_belege"]] == ["Rn. 22", "Rn. 30"]
     assert bgh["hinweis"] == "Den übrigen Teil trägt Rn. 30."
+
+
+def test_auch_freiere_fragen_loesen_die_gegenueberstellung_aus():
+    for frage in ("Stützen die in der Klageerwiderung die dort Ausführungen der Beklagten? Bitte mit Begründung.",
+                  "Bitte Stelle Schriftsatz und Zitate gegenüber.",
+                  "Stützen die zitierten Urteile den Vortrag?"):
+        assert chat.soll_gegenueberstellen(frage), frage
+    for frage in ("Trägt der Kläger die Beweislast?", "Wann wurde die Klage zugestellt?", "Rechne die Zinsen aus."):
+        assert not chat.soll_gegenueberstellen(frage), frage
