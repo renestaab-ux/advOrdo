@@ -286,7 +286,7 @@ def _pruefe(analyse: Analyse, t: belege.Text, eintrag: dict, nur_gespeichert: bo
             analyse.fortschritt.pruefe()
             zweit = _auswerten(analyse, t, schrift, weitere, None, False, analyse._frage(
                 _anweisung(t, schrift, z["abschnitt"], z["zitat"], rn, basis["urteil"], weitere, aus), SCHEMA))
-            andere = ", ".join(a["stelle"] for a in weitere)
+            andere = ", ".join(dict.fromkeys(a["stelle"] for a in weitere))
             gefunden = [f for f in zweit["urteil_belege"] if f["stelle"] != "Leitsatz"]
             if aus["ergebnis"] == TEILWEISE:
                 if zweit["ergebnis"] == TRAEGT and gefunden:
