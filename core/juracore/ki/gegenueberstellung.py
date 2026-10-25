@@ -26,8 +26,8 @@ if TYPE_CHECKING:
 
 AUFGABE = "gegenueberstellung"
 # 2: Zitat vorrangig aus der zitierten Randnummer; 3: zweiter Blick in die übrigen Stellen; 4: dabei Tenor und
-# Tatbestand
-FASSUNG = 4
+# Tatbestand; 5: zweiter Blick auch bei „trägt teilweise“
+FASSUNG = 5
 
 TRAEGT = "traegt"
 TEILWEISE = "traegt_teilweise"
@@ -192,7 +192,8 @@ def _urteilsstellen(con: sqlite3.Connection, urteil_id: int, rn: int | None, bez
 
 
 def _anweisung(t: belege.Text, schrift: list[dict], zitierend: int, zitat: str, rn: int | None, urteil: str,
-               stellen: list[dict], zweiter_blick: bool = False) -> str:
+               stellen: list[dict], vorher: dict | None = None) -> str:
+    """``vorher``: Ergebnis zur zitierten Randnummer, wenn dies der zweite Blick auf die übrigen Stellen ist."""
     s = "\n".join(f"[S{a['nr']}]{' (zitierende Stelle)' if a['nr'] == zitierend else ''} {a['text']}"
                   for a in schrift)
     zitiert = next((a for a in stellen if rn is not None and a["rn"] == rn), None)
@@ -204,7 +205,10 @@ def _anweisung(t: belege.Text, schrift: list[dict], zitierend: int, zitat: str, 
         f"Zitiert wird: {zitat}" + (f", Rn. {rn}" if rn is not None else "") + "\n\n"
         f"Vorgelegte Stellen aus dem Volltext ({urteil}):\n{u}\n\n"
         + (f"Die zitierte Rn. {rn} trägt die Aussage nicht. Prüfe, ob eine dieser anderen Stellen sie trägt.\n\n"
-           if zweiter_blick else "")
+           if vorher and vorher["ergebnis"] != TEILWEISE else "")
+        + (f"Die zitierte Rn. {rn} trägt die Aussage nur teilweise: {vorher['begruendung']} Prüfe, ob eine dieser "
+           "anderen Stellen den übrigen Teil trägt; traegt heißt hier: zusammen mit der zitierten Rn. trägt die "
+           "Entscheidung die ganze Aussage.\n\n" if vorher and vorher["ergebnis"] == TEILWEISE else "")
         + 
         "Aufgabe: Prüfe, ob die vorgelegten Stellen der Entscheidung die Aussage tragen, für die der Schriftsatz "
         "sie zitiert.\n"
@@ -273,18 +277,29 @@ def _pruefe(analyse: Analyse, t: belege.Text, eintrag: dict, nur_gespeichert: bo
     if nur_gespeichert:
         return None
     aus = _auswerten(analyse, t, schrift, stellen, rn, rn_da, analyse._frage(nutzer, SCHEMA))
-    if rn_da and aus["ergebnis"] in (TRAEGT_NICHT, OFFEN):
-        # Vielleicht steht die Aussage nur an einer anderen Stelle (falsche Randnummer): ein zweiter Blick auf die
-        # Stellen mit den meisten gemeinsamen Begriffen.
+    if rn_da and aus["ergebnis"] in (TRAEGT_NICHT, OFFEN, TEILWEISE):
+        # Vielleicht steht die Aussage (oder ihr Rest) an einer anderen Stelle, etwa bei falscher Randnummer oder
+        # im Tatbestand: ein zweiter Blick auf die Stellen mit den meisten gemeinsamen Begriffen.
         weitere, _ = _urteilsstellen(analyse.con, u["id"], None, " ".join(a["text"] for a in schrift),
                                      ohne={a["nr"] for a in stellen}, breit=True)
         if weitere:
             analyse.fortschritt.pruefe()
             zweit = _auswerten(analyse, t, schrift, weitere, None, False, analyse._frage(
-                _anweisung(t, schrift, z["abschnitt"], z["zitat"], rn, basis["urteil"], weitere, True), SCHEMA))
+                _anweisung(t, schrift, z["abschnitt"], z["zitat"], rn, basis["urteil"], weitere, aus), SCHEMA))
             andere = ", ".join(a["stelle"] for a in weitere)
-            if zweit["ergebnis"] in (TRAEGT, TEILWEISE) and any(f["stelle"] != "Leitsatz"
-                                                                 for f in zweit["urteil_belege"]):
+            gefunden = [f for f in zweit["urteil_belege"] if f["stelle"] != "Leitsatz"]
+            if aus["ergebnis"] == TEILWEISE:
+                if zweit["ergebnis"] == TRAEGT and gefunden:
+                    # Zitierte Rn. und die weitere Stelle zusammen tragen die Aussage.
+                    aus = {**aus, "ergebnis": TRAEGT, "status": "belegt",
+                           "urteil_belege": aus["urteil_belege"] + gefunden,
+                           "stellen": aus["stellen"] + zweit["stellen"],
+                           "begruendung": " ".join(x for x in (aus["begruendung"], zweit["begruendung"]) if x),
+                           "hinweis": f"Den übrigen Teil trägt {', '.join(f['stelle'] for f in gefunden)}."}
+                else:
+                    aus["hinweis"] = (aus.get("hinweis") or "") + (" " if aus.get("hinweis") else "") + (
+                        f"Auch die übrigen passenden Stellen ({andere}) tragen den Rest nicht.")
+            elif zweit["ergebnis"] in (TRAEGT, TEILWEISE) and gefunden:
                 aus = {**zweit, "hinweis": f"Die zitierte Rn. {rn} trägt die Aussage nicht; sie findet sich aber "
                                            f"in {', '.join(f['stelle'] for f in zweit['urteil_belege'])}. "
                                            "Die Randnummer im Schriftsatz ist wohl falsch."}

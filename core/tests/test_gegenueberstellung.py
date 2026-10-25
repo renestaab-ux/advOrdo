@@ -189,3 +189,26 @@ def test_falsche_rn_zweiter_blick(akten, con, tmp_path):  # noqa: F811
     bgh = next(z for z in g["zitate"] if z["urteil_id"])
     assert bgh["ergebnis"] == "traegt" and bgh["urteil_belege"][0]["stelle"] == "Rn. 30"
     assert "findet sich aber in Rn. 30" in bgh["hinweis"] and bgh["rn_zitiert"] == 22
+
+
+def test_teilweise_zweiter_blick_findet_den_rest(akten, con, tmp_path):  # noqa: F811
+    akte_id, uid = _akte_mit_urteil(akten, con, tmp_path)
+    with akten:
+        akten.execute("UPDATE urteil_abschnitt SET text = ? WHERE urteil_id = ? AND rn = 30",
+                      ("Eine Abnahme kann stillschweigend erfolgen, wenn der Besteller das Werk nutzt.", uid))
+    gesehen = []
+
+    def antwort(prompt, schema):
+        gesehen.append(prompt)
+        if "nur teilweise" not in prompt:
+            return {**antwort_traegt(prompt, schema), "ergebnis": "traegt_teilweise",
+                    "begruendung": "Zur Nutzung sagt Rn. 22 nichts."}
+        return {"behauptung": "x", "schriftsatz_belege": [], "entscheidung": "y", "ergebnis": "traegt",
+                "begruendung": "Rn. 30 nennt die Nutzung.", "urteil_belege": [
+                    {"nr": _nr(prompt, "U", "Werk nutzt"), "zitat": "wenn der Besteller das Werk nutzt"}]}
+
+    g = gegenueberstellung.gegenueberstellen(Analyse(akten, Attrappe(antwort)), akte_id)
+    assert "trägt die Aussage nur teilweise: Zur Nutzung sagt Rn. 22 nichts." in gesehen[1]
+    bgh = next(z for z in g["zitate"] if z["urteil_id"])
+    assert bgh["ergebnis"] == "traegt" and [f["stelle"] for f in bgh["urteil_belege"]] == ["Rn. 22", "Rn. 30"]
+    assert bgh["hinweis"] == "Den übrigen Teil trägt Rn. 30."
