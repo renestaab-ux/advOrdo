@@ -30,6 +30,7 @@ from .gesetze import quelle, wissensbasis
 from .ki import anbieter as ki_anbieter
 from .ki import chat as ki_chat
 from .ki import export as ki_export
+from .ki import gegenueberstellung as ki_gegenueberstellung
 from .ki import speicher as ki_speicher
 from .ki import wissen as ki_wissen
 from .ki.analyse import Analyse
@@ -216,6 +217,7 @@ class Kern:
                 self.akten, akte_id, self.aktives_modell(), teile, zitate),
             "ki.chat_verlauf": lambda akte_id, dokument_id=None: ki_chat.verlauf(self.akten, akte_id, dokument_id),
             "ki.chat_fragen": self.ki_chat_fragen,
+            "ki.gegenueberstellung": self.ki_gegenueberstellung,
             "rechner.verzugszinsen": lambda **p: verzugszinsen.berechne(
                 verzugszinsen.aus_params(p), basiszins.lade(self.basiszins_datei)),
             "rechner.frist": lambda **p: fristen.aus_params(p),
@@ -555,7 +557,8 @@ class Kern:
 
         return self.auftraege.starte("chat", arbeit)
 
-    KI_AUFGABEN = ("zusammenfassung_dokument", "zusammenfassung_akte", "widersprueche", "chronologie")
+    KI_AUFGABEN = ("zusammenfassung_dokument", "zusammenfassung_akte", "widersprueche", "chronologie",
+                   "gegenueberstellung")
 
     def ki_starten(
         self, aufgabe: str, akte_id: int | None = None, dokument_id: int | None = None,
@@ -579,11 +582,24 @@ class Kern:
                     return analyse.zusammenfassung_akte(int(akte_id))
                 if aufgabe == "chronologie":
                     return analyse.chronologie(int(akte_id))
+                if aufgabe == "gegenueberstellung":
+                    return ki_gegenueberstellung.gegenueberstellen(
+                        analyse, int(akte_id), None if dokument_id is None else int(dokument_id))
                 return analyse.widersprueche(int(akte_id), dokument_ids)
             finally:
                 con.close()
 
         return self.auftraege.starte(aufgabe, arbeit)
+
+    def ki_gegenueberstellung(self, akte_id: int, dokument_id: int | None = None) -> dict:
+        """Gespeicherte Gegenüberstellungen (Schriftsatz und zitierte Entscheidung), ohne das Modell zu fragen."""
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        if not e.aktives_modell:
+            return {"zitate": [], "offen": 0, "anzahl": 0, "modell": None}
+        _, modell = self._ki_modell()
+        return ki_gegenueberstellung.gegenueberstellen(
+            Analyse(self.akten, modell, e.aktiver_kontext), int(akte_id),
+            None if dokument_id is None else int(dokument_id), nur_gespeichert=True)
 
     def _online_quellen(self) -> set[str]:
         return online.quellen(online.einstellungen(self.quellen_datei))

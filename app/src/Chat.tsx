@@ -2,6 +2,7 @@ import { KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
 import { FundstelleZeile, Offen } from "./Analyse";
 import { Zitatbereich, ZitateSchalter, useZitateZeigen } from "./Belege";
+import { GegenueberstellungListe } from "./Gegenueberstellung";
 import { gemerkt, merke } from "./merken";
 import { FristAusgabe, ZinsAusgabe, gespeichertesLand } from "./Toolbox";
 import {
@@ -415,11 +416,23 @@ function ChatAntwort({
             </li>
           ))}
         </ul>
+        {eintrag.gegenueberstellung && eintrag.gegenueberstellung.zitate.length > 0 && (
+          <details className="chat-gegenueber" open>
+            <summary>Gegenüberstellung je Zitat ({eintrag.gegenueberstellung.zitate.length})</summary>
+            <GegenueberstellungListe
+              zitate={eintrag.gegenueberstellung.zitate}
+              onFundstelle={onFundstelle}
+            />
+          </details>
+        )}
         <p className="ki-herkunft chat-fuss">
           <span>
             {zeitpunkt(eintrag.erstellt_am)} · {eintrag.modell}
             {eintrag.extern ? ` über ${eintrag.extern} (extern)` : ", auf diesem Gerät"}
             {eintrag.auswahl && <> · Vorgelegt: {auswahlText(eintrag.auswahl)}</>}
+            {eintrag.gegenueberstellung && (
+              <> · Vorgelegt: je Zitat die zitierende Stelle und die passenden Stellen der Entscheidung</>
+            )}
             {eintrag.wissen?.gesetze && (
               <>
                 {" "}

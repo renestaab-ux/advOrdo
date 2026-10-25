@@ -32,8 +32,8 @@ from datetime import UTC, date, datetime
 
 from ..abgleich.abgleich import PARTEIEN
 from ..rechner.basiszins import Basiszins
-from . import belege, wissen
-from .analyse import BELEGT, OHNE_BELEG, Fortschritt, OhneFortschritt
+from . import belege, gegenueberstellung, wissen
+from .analyse import BELEGT, OHNE_BELEG, Analyse, Fortschritt, OhneFortschritt
 from .anbieter import ANTWORT_TOKEN, Anbieter, KiFehler
 
 FASSUNG = 3
@@ -254,6 +254,16 @@ def frage(
     urteile: list[dict] = []
     fehlende_urteile: list[str] = []
     mit_rechtsprechung = rechtsprechung in (wissen.RECHTSPRECHUNG_AKTE, wissen.RECHTSPRECHUNG_SUCHE)
+    if mit_rechtsprechung and soll_gegenueberstellen(text):
+        # „Stützen die zitierten Urteile …?“: je Zitat Schriftsatz und Entscheidung gegenüberstellen, wie im Reiter
+        # Rechtsprechung (dieselben gespeicherten Ergebnisse), statt einer freien Antwort über die ganze Akte.
+        g = gegenueberstellung.gegenueberstellen(Analyse(con, anbieter, kontext, fortschritt), akte_id, dokument_id)
+        g["zitate"] = gegenueberstellung.zur_frage(g["zitate"], text)
+        fortschritt.melde("Das Sprachmodell beantwortet die Frage anhand der Gegenüberstellung")
+        fortschritt.pruefe()
+        ergebnis = {"aussagen": _antwort_aus_gegenueberstellung(anbieter, text, g["zitate"]), "auswahl": None,
+                    "modell": anbieter.modell, "extern": extern, "fassung": FASSUNG, "gegenueberstellung": g}
+        return _speichere(con, akte_id, dokument_id, text, ergebnis)
     if mit_rechtsprechung:
         fortschritt.melde("Suche passende Stellen in der Rechtsprechung der Akte")
         urteile, fehlende_urteile = wissen.waehle_urteile(
@@ -429,7 +439,6 @@ def frage(
         aussagen = [a for a in aussagen
                     if not (a["art"] == HINWEIS and re.search(r"basiszins|berechn|rechn", a["text"], re.I))]
 
-    jetzt = _jetzt()
     ergebnis = {
         "aussagen": aussagen,
         "auswahl": auswahl,
@@ -452,6 +461,122 @@ def frage(
         w["gekuerzt"] = w.get("gekuerzt", False) or gekuerzt
     if rechnen:
         ergebnis.setdefault("wissen", {})["rechner"] = True
+    return _speichere(con, akte_id, dokument_id, text, ergebnis)
+
+
+_GEGENUEBER = re.compile(
+    r"(stütz|trag|trägt|belegen|deck|gegenüberst|vereinbar|passt|passen|richtig zitiert|zutreffend zitiert)",
+    re.I)
+_URTEILSWORT = re.compile(r"(urteil|entscheidung|beschluss|rechtsprechung|\bbgh\b|\bolg\b|\blg\b|zitat|zitiert)",
+                          re.I)
+
+
+_ERGEBNIS_TEXT = {
+    gegenueberstellung.TRAEGT: "trägt die Aussage",
+    gegenueberstellung.TEILWEISE: "trägt die Aussage nur teilweise",
+    gegenueberstellung.TRAEGT_NICHT: "trägt die Aussage nicht",
+    gegenueberstellung.OFFEN: "an den vorgelegten Stellen nicht beurteilbar",
+    gegenueberstellung.NICHT_PRUEFBAR: "nicht prüfbar, Volltext fehlt",
+}
+
+SCHEMA_SYNTHESE = {
+    "type": "object",
+    "properties": {"aussagen": {"type": "array", "maxItems": 8, "items": {
+        "type": "object",
+        "properties": {"text": {"type": "string", "maxLength": 700},
+                       "art": {"type": "string", "enum": [EINSCHAETZUNG, HINWEIS]},
+                       "zitate": {"type": "array", "items": {"type": "integer"}, "maxItems": 4}},
+        "required": ["text", "art", "zitate"]}}},
+    "required": ["aussagen"],
+}
+
+
+def _seite(f: dict) -> str:
+    return f" (S. {f['seite']})" if f.get("seite") else ""
+
+
+def _ausschnitt(f: dict) -> str:
+    a = f["ausschnitt"]
+    return " ".join(f"{a['davor']}{a['wert']}{a['danach']}".split())
+
+
+def _antwort_aus_gegenueberstellung(anbieter: Anbieter, frage: str, zitate: list[dict]) -> list[dict]:
+    """Beantwortet die Frage aus den geprüften Gegenüberstellungen; jede Aussage übernimmt die Belege der
+    Gegenüberstellungen, auf die sie verweist."""
+    if not zitate:
+        return [{"text": "In diesem Dokument bzw. dieser Akte wurden keine Rechtsprechungszitate erkannt.",
+                 "art": HINWEIS, "status": HINWEIS, "fundstellen": []}]
+    bloecke = []
+    for i, z in enumerate(zitate, 1):
+        zeilen = [f"[Z{i}] {z['zitat']}" + (f", Rn. {z['rn_zitiert']}" if z["rn_zitiert"] is not None else "")
+                  + f" – zitiert in {z['dateiname']}"]
+        if z["ergebnis"] == gegenueberstellung.NICHT_PRUEFBAR:
+            zeilen.append("Der Volltext liegt nicht vor; nicht geprüft.")
+        else:
+            zeilen.append(f"Schriftsatz entnimmt der Entscheidung: {z.get('behauptung') or '–'}")
+            zeilen += [f"Schriftsatz{_seite(f)}: „{_ausschnitt(f)}“" for f in z.get("schriftsatz_belege") or []]
+            zeilen.append(f"Entscheidung dazu: {z.get('entscheidung') or '–'}")
+            zeilen += [f"Entscheidung, {f['stelle']}: „{_ausschnitt(f)}“" for f in z.get("urteil_belege") or []]
+            zeilen.append(f"Einschätzung der Einzelprüfung: {_ERGEBNIS_TEXT[z['ergebnis']]}"
+                          + (f" ({z['begruendung']})" if z.get("begruendung") else "")
+                          + ("" if z["status"] == BELEGT else " – ohne geprüftes Zitat aus der Entscheidung"))
+        if z.get("hinweis") and z["ergebnis"] != gegenueberstellung.NICHT_PRUEFBAR:
+            zeilen.append(f"Hinweis: {z['hinweis']}")
+        bloecke.append("\n".join(zeilen))
+    nutzer = (
+        "Geprüfte Gegenüberstellungen von Schriftsatz und zitierter Entscheidung (Zitate am Originaltext "
+        "geprüft):\n\n" + "\n\n".join(bloecke) + f"\n\nFrage: {frage}\n\n"
+        "Aufgabe: Beantworte die Frage nur auf Grundlage dieser Gegenüberstellungen, in höchstens 8 Aussagen. "
+        "Die erste Aussage nennt das Ergebnis insgesamt. Danach je Entscheidung eine Aussage: was der Schriftsatz "
+        "ihr entnimmt, was sie an der Stelle tatsächlich sagt und ob das den Vortrag trägt, mit Begründung "
+        "(Unterschiede im Sachverhalt, Einschränkungen, Überdehnung). Fragt die Frage nach einer bestimmten "
+        "Entscheidung, behandle vor allem diese. Gib unter \"zitate\" die Nummern der Gegenüberstellungen an "
+        "(die Zahl nach Z), auf die sich die Aussage stützt. Wiederhole dich nicht. Was nicht geprüft werden "
+        "konnte, nennst du als Hinweis."
+    )
+    try:
+        antwort = anbieter.chat(SYSTEM, nutzer, SCHEMA_SYNTHESE)
+    except KiFehler:
+        antwort = {"aussagen": []}
+    aussagen: list[dict] = []
+    gesehen: set[str] = set()
+    for a in antwort.get("aussagen") or []:
+        if not isinstance(a, dict) or not str(a.get("text", "")).strip():
+            continue
+        schluessel = re.sub(r"\W+", " ", str(a["text"]).lower()).strip()
+        if schluessel in gesehen:
+            continue
+        gesehen.add(schluessel)
+        art = HINWEIS if a.get("art") == HINWEIS else EINSCHAETZUNG
+        fundstellen: list[dict] = []
+        urteilsbelege: list[dict] = []
+        for n in a.get("zitate") or []:
+            if not isinstance(n, int) or not 1 <= n <= len(zitate):
+                continue
+            z = zitate[n - 1]
+            for f in z.get("schriftsatz_belege") or [z["zitierstelle"]]:
+                if not any(_ort(f) == _ort(x) for x in fundstellen):
+                    fundstellen.append(f)
+            for f in z.get("urteil_belege") or []:
+                u = {"urteil_id": z["urteil_id"], "urteil": z["urteil"], **f}
+                if not any((u["urteil_id"], u["stelle"]) == (x["urteil_id"], x["stelle"]) for x in urteilsbelege):
+                    urteilsbelege.append(u)
+        belegt = bool(urteilsbelege) or (art == HINWEIS and bool(fundstellen))
+        status = HINWEIS if art == HINWEIS and not belegt else (BELEGT if belegt else OHNE_BELEG)
+        eintrag = {"text": str(a["text"]).strip(), "art": art, "status": status, "fundstellen": fundstellen}
+        if urteilsbelege:
+            eintrag["urteilsbelege"] = urteilsbelege
+        aussagen.append(eintrag)
+    return aussagen
+
+
+def soll_gegenueberstellen(frage: str) -> bool:
+    """Fragt die Frage, ob zitierte Entscheidungen den Vortrag tragen?"""
+    return bool(_GEGENUEBER.search(frage) and _URTEILSWORT.search(frage))
+
+
+def _speichere(con: sqlite3.Connection, akte_id: int, dokument_id: int | None, text: str, ergebnis: dict) -> dict:
+    jetzt = _jetzt()
     with con:
         con.execute("INSERT INTO ki_chat (akte_id, dokument_id, rolle, inhalt, erstellt_am) VALUES (?, ?, ?, ?, ?)",
                     (akte_id, dokument_id, "frage", json.dumps({"text": text}, ensure_ascii=False), jetzt))

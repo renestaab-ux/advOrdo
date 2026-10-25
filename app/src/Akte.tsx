@@ -10,6 +10,7 @@ import {
 import { open } from "@tauri-apps/plugin-dialog";
 import Chat from "./Chat";
 import DokumentExtern, { UebernahmeFrage } from "./DokumentExtern";
+import { GegenueberstellungBereich } from "./Gegenueberstellung";
 import { BelegAnsicht } from "./Gesetze";
 import { gemerkt, merke } from "./merken";
 import Zeichen from "./Symbole";
@@ -665,9 +666,18 @@ export default function Akte({
     </>
   );
 
-  const rechtsprechungAnsicht = (leer?: string) =>
+  const rechtsprechungAnsicht = (leer?: string, dokumentId?: number) =>
     urteile && (
-      <RechtsprechungAnsicht
+      <>
+        {urteile.length > 0 && (
+          <GegenueberstellungBereich
+            key={`${akteId}-${dokumentId ?? ""}`}
+            akteId={akteId}
+            dokumentId={dokumentId}
+            onFundstelle={(f) => oeffneDokument(f.dokument_id, f.abschnitt)}
+          />
+        )}
+        <RechtsprechungAnsicht
         urteile={urteile}
         offen={volltext?.id ?? null}
         laeuft={!!laeuft}
@@ -678,7 +688,8 @@ export default function Akte({
         onOnlinePruefen={onlinePruefen}
         onVolltext={(id, rn) => (volltext?.id === id && rn == null ? setVolltext(null) : zeigeVolltext(id, rn))}
         onEntfernen={(u) => setLoeschfrage({ art: "urteil", id: u.id, name: urteilHerkunft(u) })}
-      />
+        />
+      </>
     );
 
   // Hauptinhalt mit Seitenleiste (Wortlaut einer Norm, Volltext einer Entscheidung) und verschiebbarem Trenner.
@@ -926,7 +937,7 @@ export default function Akte({
                   <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} leer="In diesem Dokument wurden keine Normzitate erkannt." />
                 )}
                 {dokModus === "rechtsprechung" &&
-                  rechtsprechungAnsicht("In diesem Dokument wurden keine Rechtsprechungszitate erkannt.")}
+                  rechtsprechungAnsicht("In diesem Dokument wurden keine Rechtsprechungszitate erkannt.", inhalt.dokument.id)}
                 {dokModus === "chat" && <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />}
               </>,
             )}
@@ -1479,7 +1490,7 @@ function RechtsprechungAnsicht({
       </ul>
       <p className="grenze">
         Geprüft wird, ob es eine Entscheidung dieses Gerichts mit diesem Aktenzeichen und Datum gibt, nicht, ob sie die
-        zitierte Aussage trägt. Bundesgerichte prüft die App gegen das Verzeichnis von rechtsprechung-im-internet.de (und auf
+        zitierte Aussage trägt; das zeigt die Gegenüberstellung oben. Bundesgerichte prüft die App gegen das Verzeichnis von rechtsprechung-im-internet.de (und auf
         Wunsch bei NeuRIS), bayerische Gerichte online bei gesetze-bayern.de; dort stehen nur zur Veröffentlichung
         bestimmte Entscheidungen. Andere Gerichte und der EuGH lassen sich als eigene Datei ergänzen, z. B. als
         PDF-Ausdruck aus juris oder beck-online.

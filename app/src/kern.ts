@@ -1106,7 +1106,60 @@ export interface KiModus {
   modell: string;
 }
 
-export type KiAufgabe = "zusammenfassung_dokument" | "zusammenfassung_akte" | "widersprueche" | "chronologie" | "chat";
+export type KiAufgabe =
+  | "zusammenfassung_dokument"
+  | "zusammenfassung_akte"
+  | "widersprueche"
+  | "chronologie"
+  | "gegenueberstellung"
+  | "chat";
+
+export type GegenueberstellungErgebnis =
+  | "traegt"
+  | "traegt_teilweise"
+  | "traegt_nicht"
+  | "nicht_beurteilbar"
+  | "nicht_pruefbar";
+
+/** Stelle aus einer Entscheidung, am gespeicherten Volltext geprüft. */
+export interface UrteilStelle {
+  stelle: string;
+  rn: number | null;
+  treffer: "woertlich" | "angenaehert";
+  ausschnitt: { davor: string; wert: string; danach: string };
+}
+
+/** Ein Urteilszitat: was der Schriftsatz der Entscheidung entnimmt und was sie an der Stelle sagt. */
+export interface GegenueberstellungZitat {
+  zitat: string;
+  gericht: string;
+  aktenzeichen: string | null;
+  rn_zitiert: number | null;
+  dokument_id: number;
+  dateiname: string;
+  abschnitt: number;
+  zitierstelle: KiFundstelle;
+  urteil_id: number | null;
+  urteil: string | null;
+  ergebnis: GegenueberstellungErgebnis;
+  status: "belegt" | "ohne_beleg" | "nicht_pruefbar";
+  hinweis: string | null;
+  stellen: string[];
+  behauptung?: string;
+  entscheidung?: string;
+  begruendung?: string;
+  schriftsatz_belege?: KiFundstelle[];
+  urteil_belege?: UrteilStelle[];
+  gespeichert?: boolean;
+}
+
+export interface Gegenueberstellung {
+  zitate: GegenueberstellungZitat[];
+  /** Zitate mit Volltext, die noch nicht gegenübergestellt sind. */
+  offen: number;
+  anzahl: number;
+  modell: string | null;
+}
 
 export interface KiFundstelle extends AbgleichFundstelle {
   /** Ob das Zitat des Modells wörtlich oder nur angenähert im Dokument steht. */
@@ -1373,6 +1426,8 @@ export interface ChatEintrag {
   modell?: string;
   /** Name des externen Anbieters, wenn die Frage das Gerät verlassen hat. */
   extern?: string | null;
+  /** Bei Fragen, ob zitierte Entscheidungen den Vortrag tragen: die Gegenüberstellung je Zitat. */
+  gegenueberstellung?: Gegenueberstellung;
   /** Zusatzwissen, das mit der Frage ging. */
   wissen?: {
     rechner?: boolean;
