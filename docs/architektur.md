@@ -146,7 +146,9 @@ Zuordnungen nicht berührt; `sammlung` fasst die Zeilen je SHA-256 zusammen. `ur
 `urteil_abschnitt.text` (Trigger, beim ersten Öffnen `rebuild`). RPC: `rechtsprechung.sammlung`,
 `rechtsprechung.suche(suchtext)`, `rechtsprechung.vorschlag(pfad)` (Kopfdaten aus dem Text,
 `juracore.rechtsprechung.kopfdaten`, je Wert mit Fundstelle), `rechtsprechung.ergaenzen(pfad, gericht, …, art)`, `rechtsprechung.zuordnen(urteil_id,
-akte_id)`, `rechtsprechung.loesen(urteil_id)`, `rechtsprechung.entfernen(urteil_id)`.
+akte_id)`, `rechtsprechung.loesen(urteil_id)`, `rechtsprechung.entfernen(urteil_id)`. Für die Akte liefert `akten.urteile_zugeordnet(akte_id)`
+(`urteile.zur_bearbeitung`) die zugeordneten Entscheidungen, die kein Zitat der Akte trifft (Abschnitt „Zur weiteren
+Bearbeitung zugeordnet“).
 
 Dokumentansicht (`juracore.dokumente.ansicht`): `akten.seitenbild(dokument_id, seite, breite)` rendert eine Seite der
 abgelegten PDF-Kopie mit PDFium und gibt sie als PNG-Data-URL zurück (eigener PNG-Kodierer über `zlib`, kein Pillow;

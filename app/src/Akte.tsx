@@ -56,6 +56,8 @@ import {
   tagsAusText,
   rnHinweis,
   urteilHerkunft,
+  urteilTitel,
+  URTEIL_QUELLE_NAME,
 } from "./kern";
 
 type Ansicht = "dokument" | "normen" | "rechtsprechung" | "chat";
@@ -162,6 +164,8 @@ export default function Akte({
   const [inhalt, setInhalt] = useState<DokumentInhalt | null>(null);
   const [normen, setNormen] = useState<NormEintrag[] | null>(null);
   const [urteile, setUrteile] = useState<UrteilEintrag[] | null>(null);
+  // Aus der Sammlung zugeordnet, in keinem Dokument zitiert („Zur weiteren Bearbeitung zugeordnet“).
+  const [zugeordnet, setZugeordnet] = useState<UrteilInfo[]>([]);
   const [dokModus, setDokModus] = useState<DokModus>("text");
   const [auswahl, setAuswahl] = useState<Auswahl | null>(null);
   const [ziel, setZiel] = useState<number | null>(null);
@@ -450,6 +454,20 @@ export default function Akte({
       kern<UrteilEintrag[]>("akten.rechtsprechung", { akte_id: akteId, dokument_id: dokumentId }),
     );
     setUrteile(u ?? null);
+    if (dokumentId == null) {
+      const z = await ausfuehren("Sammle Rechtsprechung …", () =>
+        kern<UrteilInfo[]>("akten.urteile_zugeordnet", { akte_id: akteId }),
+      );
+      setZugeordnet(z ?? []);
+    }
+  }
+
+  async function zuordnungLoesen(u: UrteilInfo) {
+    const r = await ausfuehren("Löse die Zuordnung …", () => kern("rechtsprechung.loesen", { urteil_id: u.id }));
+    if (r === undefined) return;
+    if (volltext?.id === u.id) setVolltext(null);
+    setMeldung(`${urteilTitel(u)} ist dieser Akte nicht mehr zugeordnet; sie bleibt im Bereich „Rechtsprechung“.`);
+    await aktualisiereUrteile();
   }
 
   /** Lädt die gerade sichtbare Rechtsprechungsliste neu: die der Akte oder die des geöffneten Dokuments. */
@@ -677,6 +695,16 @@ export default function Akte({
             onFundstelle={(f) => oeffneDokument(f.dokument_id, f.abschnitt)}
           />
         )}
+        {dokumentId == null && zugeordnet.length > 0 && (
+          <ZugeordneteUrteile
+            urteile={zugeordnet}
+            offen={volltext?.id ?? null}
+            laeuft={!!laeuft}
+            onVolltext={(id) => (volltext?.id === id ? setVolltext(null) : zeigeVolltext(id))}
+            onLoesen={zuordnungLoesen}
+          />
+        )}
+        {dokumentId == null && zugeordnet.length > 0 && <h3 className="abschnitt-titel">In den Dokumenten zitiert</h3>}
         <RechtsprechungAnsicht
         urteile={urteile}
         offen={volltext?.id ?? null}
@@ -1496,6 +1524,58 @@ function RechtsprechungAnsicht({
         PDF-Ausdruck aus juris oder beck-online.
       </p>
     </>
+  );
+}
+
+/** Entscheidungen, die aus dem Bereich „Rechtsprechung“ zugeordnet wurden, ohne dass ein Dokument sie zitiert. */
+function ZugeordneteUrteile({
+  urteile,
+  offen,
+  laeuft,
+  onVolltext,
+  onLoesen,
+}: {
+  urteile: UrteilInfo[];
+  offen: number | null;
+  laeuft: boolean;
+  onVolltext: (urteilId: number) => void;
+  onLoesen: (u: UrteilInfo) => void;
+}) {
+  return (
+    <section className="zugeordnet">
+      <h3 className="abschnitt-titel">Zur weiteren Bearbeitung zugeordnet</h3>
+      <p className="leise">
+        Aus dem Bereich „Rechtsprechung“ dieser Akte zugeordnet, in den Dokumenten bisher nicht zitiert. Sie stehen auch
+        dem Chat und der Gegenüberstellung zur Verfügung.
+      </p>
+      <ul className="normen">
+        {urteile.map((u) => (
+          <li key={u.id}>
+            <div>
+              <strong>{urteilTitel(u)}</strong>
+            </div>
+            {u.kopf?.titel && <div className="titel">{u.kopf.titel}</div>}
+            <div className="fundort">
+              {URTEIL_QUELLE_NAME[u.quelle]}
+              {u.quelle === "manuell" && ` (${urteilHerkunft(u)})`}
+            </div>
+            <div className="urteil-aktionen">
+              <button className="link" onClick={() => onVolltext(u.id)}>
+                {offen === u.id ? "Volltext schließen" : "Volltext anzeigen"}
+              </button>
+              <button
+                className="link klein"
+                onClick={() => onLoesen(u)}
+                disabled={laeuft}
+                title="Die Entscheidung bleibt im Bereich „Rechtsprechung“"
+              >
+                Zuordnung lösen
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

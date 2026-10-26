@@ -198,6 +198,7 @@ class Kern:
                 herkunft=None: urteile.ergaenzen(self.akten, akte_id, pfad, self.ablage, gericht, aktenzeichen, datum,
                                                  zitat, herkunft),
             "akten.urteile": lambda akte_id: urteile.liste(self.akten, akte_id),
+            "akten.urteile_zugeordnet": lambda akte_id: urteile.zur_bearbeitung(self.akten, self.con, akte_id),
             "akten.volltexte_laden": lambda akte_id, zitat=None: urteile.volltexte_laden(
                 self.akten, self.con, akte_id, self.archiv, zitat=zitat),
             "rechtsprechung.eigene": lambda: urteile.uebersicht(self.akten),

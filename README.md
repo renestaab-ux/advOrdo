@@ -556,7 +556,10 @@ ohne Akte ab (`<Ablage>/rechtsprechung/`); Gericht, Aktenzeichen, Datum, Art und
 Kopf des Dokuments vor (beschriftete Felder wie bei juris und openJur, Zitierzeile wie bei beck-online oder Kopf einer
 Ausfertigung mit „Verkündet am …“), jeweils mit Fundstelle zum Prüfen; **Akte zuordnen …** ordnet sie einer oder mehreren Akten zu, das × an
 einer Akte löst die Zuordnung (die Entscheidung bleibt in der Sammlung), **entfernen** nimmt sie ganz heraus, auch
-aus allen Akten. Wird eine Akte gelöscht, verschwinden ihre Zuordnungen; die anderen bleiben. Die Online-Suche
+aus allen Akten. Wird eine Akte gelöscht, verschwinden ihre Zuordnungen; die anderen bleiben. In der Akte stehen
+zugeordnete Entscheidungen, die in ihren Dokumenten nicht zitiert sind, im Reiter „Rechtsprechung“ unter **Zur
+weiteren Bearbeitung zugeordnet** (mit Volltext und „Zuordnung lösen“); Chat und Gegenüberstellung beziehen sie mit
+ein. Die Online-Suche
 nach Entscheidungen (wie in JuraBox Lite) folgt in einem späteren Schritt.
 
 Nutzung: Nach den Nutzungshinweisen von gesetze-bayern.de dürfen Vorschriften und Entscheidungen uneingeschränkt

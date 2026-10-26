@@ -1009,3 +1009,4 @@ details.kurz-hinweis summary { cursor: pointer; }
 .volltext-leiste { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 0 6px; margin-bottom: 8px; background: var(--hintergrund); border-bottom: 1px solid var(--linie); }
 .volltext-leiste button { padding: 3px 10px; font-size: 13px; }
 .sammlung-liste .kopf button { white-space: nowrap; }
+.zugeordnet { margin-bottom: 18px; }

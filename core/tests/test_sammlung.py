@@ -166,3 +166,19 @@ def test_rpc_sammlung(tmp_path):
     rufe("rechtsprechung.loesen", urteil_id=u["urteil_id"])
     assert rufe("rechtsprechung.entfernen", urteil_id=u["urteil_id"])["entfernt"] == 1
     assert rufe("rechtsprechung.sammlung") == []
+
+
+def test_zur_bearbeitung_zugeordnet(akten, con, tmp_path):
+    """Aus der Sammlung zugeordnet, aber in keinem Dokument der Akte zitiert: eigener Abschnitt in der Akte."""
+    from .test_urteile import _akte
+
+    akte_id = _akte(akten, con, tmp_path)  # Replik zitiert u. a. BGH VIII ZR 103/15
+    zitiert = urteile.ergaenzen(akten, None, _ausdruck(tmp_path, "bgh.txt", "BGH\n\n(1) Zitiert."),
+                                tmp_path / "ablage", gericht="BGH", aktenzeichen="VIII ZR 103/15", ocr=False)
+    frei = _ohne_akte(akten, tmp_path, aktenzeichen="I ZR 130/25")
+    urteile.zuordnen(akten, zitiert["urteil_id"], akte_id, tmp_path / "ablage")
+    urteile.zuordnen(akten, frei["urteil_id"], akte_id, tmp_path / "ablage")
+    assert [u["id"] for u in urteile.zur_bearbeitung(akten, con, akte_id)] == [frei["urteil_id"]]
+    # Das zitierte erscheint beim Zitat in der Akte.
+    assert any(g["urteil"] and g["urteil"]["id"] == zitiert["urteil_id"]
+               for g in akte.rechtsprechung(akten, con, akte_id))

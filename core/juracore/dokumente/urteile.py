@@ -239,6 +239,16 @@ def liste(con: sqlite3.Connection, akte_id: int) -> list[dict]:
     return [_info(z) for z in zeilen]
 
 
+def zur_bearbeitung(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int) -> list[dict]:
+    """Entscheidungen, die der Akte aus der Sammlung zugeordnet sind, ohne dass ein Dokument der Akte sie zitiert
+    (Abschnitt „Zur weiteren Bearbeitung zugeordnet“ im Reiter Rechtsprechung der Akte)."""
+    from .akte import rechtsprechung
+
+    zitiert = {g["urteil"]["id"] for g in rechtsprechung(con, wissen, akte_id, online_quellen=set()) if g["urteil"]}
+    return sorted((u for u in liste(con, akte_id) if u["id"] not in zitiert),
+                  key=lambda u: (u["datum"] or "", u["id"]), reverse=True)
+
+
 def uebersicht(con: sqlite3.Connection) -> dict:
     """Wie viele Entscheidungen aus welcher Quelle in der Sammlung stehen; je Datei einmal, auch wenn sie mehreren
     Akten zugeordnet ist."""
