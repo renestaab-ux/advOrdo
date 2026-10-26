@@ -550,7 +550,9 @@ sind öffentliche Angaben ohne Bezug zur Akte und liegen in der Wissensbasis; ei
 einmal, mit Quelle und den Akten, denen sie zugeordnet sind, oder „nicht zugeordnet“. Filter nach Zuordnung und
 Quelle, ein Feld zum Eingrenzen (Gericht, Aktenzeichen, Akte) und eine Volltextsuche im Text aller gespeicherten
 Entscheidungen (Treffer mit Randnummer, Klick springt dorthin). **Eigene Datei hinzufügen …** legt eine Entscheidung
-ohne Akte ab (`<Ablage>/rechtsprechung/`), **Akte zuordnen …** ordnet sie einer oder mehreren Akten zu, das × an
+ohne Akte ab (`<Ablage>/rechtsprechung/`); Gericht, Aktenzeichen, Datum, Art und Quelle schlägt die App dabei aus dem
+Kopf des Dokuments vor (beschriftete Felder wie bei juris und openJur, Zitierzeile wie bei beck-online oder Kopf einer
+Ausfertigung mit „Verkündet am …“), jeweils mit Fundstelle zum Prüfen; **Akte zuordnen …** ordnet sie einer oder mehreren Akten zu, das × an
 einer Akte löst die Zuordnung (die Entscheidung bleibt in der Sammlung), **entfernen** nimmt sie ganz heraus, auch
 aus allen Akten. Wird eine Akte gelöscht, verschwinden ihre Zuordnungen; die anderen bleiben. Die Online-Suche
 nach Entscheidungen (wie in JuraBox Lite) folgt in einem späteren Schritt.

@@ -1000,3 +1000,5 @@ details.kurz-hinweis summary { cursor: pointer; }
   .sammlung { flex-direction: column; }
   .sammlung .akte-seite.volltext { width: auto; }
 }
+.feld-mit-fundstelle { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.feld-mit-fundstelle .feld-hinweis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

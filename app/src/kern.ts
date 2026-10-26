@@ -911,6 +911,33 @@ export interface SammlungSuche {
   treffer: number;
 }
 
+/** Ein aus dem Dokument erkannter Wert mit seiner Fundstelle. */
+export interface Erkannt {
+  wert: string;
+  fundstelle: { abschnitt: number; seite: number | null; text: string };
+}
+
+/** Vorschlag für eine eigene Datei: Kopfdaten aus dem Text, jeweils mit Fundstelle oder null. */
+export interface KopfVorschlag {
+  dateiname: string;
+  lesart: string;
+  hinweise: string[];
+  gericht: Erkannt | null;
+  aktenzeichen: Erkannt | null;
+  datum: Erkannt | null;
+  art: Erkannt | null;
+  herkunft: Erkannt | null;
+}
+
+/** Fundstelle eines erkannten Werts: „S. 1: „Aktenzeichen: 28 U 12/21““. */
+export function erkanntText(e: Erkannt): string {
+  const ort = e.fundstelle.seite != null ? `S. ${e.fundstelle.seite}` : `Abs. ${e.fundstelle.abschnitt}`;
+  return `${ort}: „${e.fundstelle.text}“`;
+}
+
+/** Arten von Entscheidungen (Vorschläge, frei änderbar). */
+export const URTEIL_ARTEN = ["Urteil", "Beschluss", "Versäumnisurteil", "Teilurteil", "Hinweisbeschluss", "Gerichtsbescheid"];
+
 /** Anzeigename der Quelle einer gespeicherten Entscheidung. */
 export const URTEIL_QUELLE_NAME: Record<UrteilQuelle, string> = {
   rii: "rechtsprechung-im-internet.de",

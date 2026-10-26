@@ -30,11 +30,12 @@ import urllib.error
 from collections.abc import Callable
 from pathlib import Path
 
-from ..rechtsprechung import bayern, neuris, verzeichnis
+from ..rechtsprechung import bayern, kopfdaten, neuris, verzeichnis
 from ..rechtsprechung import volltext as rii
 from ..rechtsprechung.zitate import az_kern, normalisiere_az
 from . import lesen
 from .akte import _entferne_datei, _jetzt, _sha256
+from .modell import Dokument
 from .ocr import Tesseract
 from .suche import _AUF, _ZU, _ausschnitt, _treffer, abfrage
 
@@ -74,8 +75,11 @@ def ergaenzen(
     zitat: str | None = None,
     herkunft: str | None = None,
     ocr: Tesseract | None | bool = True,
+    art: str | None = None,
 ) -> dict:
-    """Legt eine Entscheidung aus einer eigenen Datei (PDF, DOCX, TXT, MD) zur Akte ab; ohne Akte in die Sammlung."""
+    """Legt eine Entscheidung aus einer eigenen Datei (PDF, DOCX, TXT, MD) zur Akte ab; ohne Akte in die Sammlung.
+
+    ``art`` (Urteil, Beschluss …) steht wie bei geladenen Volltexten im Kopf (``kopf.doktyp``)."""
     pfad = Path(pfad)
     if akte_id is not None and con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")
@@ -91,7 +95,7 @@ def ergaenzen(
     if vorhanden:
         return {"urteil_id": vorhanden["id"], "neu": False, "dateiname": pfad.name}
 
-    dok = lesen.lies(pfad, ocr)
+    dok = _lies(pfad, ocr)
     if not any(a.text.strip() for a in dok.abschnitte):
         raise ValueError(f"In {pfad.name} wurde kein Text gefunden. " + " ".join(dok.hinweise))
 
@@ -104,11 +108,11 @@ def ergaenzen(
     with con:
         urteil_id = con.execute(
             """INSERT INTO urteil (akte_id, zitat, gericht, aktenzeichen, az_norm, datum, quelle, herkunft,
-                                   dateiname, format, sha256, original, lesart, hinweise, hinzugefuegt_am)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                   dateiname, format, sha256, original, lesart, hinweise, hinzugefuegt_am, kopf)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (akte_id, zitat, gericht, aktenzeichen, normalisiere_az(aktenzeichen) if aktenzeichen else None,
              datum or None, MANUELL, (herkunft or "").strip() or None, pfad.name, fmt, sha, str(original),
-             dok.lesart, json.dumps(dok.hinweise, ensure_ascii=False), _jetzt()),
+             dok.lesart, json.dumps(dok.hinweise, ensure_ascii=False), _jetzt(), _kopf_art(art)),
         ).lastrowid
         con.executemany(
             "INSERT INTO urteil_abschnitt (urteil_id, nr, seite, rn, text) VALUES (?, ?, ?, ?, ?)",
@@ -116,6 +120,37 @@ def ergaenzen(
         )
     return {"urteil_id": urteil_id, "neu": True, "dateiname": pfad.name, "abschnitte": len(dok.abschnitte),
             "lesart": dok.lesart, "hinweise": dok.hinweise}
+
+
+# Zuletzt gelesene Datei: Der Vorschlag liest sie, das Ablegen gleich danach braucht denselben Text (bei Scans OCR).
+_GELESEN: dict[tuple, Dokument] = {}
+
+
+def _lies(pfad: Path, ocr: Tesseract | None | bool) -> Dokument:
+    st = pfad.stat()
+    schluessel = (str(pfad.resolve()), st.st_size, st.st_mtime_ns, bool(ocr))
+    if schluessel not in _GELESEN:
+        _GELESEN.clear()
+        _GELESEN[schluessel] = lesen.lies(pfad, ocr)
+    return _GELESEN[schluessel]
+
+
+def _kopf_art(art: str | None) -> str | None:
+    art = " ".join((art or "").split())
+    if not art:
+        return None
+    return json.dumps({"spruchkoerper": None, "doktyp": art, "normen": None, "vorinstanz": [], "titel": None},
+                      ensure_ascii=False)
+
+
+def vorschlag(pfad: str | Path, ocr: Tesseract | None | bool = True) -> dict:
+    """Liest eine eigene Datei und schlägt Gericht, Aktenzeichen, Datum, Art und Quelle vor, je mit Fundstelle."""
+    pfad = Path(pfad)
+    if not pfad.is_file():
+        raise FileNotFoundError(f"Datei nicht gefunden: {pfad}")
+    dok = _lies(pfad, ocr)
+    erkannt = kopfdaten.erkenne([(a.nr, a.seite, a.text) for a in dok.abschnitte])
+    return {"dateiname": pfad.name, "lesart": dok.lesart, "hinweise": dok.hinweise} | erkannt
 
 
 def _vorhanden(con: sqlite3.Connection, akte_id: int | None, sha: str) -> sqlite3.Row | None:

@@ -1,15 +1,19 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import AktenWahl from "./AktenWahl";
 import { Rueckfrage, VolltextAnsicht } from "./Akte";
 import {
   Akte,
+  Erkannt,
+  KopfVorschlag,
   SammlungEintrag,
   SammlungSuche,
+  URTEIL_ARTEN,
   URTEIL_QUELLEN,
   URTEIL_QUELLE_NAME,
   UrteilQuelle,
   UrteilVolltext,
+  erkanntText,
   istDesktop,
   kern,
   sammlungPasst,
@@ -26,7 +30,10 @@ interface NeueDatei {
   gericht: string;
   aktenzeichen: string;
   datum: string;
+  art: string;
   herkunft: string;
+  /** Was aus dem Text erkannt wurde, mit Fundstelle; null, solange noch gelesen wird. */
+  vorschlag: KopfVorschlag | null;
 }
 
 /**
@@ -168,7 +175,26 @@ export default function Rechtsprechung({
     const name = gewaehlt.split(/[\\/]/).pop() ?? gewaehlt;
     // Quelle aus dem Dateinamen vorschlagen, wenn er sie nennt (z. B. „juris_BGH_VIII_ZR_999-20.pdf“).
     const herkunft = URTEIL_QUELLEN.find((q) => name.toLowerCase().includes(q.toLowerCase().split(" ")[0])) ?? "";
-    setNeu({ pfad: gewaehlt, name, gericht: "", aktenzeichen: "", datum: "", herkunft });
+    const leer = { pfad: gewaehlt, name, gericht: "", aktenzeichen: "", datum: "", art: "", herkunft, vorschlag: null };
+    setNeu(leer);
+    // Gericht, Aktenzeichen, Datum, Art und Quelle aus dem Kopf der Entscheidung vorschlagen.
+    const v = await ausfuehren(`Lese ${name} und suche Gericht, Aktenzeichen und Datum …`, () =>
+      kern<KopfVorschlag>("rechtsprechung.vorschlag", { pfad: gewaehlt }),
+    );
+    if (!v) return;
+    setNeu((n) =>
+      n && n.pfad === gewaehlt
+        ? {
+            ...n,
+            gericht: n.gericht || v.gericht?.wert || "",
+            aktenzeichen: n.aktenzeichen || v.aktenzeichen?.wert || "",
+            datum: n.datum || v.datum?.wert || "",
+            art: n.art || v.art?.wert || "",
+            herkunft: n.herkunft || v.herkunft?.wert || "",
+            vorschlag: v,
+          }
+        : n,
+    );
   }
 
   async function dateiSpeichern(ev: FormEvent) {
@@ -181,6 +207,7 @@ export default function Rechtsprechung({
         gericht: n.gericht,
         aktenzeichen: n.aktenzeichen || null,
         datum: n.datum || null,
+        art: n.art || null,
         herkunft: n.herkunft || null,
       }),
     );
@@ -230,32 +257,57 @@ export default function Rechtsprechung({
               Die Datei wird unverändert abgelegt und gelesen; Randnummern werden als Fundstellen erkannt. Einer Akte
               zuordnen lässt sie sich danach.
             </p>
+            {neu.vorschlag && <VorschlagHinweis v={neu.vorschlag} />}
             <div className="formular">
               <label>
                 Gericht
-                <input value={neu.gericht} onChange={(e) => setNeu({ ...neu, gericht: e.target.value })} required autoFocus />
+                <Feld erkannt={neu.vorschlag?.gericht} wert={neu.gericht}>
+                  <input value={neu.gericht} onChange={(e) => setNeu({ ...neu, gericht: e.target.value })} required autoFocus />
+                </Feld>
               </label>
               <label>
                 Aktenzeichen
-                <input value={neu.aktenzeichen} onChange={(e) => setNeu({ ...neu, aktenzeichen: e.target.value })} />
+                <Feld erkannt={neu.vorschlag?.aktenzeichen} wert={neu.aktenzeichen}>
+                  <input value={neu.aktenzeichen} onChange={(e) => setNeu({ ...neu, aktenzeichen: e.target.value })} />
+                </Feld>
               </label>
               <label>
                 Datum
-                <input type="date" value={neu.datum} onChange={(e) => setNeu({ ...neu, datum: e.target.value })} />
+                <Feld erkannt={neu.vorschlag?.datum} wert={neu.datum}>
+                  <input type="date" value={neu.datum} onChange={(e) => setNeu({ ...neu, datum: e.target.value })} />
+                </Feld>
+              </label>
+              <label>
+                Art
+                <Feld erkannt={neu.vorschlag?.art} wert={neu.art}>
+                  <input
+                    list="sammlung-arten"
+                    value={neu.art}
+                    onChange={(e) => setNeu({ ...neu, art: e.target.value })}
+                    placeholder="z. B. Urteil"
+                  />
+                  <datalist id="sammlung-arten">
+                    {URTEIL_ARTEN.map((a) => (
+                      <option key={a} value={a} />
+                    ))}
+                  </datalist>
+                </Feld>
               </label>
               <label>
                 Quelle
-                <input
-                  list="sammlung-quellen"
-                  value={neu.herkunft}
-                  onChange={(e) => setNeu({ ...neu, herkunft: e.target.value })}
-                  placeholder="z. B. juris"
-                />
-                <datalist id="sammlung-quellen">
-                  {URTEIL_QUELLEN.map((q) => (
-                    <option key={q} value={q} />
-                  ))}
-                </datalist>
+                <Feld erkannt={neu.vorschlag?.herkunft} wert={neu.herkunft}>
+                  <input
+                    list="sammlung-quellen"
+                    value={neu.herkunft}
+                    onChange={(e) => setNeu({ ...neu, herkunft: e.target.value })}
+                    placeholder="z. B. juris"
+                  />
+                  <datalist id="sammlung-quellen">
+                    {URTEIL_QUELLEN.map((q) => (
+                      <option key={q} value={q} />
+                    ))}
+                  </datalist>
+                </Feld>
               </label>
             </div>
             <div className="aktionen">
@@ -405,5 +457,35 @@ export default function Rechtsprechung({
       </div>
       {volltext && <VolltextAnsicht volltext={volltext} rn={rn} onSchliessen={() => setVolltext(null)} />}
     </div>
+  );
+}
+
+/** Eingabefeld mit der Fundstelle des erkannten Werts darunter, solange er nicht geändert wurde. */
+function Feld({ erkannt, wert, children }: { erkannt: Erkannt | null | undefined; wert: string; children: ReactNode }) {
+  return (
+    <div className="feld-mit-fundstelle">
+      {children}
+      {erkannt && erkannt.wert === wert && <span className="leise feld-hinweis">Fundstelle {erkanntText(erkannt)}</span>}
+    </div>
+  );
+}
+
+/** Was beim Lesen herauskam: alles erkannt, teilweise oder nichts (etwa ein Scan ohne Texterkennung). */
+function VorschlagHinweis({ v }: { v: KopfVorschlag }) {
+  const felder: [string, Erkannt | null][] = [
+    ["Gericht", v.gericht],
+    ["Aktenzeichen", v.aktenzeichen],
+    ["Datum", v.datum],
+  ];
+  const fehlt = felder.filter(([, e]) => !e).map(([name]) => name);
+  if (v.lesart === "leer") {
+    return <p className="hinweis">In der Datei steht kein lesbarer Text. {v.hinweise.join(" ")} Bitte die Angaben selbst eintragen.</p>;
+  }
+  if (!fehlt.length) return <p className="leise">Aus dem Dokument vorgeschlagen; bitte prüfen.</p>;
+  return (
+    <p className="leise">
+      {fehlt.length === felder.length ? "Im Kopf der Entscheidung wurde nichts erkannt" : `Nicht erkannt: ${fehlt.join(", ")}`}
+      ; bitte selbst eintragen.
+    </p>
   );
 }

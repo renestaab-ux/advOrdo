@@ -144,7 +144,8 @@ abgeschalteten Fremdschlüsseln und gleichen Zeilennummern neu angelegt. Jede Zu
 Zeile mit eigenen Absätzen (und bei eigenen Dateien eigener Kopie), damit das Löschen einer Akte die übrigen
 Zuordnungen nicht berührt; `sammlung` fasst die Zeilen je SHA-256 zusammen. `urteil_fts` ist ein FTS5-Index über
 `urteil_abschnitt.text` (Trigger, beim ersten Öffnen `rebuild`). RPC: `rechtsprechung.sammlung`,
-`rechtsprechung.suche(suchtext)`, `rechtsprechung.ergaenzen(pfad, gericht, …)`, `rechtsprechung.zuordnen(urteil_id,
+`rechtsprechung.suche(suchtext)`, `rechtsprechung.vorschlag(pfad)` (Kopfdaten aus dem Text,
+`juracore.rechtsprechung.kopfdaten`, je Wert mit Fundstelle), `rechtsprechung.ergaenzen(pfad, gericht, …, art)`, `rechtsprechung.zuordnen(urteil_id,
 akte_id)`, `rechtsprechung.loesen(urteil_id)`, `rechtsprechung.entfernen(urteil_id)`.
 
 Dokumentansicht (`juracore.dokumente.ansicht`): `akten.seitenbild(dokument_id, seite, breite)` rendert eine Seite der

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   Akte,
   SammlungEintrag,
+  erkanntText,
   sammlungPasst,
   urteilTitel,
   FeldDef,
@@ -179,6 +180,15 @@ describe("Sammlung der Entscheidungen", () => {
   it("nennt Gericht, Spruchkörper, Art, Datum und Aktenzeichen", () => {
     expect(urteilTitel(e)).toBe("BGH 8. Zivilsenat, Urteil vom 12.10.2016 – VIII ZR 103/15");
     expect(urteilTitel({ gericht: "OLG Hamm", datum: null, aktenzeichen: null, kopf: null })).toBe("OLG Hamm");
+  });
+
+  it("nennt die Fundstelle eines erkannten Werts", () => {
+    expect(erkanntText({ wert: "28 U 12/21", fundstelle: { abschnitt: 3, seite: 1, text: "Aktenzeichen: 28 U 12/21" } })).toBe(
+      "S. 1: „Aktenzeichen: 28 U 12/21“",
+    );
+    expect(erkanntText({ wert: "BGH", fundstelle: { abschnitt: 2, seite: null, text: "BUNDESGERICHTSHOF" } })).toBe(
+      "Abs. 2: „BUNDESGERICHTSHOF“",
+    );
   });
 
   it("filtert nach Zuordnung, Quelle und Text", () => {
