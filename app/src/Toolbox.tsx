@@ -12,12 +12,14 @@ import {
   kern,
   prozent,
 } from "./kern";
+import Prozesskosten from "./Prozesskosten";
 
-type Werkzeug = "zinsen" | "fristen";
+type Werkzeug = "zinsen" | "fristen" | "kosten";
 
 const WERKZEUGE: { id: Werkzeug; titel: string; bald?: boolean }[] = [
   { id: "zinsen", titel: "Verzugszinsen" },
   { id: "fristen", titel: "Fristen" },
+  { id: "kosten", titel: "Prozesskosten" },
 ];
 
 /** Die Toolbox: Rechner aus JuraBox Lite, in einem eigenen Fenster. */
@@ -50,6 +52,7 @@ export default function Toolbox() {
       )}
       {werkzeug === "zinsen" && <Verzugszinsen />}
       {werkzeug === "fristen" && <Fristen />}
+      {werkzeug === "kosten" && <Prozesskosten />}
     </div>
   );
 }

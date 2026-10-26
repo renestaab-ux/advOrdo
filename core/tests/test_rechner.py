@@ -86,6 +86,7 @@ def test_raten_und_vollstaendige_tilgung():
 def test_eingaben_und_fehler():
     assert verzugszinsen.betrag("1.234,56 €") == Decimal("1234.56")
     assert verzugszinsen.betrag("1234.5") == Decimal("1234.5")
+    assert verzugszinsen.betrag("10.000") == Decimal(10000)  # Tausenderpunkt ohne Komma
     with pytest.raises(ValueError):
         verzugszinsen.betrag("abc")
     with pytest.raises(ValueError):

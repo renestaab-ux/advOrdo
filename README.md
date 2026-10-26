@@ -160,6 +160,13 @@ Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern aus JuraBox Lite. G
   alle Daten mit Wochentag. In Bayern zählt Mariä Himmelfahrt (15. August) standardmäßig mit (überwiegend
   katholische Gemeinden); hängt das Fristende davon ab, nennt ein Hinweis auch das Ende für die übrigen Gemeinden.
   Nur Vorwärtsfristen.
+- **Prozesskosten** (GKG, RVG): Gerichts- und Anwaltskosten aus dem Streitwert für erste Instanz, Berufung und
+  Revision; je Rechtszug Ende durch Urteil, Vergleich (ermäßigte Gerichtsgebühr, Einigungsgebühr) oder Rücknahme,
+  mit oder ohne Termin; mehrere Auftraggeber (Nr. 1008 VV RVG), vorgerichtliche Geschäftsgebühr mit Anrechnung
+  (Vorbem. 3 Abs. 4 VV RVG), Auslagenpauschale, Umsatzsteuer abschaltbar, gegnerische Anwaltskosten als Kostenrisiko,
+  auch für mehrere Gegner mit gemeinsamem Anwalt (Erhöhung Nr. 1008 VV RVG) oder je eigenem Anwalt.
+  Gebührenrecht seit 01.06.2025 (KostBRÄG 2025) und vom 01.01.2021 bis 31.05.2025 wählbar; die Wertgebühren
+  entsprechen Anlage 2 GKG und Anlage 2 RVG.
 
 ## Akten: Übersicht und geöffnete Akte
 

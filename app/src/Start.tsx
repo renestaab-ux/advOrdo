@@ -24,7 +24,7 @@ const KACHELN: { ziel: StartZiel; titel: string; text: string; symbol: SymbolNam
   { ziel: "anlegen", titel: "Akte anlegen", text: "Neues Mandat anlegen, auch aus einem Dokument", symbol: "akteNeu" },
   { ziel: "akten", titel: "Akten", text: "Übersicht, Dokumente, Vergleich und Analyse", symbol: "akten" },
   { ziel: "eigene", titel: "Eigene Daten", text: "Kanzlei bzw. Unternehmen und Ihre Person", symbol: "eigene" },
-  { ziel: "toolbox", titel: "Toolbox", text: "Verzugszinsen- und Fristenrechner, eigenes Fenster", symbol: "toolbox" },
+  { ziel: "toolbox", titel: "Toolbox", text: "Zinsen-, Fristen- und Prozesskostenrechner, eigenes Fenster", symbol: "toolbox" },
 ];
 
 /** Startbildschirm nach Renés Skizze: Kopfband, große Kacheln, zuletzt geöffnete Akten und Arbeitsbereich. */
