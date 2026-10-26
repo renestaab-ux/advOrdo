@@ -1399,8 +1399,8 @@ function RechtsprechungAnsicht({
     <>
       {ohneVerzeichnis && (
         <p className="hinweis">
-          Das Verzeichnis der Bundesrechtsprechung ist noch nicht geladen. Lade es unter „Rechtsprechung“ und wähle danach
-          hier „Zitate neu prüfen“.
+          Das Verzeichnis der Bundesrechtsprechung ist noch nicht geladen. Lade es in den Einstellungen unter
+          „Rechtsquellen“ und wähle danach hier „Zitate neu prüfen“.
         </p>
       )}
       {online.length > 0 && (
