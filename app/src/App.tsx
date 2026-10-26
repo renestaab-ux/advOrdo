@@ -12,7 +12,7 @@ import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
 import { useErinnerungen } from "./erinnerungen";
-import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName } from "./kern";
+import { KiModus, Marke, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
 type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
@@ -55,6 +55,11 @@ export default function App() {
     }
   }
   const umgebung = aktiveUmgebung(umgebungen);
+  // Kanzlei- bzw. Firmenlogo und Kurzbezeichnung; gehören zur Umgebung und werden nach einem Wechsel neu geladen.
+  const [marke, setMarke] = useState<Marke | null>(null);
+  useEffect(() => {
+    if (istDesktop) void kern<Marke>("marke.lesen").then(setMarke, () => setMarke(null));
+  }, [stand]);
   // Mitteilungen des Systems bei Vorfrist, Ablauf und Terminen, solange die App läuft.
   useErinnerungen(umgebungen ? umgebungen.aktiv : undefined);
   // „Akte anlegen“ (Startbildschirm oder „+ Neue Akte“): eigene Seite für den Anlegeprozess.
@@ -100,9 +105,9 @@ export default function App() {
   return (
     <div className={eingeklappt ? "rahmen eingeklappt" : "rahmen"}>
       <nav className="navigation" aria-label="Bereiche">
-        <div className="marke">
-          <img className="marke-zeichen" src={jurabox} alt="" aria-hidden />
-          <span className="nav-text">JuraBox</span>
+        <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "JuraBox"}>
+          <img className="marke-zeichen" src={marke?.logo ?? jurabox} alt="" aria-hidden />
+          <span className="nav-text">{marke?.kurzbezeichnung || "JuraBox"}</span>
         </div>
         {BEREICHE.map((b) => (
           <button
@@ -175,6 +180,7 @@ export default function App() {
             onAkte={oeffneAkte}
             modus={modus}
             umgebung={umgebung?.name ?? null}
+            marke={marke}
           />
         )}
         {bereich === "toolbox" && <Toolbox />}
@@ -197,6 +203,8 @@ export default function App() {
           <Einstellungen
             reiter={einstellungsReiter}
             onReiter={setEinstellungsReiter}
+            marke={marke}
+            onMarke={setMarke}
             onGeaendert={ladeModus}
             umgebungen={umgebungen}
             onUmgebungen={umgebungGeaendert}

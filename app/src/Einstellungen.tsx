@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import AktenEinstellungen from "./AktenEinstellungen";
 import Diagnose from "./Diagnose";
 import Programme from "./Programme";
@@ -12,7 +13,7 @@ import {
   darstellungSpeichern,
   istDunkel,
 } from "./darstellung";
-import { KiStatus, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
+import { KiStatus, Marke, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
 
 const KONTEXTE = [8192, 16384, 32768];
 const KONTEXTE_EXTERN = [32768, 131072];
@@ -38,6 +39,8 @@ const REITER: { id: EinstellungsReiter; titel: string }[] = [
 export default function Einstellungen({
   reiter,
   onReiter,
+  marke,
+  onMarke,
   onGeaendert,
   umgebungen,
   onUmgebungen,
@@ -45,6 +48,8 @@ export default function Einstellungen({
 }: {
   reiter: EinstellungsReiter;
   onReiter: (r: EinstellungsReiter) => void;
+  marke: Marke | null;
+  onMarke: (m: Marke) => void;
   onGeaendert?: () => void;
   umgebungen: UmgebungsListe | null;
   onUmgebungen: (liste: UmgebungsListe, gewechselt: boolean) => void;
@@ -117,7 +122,12 @@ export default function Einstellungen({
 
   let inhalt;
   if (reiter === "allgemeines") {
-    inhalt = <Allgemeines />;
+    inhalt = (
+      <>
+        <Allgemeines />
+        <LogoKarte marke={marke} onMarke={onMarke} />
+      </>
+    );
   } else if (!istDesktop) {
     inhalt = (
       <section className="hinweis-box">
@@ -360,8 +370,91 @@ function Allgemeines() {
         </span>
         <button tabIndex={-1}>Knopf</button>
       </div>
+    </section>
+  );
+}
 
-      <p className="leise">Ein eigenes Kanzlei- oder Firmenlogo kommt hier später dazu.</p>
+/** Kanzlei- bzw. Firmenlogo und Kurzbezeichnung: oben in der Leiste klein, auf der Startseite groß mit dem Namen. */
+function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke) => void }) {
+  const [kurz, setKurz] = useState(marke?.kurzbezeichnung ?? "");
+  const [laeuft, setLaeuft] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  useEffect(() => setKurz(marke?.kurzbezeichnung ?? ""), [marke?.kurzbezeichnung]);
+
+  async function setze(methode: string, params?: Record<string, unknown>) {
+    setLaeuft(true);
+    setFehler(null);
+    try {
+      onMarke(await kern<Marke>(methode, params));
+    } catch (e) {
+      setFehler(String(e));
+    } finally {
+      setLaeuft(false);
+    }
+  }
+
+  async function waehlen() {
+    const pfad = await open({
+      title: "Logo wählen",
+      multiple: false,
+      filters: [{ name: "Bild (PNG, JPG, SVG, WebP)", extensions: ["png", "jpg", "jpeg", "svg", "webp"] }],
+    });
+    if (typeof pfad === "string") await setze("marke.logo_setzen", { pfad });
+  }
+
+  if (!istDesktop) {
+    return (
+      <section className="karte">
+        <h2>Logo und Kurzbezeichnung</h2>
+        <p className="leise">Nur in der Desktop-App.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="karte">
+      <h2>Logo und Kurzbezeichnung</h2>
+      <p className="erklaerung">
+        Erscheinen oben in der Leiste (eingeklappt nur das Logo) und auf der Startseite groß mit dem Namen aus „Eigene
+        Daten“. Beides gehört zur aktiven Arbeitsumgebung.
+      </p>
+
+      <div className="darstellung-gruppe">
+        <h3>Kanzlei- oder Firmenlogo</h3>
+        <div className="logo-zeile">
+          <div className="logo-vorschau">{marke?.logo ? <img src={marke.logo} alt="Logo" /> : <span className="leise">kein Logo</span>}</div>
+          <div className="aktionen">
+            <button className="zweitrangig" onClick={() => void waehlen()} disabled={laeuft}>
+              {marke?.logo ? "Anderes Logo wählen …" : "Logo wählen …"}
+            </button>
+            {marke?.logo && (
+              <button className="zweitrangig gefahr" onClick={() => void setze("marke.logo_entfernen")} disabled={laeuft}>
+                Entfernen
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="leise">PNG, JPG, SVG oder WebP bis 2 MB; am besten mit transparentem Hintergrund.</p>
+      </div>
+
+      <form
+        className="darstellung-gruppe"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void setze("marke.kurz_setzen", { text: kurz });
+        }}
+      >
+        <h3>Kurzbezeichnung in der Leiste</h3>
+        <div className="weiteres">
+          <input value={kurz} onChange={(e) => setKurz(e.target.value)} maxLength={40} placeholder="JuraBox" />
+          <button type="submit" disabled={laeuft || kurz.trim() === (marke?.kurzbezeichnung ?? "")}>
+            Speichern
+          </button>
+        </div>
+        <p className="leise">Leer lassen, dann steht dort „JuraBox“.</p>
+      </form>
+
+      {fehler && <p className="fehler">{fehler}</p>}
     </section>
   );
 }

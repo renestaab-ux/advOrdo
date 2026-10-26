@@ -5,6 +5,7 @@ import {
   EigeneKurzstand,
   KalenderEintrag,
   KiModus,
+  Marke,
   kiModusName,
   abstandText,
   akteTitel,
@@ -29,11 +30,13 @@ export default function Start({
   onAkte,
   modus,
   umgebung,
+  marke,
 }: {
   onWahl: (ziel: StartZiel) => void;
   onAkte: (akteId: number, reiter?: "fristen") => void;
   modus: KiModus | null;
   umgebung: string | null;
+  marke: Marke | null;
 }) {
   // Stand der Eigenen Daten für die Kachel, z. B. „3 Angaben fehlen“.
   const [profil, setProfil] = useState<EigeneKurzstand | null>(null);
@@ -62,6 +65,12 @@ export default function Start({
         </span>
       </header>
       <div className="start-inhalt">
+        {(marke?.logo || marke?.name) && (
+          <div className="start-marke">
+            {marke.logo && <img src={marke.logo} alt="Logo" />}
+            {marke.name && <span>{marke.name}</span>}
+          </div>
+        )}
         <p className="erklaerung">Wählen Sie einen Arbeitsbereich oder öffnen Sie direkt eine Akte.</p>
         <div className="kacheln">
           {KACHELN.map((k) => (
