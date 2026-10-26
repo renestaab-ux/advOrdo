@@ -40,7 +40,7 @@ from .ki import speicher as ki_speicher
 from .ki import wissen as ki_wissen
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
-from .rechner import basiszins, fristen, verzugszinsen
+from .rechner import basiszins, fristen, prozesskosten, verzugszinsen
 from .rechtsprechung import online, recherche, verzeichnis
 from .umgebungen import Umgebungen
 
@@ -261,6 +261,7 @@ class Kern:
             "rechner.verzugszinsen": lambda **p: verzugszinsen.berechne(
                 verzugszinsen.aus_params(p), basiszins.lade(self.basiszins_datei)),
             "rechner.frist": lambda **p: fristen.aus_params(p),
+            "rechner.prozesskosten": lambda **p: prozesskosten.berechne(prozesskosten.aus_params(p)),
             "rechner.basiszins": lambda: basiszins.stand(self.basiszins_datei),
             "rechner.basiszins_eintragen": lambda ab, satz: basiszins.eintragen(self.basiszins_datei, ab, satz),
             "rechner.basiszins_entfernen": lambda ab: basiszins.entfernen(self.basiszins_datei, ab),

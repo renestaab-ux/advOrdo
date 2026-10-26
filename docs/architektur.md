@@ -210,8 +210,10 @@ Formate sind der Funktionsbeschreibung von JuraBox Lite entnommen und müssen an
 Die Toolbox ist ein zweites Tauri-Fenster (`src-tauri/src/fenster.rs`, Befehl `toolbox_oeffnen`), das dieselbe
 Oberfläche mit `?fenster=toolbox` lädt und über denselben Kernprozess rechnet; die Berechtigungen in
 `capabilities/default.json` gelten für beide Fenster. Die Rechner liegen in `juracore/rechner/` (`verzugszinsen`,
-`fristen`, `feiertage`, `basiszins`), sind reine Funktionen ohne Netz und Datenbank und rechnen mit `Decimal`. Die
-RPC-Methoden heißen `rechner.verzugszinsen`, `rechner.frist` und `rechner.basiszins*`. Selbst eingetragene
+`fristen`, `feiertage`, `basiszins`, `prozesskosten`), sind reine Funktionen ohne Netz und Datenbank und rechnen mit `Decimal`. Die
+RPC-Methoden heißen `rechner.verzugszinsen`, `rechner.frist`, `rechner.prozesskosten` und `rechner.basiszins*`. Die
+Gebührenstufen von § 34 GKG und § 13 RVG sind je Fassung in `prozesskosten.FASSUNGEN` hinterlegt; eine neue Fassung
+kommt als weiterer Eintrag dazu, bestehende bleiben unverändert. Selbst eingetragene
 Basiszinssätze stehen in `basiszins.json` im Datenverzeichnis und ergänzen die fest hinterlegte Tabelle nur nach
 ihrem letzten Eintrag.
 

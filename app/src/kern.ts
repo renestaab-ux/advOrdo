@@ -1675,6 +1675,39 @@ export interface FristErgebnis {
   feiertage_stand: string;
 }
 
+export interface KostenPosten {
+  nr: string;
+  text: string;
+  satz: string | null;
+  betrag: string;
+}
+
+export interface KostenAbrechnung {
+  titel: string;
+  posten: KostenPosten[];
+  netto: string;
+  summe: string;
+}
+
+export interface ProzesskostenErgebnis {
+  streitwert: string;
+  fassung: string;
+  fassung_titel: string;
+  gebuehr_gkg: string;
+  gebuehr_rvg: string;
+  gericht: KostenPosten[];
+  vorgerichtlich: KostenAbrechnung | null;
+  eigene: KostenAbrechnung[];
+  gegner: KostenAbrechnung[];
+  summe_gericht: string;
+  summe_eigene: string;
+  summe_gegner: string;
+  kostenrisiko: string;
+  umsatzsteuer: string | null;
+  hinweise: string[];
+  grundlagen: string[];
+}
+
 export const BUNDESLAENDER: [string, string][] = [
   ["BW", "Baden-Württemberg"], ["BY", "Bayern"], ["BE", "Berlin"], ["BB", "Brandenburg"], ["HB", "Bremen"],
   ["HH", "Hamburg"], ["HE", "Hessen"], ["MV", "Mecklenburg-Vorpommern"], ["NI", "Niedersachsen"],
@@ -1685,6 +1718,11 @@ export const BUNDESLAENDER: [string, string][] = [
 /** Betrag aus dem Kern ("1234.5") deutsch, mit zwei oder mehr Nachkommastellen: "1.234,50 €". */
 export function euro(betrag: string | number, stellen = 2): string {
   return Number(betrag).toLocaleString("de-DE", { minimumFractionDigits: stellen, maximumFractionDigits: stellen }) + " €";
+}
+
+/** Gebührensatz aus dem Kern deutsch: "1.3" → "1,3", "3" → "3,0". */
+export function satzDe(satz: string): string {
+  return satz.includes(".") ? satz.replace(".", ",") : satz + ",0";
 }
 
 /** Prozentsatz aus dem Kern ("8.62") deutsch: "8,62 %". */

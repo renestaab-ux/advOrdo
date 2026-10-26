@@ -9,6 +9,7 @@ wirken ab dem Folgetag. Kein Zinseszins auf aufgelaufene Zinsen.
 from __future__ import annotations
 
 import calendar
+import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -46,11 +47,11 @@ def genau(betrag: Decimal) -> str:
 
 
 def betrag(wert) -> Decimal:
-    """Betrag aus Zahl oder Text; deutsches Komma erlaubt („1.234,56“)."""
+    """Betrag aus Zahl oder Text; deutsches Komma und Tausenderpunkte erlaubt („1.234,56“, „10.000“)."""
     if isinstance(wert, (int, Decimal)):
         return Decimal(wert)
     text = str(wert).strip().replace("€", "").replace(" ", "")
-    if "," in text:
+    if "," in text or re.fullmatch(r"-?\d{1,3}(\.\d{3})+", text):
         text = text.replace(".", "").replace(",", ".")
     try:
         return Decimal(text)
