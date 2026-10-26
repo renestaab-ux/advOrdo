@@ -305,7 +305,7 @@ def test_neuris_volltext_als_html(monkeypatch):
 
 def test_bayern_abgeschnittenes_zip_wird_neu_geladen(monkeypatch):
     ganz = _bay_zip()
-    antworten = [ganz[: len(ganz) // 2], ganz]
+    antworten = [ganz[:120], ganz]
 
     class Antwort:
         def __init__(self, daten):
@@ -323,6 +323,32 @@ def test_bayern_abgeschnittenes_zip_wird_neu_geladen(monkeypatch):
     monkeypatch.setattr(bayern, "PAUSE", 0)
     monkeypatch.setattr(bayern.urllib.request, "urlopen", lambda *a, **k: Antwort(antworten.pop(0)))
     assert bayern.lade("Y-300-Z-BECKRS-B-2023-N-99999") == ganz
-    monkeypatch.setattr(bayern.urllib.request, "urlopen", lambda *a, **k: Antwort(ganz[:100]))
+    monkeypatch.setattr(bayern.urllib.request, "urlopen", lambda *a, **k: Antwort(ganz[:120]))
     with pytest.raises(ValueError, match="unvollständig"):
         bayern.lade("Y-300-Z-BECKRS-B-2023-N-99999")
+
+
+def test_bayern_zip_mit_kaputtem_verzeichnis_wird_gelesen():
+    ganz = _bay_zip()
+    ende = ganz.rfind(b"PK\x05\x06")
+    kaputt = ganz[:ende] + b"XX" + ganz[ende + 2:]  # Ende des Inhaltsverzeichnisses beschädigt
+    gerettet = bayern.lies(kaputt)
+    assert gerettet.aktenzeichen == bayern.lies(ganz).aktenzeichen and gerettet.absaetze
+    assert bayern._vollstaendig(kaputt)
+    # Fehlt der Rest des gepackten Texts, lässt sich nichts retten.
+    with pytest.raises(ValueError):
+        bayern.lies(ganz[:120])
+
+
+def test_bayern_gepacktes_zip_mit_kaputtem_verzeichnis():
+    import io
+    import zipfile
+
+    puffer = io.BytesIO()
+    with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("META-INF/manifest.xml", "<manifest/>")
+        z.writestr("bayportalrsp/Y-300-Z-BECKRS-B-2023-N-99999.xml",
+                   (FIXTURES / "bayern_volltext_auszug.xml").read_bytes())
+    ganz = puffer.getvalue()
+    kaputt = ganz[:ganz.rfind(b"PK\x01\x02")]  # Inhaltsverzeichnis fehlt ganz
+    assert bayern.lies(kaputt).doknr == "Y-300-Z-BECKRS-B-2023-N-99999"

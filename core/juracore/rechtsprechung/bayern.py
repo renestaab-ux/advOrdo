@@ -22,11 +22,13 @@ import http.client
 import http.cookiejar
 import io
 import re
+import struct
 import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 from dataclasses import dataclass
 from html.entities import name2codepoint
 
@@ -205,14 +207,61 @@ def lade(doknr: str, timeout: float = 60) -> bytes:
 
 
 def _vollstaendig(daten: bytes) -> bool:
-    """Ob ein geladenes ZIP vollständig ist (eine XML-Datei ohne ZIP-Hülle gilt als vollständig)."""
+    """Ob sich aus den geladenen Daten die Entscheidung lesen lässt (XML ohne ZIP-Hülle, ein heiles ZIP oder ein ZIP
+    mit beschädigtem Verzeichnis, aus dem sich die XML-Datei noch retten lässt)."""
     if daten[:2] != b"PK":
         return bool(daten.strip())
     try:
-        with zipfile.ZipFile(io.BytesIO(daten)) as z:
-            return z.testzip() is None
-    except (zipfile.BadZipFile, EOFError):
+        _xml_aus_zip(daten)
+        return True
+    except ValueError:
         return False
+
+
+_KOPF = struct.Struct("<4sHHHHHIIIHH")  # lokaler Dateikopf eines ZIP-Eintrags
+
+
+def _rette_xml(daten: bytes) -> tuple[str, bytes]:
+    """Liest die XML-Datei über die lokalen Dateiköpfe statt über das Inhaltsverzeichnis am Ende des ZIP.
+
+    Manche ZIP-Dateien des Portals haben ein fehlerhaftes Inhaltsverzeichnis („Bad magic number for central
+    directory“), die Einträge selbst sind aber heil."""
+    pos = 0
+    while (pos := daten.find(b"PK\x03\x04", pos)) >= 0 and pos + _KOPF.size <= len(daten):
+        _sig, _ver, flag, methode, _zeit, _tag, _crc, groesse, _roh, nlen, elen = _KOPF.unpack_from(daten, pos)
+        name = daten[pos + _KOPF.size:pos + _KOPF.size + nlen].decode("utf-8" if flag & 0x800 else "cp437", "replace")
+        start = pos + _KOPF.size + nlen + elen
+        pos = start
+        if not name.lower().endswith(".xml") or name.upper().startswith("META-INF/"):
+            continue
+        if methode == 0 and groesse and not flag & 0x08:
+            if start + groesse > len(daten):
+                raise ValueError("Die Entscheidung im ZIP ist abgeschnitten.")
+            inhalt = daten[start:start + groesse]
+        elif methode == 8:
+            d = zlib.decompressobj(-15)
+            inhalt = d.decompress(daten[start:])
+            if not d.eof:
+                raise ValueError("Die Entscheidung im ZIP ist abgeschnitten.")
+        else:
+            raise ValueError(f"Unbekannte Packart {methode} im ZIP.")
+        return name, inhalt
+    raise ValueError("Im ZIP ist keine Entscheidung (XML-Datei) zu finden.")
+
+
+def _xml_aus_zip(daten: bytes) -> tuple[str, bytes]:
+    """Name und Inhalt der einzigen XML-Datei im ZIP (neben META-INF/manifest.xml)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(daten)) as z:
+            xmls = [n for n in z.namelist() if n.lower().endswith(".xml") and not n.upper().startswith("META-INF/")]
+            if len(xmls) != 1:
+                raise ValueError(f"Erwartet genau eine XML-Datei im Archiv, gefunden: {xmls}")
+            return xmls[0], z.read(xmls[0])
+    except (zipfile.BadZipFile, EOFError, zlib.error):
+        try:
+            return _rette_xml(daten)
+        except (zlib.error, struct.error) as fehler:
+            raise ValueError(f"Das ZIP ist beschädigt ({fehler}).") from fehler
 
 
 # --- Volltext --------------------------------------------------------------------------------------
@@ -270,13 +319,9 @@ def _absaetze(teil: str, el: ET.Element) -> list[Absatz]:
 def lies(daten: bytes, entscheidung: dict | None = None) -> Volltext:
     """Liest eine Entscheidung (ZIP mit bayportalrsp/<doknr>.xml oder die XML-Datei selbst)."""
     if daten[:2] == b"PK":
-        with zipfile.ZipFile(io.BytesIO(daten)) as z:
-            # Neben der Entscheidung liegt META-INF/manifest.xml im Archiv.
-            xmls = [n for n in z.namelist() if n.lower().endswith(".xml") and not n.upper().startswith("META-INF/")]
-            if len(xmls) != 1:
-                raise ValueError(f"Erwartet genau eine XML-Datei im Archiv, gefunden: {xmls}")
-            doknr_datei = xmls[0].rsplit("/", 1)[-1][:-4]
-            daten = z.read(xmls[0])
+        # Neben der Entscheidung liegt META-INF/manifest.xml im Archiv.
+        name, daten = _xml_aus_zip(daten)
+        doknr_datei = name.rsplit("/", 1)[-1][:-4]
     else:
         doknr_datei = None
     try:
