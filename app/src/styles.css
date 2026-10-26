@@ -987,12 +987,15 @@ details.kurz-hinweis summary { cursor: pointer; }
 .sammlung-filter select, .sammlung-filter input { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 .sammlung-filter input { flex: 1; min-width: 180px; }
 .sammlung-eintraege { list-style: none; margin: 0; padding: 0; }
-.sammlung-eintrag { padding: 10px 12px; border: 1px solid var(--linie); border-radius: 8px; margin-bottom: 8px; background: var(--flaeche); }
+.sammlung-eintrag { border: 1px solid var(--linie); border-radius: 8px; margin-bottom: 8px; background: var(--flaeche); overflow: visible; }
+.sammlung-flaeche { padding: 10px 12px; cursor: pointer; border-radius: 8px 8px 0 0; }
+.sammlung-flaeche:hover { background: color-mix(in srgb, var(--akzent) 6%, transparent); }
+.sammlung-flaeche:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
 .sammlung-eintrag.aktiv { border-color: var(--akzent); }
-.sammlung-titel { font-weight: 600; text-align: left; }
+.sammlung-titel { font-weight: 600; color: var(--akzent); }
 .sammlung-fundstellen { margin: 4px 0; padding-left: 18px; font-size: 13px; }
 .sammlung-fundstellen mark { background: color-mix(in srgb, var(--akzent) 25%, transparent); color: inherit; }
-.sammlung-akten { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; font-size: 13px; }
+.sammlung-akten { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 12px; font-size: 13px; border-top: 1px solid var(--linie); border-radius: 0 0 8px 8px; background: color-mix(in srgb, var(--text) 6%, var(--hintergrund)); }
 .sammlung-akte { display: inline-flex; gap: 4px; align-items: center; padding: 1px 8px; border: 1px solid var(--linie); border-radius: 999px; }
 .akten-wahl-feld.als-knopf { width: auto; max-width: none; }
 .als-knopf .akten-wahl-liste { left: 0; right: auto; }

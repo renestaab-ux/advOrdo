@@ -400,29 +400,47 @@ export default function Rechtsprechung({
         <ul className="sammlung-eintraege">
           {sichtbar.map(({ e, fundstellen }) => (
             <li key={e.sha256} className={volltext?.sha256 === e.sha256 ? "sammlung-eintrag aktiv" : "sammlung-eintrag"}>
-              <button className="link sammlung-titel" onClick={() => oeffne(e)}>
-                {urteilTitel(e)}
-              </button>
-              {e.kopf?.titel && <p className="volltext-titel">{e.kopf.titel}</p>}
-              <p className="fundort">
-                {URTEIL_QUELLE_NAME[e.quelle]}
-                {e.quelle === "manuell" && ` (${urteilHerkunft(e)})`}
-              </p>
-              {fundstellen && (
-                <ul className="sammlung-fundstellen">
-                  {fundstellen.slice(0, 3).map((f) => (
-                    <li key={f.nr}>
-                      <button className="link" onClick={() => oeffne(e, f.rn)}>
-                        {f.rn != null ? `Rn. ${f.rn}` : `Abs. ${f.nr}`}
-                      </button>{" "}
-                      {f.ausschnitt.vor}
-                      <mark>{f.ausschnitt.treffer}</mark>
-                      {f.ausschnitt.nach}
-                    </li>
-                  ))}
-                  {fundstellen.length > 3 && <li className="leise">und {fundstellen.length - 3} weitere Stellen</li>}
-                </ul>
-              )}
+              {/* Die ganze Fläche öffnet die Entscheidung; nur die Leiste darunter (Akten, Knöpfe) nicht. */}
+              <div
+                className="sammlung-flaeche"
+                role="button"
+                tabIndex={0}
+                aria-label={`${urteilTitel(e)} öffnen`}
+                onClick={() => oeffne(e)}
+                onKeyDown={(ev) => {
+                  if (ev.target !== ev.currentTarget || (ev.key !== "Enter" && ev.key !== " ")) return;
+                  ev.preventDefault();
+                  void oeffne(e);
+                }}
+              >
+                <strong className="sammlung-titel">{urteilTitel(e)}</strong>
+                {e.kopf?.titel && <p className="volltext-titel">{e.kopf.titel}</p>}
+                <p className="fundort">
+                  {URTEIL_QUELLE_NAME[e.quelle]}
+                  {e.quelle === "manuell" && ` (${urteilHerkunft(e)})`}
+                </p>
+                {fundstellen && (
+                  <ul className="sammlung-fundstellen">
+                    {fundstellen.slice(0, 3).map((f) => (
+                      <li key={f.nr}>
+                        <button
+                          className="link"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            void oeffne(e, f.rn);
+                          }}
+                        >
+                          {f.rn != null ? `Rn. ${f.rn}` : `Abs. ${f.nr}`}
+                        </button>{" "}
+                        {f.ausschnitt.vor}
+                        <mark>{f.ausschnitt.treffer}</mark>
+                        {f.ausschnitt.nach}
+                      </li>
+                    ))}
+                    {fundstellen.length > 3 && <li className="leise">und {fundstellen.length - 3} weitere Stellen</li>}
+                  </ul>
+                )}
+              </div>
               <div className="sammlung-akten">
                 {e.akten.length === 0 && <span className="leise">nicht zugeordnet</span>}
                 {e.akten.map((a) => (
