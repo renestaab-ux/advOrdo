@@ -977,3 +977,26 @@ details.kurz-hinweis summary { cursor: pointer; }
 .start-marke { display: flex; align-items: center; gap: 24px; margin: 4px 0 22px; }
 .start-marke img { max-height: 110px; max-width: 280px; object-fit: contain; }
 .start-marke span { font-size: 28px; font-weight: 600; line-height: 1.2; }
+
+/* Bereich „Rechtsprechung“: Sammlung links, Volltext rechts. */
+.sammlung { display: flex; gap: 20px; align-items: flex-start; }
+.sammlung-liste { flex: 1; min-width: 0; }
+.sammlung-liste .suche-feld { margin-top: 12px; }
+.sammlung .akte-seite.volltext { --seite-breite: 460px; flex-shrink: 0; }
+.sammlung-filter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0 14px; }
+.sammlung-filter select, .sammlung-filter input { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.sammlung-filter input { flex: 1; min-width: 180px; }
+.sammlung-eintraege { list-style: none; margin: 0; padding: 0; }
+.sammlung-eintrag { padding: 10px 12px; border: 1px solid var(--linie); border-radius: 8px; margin-bottom: 8px; background: var(--flaeche); }
+.sammlung-eintrag.aktiv { border-color: var(--akzent); }
+.sammlung-titel { font-weight: 600; text-align: left; }
+.sammlung-fundstellen { margin: 4px 0; padding-left: 18px; font-size: 13px; }
+.sammlung-fundstellen mark { background: color-mix(in srgb, var(--akzent) 25%, transparent); color: inherit; }
+.sammlung-akten { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; font-size: 13px; }
+.sammlung-akte { display: inline-flex; gap: 4px; align-items: center; padding: 1px 8px; border: 1px solid var(--linie); border-radius: 999px; }
+.akten-wahl-feld.als-knopf { width: auto; max-width: none; }
+.als-knopf .akten-wahl-liste { left: 0; right: auto; }
+@media (max-width: 900px) {
+  .sammlung { flex-direction: column; }
+  .sammlung .akte-seite.volltext { width: auto; }
+}

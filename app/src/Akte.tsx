@@ -1567,7 +1567,7 @@ function ErgaenzungsFrage({
   );
 }
 
-function VolltextAnsicht({
+export function VolltextAnsicht({
   volltext,
   rn,
   onSchliessen,

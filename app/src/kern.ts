@@ -844,6 +844,8 @@ export interface RechtsprechungQuellen {
 /** Eine Entscheidung im Volltext zur Akte, z. B. ein PDF-Ausdruck aus juris. */
 export interface UrteilInfo {
   id: number;
+  /** null: steht ohne Akte in der Sammlung (Bereich „Rechtsprechung“). */
+  akte_id: number | null;
   zitat: string | null;
   gericht: string;
   aktenzeichen: string | null;
@@ -852,6 +854,8 @@ export interface UrteilInfo {
   herkunft: string | null;
   dateiname: string;
   format: string;
+  /** Prüfsumme der Datei; dieselbe Entscheidung in mehreren Akten hat dieselbe. */
+  sha256: string;
   lesart: string;
   hinzugefuegt_am: string;
   hinweise: string[];
@@ -890,6 +894,53 @@ export const URTEIL_QUELLEN = ["juris", "beck-online", "openJur", "Gericht (Ausf
 /** "beck-online, Urteil.pdf" bzw. nur der Dateiname. */
 export function urteilHerkunft(u: Pick<UrteilInfo, "herkunft" | "dateiname">): string {
   return u.herkunft ? `${u.herkunft}, ${u.dateiname}` : u.dateiname;
+}
+
+/** Eine Entscheidung der Sammlung, einmal je Datei, mit den Akten, denen sie zugeordnet ist. */
+export interface SammlungEintrag extends UrteilInfo {
+  akten: { akte_id: number; name: string; urteil_id: number; zitat: string | null }[];
+  zugeordnet: boolean;
+}
+
+/** Treffer der Volltextsuche in den gespeicherten Entscheidungen, beste zuerst. */
+export interface SammlungSuche {
+  urteile: {
+    sha256: string;
+    fundstellen: { nr: number; rn: number | null; ausschnitt: { vor: string; treffer: string; nach: string } }[];
+  }[];
+  treffer: number;
+}
+
+/** Anzeigename der Quelle einer gespeicherten Entscheidung. */
+export const URTEIL_QUELLE_NAME: Record<UrteilQuelle, string> = {
+  rii: "rechtsprechung-im-internet.de",
+  bayern: "gesetze-bayern.de",
+  neuris: "NeuRIS (Testphase)",
+  manuell: "Eigene Datei",
+};
+
+/** Kopfzeile einer Entscheidung: „BGH 8. Zivilsenat, Urteil vom 12.10.2016 – VIII ZR 103/15“. */
+export function urteilTitel(u: Pick<UrteilInfo, "gericht" | "datum" | "aktenzeichen" | "kopf">): string {
+  const gericht = [u.gericht, u.kopf?.spruchkoerper].filter(Boolean).join(" ");
+  const datum = u.datum ? `, ${u.kopf?.doktyp ?? "Entscheidung"} vom ${u.datum.split("-").reverse().join(".")}` : "";
+  return `${gericht}${datum}${u.aktenzeichen ? ` – ${u.aktenzeichen}` : ""}`;
+}
+
+/** Filter der Sammlung: Zuordnung, Quelle und freier Text über Gericht, Aktenzeichen, Titel und Akten. */
+export function sammlungPasst(
+  e: SammlungEintrag,
+  f: { zuordnung: "alle" | "zugeordnet" | "frei"; quelle: UrteilQuelle | "alle"; text: string },
+): boolean {
+  if (f.zuordnung === "zugeordnet" && !e.zugeordnet) return false;
+  if (f.zuordnung === "frei" && e.zugeordnet) return false;
+  if (f.quelle !== "alle" && e.quelle !== f.quelle) return false;
+  const woerter = f.text.toLocaleLowerCase("de-DE").split(/\s+/).filter(Boolean);
+  if (!woerter.length) return true;
+  const heuhaufen = [urteilTitel(e), e.kopf?.titel, e.kopf?.normen, e.herkunft, e.dateiname, ...e.akten.map((a) => a.name)]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase("de-DE");
+  return woerter.every((w) => heuhaufen.includes(w));
 }
 
 /** Selbst ergänzte bzw. geladene Entscheidungen über alle Akten, je Quelle. */

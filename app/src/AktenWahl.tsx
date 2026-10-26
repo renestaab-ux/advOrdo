@@ -16,15 +16,19 @@ function parteien(a: Akte): string {
  * Auswahl „Suchen in“ für die Volltextsuche: ein Knopf, der eine Liste mit Suchfeld öffnet. Ohne Eingabe stehen oben
  * „Alle Akten“ und die zuletzt geöffneten Akten; mit Eingabe die passenden Akten nach Aktenzeichen, Bezeichnung,
  * Parteien oder Gericht. Bedienbar mit Pfeiltasten, Eingabe und Escape. `akteId` null bedeutet „Alle Akten“.
+ *
+ * Mit `knopf` dient sie als „Akte zuordnen“: ohne die Zeile „Alle Akten“, der Knopf trägt diesen Text.
  */
 export default function AktenWahl({
   akten,
   akteId,
   onWahl,
+  knopf,
 }: {
   akten: Akte[];
   akteId: number | null;
   onWahl: (id: number | null) => void;
+  knopf?: string;
 }) {
   const [offen, setOffen] = useState(false);
   const [suche, setSuche] = useState("");
@@ -37,7 +41,7 @@ export default function AktenWahl({
   const { zeilen, weitere } = useMemo(() => {
     const z: Zeile[] = [];
     if (!suche.trim()) {
-      z.push({ art: "alle" });
+      if (!knopf) z.push({ art: "alle" });
       const zuletzt = zuletztGeoeffnet(akten, 5);
       if (zuletzt.length) {
         z.push({ art: "titel", text: "Zuletzt geöffnet" });
@@ -53,7 +57,7 @@ export default function AktenWahl({
     const passend = akten.filter((a) => aktePasst(a, suche));
     passend.slice(0, HOECHSTENS).forEach((a) => z.push({ art: "akte", akte: a }));
     return { zeilen: z, weitere: Math.max(0, passend.length - HOECHSTENS) };
-  }, [akten, suche]);
+  }, [akten, suche, knopf]);
 
   const waehlbar = zeilen.map((z, i) => (z.art === "titel" ? -1 : i)).filter((i) => i >= 0);
 
@@ -103,17 +107,25 @@ export default function AktenWahl({
   }
 
   return (
-    <div className="akten-wahl-feld" ref={rahmen}>
+    <div className={knopf ? "akten-wahl-feld als-knopf" : "akten-wahl-feld"} ref={rahmen}>
       <button
         type="button"
-        className="akten-wahl-knopf"
+        className={knopf ? "zweitrangig" : "akten-wahl-knopf"}
         aria-haspopup="listbox"
         aria-expanded={offen}
         onClick={() => setOffen(!offen)}
-        title={gewaehlt ? `Gesucht wird nur in der Akte ${gewaehlt.aktenzeichen ?? gewaehlt.name}` : "Gesucht wird in allen Akten"}
+        title={
+          knopf
+            ? undefined
+            : gewaehlt
+              ? `Gesucht wird nur in der Akte ${gewaehlt.aktenzeichen ?? gewaehlt.name}`
+              : "Gesucht wird in allen Akten"
+        }
       >
         <span className="akten-wahl-text">
-          {gewaehlt ? (
+          {knopf ? (
+            knopf
+          ) : gewaehlt ? (
             <>
               Akte: {gewaehlt.aktenzeichen && <strong>{gewaehlt.aktenzeichen}</strong>} {gewaehlt.name}
             </>

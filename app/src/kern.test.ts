@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   Akte,
+  SammlungEintrag,
+  sammlungPasst,
+  urteilTitel,
   FeldDef,
   bearbeitetText,
   kiModusName,
@@ -148,6 +151,45 @@ describe("Rechtsprechung", () => {
         gerichte: { BVerfG: { anzahl: 5, von: "1998-01-02", bis: null }, BGH: { anzahl: 40, von: "2010-01-04", bis: null } },
       }),
     ).toBe("BGH ab 2010, BVerfG ab 1998");
+  });
+});
+
+describe("Sammlung der Entscheidungen", () => {
+  const e: SammlungEintrag = {
+    id: 3,
+    akte_id: null,
+    zitat: null,
+    gericht: "BGH",
+    aktenzeichen: "VIII ZR 103/15",
+    datum: "2016-10-12",
+    quelle: "rii",
+    herkunft: "rechtsprechung-im-internet.de",
+    dateiname: "jb-KORE301892016.zip",
+    format: "rii",
+    sha256: "ab",
+    lesart: "datei",
+    hinzugefuegt_am: "2026-10-26T12:00:00",
+    hinweise: [],
+    doknr: "KORE301892016",
+    kopf: { spruchkoerper: "8. Zivilsenat", doktyp: "Urteil", normen: "§ 476 BGB", vorinstanz: [], titel: null },
+    akten: [{ akte_id: 1, name: "Brückner ./. Autohaus", urteil_id: 3, zitat: null }],
+    zugeordnet: true,
+  };
+
+  it("nennt Gericht, Spruchkörper, Art, Datum und Aktenzeichen", () => {
+    expect(urteilTitel(e)).toBe("BGH 8. Zivilsenat, Urteil vom 12.10.2016 – VIII ZR 103/15");
+    expect(urteilTitel({ gericht: "OLG Hamm", datum: null, aktenzeichen: null, kopf: null })).toBe("OLG Hamm");
+  });
+
+  it("filtert nach Zuordnung, Quelle und Text", () => {
+    const alle = { zuordnung: "alle" as const, quelle: "alle" as const, text: "" };
+    expect(sammlungPasst(e, alle)).toBe(true);
+    expect(sammlungPasst(e, { ...alle, zuordnung: "frei" })).toBe(false);
+    expect(sammlungPasst({ ...e, akten: [], zugeordnet: false }, { ...alle, zuordnung: "frei" })).toBe(true);
+    expect(sammlungPasst(e, { ...alle, quelle: "manuell" })).toBe(false);
+    expect(sammlungPasst(e, { ...alle, text: "viii zr brückner" })).toBe(true);
+    expect(sammlungPasst(e, { ...alle, text: "476" })).toBe(true);
+    expect(sammlungPasst(e, { ...alle, text: "OLG" })).toBe(false);
   });
 });
 

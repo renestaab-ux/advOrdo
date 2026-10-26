@@ -89,7 +89,7 @@ export default function Rechtsquellen({ onAkte }: { onAkte: () => void }) {
         </button>
         {geladen > 0 && (
           <p>
-            {geladen} {geladen === 1 ? "Volltext" : "Volltexte"} zu Akten geladen.
+            {geladen} {geladen === 1 ? "Volltext" : "Volltexte"} geladen und in der Sammlung („Rechtsprechung“).
           </p>
         )}
         <p className="grenze">
@@ -108,7 +108,7 @@ export default function Rechtsquellen({ onAkte }: { onAkte: () => void }) {
         </p>
         {anzahl("bayern") > 0 && (
           <p>
-            {anzahl("bayern")} {anzahl("bayern") === 1 ? "Volltext" : "Volltexte"} zu Akten geladen.
+            {anzahl("bayern")} {anzahl("bayern") === 1 ? "Volltext" : "Volltexte"} geladen und in der Sammlung („Rechtsprechung“).
           </p>
         )}
         <p className="grenze">
@@ -136,7 +136,7 @@ export default function Rechtsquellen({ onAkte }: { onAkte: () => void }) {
         </p>
         {anzahl("neuris") > 0 && (
           <p>
-            {anzahl("neuris")} {anzahl("neuris") === 1 ? "Volltext" : "Volltexte"} zu Akten geladen.
+            {anzahl("neuris")} {anzahl("neuris") === 1 ? "Volltext" : "Volltexte"} geladen und in der Sammlung („Rechtsprechung“).
           </p>
         )}
         <p className="grenze">Testbetrieb, ohne Gewähr: Die Schnittstelle kann sich ändern oder zeitweise fehlen.</p>
@@ -156,7 +156,7 @@ export default function Rechtsquellen({ onAkte }: { onAkte: () => void }) {
         <p>
           Ergänzt wird in der Akte unter „Rechtsprechung der Akte“: Bei jedem Zitat lässt sich eine eigene Datei als
           Volltext ablegen, besonders wenn die Entscheidung nicht im Verzeichnis steht (Instanzgerichte, EuGH, ältere
-          Entscheidungen).
+          Entscheidungen). Ohne Akte geht es im Bereich „Rechtsprechung“ mit „Eigene Datei hinzufügen …“.
         </p>
         <button className="zweitrangig" onClick={onAkte}>
           Zur Akte

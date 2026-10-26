@@ -201,6 +201,16 @@ class Kern:
             "akten.volltexte_laden": lambda akte_id, zitat=None: urteile.volltexte_laden(
                 self.akten, self.con, akte_id, self.archiv, zitat=zitat),
             "rechtsprechung.eigene": lambda: urteile.uebersicht(self.akten),
+            "rechtsprechung.sammlung": lambda: urteile.sammlung(self.akten),
+            "rechtsprechung.suche": lambda suchtext: urteile.suche(self.akten, suchtext),
+            "rechtsprechung.ergaenzen": lambda pfad, gericht, aktenzeichen=None, datum=None, herkunft=None,
+                akte_id=None: urteile.ergaenzen(self.akten, akte_id, pfad, self.ablage, gericht, aktenzeichen, datum,
+                                                None, herkunft),
+            "rechtsprechung.zuordnen": lambda urteil_id, akte_id: urteile.zuordnen(
+                self.akten, urteil_id, akte_id, self.ablage),
+            "rechtsprechung.loesen": lambda urteil_id: urteile.loesen(self.akten, urteil_id, self.ablage),
+            "rechtsprechung.entfernen": lambda urteil_id: urteile.aus_sammlung_entfernen(
+                self.akten, urteil_id, self.ablage),
             "akten.urteil": lambda urteil_id: urteile.volltext(self.akten, urteil_id),
             "akten.urteil_entfernen": lambda urteil_id: urteile.entfernen(self.akten, urteil_id, self.ablage),
             "rechtsprechung.stand": lambda: verzeichnis.stand(self.con),

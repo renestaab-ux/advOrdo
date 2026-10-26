@@ -3,6 +3,7 @@ import Akten, { Reiter } from "./Akten";
 import EigeneDaten from "./EigeneDaten";
 import Einstellungen, { EinstellungsReiter } from "./Einstellungen";
 import Gesetze from "./Gesetze";
+import Rechtsprechung from "./Rechtsprechung";
 import Beteiligte from "./Beteiligte";
 import Start, { StartZiel } from "./Start";
 import Suche from "./Suche";
@@ -14,7 +15,7 @@ import { useErinnerungen } from "./erinnerungen";
 import { KiModus, Marke, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
-type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "gesetze" | "einstellungen";
+type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "rechtsprechung" | "gesetze" | "einstellungen";
 
 // Vergleich und Analyse sind Reiter in der geöffneten Akte; die Toolbox und Eigene Daten erreicht man über Start,
 // die Rechtsquellen (Verzeichnisse der Rechtsprechung) über die Einstellungen.
@@ -23,6 +24,7 @@ const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
   { id: "akten", titel: "Akten", symbol: "akten" },
   { id: "beteiligte", titel: "Beteiligte", symbol: "beteiligte" },
   { id: "suche", titel: "Suche", symbol: "suche" },
+  { id: "rechtsprechung", titel: "Rechtsprechung", symbol: "rechtsprechung" },
   { id: "gesetze", titel: "Gesetze", symbol: "gesetze" },
   { id: "einstellungen", titel: "Einstellungen", symbol: "einstellungen" },
 ];
@@ -197,6 +199,9 @@ export default function App() {
         )}
         {bereich === "suche" && <Suche onAkte={oeffneAkte} />}
         {bereich === "beteiligte" && <Beteiligte onAkte={oeffneAkte} />}
+        {bereich === "rechtsprechung" && (
+          <Rechtsprechung onAkte={(id) => oeffneAkte(id, "rechtsprechung")} onQuellen={() => zuEinstellungen("rechtsquellen")} />
+        )}
         {bereich === "gesetze" && <Gesetze />}
         {bereich === "einstellungen" && (
           <Einstellungen
