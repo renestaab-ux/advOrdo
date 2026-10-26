@@ -12,6 +12,11 @@ wird.
 
 Ein Urteil gehört zu dem Zitat, für das es ergänzt wurde, und zu jedem anderen Zitat der Akte mit
 demselben Gericht und Aktenzeichen.
+
+Die Sammlung (Bereich „Rechtsprechung“) zeigt alle Entscheidungen über alle Akten. Eine Entscheidung kann
+auch ohne Akte dort stehen („nicht zugeordnet“, ``akte_id`` NULL) und später einer oder mehreren Akten
+zugeordnet werden; jede Zuordnung ist eine eigene Zeile mit eigener Kopie, damit das Löschen einer Akte
+die anderen nicht berührt.
 """
 
 from __future__ import annotations
@@ -25,12 +30,14 @@ import urllib.error
 from collections.abc import Callable
 from pathlib import Path
 
-from ..rechtsprechung import bayern, neuris, verzeichnis
+from ..rechtsprechung import bayern, kopfdaten, neuris, verzeichnis
 from ..rechtsprechung import volltext as rii
 from ..rechtsprechung.zitate import az_kern, normalisiere_az
 from . import lesen
 from .akte import _entferne_datei, _jetzt, _sha256
+from .modell import Dokument
 from .ocr import Tesseract
+from .suche import _AUF, _ZU, _ausschnitt, _treffer, abfrage
 
 MANUELL = "manuell"
 RII = "rii"
@@ -47,9 +54,19 @@ _QUELLEN = {
 log = logging.getLogger("juracore.urteile")
 
 
+# Ablage der selbst ergänzten Dateien, die keiner Akte zugeordnet sind.
+SAMMLUNG = "rechtsprechung"
+
+
+def _ordner(ablage: Path, akte_id: int | None) -> Path:
+    if akte_id is None:
+        return Path(ablage) / SAMMLUNG
+    return Path(ablage) / f"akte-{akte_id}" / "urteile"
+
+
 def ergaenzen(
     con: sqlite3.Connection,
-    akte_id: int,
+    akte_id: int | None,
     pfad: str | Path,
     ablage: Path,
     gericht: str,
@@ -58,10 +75,13 @@ def ergaenzen(
     zitat: str | None = None,
     herkunft: str | None = None,
     ocr: Tesseract | None | bool = True,
+    art: str | None = None,
 ) -> dict:
-    """Legt eine Entscheidung aus einer eigenen Datei (PDF, DOCX, TXT, MD) zur Akte ab."""
+    """Legt eine Entscheidung aus einer eigenen Datei (PDF, DOCX, TXT, MD) zur Akte ab; ohne Akte in die Sammlung.
+
+    ``art`` (Urteil, Beschluss …) steht wie bei geladenen Volltexten im Kopf (``kopf.doktyp``)."""
     pfad = Path(pfad)
-    if con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
+    if akte_id is not None and con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")
     if not pfad.is_file():
         raise FileNotFoundError(f"Datei nicht gefunden: {pfad}")
@@ -71,15 +91,15 @@ def ergaenzen(
     aktenzeichen = " ".join((aktenzeichen or "").split()) or None
     fmt = lesen.format_von(pfad)
     sha = _sha256(pfad)
-    vorhanden = con.execute("SELECT id FROM urteil WHERE akte_id = ? AND sha256 = ?", (akte_id, sha)).fetchone()
+    vorhanden = _vorhanden(con, akte_id, sha)
     if vorhanden:
         return {"urteil_id": vorhanden["id"], "neu": False, "dateiname": pfad.name}
 
-    dok = lesen.lies(pfad, ocr)
+    dok = _lies(pfad, ocr)
     if not any(a.text.strip() for a in dok.abschnitte):
         raise ValueError(f"In {pfad.name} wurde kein Text gefunden. " + " ".join(dok.hinweise))
 
-    ordner = Path(ablage) / f"akte-{akte_id}" / "urteile"
+    ordner = _ordner(ablage, akte_id)
     ordner.mkdir(parents=True, exist_ok=True)
     original = ordner / f"{sha}{pfad.suffix.lower()}"
     if not original.exists():
@@ -88,11 +108,11 @@ def ergaenzen(
     with con:
         urteil_id = con.execute(
             """INSERT INTO urteil (akte_id, zitat, gericht, aktenzeichen, az_norm, datum, quelle, herkunft,
-                                   dateiname, format, sha256, original, lesart, hinweise, hinzugefuegt_am)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                   dateiname, format, sha256, original, lesart, hinweise, hinzugefuegt_am, kopf)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (akte_id, zitat, gericht, aktenzeichen, normalisiere_az(aktenzeichen) if aktenzeichen else None,
              datum or None, MANUELL, (herkunft or "").strip() or None, pfad.name, fmt, sha, str(original),
-             dok.lesart, json.dumps(dok.hinweise, ensure_ascii=False), _jetzt()),
+             dok.lesart, json.dumps(dok.hinweise, ensure_ascii=False), _jetzt(), _kopf_art(art)),
         ).lastrowid
         con.executemany(
             "INSERT INTO urteil_abschnitt (urteil_id, nr, seite, rn, text) VALUES (?, ?, ?, ?, ?)",
@@ -102,9 +122,44 @@ def ergaenzen(
             "lesart": dok.lesart, "hinweise": dok.hinweise}
 
 
+# Zuletzt gelesene Datei: Der Vorschlag liest sie, das Ablegen gleich danach braucht denselben Text (bei Scans OCR).
+_GELESEN: dict[tuple, Dokument] = {}
+
+
+def _lies(pfad: Path, ocr: Tesseract | None | bool) -> Dokument:
+    st = pfad.stat()
+    schluessel = (str(pfad.resolve()), st.st_size, st.st_mtime_ns, bool(ocr))
+    if schluessel not in _GELESEN:
+        _GELESEN.clear()
+        _GELESEN[schluessel] = lesen.lies(pfad, ocr)
+    return _GELESEN[schluessel]
+
+
+def _kopf_art(art: str | None) -> str | None:
+    art = " ".join((art or "").split())
+    if not art:
+        return None
+    return json.dumps({"spruchkoerper": None, "doktyp": art, "normen": None, "vorinstanz": [], "titel": None},
+                      ensure_ascii=False)
+
+
+def vorschlag(pfad: str | Path, ocr: Tesseract | None | bool = True) -> dict:
+    """Liest eine eigene Datei und schlägt Gericht, Aktenzeichen, Datum, Art und Quelle vor, je mit Fundstelle."""
+    pfad = Path(pfad)
+    if not pfad.is_file():
+        raise FileNotFoundError(f"Datei nicht gefunden: {pfad}")
+    dok = _lies(pfad, ocr)
+    erkannt = kopfdaten.erkenne([(a.nr, a.seite, a.text) for a in dok.abschnitte])
+    return {"dateiname": pfad.name, "lesart": dok.lesart, "hinweise": dok.hinweise} | erkannt
+
+
+def _vorhanden(con: sqlite3.Connection, akte_id: int | None, sha: str) -> sqlite3.Row | None:
+    return con.execute("SELECT id FROM urteil WHERE akte_id IS ? AND sha256 = ?", (akte_id, sha)).fetchone()
+
+
 def _info(z: sqlite3.Row) -> dict:
-    return {k: z[k] for k in ("id", "zitat", "gericht", "aktenzeichen", "datum", "quelle", "herkunft",
-                              "dateiname", "format", "lesart", "hinzugefuegt_am", "doknr")} | {
+    return {k: z[k] for k in ("id", "akte_id", "zitat", "gericht", "aktenzeichen", "datum", "quelle", "herkunft",
+                              "dateiname", "format", "sha256", "lesart", "hinzugefuegt_am", "doknr")} | {
         "hinweise": json.loads(z["hinweise"]), "kopf": json.loads(z["kopf"]) if z["kopf"] else None}
 
 
@@ -119,13 +174,13 @@ def _doknr(entscheidung: dict | None) -> str | None:
 
 
 def _speichere_volltext(
-    con: sqlite3.Connection, akte_id: int, zitat: str, daten: bytes, archiv: Path,
+    con: sqlite3.Connection, akte_id: int | None, zitat: str | None, daten: bytes, archiv: Path,
     quelle: str = RII, entscheidung: dict | None = None,
 ) -> int:
     leser, herkunft, ordner, endung = _QUELLEN[quelle]
     v = leser(daten, entscheidung)
     sha, pfad = rii.archiviere(daten, archiv, ordner, endung)
-    vorhanden = con.execute("SELECT id FROM urteil WHERE akte_id = ? AND sha256 = ?", (akte_id, sha)).fetchone()
+    vorhanden = _vorhanden(con, akte_id, sha)
     if vorhanden:
         return vorhanden["id"]
     kopf = {"spruchkoerper": v.spruchkoerper, "doktyp": v.doktyp, "normen": v.normen,
@@ -184,10 +239,22 @@ def liste(con: sqlite3.Connection, akte_id: int) -> list[dict]:
     return [_info(z) for z in zeilen]
 
 
+def zur_bearbeitung(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int) -> list[dict]:
+    """Entscheidungen, die der Akte aus der Sammlung zugeordnet sind, ohne dass ein Dokument der Akte sie zitiert
+    (Abschnitt „Zur weiteren Bearbeitung zugeordnet“ im Reiter Rechtsprechung der Akte)."""
+    from .akte import rechtsprechung
+
+    zitiert = {g["urteil"]["id"] for g in rechtsprechung(con, wissen, akte_id, online_quellen=set()) if g["urteil"]}
+    return sorted((u for u in liste(con, akte_id) if u["id"] not in zitiert),
+                  key=lambda u: (u["datum"] or "", u["id"]), reverse=True)
+
+
 def uebersicht(con: sqlite3.Connection) -> dict:
-    """Wie viele Entscheidungen aus welcher Quelle über alle Akten vorliegen."""
+    """Wie viele Entscheidungen aus welcher Quelle in der Sammlung stehen; je Datei einmal, auch wenn sie mehreren
+    Akten zugeordnet ist."""
     zeilen = con.execute(
-        "SELECT quelle, COALESCE(herkunft, '') AS herkunft, COUNT(*) AS n FROM urteil GROUP BY quelle, herkunft"
+        """SELECT quelle, COALESCE(herkunft, '') AS herkunft, COUNT(DISTINCT sha256) AS n FROM urteil
+           GROUP BY quelle, herkunft"""
     ).fetchall()
     return {"gesamt": sum(z["n"] for z in zeilen),
             "quellen": [{"quelle": z["quelle"], "herkunft": z["herkunft"] or None, "anzahl": z["n"]} for z in zeilen]}
@@ -237,3 +304,149 @@ def entfernen(con: sqlite3.Connection, urteil_id: int, ablage: Path | None = Non
         except OSError as fehler:
             hinweis = f"Die abgelegte Kopie konnte nicht entfernt werden ({fehler}): {z['original']}"
     return {"urteil_id": urteil_id, "dateiname": z["dateiname"], "hinweis": hinweis}
+
+
+# --- Sammlung über alle Akten -------------------------------------------------------------------------
+
+
+def sammlung(con: sqlite3.Connection) -> list[dict]:
+    """Alle Entscheidungen, je Datei (SHA-256) einmal, mit den Akten, denen sie zugeordnet sind.
+
+    Vertreten wird eine Entscheidung durch ihre Zeile ohne Akte, sonst durch die älteste Zuordnung; ``akten``
+    nennt je Akte die Zeile, über die sie dort geöffnet oder gelöst wird.
+    """
+    gruppen: dict[str, dict] = {}
+    for z in con.execute(
+        """SELECT u.*, k.name AS akte_name FROM urteil u LEFT JOIN akte k ON k.id = u.akte_id
+           ORDER BY u.akte_id IS NOT NULL, u.id"""
+    ):
+        g = gruppen.get(z["sha256"])
+        if g is None:
+            g = gruppen[z["sha256"]] = _info(z) | {"akten": [], "zugeordnet": False}
+        if z["akte_id"] is not None:
+            g["akten"].append({"akte_id": z["akte_id"], "name": z["akte_name"], "urteil_id": z["id"],
+                               "zitat": z["zitat"]})
+            g["zugeordnet"] = True
+    return sorted(gruppen.values(), key=lambda g: (g["datum"] or "", g["id"]), reverse=True)
+
+
+def _gleiche(con: sqlite3.Connection, urteil_id: int) -> tuple[sqlite3.Row, list[sqlite3.Row]]:
+    z = con.execute("SELECT * FROM urteil WHERE id = ?", (urteil_id,)).fetchone()
+    if z is None:
+        raise LookupError(f"Urteil {urteil_id} gibt es nicht.")
+    return z, con.execute("SELECT * FROM urteil WHERE sha256 = ? ORDER BY id", (z["sha256"],)).fetchall()
+
+
+def zuordnen(con: sqlite3.Connection, urteil_id: int, akte_id: int, ablage: Path) -> dict:
+    """Ordnet eine Entscheidung der Sammlung einer Akte zu.
+
+    Steht sie noch ohne Akte in der Sammlung, wandert diese Zeile zur Akte. Gehört sie schon zu anderen Akten,
+    bekommt die Akte eine eigene Zeile; eine selbst ergänzte Datei wird dafür in die Ablage der Akte kopiert.
+    """
+    if con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
+        raise LookupError(f"Akte {akte_id} gibt es nicht.")
+    z, alle = _gleiche(con, urteil_id)
+    if vorhanden := next((u for u in alle if u["akte_id"] == akte_id), None):
+        return {"urteil_id": vorhanden["id"], "neu": False}
+    if frei := next((u for u in alle if u["akte_id"] is None), None):
+        original = _verschiebe(Path(frei["original"]), frei["quelle"], ablage, akte_id)
+        with con:
+            con.execute("UPDATE urteil SET akte_id = ?, original = ? WHERE id = ?",
+                        (akte_id, str(original), frei["id"]))
+        return {"urteil_id": frei["id"], "neu": True}
+    original = Path(z["original"])
+    if z["quelle"] == MANUELL:
+        ziel = _ordner(ablage, akte_id)
+        ziel.mkdir(parents=True, exist_ok=True)
+        kopie = ziel / original.name
+        if not kopie.exists():
+            shutil.copyfile(original, kopie)
+        original = kopie
+    spalten = [k for k in z.keys() if k not in ("id", "akte_id", "zitat", "original", "hinzugefuegt_am")]
+    with con:
+        neu = con.execute(
+            f"""INSERT INTO urteil (akte_id, zitat, original, hinzugefuegt_am, {", ".join(spalten)})
+                VALUES (?, NULL, ?, ?, {", ".join("?" * len(spalten))})""",
+            (akte_id, str(original), _jetzt(), *(z[k] for k in spalten)),
+        ).lastrowid
+        con.execute(
+            """INSERT INTO urteil_abschnitt (urteil_id, nr, seite, rn, text, teil)
+               SELECT ?, nr, seite, rn, text, teil FROM urteil_abschnitt WHERE urteil_id = ?""",
+            (neu, z["id"]),
+        )
+    return {"urteil_id": neu, "neu": True}
+
+
+def _verschiebe(original: Path, quelle: str, ablage: Path, akte_id: int | None) -> Path:
+    """Selbst ergänzte Datei in den Ordner der neuen Zuordnung; geladene Volltexte bleiben im Roharchiv."""
+    if quelle != MANUELL or not original.exists():
+        return original
+    ziel = _ordner(ablage, akte_id) / original.name
+    if ziel == original:
+        return original
+    ziel.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(original, ziel)
+    return ziel
+
+
+def loesen(con: sqlite3.Connection, urteil_id: int, ablage: Path) -> dict:
+    """Löst eine Entscheidung von ihrer Akte; sie bleibt in der Sammlung.
+
+    Ist sie noch anderen Akten zugeordnet oder steht sie schon ohne Akte in der Sammlung, entfällt nur diese
+    Zuordnung. Sonst steht sie danach „nicht zugeordnet“ in der Sammlung, die eigene Datei im Ordner der Sammlung.
+    """
+    z, alle = _gleiche(con, urteil_id)
+    if z["akte_id"] is None:
+        return {"urteil_id": urteil_id, "geloest": False}
+    if len(alle) > 1:
+        entfernen(con, urteil_id, ablage)
+        return {"urteil_id": next(u["id"] for u in alle if u["id"] != urteil_id), "geloest": True}
+    original = _verschiebe(Path(z["original"]), z["quelle"], ablage, None)
+    with con:
+        con.execute("UPDATE urteil SET akte_id = NULL, zitat = NULL, original = ? WHERE id = ?",
+                    (str(original), urteil_id))
+    return {"urteil_id": urteil_id, "geloest": True}
+
+
+def aus_sammlung_entfernen(con: sqlite3.Connection, urteil_id: int, ablage: Path) -> dict:
+    """Entfernt eine Entscheidung ganz: aus der Sammlung und aus allen Akten, denen sie zugeordnet ist."""
+    _z, alle = _gleiche(con, urteil_id)
+    hinweise = [h for u in alle if (h := entfernen(con, u["id"], ablage)["hinweis"])]
+    return {"entfernt": len(alle), "hinweise": hinweise}
+
+
+MAX_TREFFER = 200
+
+
+def suche(con: sqlite3.Connection, suchtext: str) -> dict:
+    """Volltextsuche in den gespeicherten Entscheidungen: je Entscheidung die Fundstellen mit Randnummer."""
+
+    fts = abfrage(suchtext)
+    if not fts:
+        return {"urteile": [], "treffer": 0}
+    zeilen = con.execute(
+        f"""SELECT u.id AS urteil_id, u.sha256, a.nr, a.rn, bm25(urteil_fts) AS gewicht,
+                   highlight(urteil_fts, 0, '{_AUF}', '{_ZU}') AS markiert
+            FROM urteil_fts
+            JOIN urteil_abschnitt a ON a.rowid = urteil_fts.rowid
+            JOIN urteil u ON u.id = a.urteil_id
+            WHERE urteil_fts MATCH ?
+            ORDER BY gewicht
+            LIMIT {MAX_TREFFER * 20}""",
+        (fts,),
+    ).fetchall()
+    # Je Datei nur eine Zeile auswerten; Kopien in weiteren Akten haben denselben Text.
+    zeile_je_datei: dict[str, int] = {}
+    gruppen: dict[str, dict] = {}
+    for z in zeilen:
+        if zeile_je_datei.setdefault(z["sha256"], z["urteil_id"]) != z["urteil_id"]:
+            continue
+        g = gruppen.setdefault(z["sha256"], {"sha256": z["sha256"], "gewicht": z["gewicht"], "fundstellen": []})
+        for start, ende, text, _wort in _treffer(z["markiert"]):
+            g["fundstellen"].append({"nr": z["nr"], "rn": z["rn"], "ausschnitt": _ausschnitt(text, start, ende)})
+            break  # je Absatz der erste Treffer genügt für die Liste
+    ergebnis = sorted(gruppen.values(), key=lambda g: g["gewicht"])[:MAX_TREFFER]
+    for g in ergebnis:
+        g["fundstellen"].sort(key=lambda f: f["nr"])
+        del g["gewicht"]
+    return {"urteile": ergebnis, "treffer": sum(len(g["fundstellen"]) for g in ergebnis)}

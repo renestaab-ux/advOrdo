@@ -546,6 +546,22 @@ Entscheidung dann aus dieser Quelle: bei Bayern das ZIP (Archiv `RECHTSPRECHUNG/
 (`RECHTSPRECHUNG/neuris/`), jeweils unverändert unter der SHA-256-Prüfsumme. Die Ergebnisse der Online-Prüfung
 sind öffentliche Angaben ohne Bezug zur Akte und liegen in der Wissensbasis; ein Zitat wird nur einmal abgefragt.
 
+**Sammlung im Bereich „Rechtsprechung“:** Dort stehen alle gespeicherten Entscheidungen aus allen Akten, je Datei
+einmal, mit Quelle und den Akten, denen sie zugeordnet sind, oder „nicht zugeordnet“. Filter nach Zuordnung und
+Quelle, ein Feld zum Eingrenzen (Gericht, Aktenzeichen, Akte) und eine Volltextsuche im Text aller gespeicherten
+Entscheidungen (Treffer mit Randnummer, Klick springt dorthin). Ein Klick auf die Karte öffnet den Volltext rechts;
+die Trennlinie dazwischen lässt sich verschieben (Doppelklick: zurück auf Standard), „Volltext schließen“ steht oben
+in der Volltextleiste. **Eigene Datei hinzufügen …** legt eine Entscheidung
+ohne Akte ab (`<Ablage>/rechtsprechung/`); Gericht, Aktenzeichen, Datum, Art und Quelle schlägt die App dabei aus dem
+Kopf des Dokuments vor (beschriftete Felder wie bei juris und openJur, Zitierzeile wie bei beck-online oder Kopf einer
+Ausfertigung mit „Verkündet am …“), jeweils mit Fundstelle zum Prüfen; **Akte zuordnen …** ordnet sie einer oder mehreren Akten zu, das × an
+einer Akte löst die Zuordnung (die Entscheidung bleibt in der Sammlung), **entfernen** nimmt sie ganz heraus, auch
+aus allen Akten. Wird eine Akte gelöscht, verschwinden ihre Zuordnungen; die anderen bleiben. In der Akte stehen
+zugeordnete Entscheidungen, die in ihren Dokumenten nicht zitiert sind, im Reiter „Rechtsprechung“ unter **Zur
+weiteren Bearbeitung zugeordnet** (mit Volltext und „Zuordnung lösen“); Chat und Gegenüberstellung beziehen sie mit
+ein. Die Online-Suche
+nach Entscheidungen (wie in JuraBox Lite) folgt in einem späteren Schritt.
+
 Nutzung: Nach den Nutzungshinweisen von gesetze-bayern.de dürfen Vorschriften und Entscheidungen uneingeschränkt
 weiterverwendet werden; die redaktionellen Leitsätze (C.H.Beck) sind urheberrechtlich geschützt, die Datenbank
 nach §§ 87a ff. UrhG. Gerichtsentscheidungen sind amtliche Werke (§ 5 UrhG). Die App ruft deshalb nur einzelne

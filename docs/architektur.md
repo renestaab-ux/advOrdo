@@ -137,6 +137,19 @@ verwendeten Stand; „Zitate neu prüfen“ prüft auch diese erneut. RPC: `akte
 `rechtsprechung.stand`, `rechtsprechung.laden`, `rechtsprechung.laden_datei`. Kommandozeile:
 `juracore rechtsprechung-laden [--datei]`, `juracore urteil "<zitat>"`.
 
+Sammlung (`juracore.dokumente.urteile`, Schema 8, Bereich „Rechtsprechung“): `urteil.akte_id` darf NULL sein, dann
+steht die Entscheidung ohne Akte in der Sammlung (eigene Dateien unter `<Ablage>/rechtsprechung/`). Akten aus
+Schema 7 und älter werden beim Öffnen umgestellt; SQLite kann NOT NULL nicht entfernen, die Tabelle wird deshalb mit
+abgeschalteten Fremdschlüsseln und gleichen Zeilennummern neu angelegt. Jede Zuordnung zu einer Akte ist eine eigene
+Zeile mit eigenen Absätzen (und bei eigenen Dateien eigener Kopie), damit das Löschen einer Akte die übrigen
+Zuordnungen nicht berührt; `sammlung` fasst die Zeilen je SHA-256 zusammen. `urteil_fts` ist ein FTS5-Index über
+`urteil_abschnitt.text` (Trigger, beim ersten Öffnen `rebuild`). RPC: `rechtsprechung.sammlung`,
+`rechtsprechung.suche(suchtext)`, `rechtsprechung.vorschlag(pfad)` (Kopfdaten aus dem Text,
+`juracore.rechtsprechung.kopfdaten`, je Wert mit Fundstelle), `rechtsprechung.ergaenzen(pfad, gericht, …, art)`, `rechtsprechung.zuordnen(urteil_id,
+akte_id)`, `rechtsprechung.loesen(urteil_id)`, `rechtsprechung.entfernen(urteil_id)`. Für die Akte liefert `akten.urteile_zugeordnet(akte_id)`
+(`urteile.zur_bearbeitung`) die zugeordneten Entscheidungen, die kein Zitat der Akte trifft (Abschnitt „Zur weiteren
+Bearbeitung zugeordnet“).
+
 Dokumentansicht (`juracore.dokumente.ansicht`): `akten.seitenbild(dokument_id, seite, breite)` rendert eine Seite der
 abgelegten PDF-Kopie mit PDFium und gibt sie als PNG-Data-URL zurück (eigener PNG-Kodierer über `zlib`, kein Pillow;
 Breite 200 bis 2400 Pixel). Die Oberfläche hat keine Dateirechte; sie fordert nur die Seiten an, die sichtbar werden.

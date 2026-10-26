@@ -198,9 +198,21 @@ class Kern:
                 herkunft=None: urteile.ergaenzen(self.akten, akte_id, pfad, self.ablage, gericht, aktenzeichen, datum,
                                                  zitat, herkunft),
             "akten.urteile": lambda akte_id: urteile.liste(self.akten, akte_id),
+            "akten.urteile_zugeordnet": lambda akte_id: urteile.zur_bearbeitung(self.akten, self.con, akte_id),
             "akten.volltexte_laden": lambda akte_id, zitat=None: urteile.volltexte_laden(
                 self.akten, self.con, akte_id, self.archiv, zitat=zitat),
             "rechtsprechung.eigene": lambda: urteile.uebersicht(self.akten),
+            "rechtsprechung.sammlung": lambda: urteile.sammlung(self.akten),
+            "rechtsprechung.suche": lambda suchtext: urteile.suche(self.akten, suchtext),
+            "rechtsprechung.vorschlag": lambda pfad: urteile.vorschlag(pfad),
+            "rechtsprechung.ergaenzen": lambda pfad, gericht, aktenzeichen=None, datum=None, herkunft=None,
+                akte_id=None, art=None: urteile.ergaenzen(self.akten, akte_id, pfad, self.ablage, gericht,
+                                                          aktenzeichen, datum, None, herkunft, art=art),
+            "rechtsprechung.zuordnen": lambda urteil_id, akte_id: urteile.zuordnen(
+                self.akten, urteil_id, akte_id, self.ablage),
+            "rechtsprechung.loesen": lambda urteil_id: urteile.loesen(self.akten, urteil_id, self.ablage),
+            "rechtsprechung.entfernen": lambda urteil_id: urteile.aus_sammlung_entfernen(
+                self.akten, urteil_id, self.ablage),
             "akten.urteil": lambda urteil_id: urteile.volltext(self.akten, urteil_id),
             "akten.urteil_entfernen": lambda urteil_id: urteile.entfernen(self.akten, urteil_id, self.ablage),
             "rechtsprechung.stand": lambda: verzeichnis.stand(self.con),

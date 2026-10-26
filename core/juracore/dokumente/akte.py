@@ -37,7 +37,33 @@ from . import datum, lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
+
+_URTEIL = """
+-- Entscheidungen im Volltext: selbst ergänzt (z. B. PDF aus juris) oder geladen. Gehören zu einer Akte oder
+-- stehen ohne Akte in der Sammlung (Bereich „Rechtsprechung“, akte_id NULL).
+CREATE TABLE IF NOT EXISTS {name} (
+    id              INTEGER PRIMARY KEY,
+    akte_id         INTEGER REFERENCES akte(id) ON DELETE CASCADE,
+    zitat           TEXT,                   -- Zitat der Akte, zu dem die Entscheidung ergänzt wurde
+    gericht         TEXT NOT NULL,
+    aktenzeichen    TEXT,
+    az_norm         TEXT,
+    datum           TEXT,
+    quelle          TEXT NOT NULL,          -- manuell oder rii (rechtsprechung-im-internet.de)
+    herkunft        TEXT,                   -- z. B. "juris", "beck-online" oder die Adresse des Abrufs
+    dateiname       TEXT NOT NULL,
+    format          TEXT NOT NULL,
+    sha256          TEXT NOT NULL,
+    original        TEXT NOT NULL,          -- Pfad der unverändert abgelegten Datei
+    lesart          TEXT NOT NULL,
+    hinweise        TEXT NOT NULL,          -- JSON-Liste
+    hinzugefuegt_am TEXT NOT NULL,
+    doknr           TEXT,                   -- Dokumentnummer bei rechtsprechung-im-internet.de
+    kopf            TEXT,                   -- JSON: Spruchkörper, Art, Normen, Vorinstanzen, Titel
+    UNIQUE (akte_id, sha256)
+);
+"""
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS akte (
@@ -161,29 +187,7 @@ CREATE TABLE IF NOT EXISTS urteilszitat (
 );
 CREATE INDEX IF NOT EXISTS urteilszitat_abschnitt ON urteilszitat (abschnitt_id);
 
--- Entscheidungen, die zur Akte im Volltext vorliegen: selbst ergänzt (z. B. PDF aus juris) oder geladen.
-CREATE TABLE IF NOT EXISTS urteil (
-    id              INTEGER PRIMARY KEY,
-    akte_id         INTEGER NOT NULL REFERENCES akte(id) ON DELETE CASCADE,
-    zitat           TEXT,                   -- Zitat der Akte, zu dem die Entscheidung ergänzt wurde
-    gericht         TEXT NOT NULL,
-    aktenzeichen    TEXT,
-    az_norm         TEXT,
-    datum           TEXT,
-    quelle          TEXT NOT NULL,          -- manuell oder rii (rechtsprechung-im-internet.de)
-    herkunft        TEXT,                   -- z. B. "juris", "beck-online" oder die Adresse des Abrufs
-    dateiname       TEXT NOT NULL,
-    format          TEXT NOT NULL,
-    sha256          TEXT NOT NULL,
-    original        TEXT NOT NULL,          -- Pfad der unverändert abgelegten Datei
-    lesart          TEXT NOT NULL,
-    hinweise        TEXT NOT NULL,          -- JSON-Liste
-    hinzugefuegt_am TEXT NOT NULL,
-    doknr           TEXT,                   -- Dokumentnummer bei rechtsprechung-im-internet.de
-    kopf            TEXT,                   -- JSON: Spruchkörper, Art, Normen, Vorinstanzen, Titel
-    UNIQUE (akte_id, sha256)
-);
-
+{urteil}
 CREATE TABLE IF NOT EXISTS urteil_abschnitt (
     urteil_id       INTEGER NOT NULL REFERENCES urteil(id) ON DELETE CASCADE,
     nr              INTEGER NOT NULL,
@@ -208,7 +212,20 @@ CREATE TRIGGER IF NOT EXISTS abschnitt_fts_neu_text AFTER UPDATE OF text ON absc
     INSERT INTO abschnitt_fts (abschnitt_fts, rowid, text) VALUES ('delete', old.id, old.text);
     INSERT INTO abschnitt_fts (rowid, text) VALUES (new.id, new.text);
 END;
+-- Volltextsuche in den gespeicherten Entscheidungen (juracore.dokumente.urteile.suche).
+CREATE VIRTUAL TABLE IF NOT EXISTS urteil_fts USING fts5(
+    text, content='urteil_abschnitt', content_rowid='rowid', tokenize='unicode61 remove_diacritics 2'
+);
+CREATE TRIGGER IF NOT EXISTS urteil_fts_neu AFTER INSERT ON urteil_abschnitt BEGIN
+    INSERT INTO urteil_fts (rowid, text) VALUES (new.rowid, new.text);
+END;
+CREATE TRIGGER IF NOT EXISTS urteil_fts_weg AFTER DELETE ON urteil_abschnitt BEGIN
+    INSERT INTO urteil_fts (urteil_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+END;
 """
+
+
+_SCHEMA = _SCHEMA.replace("{urteil}", _URTEIL.format(name="urteil"))
 
 
 def oeffne(pfad: str | Path) -> sqlite3.Connection:
@@ -221,12 +238,18 @@ def oeffne(pfad: str | Path) -> sqlite3.Connection:
     con.execute("PRAGMA secure_delete = ON")
     con.execute("PRAGMA journal_mode = WAL")
     ohne_suchindex = not con.execute("SELECT 1 FROM sqlite_master WHERE name = 'abschnitt_fts'").fetchone()
+    ohne_urteilsindex = not con.execute("SELECT 1 FROM sqlite_master WHERE name = 'urteil_fts'").fetchone()
     con.executescript(_SCHEMA)
     if ohne_suchindex:
         # Akten aus Version 4 und älter: vorhandene Texte einmalig in den Suchindex aufnehmen.
         con.execute("INSERT INTO abschnitt_fts (abschnitt_fts) VALUES ('rebuild')")
         con.commit()
+    if ohne_urteilsindex:
+        # Akten aus Version 7 und älter: vorhandene Entscheidungen einmalig in den Suchindex aufnehmen.
+        con.execute("INSERT INTO urteil_fts (urteil_fts) VALUES ('rebuild')")
+        con.commit()
     _migriere(con)
+    _urteil_ohne_akte(con)
     _daten_nachtragen(con)
     _fassungen_nachtragen(con)
     con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -248,6 +271,34 @@ def _migriere(con: sqlite3.Connection) -> None:
                                  *(("dokument", s, t) for s, t in _DATUM_SPALTEN.items())):
         if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
             con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
+
+
+def _urteil_ohne_akte(con: sqlite3.Connection) -> None:
+    """Akten aus Version 7 und älter: Entscheidungen dürfen ohne Akte in der Sammlung stehen (akte_id NULL).
+
+    SQLite kann NOT NULL nicht nachträglich entfernen; die Tabelle wird deshalb mit gleichen Zeilen und Nummern neu
+    angelegt. Fremdschlüssel sind dabei aus, damit die Absätze (urteil_abschnitt) nicht mitgelöscht werden.
+    """
+    spalte = next(z for z in con.execute("PRAGMA table_info(urteil)") if z["name"] == "akte_id")
+    if not spalte["notnull"]:
+        return
+    spalten = ", ".join(z["name"] for z in con.execute("PRAGMA table_info(urteil)"))
+    con.commit()
+    con.execute("PRAGMA foreign_keys = OFF")  # wirkt nur außerhalb einer Transaktion
+    try:
+        # Eine Transaktion: Bricht der Umbau ab, bleibt die alte Tabelle unverändert.
+        con.execute("BEGIN")
+        con.execute("DROP TABLE IF EXISTS urteil_neu")
+        con.execute(_URTEIL.format(name="urteil_neu"))
+        con.execute(f"INSERT INTO urteil_neu ({spalten}) SELECT {spalten} FROM urteil")
+        con.execute("DROP TABLE urteil")
+        con.execute("ALTER TABLE urteil_neu RENAME TO urteil")
+        con.commit()
+    except BaseException:
+        con.rollback()
+        raise
+    finally:
+        con.execute("PRAGMA foreign_keys = ON")
 
 
 def _fassungen_nachtragen(con: sqlite3.Connection) -> None:
