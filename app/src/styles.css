@@ -79,6 +79,7 @@ body { margin: 0; background: var(--hintergrund); }
 .marke.mit-logo .nav-text { white-space: normal; font-size: 15px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .eingeklappt .marke.mit-logo { margin-left: 0; justify-content: center; }
 .eingeklappt .marke.mit-logo .marke-zeichen { max-width: 40px; }
+.eingeklappt .marke.mit-logo .nav-text { display: none; }
 .marke .nav-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .eingeklappt .nav-eintrag { justify-content: center; padding: 8px 0; }
 .eingeklappt .modus, .eingeklappt .umgebung-anzeige { justify-content: center; padding-left: 0; padding-right: 0; }
