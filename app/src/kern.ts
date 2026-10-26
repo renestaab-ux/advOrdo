@@ -1664,6 +1664,13 @@ export interface EigeneDaten {
   hinweise: string[];
 }
 
+/** Logo (data-URL) und Kurzbezeichnung der aktiven Umgebung, dazu der Name aus „Eigene Daten“. */
+export interface Marke {
+  logo: string | null;
+  kurzbezeichnung: string;
+  name: string;
+}
+
 export interface EigeneKurzstand {
   text: string;
   eingerichtet: boolean;

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Akten, { Reiter } from "./Akten";
 import EigeneDaten from "./EigeneDaten";
-import Diagnose from "./Diagnose";
-import Einstellungen from "./Einstellungen";
+import Einstellungen, { EinstellungsReiter } from "./Einstellungen";
 import Gesetze from "./Gesetze";
 import Rechtsprechung from "./Rechtsprechung";
 import Beteiligte from "./Beteiligte";
@@ -13,10 +12,10 @@ import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
 import { useErinnerungen } from "./erinnerungen";
-import { KiModus, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName } from "./kern";
+import { KiModus, Marke, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
-type Bereich = "start" | "eigene" | "toolbox" | "diagnose" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
+type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "gesetze" | "rechtsprechung" | "einstellungen";
 
 // Vergleich und Analyse sind Reiter in der geöffneten Akte; die Toolbox und Eigene Daten erreicht man über Start.
 const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
@@ -56,11 +55,24 @@ export default function App() {
     }
   }
   const umgebung = aktiveUmgebung(umgebungen);
+  // Kanzlei- bzw. Firmenlogo und Kurzbezeichnung; gehören zur Umgebung. Neu geladen bei jedem Bereichswechsel,
+  // damit ein in „Eigene Daten“ geänderter Name gleich auf der Startseite steht.
+  const [marke, setMarke] = useState<Marke | null>(null);
+  useEffect(() => {
+    if (istDesktop) void kern<Marke>("marke.lesen").then(setMarke, () => setMarke(null));
+  }, [stand, bereich]);
   // Mitteilungen des Systems bei Vorfrist, Ablauf und Terminen, solange die App läuft.
   useErinnerungen(umgebungen ? umgebungen.aktiv : undefined);
   // „Akte anlegen“ (Startbildschirm oder „+ Neue Akte“): eigene Seite für den Anlegeprozess.
   const [anlegen, setAnlegen] = useState(false);
   const [reiterWunsch, setReiterWunsch] = useState<{ reiter: Reiter } | null>(null);
+  // Gewählter Reiter in den Einstellungen; Hinweise in der App führen direkt zum passenden Thema.
+  const [einstellungsReiter, setEinstellungsReiter] = useState<EinstellungsReiter>("allgemeines");
+
+  function zuEinstellungen(reiter?: EinstellungsReiter) {
+    if (reiter) setEinstellungsReiter(reiter);
+    setBereich("einstellungen");
+  }
 
   function einklappen() {
     setEingeklappt(!eingeklappt);
@@ -94,14 +106,14 @@ export default function App() {
   return (
     <div className={eingeklappt ? "rahmen eingeklappt" : "rahmen"}>
       <nav className="navigation" aria-label="Bereiche">
-        <div className="marke">
-          <img className="marke-zeichen" src={jurabox} alt="" aria-hidden />
-          <span className="nav-text">JuraBox</span>
+        <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "JuraBox"}>
+          <img className="marke-zeichen" src={marke?.logo ?? jurabox} alt="" aria-hidden />
+          <span className="nav-text">{marke?.kurzbezeichnung || "JuraBox"}</span>
         </div>
         {BEREICHE.map((b) => (
           <button
             key={b.id}
-            className={b.id === bereich || (b.id === "einstellungen" && bereich === "diagnose") ? "nav-eintrag aktiv" : "nav-eintrag"}
+            className={b.id === bereich ? "nav-eintrag aktiv" : "nav-eintrag"}
             aria-current={b.id === bereich ? "page" : undefined}
             onClick={() => {
               // „Akten“ in der Leiste führt immer zur Übersicht, auch aus einer geöffneten Akte.
@@ -121,7 +133,7 @@ export default function App() {
           {modus?.aktiv === "extern" ? (
             <button
               className="modus extern"
-              onClick={() => setBereich("einstellungen")}
+              onClick={() => zuEinstellungen("extern")}
               title="Analyse und Chat senden Fragen und Dokumenttexte an diesen Anbieter. Umstellen unter „Einstellungen“."
             >
               <span className="modus-punkt" aria-hidden />
@@ -143,7 +155,7 @@ export default function App() {
           {umgebung && (
             <button
               className="umgebung-anzeige"
-              onClick={() => setBereich("einstellungen")}
+              onClick={() => zuEinstellungen("umgebungen")}
               title={`Umgebung: ${umgebung.name}. Akten und Analysen gehören zu dieser Umgebung. Wechseln unter „Einstellungen“.`}
             >
               <span className="nav-text">
@@ -169,6 +181,7 @@ export default function App() {
             onAkte={oeffneAkte}
             modus={modus}
             umgebung={umgebung?.name ?? null}
+            marke={marke}
           />
         )}
         {bereich === "toolbox" && <Toolbox />}
@@ -180,7 +193,7 @@ export default function App() {
             akteId={akteId}
             setAkteId={setAkteId}
             reiterWunsch={reiterWunsch}
-            onEinstellungen={() => setBereich("einstellungen")}
+            onEinstellungen={() => zuEinstellungen("ki")}
           />
         )}
         {bereich === "suche" && <Suche onAkte={oeffneAkte} />}
@@ -189,14 +202,16 @@ export default function App() {
         {bereich === "rechtsprechung" && <Rechtsprechung onAkte={() => setBereich("akten")} />}
         {bereich === "einstellungen" && (
           <Einstellungen
+            reiter={einstellungsReiter}
+            onReiter={setEinstellungsReiter}
+            marke={marke}
+            onMarke={setMarke}
             onGeaendert={ladeModus}
             umgebungen={umgebungen}
             onUmgebungen={umgebungGeaendert}
             onEigeneDaten={() => setBereich("eigene")}
-            onDiagnose={() => setBereich("diagnose")}
           />
         )}
-        {bereich === "diagnose" && <Diagnose onZurueck={() => setBereich("einstellungen")} />}
       </main>
     </div>
   );

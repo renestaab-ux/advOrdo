@@ -25,6 +25,7 @@ from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, noti
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
 from .dokumente import akte, ansicht, fassungen, lesen, ocr, suche, urteile
 from .eigene import daten as eigene
+from .eigene import marke
 from .eigene.felder import FELDER, FORMEN
 from .gesetze import quelle, wissensbasis
 from .ki import anbieter as ki_anbieter
@@ -89,6 +90,11 @@ class Kern:
             "eigene.aenderungen": lambda limit=50: eigene.aenderungen(self.akten, limit),
             "eigene.exportieren": lambda pfad: eigene.exportieren(self.akten, pfad),
             "eigene.importieren": lambda pfad, ersetzen=False: eigene.importieren(self.akten, pfad, ersetzen),
+            # Logo und Kurzbezeichnung für Leiste und Startseite (Einstellungen → Allgemeines), je Umgebung.
+            "marke.lesen": lambda: marke.lesen(self.umgebungen.ordner(), self.akten),
+            "marke.logo_setzen": lambda pfad: marke.logo_setzen(self.umgebungen.ordner(), self.akten, pfad),
+            "marke.logo_entfernen": lambda: marke.logo_entfernen(self.umgebungen.ordner(), self.akten),
+            "marke.kurz_setzen": lambda text: marke.kurz_setzen(self.umgebungen.ordner(), self.akten, text),
             "gesetze.liste": lambda: db.gesetze(self.con),
             "gesetze.verfuegbar": lambda: quelle.voreinstellung(self.eigene_liste),
             "gesetze.importieren": self.importieren,

@@ -1,25 +1,59 @@
 import { FormEvent, useEffect, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import AktenEinstellungen from "./AktenEinstellungen";
+import Diagnose from "./Diagnose";
 import Programme from "./Programme";
 import Umgebungen from "./Umgebungen";
-import { KiStatus, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
+import {
+  AKZENTE,
+  Darstellung,
+  SCHRIFTGROESSEN,
+  THEMEN,
+  darstellungLesen,
+  darstellungSpeichern,
+  istDunkel,
+} from "./darstellung";
+import { KiStatus, Marke, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
 
 const KONTEXTE = [8192, 16384, 32768];
 const KONTEXTE_EXTERN = [32768, 131072];
 
-/** Einstellungen: welches Sprachmodell Analyse und Chat verwenden; lokal, oder ausnahmsweise ein externer Anbieter. */
+export type EinstellungsReiter = "allgemeines" | "umgebungen" | "eigene" | "akten" | "ki" | "extern" | "programme" | "diagnose";
+
+// Ein Reiter je Thema; „Diagnose“ steht immer zuletzt.
+const REITER: { id: EinstellungsReiter; titel: string }[] = [
+  { id: "allgemeines", titel: "Allgemeines" },
+  { id: "umgebungen", titel: "Arbeitsumgebungen" },
+  { id: "eigene", titel: "Eigene Daten" },
+  { id: "akten", titel: "Akten" },
+  { id: "ki", titel: "Lokales Sprachmodell" },
+  { id: "extern", titel: "Externe KI" },
+  { id: "programme", titel: "Programme" },
+  { id: "diagnose", titel: "Diagnose" },
+];
+
+/**
+ * Einstellungen: links ein Reiter je Thema, rechts nur das gewählte Thema. Darunter u. a. welches Sprachmodell
+ * Analyse und Chat verwenden; lokal, oder ausnahmsweise ein externer Anbieter.
+ */
 export default function Einstellungen({
+  reiter,
+  onReiter,
+  marke,
+  onMarke,
   onGeaendert,
   umgebungen,
   onUmgebungen,
   onEigeneDaten,
-  onDiagnose,
 }: {
+  reiter: EinstellungsReiter;
+  onReiter: (r: EinstellungsReiter) => void;
+  marke: Marke | null;
+  onMarke: (m: Marke) => void;
   onGeaendert?: () => void;
   umgebungen: UmgebungsListe | null;
   onUmgebungen: (liste: UmgebungsListe, gewechselt: boolean) => void;
   onEigeneDaten: () => void;
-  onDiagnose: () => void;
 }) {
   const [status, setStatus] = useState<KiStatus | null>(null);
   const [anbieter, setAnbieter] = useState("ollama");
@@ -68,14 +102,6 @@ export default function Einstellungen({
     }
   }
 
-  if (!istDesktop) {
-    return (
-      <section className="hinweis-box">
-        Die Oberfläche läuft gerade im Browser. Einstellungen gibt es nur in der Desktop-App: <code>npm run tauri dev</code>
-      </section>
-    );
-  }
-
   const lokal = status?.lokal ?? null;
   const installiert = lokal?.modelle ?? [];
   const gespeichert =
@@ -85,36 +111,34 @@ export default function Einstellungen({
     lokal.modell === modell &&
     lokal.kontext === kontext;
 
-  return (
-    <div className="einstellungen">
-      <header className="kopf">
-        <h1>Einstellungen</h1>
-      </header>
+  const kiZeile = status && (
+    <p className={status.extern ? "ki-zeile extern" : status.bereit ? "ki-zeile bereit" : "ki-zeile"}>
+      Analyse und Chat verwenden{" "}
+      {status.extern
+        ? `den externen Anbieter ${status.titel} (${status.modell || "kein Modell gewählt"}). Dokumenttexte verlassen dieses Gerät.`
+        : `das Modell auf diesem Gerät (${status.modell || "kein Modell gewählt"}). Dokumentinhalte verlassen es nicht.`}
+    </p>
+  );
 
-      {status && (
-        <p className={status.extern ? "ki-zeile extern" : status.bereit ? "ki-zeile bereit" : "ki-zeile"}>
-          Analyse und Chat verwenden{" "}
-          {status.extern
-            ? `den externen Anbieter ${status.titel} (${status.modell || "kein Modell gewählt"}). Dokumenttexte verlassen dieses Gerät.`
-            : `das Modell auf diesem Gerät (${status.modell || "kein Modell gewählt"}). Dokumentinhalte verlassen es nicht.`}
-        </p>
-      )}
-
-      <section className="karte">
-        <div className="kopf">
-          <h2>Diagnose</h2>
-          <button className="zweitrangig" onClick={onDiagnose}>
-            Diagnose öffnen
-          </button>
-        </div>
-        <p className="erklaerung">
-          Prüft Datenordner, Datenbanken, Archiv, Texterkennung, Programme, Sprachmodelle und die Rechtsquellen im
-          Internet und erklärt, was bei einem Fehler zu tun ist.
-        </p>
+  let inhalt;
+  if (reiter === "allgemeines") {
+    inhalt = (
+      <>
+        <Allgemeines />
+        <LogoKarte marke={marke} onMarke={onMarke} />
+      </>
+    );
+  } else if (!istDesktop) {
+    inhalt = (
+      <section className="hinweis-box">
+        Die Oberfläche läuft gerade im Browser. Diese Einstellungen gibt es nur in der Desktop-App:{" "}
+        <code>npm run tauri dev</code>
       </section>
-
-      <Umgebungen liste={umgebungen} onGeaendert={onUmgebungen} />
-
+    );
+  } else if (reiter === "umgebungen") {
+    inhalt = <Umgebungen liste={umgebungen} onGeaendert={onUmgebungen} />;
+  } else if (reiter === "eigene") {
+    inhalt = (
       <section className="karte">
         <div className="kopf">
           <h2>Eigene Daten</h2>
@@ -127,123 +151,311 @@ export default function Einstellungen({
           aktiven Arbeitsumgebung.
         </p>
       </section>
+    );
+  } else if (reiter === "akten") {
+    inhalt = <AktenEinstellungen umgebungen={umgebungen} />;
+  } else if (reiter === "ki") {
+    inhalt = (
+      <>
+        {kiZeile}
+        <section className="karte">
+          <h2>Lokales Sprachmodell</h2>
+          <p className="erklaerung">
+            Modus <strong>lokal</strong>: Das Sprachmodell (Ollama oder LM Studio) läuft auf diesem Gerät oder auf einem
+            anderen Rechner im eigenen Netzwerk. Die App spricht nur mit solchen Adressen; Dokumentinhalte verlassen das
+            eigene Netz nicht. Voreingestellt ist dieses Gerät (127.0.0.1).
+          </p>
 
-      <AktenEinstellungen umgebungen={umgebungen} />
-
-      <Programme />
-
-      <section className="karte">
-        <h2>Lokales Sprachmodell</h2>
-        <p className="erklaerung">
-          Modus <strong>lokal</strong>: Das Sprachmodell (Ollama oder LM Studio) läuft auf diesem Gerät oder auf einem
-          anderen Rechner im eigenen Netzwerk. Die App spricht nur mit solchen Adressen; Dokumentinhalte verlassen das
-          eigene Netz nicht. Voreingestellt ist dieses Gerät (127.0.0.1).
-        </p>
-
-        <form className="ki-formular" onSubmit={speichern}>
-          <label>
-            Programm
-            <select
-              value={anbieter}
-              onChange={(e) => {
-                setAnbieter(e.target.value);
-                const vorgabe = lokal?.anbieter_liste.find((a) => a.id === e.target.value);
-                if (vorgabe) setEndpunkt(vorgabe.endpunkt);
-              }}
-            >
-              {(lokal?.anbieter_liste ?? [{ id: "ollama", titel: "Ollama", endpunkt: "" }]).map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.titel}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Adresse
-            <input value={endpunkt} onChange={(e) => setEndpunkt(e.target.value)} spellCheck={false} />
-            <span className="leise feld-hinweis">
-              Anderer Rechner im Netzwerk: dessen IP-Adresse oder Namen eintragen, z. B. http://192.168.178.20:1234
-              oder http://pc-buero.local:11434.
-            </span>
-          </label>
-          <label>
-            Modell
-            {installiert.length > 0 ? (
-              <select value={modell} onChange={(e) => setModell(e.target.value)}>
-                {!installiert.some((m) => m.name === modell) && <option value={modell}>{modell || "(bitte wählen)"}</option>}
-                {installiert.map((m) => (
-                  <option key={m.name} value={m.name}>
-                    {m.name}
-                    {m.parameter ? ` · ${m.parameter}` : ""}
-                    {m.quantisierung ? ` · ${m.quantisierung}` : ""}
-                    {m.groesse ? ` · ${groesseText(m.groesse)}` : ""}
+          <form className="ki-formular" onSubmit={speichern}>
+            <label>
+              Programm
+              <select
+                value={anbieter}
+                onChange={(e) => {
+                  setAnbieter(e.target.value);
+                  const vorgabe = lokal?.anbieter_liste.find((a) => a.id === e.target.value);
+                  if (vorgabe) setEndpunkt(vorgabe.endpunkt);
+                }}
+              >
+                {(lokal?.anbieter_liste ?? [{ id: "ollama", titel: "Ollama", endpunkt: "" }]).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.titel}
                   </option>
                 ))}
               </select>
-            ) : (
-              <input value={modell} onChange={(e) => setModell(e.target.value)} placeholder={lokal?.empfohlen} spellCheck={false} />
-            )}
-          </label>
-          <label>
-            Kontext
-            <select value={kontext} onChange={(e) => setKontext(Number(e.target.value))}>
-              {KONTEXTE.map((k) => (
-                <option key={k} value={k}>
-                  {k.toLocaleString("de-DE")} Token{k === 16384 ? " (empfohlen)" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="aktionen">
-            <button type="submit" disabled={laeuft || gespeichert}>
-              Speichern
-            </button>
-            <button type="button" className="zweitrangig" onClick={pruefe} disabled={laeuft}>
-              Erneut prüfen
-            </button>
-          </div>
-        </form>
+            </label>
+            <label>
+              Adresse
+              <input value={endpunkt} onChange={(e) => setEndpunkt(e.target.value)} spellCheck={false} />
+              <span className="leise feld-hinweis">
+                Anderer Rechner im Netzwerk: dessen IP-Adresse oder Namen eintragen, z. B. http://192.168.178.20:1234
+                oder http://pc-buero.local:11434.
+              </span>
+            </label>
+            <label>
+              Modell
+              {installiert.length > 0 ? (
+                <select value={modell} onChange={(e) => setModell(e.target.value)}>
+                  {!installiert.some((m) => m.name === modell) && <option value={modell}>{modell || "(bitte wählen)"}</option>}
+                  {installiert.map((m) => (
+                    <option key={m.name} value={m.name}>
+                      {m.name}
+                      {m.parameter ? ` · ${m.parameter}` : ""}
+                      {m.quantisierung ? ` · ${m.quantisierung}` : ""}
+                      {m.groesse ? ` · ${groesseText(m.groesse)}` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input value={modell} onChange={(e) => setModell(e.target.value)} placeholder={lokal?.empfohlen} spellCheck={false} />
+              )}
+            </label>
+            <label>
+              Kontext
+              <select value={kontext} onChange={(e) => setKontext(Number(e.target.value))}>
+                {KONTEXTE.map((k) => (
+                  <option key={k} value={k}>
+                    {k.toLocaleString("de-DE")} Token{k === 16384 ? " (empfohlen)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="aktionen">
+              <button type="submit" disabled={laeuft || gespeichert}>
+                Speichern
+              </button>
+              <button type="button" className="zweitrangig" onClick={pruefe} disabled={laeuft}>
+                Erneut prüfen
+              </button>
+            </div>
+          </form>
 
-        {laeuft && <p className="status">Prüfe …</p>}
-        {fehler && <p className="fehler">{fehler}</p>}
-        {lokal && !laeuft && (
-          <p className={lokal.bereit ? "ki-zeile bereit" : "ki-zeile"}>
-            {lokal.bereit
-              ? `Bereit: ${lokal.modell} über ${lokal.anbieter_titel}.`
-              : lokal.erreichbar
-                ? lokal.hinweis
-                : `${lokal.anbieter_titel} ist nicht erreichbar. ${lokal.hinweis ?? ""}`}
-          </p>
+          {laeuft && <p className="status">Prüfe …</p>}
+          {fehler && <p className="fehler">{fehler}</p>}
+          {lokal && !laeuft && (
+            <p className={lokal.bereit ? "ki-zeile bereit" : "ki-zeile"}>
+              {lokal.bereit
+                ? `Bereit: ${lokal.modell} über ${lokal.anbieter_titel}.`
+                : lokal.erreichbar
+                  ? lokal.hinweis
+                  : `${lokal.anbieter_titel} ist nicht erreichbar. ${lokal.hinweis ?? ""}`}
+            </p>
+          )}
+
+          <details className="ki-anleitung" open={lokal != null && !lokal.erreichbar && !status?.extern}>
+            <summary>So richtest du Ollama unter Windows ein</summary>
+            <ol>
+              <li>
+                In einer PowerShell: <code>winget install Ollama.Ollama</code> (oder den Installer von ollama.com). Ollama
+                startet danach im Hintergrund, das Symbol erscheint unten rechts in der Taskleiste.
+              </li>
+              <li>
+                Modell laden (einmalig, rund 9 GB): <code>ollama pull {lokal?.empfohlen ?? "qwen3:14b"}</code>. Es passt
+                mit 16.384 Token Kontext in 16 GB Grafikspeicher.
+              </li>
+              <li>Hier „Erneut prüfen“, das Modell wählen und speichern.</li>
+            </ol>
+            <p className="leise">
+              Ollama lauscht nur auf diesem Gerät (127.0.0.1:11434), solange man das nicht ausdrücklich ändert. Linux:{" "}
+              <code>curl -fsSL https://ollama.com/install.sh | sh</code>, macOS: <code>brew install ollama</code>.
+            </p>
+            <p className="leise">
+              Modell auf einem anderen Rechner im Netzwerk: Dort muss das Programm Verbindungen aus dem Netzwerk annehmen
+              (LM Studio: Developer → Settings → „Serve on Local Network“; Ollama: Umgebungsvariable{" "}
+              <code>OLLAMA_HOST=0.0.0.0</code>), und die Firewall dieses Rechners muss den Port (1234 bzw. 11434) für das
+              private Netzwerk freigeben. Die Verbindung im Heimnetz ist unverschlüsselt; sie bleibt aber im eigenen Netz.
+            </p>
+          </details>
+        </section>
+      </>
+    );
+  } else if (reiter === "extern") {
+    inhalt = (
+      <>
+        {kiZeile}
+        {status ? (
+          <ExterneKi status={status} onStatus={setStatus} onGeaendert={onGeaendert} />
+        ) : (
+          <p className="status">{fehler ?? "Prüfe …"}</p>
         )}
+      </>
+    );
+  } else if (reiter === "programme") {
+    inhalt = <Programme />;
+  } else {
+    inhalt = <Diagnose />;
+  }
 
-        <details className="ki-anleitung" open={lokal != null && !lokal.erreichbar && !status?.extern}>
-          <summary>So richtest du Ollama unter Windows ein</summary>
-          <ol>
-            <li>
-              In einer PowerShell: <code>winget install Ollama.Ollama</code> (oder den Installer von ollama.com). Ollama
-              startet danach im Hintergrund, das Symbol erscheint unten rechts in der Taskleiste.
-            </li>
-            <li>
-              Modell laden (einmalig, rund 9 GB): <code>ollama pull {lokal?.empfohlen ?? "qwen3:14b"}</code>. Es passt
-              mit 16.384 Token Kontext in 16 GB Grafikspeicher.
-            </li>
-            <li>Hier „Erneut prüfen“, das Modell wählen und speichern.</li>
-          </ol>
-          <p className="leise">
-            Ollama lauscht nur auf diesem Gerät (127.0.0.1:11434), solange man das nicht ausdrücklich ändert. Linux:{" "}
-            <code>curl -fsSL https://ollama.com/install.sh | sh</code>, macOS: <code>brew install ollama</code>.
-          </p>
-          <p className="leise">
-            Modell auf einem anderen Rechner im Netzwerk: Dort muss das Programm Verbindungen aus dem Netzwerk annehmen
-            (LM Studio: Developer → Settings → „Serve on Local Network“; Ollama: Umgebungsvariable{" "}
-            <code>OLLAMA_HOST=0.0.0.0</code>), und die Firewall dieses Rechners muss den Port (1234 bzw. 11434) für das
-            private Netzwerk freigeben. Die Verbindung im Heimnetz ist unverschlüsselt; sie bleibt aber im eigenen Netz.
-          </p>
-        </details>
-      </section>
-
-      {status && <ExterneKi status={status} onStatus={setStatus} onGeaendert={onGeaendert} />}
+  return (
+    <div className="einstellungen">
+      <header className="kopf">
+        <h1>Einstellungen</h1>
+      </header>
+      <div className="einstellungen-raster">
+        <nav className="einstellungen-reiter" role="tablist" aria-orientation="vertical" aria-label="Einstellungen">
+          {REITER.map((r) => (
+            <button
+              key={r.id}
+              role="tab"
+              aria-selected={r.id === reiter}
+              className={`nav-eintrag${r.id === reiter ? " aktiv" : ""}${r.id === "diagnose" ? " trenner-oben" : ""}`}
+              onClick={() => onReiter(r.id)}
+            >
+              {r.titel}
+            </button>
+          ))}
+        </nav>
+        <div className="einstellungen-flaeche" role="tabpanel">
+          {inhalt}
+        </div>
+      </div>
     </div>
+  );
+}
+
+/** Allgemeines: Darstellung je Gerät, gilt sofort und auch für die Toolbox. */
+function Allgemeines() {
+  const [d, setD] = useState<Darstellung>(() => darstellungLesen());
+  function setze(teil: Partial<Darstellung>) {
+    const neu = { ...d, ...teil };
+    setD(neu);
+    darstellungSpeichern(neu);
+  }
+  const dunkel = istDunkel(d);
+
+  return (
+    <section className="karte">
+      <h2>Darstellung</h2>
+      <p className="erklaerung">Gilt für dieses Gerät, sofort und für alle Arbeitsumgebungen.</p>
+
+      <div className="darstellung-gruppe">
+        <h3>Hell oder dunkel</h3>
+        <div className="wahl-reihe" role="group" aria-label="Hell oder dunkel">
+          {THEMEN.map((t) => (
+            <button key={t.id} aria-pressed={d.thema === t.id} onClick={() => setze({ thema: t.id })}>
+              {t.titel}
+            </button>
+          ))}
+        </div>
+        <p className="leise">„Systemstandard“ folgt der Einstellung von Windows, macOS bzw. Linux.</p>
+      </div>
+
+      <div className="darstellung-gruppe">
+        <h3>Farbakzent</h3>
+        <div className="wahl-reihe" role="group" aria-label="Farbakzent">
+          {AKZENTE.map((a) => (
+            <button key={a.id} aria-pressed={d.akzent === a.id} onClick={() => setze({ akzent: a.id })}>
+              <span className="farbmuster" style={{ background: dunkel ? a.dunkel : a.hell }} aria-hidden />
+              {a.titel}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="darstellung-gruppe">
+        <h3>Schriftgröße</h3>
+        <div className="wahl-reihe" role="group" aria-label="Schriftgröße">
+          {SCHRIFTGROESSEN.map((g) => (
+            <button key={g.wert} aria-pressed={d.schrift === g.wert} onClick={() => setze({ schrift: g.wert })}>
+              {g.titel}
+            </button>
+          ))}
+        </div>
+        <p className="leise">Vergrößert die ganze Oberfläche samt Leiste, Knöpfen und Dokumentansicht.</p>
+      </div>
+
+      <div className="darstellung-probe" aria-hidden>
+        <span>
+          So sieht das Kopfband einer Akte aus. <span className="leise">Az. 12 O 345/26</span>
+        </span>
+        <button tabIndex={-1}>Knopf</button>
+      </div>
+    </section>
+  );
+}
+
+/** Kanzlei- bzw. Firmenlogo und Kurzbezeichnung: oben in der Leiste klein, auf der Startseite groß mit dem Namen. */
+function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke) => void }) {
+  const [kurz, setKurz] = useState(marke?.kurzbezeichnung ?? "");
+  const [laeuft, setLaeuft] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  useEffect(() => setKurz(marke?.kurzbezeichnung ?? ""), [marke?.kurzbezeichnung]);
+
+  async function setze(methode: string, params?: Record<string, unknown>) {
+    setLaeuft(true);
+    setFehler(null);
+    try {
+      onMarke(await kern<Marke>(methode, params));
+    } catch (e) {
+      setFehler(String(e));
+    } finally {
+      setLaeuft(false);
+    }
+  }
+
+  async function waehlen() {
+    const pfad = await open({
+      title: "Logo wählen",
+      multiple: false,
+      filters: [{ name: "Bild (PNG, JPG, SVG, WebP)", extensions: ["png", "jpg", "jpeg", "svg", "webp"] }],
+    });
+    if (typeof pfad === "string") await setze("marke.logo_setzen", { pfad });
+  }
+
+  if (!istDesktop) {
+    return (
+      <section className="karte">
+        <h2>Logo und Kurzbezeichnung</h2>
+        <p className="leise">Nur in der Desktop-App.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="karte">
+      <h2>Logo und Kurzbezeichnung</h2>
+      <p className="erklaerung">
+        Erscheinen oben in der Leiste (eingeklappt nur das Logo) und auf der Startseite groß mit dem Namen aus „Eigene
+        Daten“. Beides gehört zur aktiven Arbeitsumgebung.
+      </p>
+
+      <div className="darstellung-gruppe">
+        <h3>Kanzlei- oder Firmenlogo</h3>
+        <div className="logo-zeile">
+          <div className="logo-vorschau">{marke?.logo ? <img src={marke.logo} alt="Logo" /> : <span className="leise">kein Logo</span>}</div>
+          <div className="aktionen">
+            <button className="zweitrangig" onClick={() => void waehlen()} disabled={laeuft}>
+              {marke?.logo ? "Anderes Logo wählen …" : "Logo wählen …"}
+            </button>
+            {marke?.logo && (
+              <button className="zweitrangig gefahr" onClick={() => void setze("marke.logo_entfernen")} disabled={laeuft}>
+                Entfernen
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="leise">PNG, JPG, SVG oder WebP bis 2 MB; am besten mit transparentem Hintergrund.</p>
+      </div>
+
+      <form
+        className="darstellung-gruppe"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void setze("marke.kurz_setzen", { text: kurz });
+        }}
+      >
+        <h3>Kurzbezeichnung in der Leiste</h3>
+        <div className="weiteres">
+          <input value={kurz} onChange={(e) => setKurz(e.target.value)} maxLength={40} placeholder="JuraBox" />
+          <button type="submit" disabled={laeuft || kurz.trim() === (marke?.kurzbezeichnung ?? "")}>
+            Speichern
+          </button>
+        </div>
+        <p className="leise">Leer lassen, dann steht dort „JuraBox“.</p>
+      </form>
+
+      {fehler && <p className="fehler">{fehler}</p>}
+    </section>
   );
 }
 
