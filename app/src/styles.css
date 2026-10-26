@@ -979,10 +979,11 @@ details.kurz-hinweis summary { cursor: pointer; }
 .start-marke span { font-size: 28px; font-weight: 600; line-height: 1.2; }
 
 /* Bereich „Rechtsprechung“: Sammlung links, Volltext rechts. */
-.sammlung { display: flex; gap: 20px; align-items: flex-start; }
+.sammlung { display: flex; gap: 12px; align-items: flex-start; }
 .sammlung-liste { flex: 1; min-width: 0; }
 .sammlung-liste .suche-feld { margin-top: 12px; }
-.sammlung .akte-seite.volltext { --seite-breite: 460px; flex-shrink: 0; }
+.sammlung .akte-seite.volltext { flex-shrink: 0; width: min(var(--seite-breite), calc(100% - 372px)); }
+.sammlung .trenner { position: sticky; top: 0; height: calc(100vh - 40px); min-height: 0; }
 .sammlung-filter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0 14px; }
 .sammlung-filter select, .sammlung-filter input { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 .sammlung-filter input { flex: 1; min-width: 180px; }
@@ -1005,3 +1006,6 @@ details.kurz-hinweis summary { cursor: pointer; }
 }
 .feld-mit-fundstelle { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .feld-mit-fundstelle .feld-hinweis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.volltext-leiste { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 0 6px; margin-bottom: 8px; background: var(--hintergrund); border-bottom: 1px solid var(--linie); }
+.volltext-leiste button { padding: 3px 10px; font-size: 13px; }
+.sammlung-liste .kopf button { white-space: nowrap; }

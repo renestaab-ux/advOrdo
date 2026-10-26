@@ -1583,15 +1583,19 @@ export function VolltextAnsicht({
   let teil: string | null = null;
   return (
     <aside className="akte-seite volltext">
+      {/* Eigene Leiste oben, bleibt beim Blättern stehen: Schließen ist immer erreichbar. */}
+      <div className="volltext-leiste">
+        <span className="leise">Volltext</span>
+        <button className="zweitrangig klein" onClick={onSchliessen}>
+          Volltext schließen
+        </button>
+      </div>
       <div className="volltext-kopf">
         <strong>
           {[v.gericht, v.kopf?.spruchkoerper].filter(Boolean).join(" ")}
           {v.datum && `, ${v.kopf?.doktyp ?? "Entscheidung"} vom ${v.datum.split("-").reverse().join(".")}`}
           {v.aktenzeichen && ` – ${v.aktenzeichen}`}
         </strong>
-        <button className="link" onClick={onSchliessen}>
-          schließen
-        </button>
       </div>
       <p className="fundort">
         {v.quelle === "manuell" ? "Selbst ergänzt" : "Geladen"}: {urteilHerkunft(v)}

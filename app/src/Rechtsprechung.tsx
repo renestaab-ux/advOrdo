@@ -1,4 +1,14 @@
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CSSProperties,
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import AktenWahl from "./AktenWahl";
 import { Rueckfrage, VolltextAnsicht } from "./Akte";
@@ -22,6 +32,21 @@ import {
 } from "./kern";
 
 type Zuordnung = "alle" | "zugeordnet" | "frei";
+
+/** Breite des Volltexts rechts, je Gerät gemerkt; die Liste links behält mindestens LISTE_MIN. */
+const VOLLTEXT_STANDARD = 520;
+const VOLLTEXT_MIN = 300;
+const LISTE_MIN = 360;
+const BREITE_SCHLUESSEL = "rechtsprechung.volltextbreite";
+
+function gespeicherteBreite(): number {
+  try {
+    const wert = Number(localStorage.getItem(BREITE_SCHLUESSEL));
+    return wert >= VOLLTEXT_MIN ? wert : VOLLTEXT_STANDARD;
+  } catch {
+    return VOLLTEXT_STANDARD;
+  }
+}
 
 /** Angaben zu einer eigenen Datei, die ohne Akte in die Sammlung kommt. */
 interface NeueDatei {
@@ -62,6 +87,33 @@ export default function Rechtsprechung({
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
+  const [breite, setBreite] = useState(gespeicherteBreite);
+  const flaeche = useRef<HTMLDivElement>(null);
+
+  function setzeBreite(b: number) {
+    setBreite(b);
+    try {
+      localStorage.setItem(BREITE_SCHLUESSEL, String(b));
+    } catch {
+      // Ohne Speicher gilt die Breite nur bis zum Neustart.
+    }
+  }
+
+  /** Trennlinie ziehen: nach links bekommt der Volltext mehr Platz, nach rechts die Liste. */
+  function breiteZiehen(e: ReactPointerEvent<HTMLDivElement>) {
+    const rahmen = flaeche.current?.getBoundingClientRect();
+    if (!rahmen) return;
+    e.preventDefault();
+    const neu = (x: number) => Math.round(Math.min(Math.max(rahmen.right - x, VOLLTEXT_MIN), rahmen.width - LISTE_MIN));
+    const bewegen = (ev: PointerEvent) => setBreite(neu(ev.clientX));
+    const loslassen = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", bewegen);
+      window.removeEventListener("pointerup", loslassen);
+      setzeBreite(neu(ev.clientX));
+    };
+    window.addEventListener("pointermove", bewegen);
+    window.addEventListener("pointerup", loslassen);
+  }
 
   const ausfuehren = useCallback(async <T,>(was: string, f: () => Promise<T>) => {
     setLaeuft(was);
@@ -233,7 +285,7 @@ export default function Rechtsprechung({
   }
 
   return (
-    <div className="sammlung">
+    <div className="sammlung" ref={flaeche} style={{ "--seite-breite": `${breite}px` } as CSSProperties}>
       <div className="sammlung-liste">
         <header className="kopf">
           <h1>Rechtsprechung</h1>
@@ -473,6 +525,17 @@ export default function Rechtsprechung({
           ))}
         </ul>
       </div>
+      {volltext && (
+        <div
+          className="trenner"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Aufteilung zwischen Liste und Volltext"
+          title="Ziehen: nach links mehr Platz für den Volltext, nach rechts für die Liste; Doppelklick setzt zurück"
+          onPointerDown={breiteZiehen}
+          onDoubleClick={() => setzeBreite(VOLLTEXT_STANDARD)}
+        />
+      )}
       {volltext && <VolltextAnsicht volltext={volltext} rn={rn} onSchliessen={() => setVolltext(null)} />}
     </div>
   );
