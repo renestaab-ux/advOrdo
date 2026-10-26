@@ -884,6 +884,25 @@ details.kurz-hinweis summary { cursor: pointer; }
 .kachel-fristen .start-frist.bald .leise, .kachel-fristen .start-frist.vorfrist .leise { color: var(--warnung); }
 .kacheln .kachel-info { grid-column: 1 / -1; }
 
+/* Nachrichten auf der Startseite und ihre Einstellungen */
+.kacheln .kachel-nachrichten { grid-column: 1 / -1; }
+.nachrichten-kopf { display: flex; align-items: baseline; gap: 12px; width: 100%; }
+.nachrichten-kopf h2 { margin-bottom: 0; }
+.nachrichten-kopf .link { margin-left: auto; }
+.kachel-nachrichten ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; }
+@media (max-width: 1000px) { .kachel-nachrichten ul { grid-template-columns: 1fr; } }
+.kachel-nachrichten li .link { font-weight: 500; }
+.kachel-nachrichten .hinweis.klein { font-size: 12px; color: var(--warnung); margin: 0; }
+.nachrichten-fuss { display: flex; gap: 16px; margin-top: auto; }
+.feed-liste { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 10px; }
+.feed-liste li { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--linie); }
+.feed-liste li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.feed-url { font-size: 12px; color: var(--text-leise); overflow-wrap: anywhere; }
+.feed-titel { font-weight: 600; min-width: 280px; }
+.feed-formular { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.feed-formular label { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 280px; }
+
 /* Diagnose */
 .diagnose { max-width: 900px; }
 .diagnose .aktionen { margin: 12px 0; }
