@@ -1687,6 +1687,8 @@ export interface KostenAbrechnung {
   posten: KostenPosten[];
   netto: string;
   summe: string;
+  /** Gegenseite: so viele gleiche Anwälte stehen hinter dieser Abrechnung. */
+  anzahl?: number;
 }
 
 export interface ProzesskostenErgebnis {

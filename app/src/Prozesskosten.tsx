@@ -29,6 +29,8 @@ export default function Prozesskosten() {
   const [vorgerichtlich, setVorgerichtlich] = useState(false);
   const [geschaeft, setGeschaeft] = useState("1,3");
   const [gegner, setGegner] = useState(true);
+  const [gegnerAnzahl, setGegnerAnzahl] = useState(1);
+  const [gegnerGetrennt, setGegnerGetrennt] = useState(false);
   const [zuege, setZuege] = useState<Zug[]>(
     ZUEGE.map((z) => ({ instanz: z.instanz, an: z.instanz === "erste", ende: "urteil", termin: true })),
   );
@@ -53,6 +55,8 @@ export default function Prozesskosten() {
         auftraggeber,
         geschaeftsgebuehr: vorgerichtlich ? geschaeft : null,
         gegner,
+        gegner_anzahl: gegnerAnzahl,
+        gegner_getrennt: gegnerGetrennt,
         rechtszuege: zuege.filter((z) => z.an).map(({ instanz, ende, termin }) => ({ instanz, ende, termin })),
       }).then(
         (e) => {
@@ -71,7 +75,7 @@ export default function Prozesskosten() {
       gueltig = false;
       clearTimeout(t);
     };
-  }, [bereit, streitwert, fassung, ust, auftraggeber, vorgerichtlich, geschaeft, gegner, zuege]);
+  }, [bereit, streitwert, fassung, ust, auftraggeber, vorgerichtlich, geschaeft, gegner, gegnerAnzahl, gegnerGetrennt, zuege]);
 
   return (
     <section className="rechner">
@@ -160,6 +164,30 @@ export default function Prozesskosten() {
             <input type="checkbox" checked={gegner} onChange={(e) => setGegner(e.target.checked)} /> Gegnerische
             Anwaltskosten einrechnen (Kostenrisiko bei vollem Unterliegen)
           </label>
+          {gegner && (
+            <div className="posten-zeile gegner-zeile">
+              <label className="rechtszug">
+                Gegner
+                <input
+                  type="number"
+                  min={1}
+                  aria-label="Anzahl der Gegner"
+                  value={gegnerAnzahl}
+                  onChange={(e) => setGegnerAnzahl(Math.max(1, Number(e.target.value) || 1))}
+                />
+              </label>
+              {gegnerAnzahl > 1 && (
+                <select
+                  aria-label="Anwälte der Gegenseite"
+                  value={gegnerGetrennt ? "getrennt" : "gemeinsam"}
+                  onChange={(e) => setGegnerGetrennt(e.target.value === "getrennt")}
+                >
+                  <option value="gemeinsam">ein gemeinsamer Anwalt (Erhöhung Nr. 1008 VV RVG)</option>
+                  <option value="getrennt">jeder Gegner mit eigenem Anwalt</option>
+                </select>
+              )}
+            </div>
+          )}
           <label>
             <input type="checkbox" checked={ust} onChange={(e) => setUst(e.target.checked)} /> Umsatzsteuer 19 % (Nr.
             7008 VV RVG); ausschalten bei Vorsteuerabzug
@@ -235,10 +263,20 @@ function KostenAusgabe({ e }: { e: ProzesskostenErgebnis }) {
 }
 
 function Abrechnung({ a }: { a: KostenAbrechnung }) {
-  return <PostenTabelle titel={a.titel} posten={a.posten} summe={a.summe} />;
+  return <PostenTabelle titel={a.titel} posten={a.posten} summe={a.summe} anzahl={a.anzahl} />;
 }
 
-function PostenTabelle({ titel, posten, summe }: { titel?: string; posten: KostenPosten[]; summe: string }) {
+function PostenTabelle({
+  titel,
+  posten,
+  summe,
+  anzahl = 1,
+}: {
+  titel?: string;
+  posten: KostenPosten[];
+  summe: string;
+  anzahl?: number;
+}) {
   return (
     <table className="staffel kosten">
       {titel && <caption>{titel}</caption>}
@@ -262,9 +300,15 @@ function PostenTabelle({ titel, posten, summe }: { titel?: string; posten: Koste
       </tbody>
       <tfoot>
         <tr>
-          <td colSpan={3}>Summe</td>
+          <td colSpan={3}>{anzahl > 1 ? "Summe je Anwalt" : "Summe"}</td>
           <td className="zahl">{euro(summe)}</td>
         </tr>
+        {anzahl > 1 && (
+          <tr>
+            <td colSpan={3}>Summe für {anzahl} Anwälte</td>
+            <td className="zahl">{euro(Number(summe) * anzahl)}</td>
+          </tr>
+        )}
       </tfoot>
     </table>
   );

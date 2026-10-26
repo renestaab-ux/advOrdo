@@ -133,7 +133,8 @@ class Eingabe:
     rechtszuege: list[Rechtszug] = field(default_factory=lambda: [Rechtszug()])
     auftraggeber: int = 1
     geschaeftsgebuehr: Decimal | None = None  # Satz Nr. 2300 VV RVG, None = keine vorgerichtliche Tätigkeit
-    gegner: bool = True
+    # Anwälte der Gegenseite, je Eintrag die Zahl der Gegner, die dieser Anwalt vertritt; leer = ohne Gegnerkosten.
+    gegner_anwaelte: list[int] = field(default_factory=lambda: [1])
     umsatzsteuer: Decimal | None = Decimal(19)
 
 
@@ -173,6 +174,11 @@ def _anwalt(i: dict, r: Rechtszug, voll_rvg: Decimal, mehr: Decimal, anrechnen: 
     return liste
 
 
+def _erhoehung(auftraggeber: int) -> Decimal:
+    """Erhöhung nach Nr. 1008 VV RVG: 0,3 je weiteren Auftraggeber, höchstens 2,0."""
+    return min(MEHRVERTRETUNG_SATZ * (max(1, int(auftraggeber)) - 1), MEHRVERTRETUNG_HOECHST)
+
+
 def berechne(e: Eingabe) -> dict:
     if e.fassung not in FASSUNGEN:
         raise ValueError(f"Unbekannte Fassung: {e.fassung}")
@@ -188,8 +194,11 @@ def berechne(e: Eingabe) -> dict:
         hinweise.append("Gerechnet mit dem Höchstwert von 30 Mio. € (§ 39 Abs. 2 GKG, § 22 Abs. 2 RVG).")
     voll_gkg = wertgebuehr(wert, *f["gkg"])
     voll_rvg = wertgebuehr(wert, *f["rvg"])
-    auftraggeber = max(1, int(e.auftraggeber))
-    erhoehung = min(MEHRVERTRETUNG_SATZ * (auftraggeber - 1), MEHRVERTRETUNG_HOECHST)
+    erhoehung = _erhoehung(e.auftraggeber)
+    # Gleiche Anwälte der Gegenseite (gleich viele Mandanten) werden einmal gerechnet und mit ihrer Anzahl vervielfacht.
+    gruppen: dict[int, int] = {}
+    for n in e.gegner_anwaelte:
+        gruppen[max(1, int(n))] = gruppen.get(max(1, int(n)), 0) + 1
     ust = e.umsatzsteuer if e.umsatzsteuer and e.umsatzsteuer > 0 else None
 
     gericht: list[dict] = []
@@ -227,21 +236,33 @@ def berechne(e: Eingabe) -> dict:
         # Die Geschäftsgebühr wird nur auf die Verfahrensgebühr der ersten Instanz angerechnet.
         anrechnen = anrechnung if r.instanz == "erste" and not instanzen else Decimal(0)
         eigene.append(_abrechnung(i["titel"], _anwalt(i, r, voll_rvg, erhoehung, anrechnen), ust))
-        if e.gegner:
-            gegner.append(_abrechnung(i["titel"], _anwalt(i, r, voll_rvg, Decimal(0), Decimal(0)), ust))
+        for mandanten, anwaelte in gruppen.items():
+            titel = i["titel"]
+            if len(e.gegner_anwaelte) > 1 or mandanten > 1:
+                vertritt = "1 Gegner" if mandanten == 1 else f"{mandanten} Gegner"
+                titel += f" – {'je ' if anwaelte > 1 else ''}Anwalt für {vertritt}" + (
+                    f" (× {anwaelte} Anwälte)" if anwaelte > 1 else "")
+            a = _abrechnung(titel, _anwalt(i, r, voll_rvg, _erhoehung(mandanten), Decimal(0)), ust)
+            a["anzahl"] = anwaelte
+            gegner.append(a)
         instanzen.append(r)
 
     if any(r.instanz == "revision" for r in e.rechtszuege):
         hinweise.append("Revision: Gebühren des beim BGH zugelassenen Anwalts (Nr. 3208 VV RVG).")
-    if e.gegner:
-        hinweise.append("Gegnerische Anwaltskosten: gleicher Verlauf, ein Auftraggeber, ohne vorgerichtliche "
-                        "Tätigkeit.")
+    if e.gegner_anwaelte:
+        anzahl_gegner = sum(max(1, int(n)) for n in e.gegner_anwaelte)
+        anwaelte = "1 Anwalt" if len(e.gegner_anwaelte) == 1 else f"{len(e.gegner_anwaelte)} Anwälte"
+        hinweise.append(f"Gegnerische Anwaltskosten: {anzahl_gegner} Gegner, {anwaelte}; gleicher Verlauf, ohne "
+                        "vorgerichtliche Tätigkeit.")
+    if len(e.gegner_anwaelte) > 1:
+        hinweise.append("Mehrere Anwälte der Gegenseite sind nur zu erstatten, soweit ihre Bestellung notwendig war "
+                        "(§ 91 Abs. 2 ZPO); bei Streitgenossen mit eigenem Anwalt ist das in der Regel der Fall.")
 
     summe_gericht = sum((Decimal(p["betrag"]) for p in gericht), Decimal(0))
     summe_eigene = sum((Decimal(a["summe"]) for a in eigene), Decimal(0))
     if vorgerichtlich:
         summe_eigene += Decimal(vorgerichtlich["summe"])
-    summe_gegner = sum((Decimal(a["summe"]) for a in gegner), Decimal(0))
+    summe_gegner = sum((Decimal(a["summe"]) * a["anzahl"] for a in gegner), Decimal(0))
     return {
         "streitwert": str(cent(e.streitwert)),
         "fassung": e.fassung,
@@ -262,6 +283,17 @@ def berechne(e: Eingabe) -> dict:
     }
 
 
+def _gegner_anwaelte(p: dict) -> list[int]:
+    """Anwälte der Gegenseite aus ``gegner`` (ob überhaupt), ``gegner_anzahl`` und ``gegner_getrennt``
+    (jeder Gegner mit eigenem Anwalt) oder ausdrücklich als ``gegner_anwaelte`` (Gegner je Anwalt)."""
+    if not p.get("gegner", True):
+        return []
+    if p.get("gegner_anwaelte"):
+        return [max(1, int(n)) for n in p["gegner_anwaelte"]]
+    anzahl = max(1, int(p.get("gegner_anzahl") or 1))
+    return [1] * anzahl if p.get("gegner_getrennt") else [anzahl]
+
+
 def aus_params(p: dict) -> Eingabe:
     """Eingabe aus den RPC-Parametern (Beträge als Text oder Zahl)."""
     gg = p.get("geschaeftsgebuehr")
@@ -273,7 +305,7 @@ def aus_params(p: dict) -> Eingabe:
                      for x in p.get("rechtszuege") or [{}]],
         auftraggeber=int(p.get("auftraggeber") or 1),
         geschaeftsgebuehr=None if gg in (None, "") else betrag(gg),
-        gegner=bool(p.get("gegner", True)),
+        gegner_anwaelte=_gegner_anwaelte(p),
         umsatzsteuer=None if ust in (None, "", False) else betrag(ust),
     )
 

@@ -72,7 +72,7 @@ def test_alte_fassung_erste_instanz():
 
 
 def test_vergleich_ermaessigt_und_einigungsgebuehr():
-    e = berechne(Eingabe(Decimal(5_000), rechtszuege=[Rechtszug("erste", "vergleich")], gegner=False))
+    e = berechne(Eingabe(Decimal(5_000), rechtszuege=[Rechtszug("erste", "vergleich")], gegner_anwaelte=[]))
     assert e["gericht"][0]["nr"] == "Nr. 1211 KV GKG" and e["summe_gericht"] == "170.50"
     posten = {p["nr"]: p["betrag"] for p in e["eigene"][0]["posten"]}
     assert posten["Nr. 1003 VV RVG"] == "354.50"
@@ -87,6 +87,36 @@ def test_vorgerichtlich_mit_anrechnung_und_mehrvertretung():
     assert posten[0]["satz"] == "1.6" and posten[0]["betrag"] == "1043.20"
     assert posten[1]["betrag"] == "-489.00"
     assert e["eigene"][0]["netto"] == str(Decimal("1043.20") - 489 + Decimal("782.40") + 20)
+
+
+def test_drei_gegner_mit_gemeinsamem_anwalt():
+    # 10.000 €: Verfahrensgebühr 1,3 + 2 × 0,3 = 1,9 × 652 = 1.238,80 + 782,40 + 20 = 2.041,20 netto, 387,83 USt.
+    e = berechne(Eingabe(Decimal(10_000), gegner_anwaelte=[3]))
+    a = e["gegner"][0]
+    assert (a["posten"][0]["satz"], a["posten"][0]["betrag"]) == ("1.9", "1238.80")
+    assert (a["summe"], a["anzahl"], e["summe_gegner"]) == ("2429.03", 1, "2429.03")
+    assert "3 Gegner" in a["titel"]
+
+
+def test_drei_gegner_mit_eigenen_anwaelten():
+    e = berechne(Eingabe(Decimal(10_000), gegner_anwaelte=[1, 1, 1]))
+    assert len(e["gegner"]) == 1 and e["gegner"][0]["anzahl"] == 3
+    assert e["summe_gegner"] == "5890.50"  # 3 × 1.963,50
+    assert e["kostenrisiko"] == str(Decimal("849.00") + Decimal("1963.50") + Decimal("5890.50"))
+    assert any("§ 91 Abs. 2 ZPO" in h for h in e["hinweise"])
+    assert any("3 Gegner, 3 Anwälte" in h for h in e["hinweise"])
+
+
+def test_gegner_aus_params():
+    a = prozesskosten.aus_params
+    assert a({"streitwert": 1}).gegner_anwaelte == [1]
+    assert a({"streitwert": 1, "gegner": False, "gegner_anzahl": 3}).gegner_anwaelte == []
+    assert a({"streitwert": 1, "gegner_anzahl": 3}).gegner_anwaelte == [3]
+    assert a({"streitwert": 1, "gegner_anzahl": 3, "gegner_getrennt": True}).gegner_anwaelte == [1, 1, 1]
+    # gemischt: ein Anwalt für zwei Gegner (1,6 × 652 + 782,40 + 20 = 1.845,60 + 350,66 USt), einer für den dritten
+    e = berechne(a({"streitwert": "10.000", "gegner_anwaelte": [2, 1]}))
+    assert [g["anzahl"] for g in e["gegner"]] == [1, 1]
+    assert e["summe_gegner"] == str(Decimal("2196.26") + Decimal("1963.50"))
 
 
 def test_drei_rechtszuege():
