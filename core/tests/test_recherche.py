@@ -1,4 +1,5 @@
 import json
+import re
 import urllib.parse
 
 import pytest
@@ -264,3 +265,39 @@ def test_rpc_recherche(tmp_path, monkeypatch):
     monkeypatch.setitem(kern.recherche.lader, "rii", kein_netz)
     fehler = ruf("rechtsprechung.recherche_oeffnen", quelle="rii", doknr="KORE000000000")
     assert "nicht erreichbar" in fehler["message"]
+
+
+def test_suchformular_ohne_namen_und_ohne_base():
+    maske = (FIXTURES / "rii_suchmaske_auszug.html").read_text(encoding="utf-8")
+    ohne = re.sub(r"<base[^>]*>", "", maske).replace('name="searchForm"', 'id="x"')
+    adresse = rii_suche.suchadresse(ohne, text="Kauf", adresse="https://www.rechtsprechung-im-internet.de/jportal/a/b")
+    assert adresse.startswith("https://www.rechtsprechung-im-internet.de/jportal/portal/t/1a2b/page/bsjrsprod.psml?")
+    assert ("query", "Kauf") in _felder(adresse)
+
+
+def test_unlesbare_maske_wird_abgelegt(tmp_path):
+    class Leer(_Sitzung):
+        def _hole(self, url):
+            return "<html><body>Wartungsarbeiten</body></html>"
+
+    s = Leer()
+    s.fehlerseite = tmp_path / "diagnose" / "rii-suchmaske.html"
+    with pytest.raises(ValueError, match="liegt zur Prüfung unter"):
+        s.suche(text="x")
+    assert "Wartungsarbeiten" in s.fehlerseite.read_text(encoding="utf-8")
+
+
+def test_neuris_volltext_als_html(monkeypatch):
+    arten = []
+
+    def hole(url, timeout, art="application/json"):
+        arten.append(art)
+        if url.endswith("FEHLT.html"):
+            raise neuris.urllib.error.HTTPError(url, 404, "Not Found", None, None)
+        return b"<html></html>"
+
+    monkeypatch.setattr(neuris, "_hole", hole)
+    neuris.lade("KORE999992026")
+    assert arten == ["text/html"]
+    with pytest.raises(ValueError, match="keinen Volltext"):
+        neuris.lade("FEHLT")

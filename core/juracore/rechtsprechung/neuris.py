@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
@@ -47,8 +48,8 @@ def adresse(doknr: str) -> str:
     return f"{BASIS}/rechtsprechung/{_pruefe_doknr(doknr)}.html"
 
 
-def _hole(url: str, timeout: float) -> bytes:
-    anfrage = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+def _hole(url: str, timeout: float, art: str = "application/json") -> bytes:
+    anfrage = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": art})
     with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
         return antwort.read()
 
@@ -103,7 +104,13 @@ def suche(aktenzeichen: str = "", timeout: float = 30, *, suchbegriff: str = "",
 
 def lade(doknr: str, timeout: float = 60) -> bytes:
     """Lädt den Volltext (HTML) einer Entscheidung."""
-    return _hole(adresse(doknr), timeout)
+    # Der Volltext ist HTML; mit „Accept: application/json“ antwortet die Schnittstelle mit „Not Found“.
+    try:
+        return _hole(adresse(doknr), timeout, "text/html")
+    except urllib.error.HTTPError as fehler:
+        if fehler.code == 404:
+            raise ValueError(f"NeuRIS liefert für {doknr} keinen Volltext (Not Found).") from fehler
+        raise
 
 
 # --- Volltext --------------------------------------------------------------------------------------

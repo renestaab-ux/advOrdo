@@ -25,6 +25,7 @@ import sqlite3
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
+from pathlib import Path
 
 from .verzeichnis import USER_AGENT, dokument_link
 from .zitate import normalisiere_az
@@ -89,6 +90,7 @@ class _Formulare(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.base: str | None = None
         self.formulare: dict[str, dict] = {}
+        self.alle: list[dict] = []
         self._form: dict | None = None
         self._select: dict | None = None
         self._option: dict | None = None
@@ -99,6 +101,7 @@ class _Formulare(HTMLParser):
             self.base = a["href"]
         elif tag == "form":
             self._form = {"action": a.get("action", ""), "felder": []}
+            self.alle.append(self._form)
             if name := a.get("name") or a.get("id"):
                 self.formulare.setdefault(name, self._form)
         elif self._form is None:
@@ -155,12 +158,26 @@ def _gericht_option(feld: dict, gericht: str) -> str:
     raise ValueError(f"Die Seite bietet das Gericht {gericht} in der Suche nicht an.")
 
 
+def _suchformular(f: _Formulare) -> dict | None:
+    """``searchForm``, sonst das erste Formular mit den Suchpaaren ``desc``/``query``."""
+    if form := f.formulare.get("searchForm"):
+        return form
+    for form in f.alle:
+        namen = {x["name"] for x in form["felder"]}
+        if {"desc", "query"} <= namen:
+            return form
+    return None
+
+
 def suchadresse(maske: str, text: str = "", norm: str = "", gericht: str | None = None,
-                aktenzeichen: str = "", von: str | None = None, bis: str | None = None) -> str:
-    """Baut aus der Suchmaske die Adresse der Suche (alle Felder von ``searchForm`` in ihrer Reihenfolge)."""
+                aktenzeichen: str = "", von: str | None = None, bis: str | None = None,
+                adresse: str | None = None) -> str:
+    """Baut aus der Suchmaske die Adresse der Suche (alle Felder von ``searchForm`` in ihrer Reihenfolge).
+    ``adresse`` ist die Adresse, unter der die Maske kam; sie gilt, wenn die Seite kein ``<base href>`` hat."""
     f = lies_formulare(maske)
-    form = f.formulare.get("searchForm")
-    if form is None or not f.base:
+    form = _suchformular(f)
+    base = f.base or adresse
+    if form is None or not base:
         raise ValueError("Die Suchmaske von rechtsprechung-im-internet.de hat sich geändert (kein Suchformular).")
     # Die Seite erwartet die Norm ohne Paragrafenzeichen („823 BGB“, „812 ff. BGB“).
     norm = re.sub(r"^\s*(?:§+|Art\.?)\s*", "", norm)
@@ -186,7 +203,7 @@ def suchadresse(maske: str, text: str = "", norm: str = "", gericht: str | None 
             wert = _iso_zu_tag(bis)
         felder.append((name, wert))
     felder.append(("standardsuche", "suchen"))
-    return _adresse(f.base, form["action"], felder)
+    return _adresse(base, form["action"], felder)
 
 
 def weiteradresse(seite: str) -> str | None:
@@ -260,11 +277,15 @@ class Sitzung:
         # dann geht das Weiterblättern nicht (JuraBox Lite, Stolperfalle 1).
         self._oeffner.addheaders = [("User-Agent", USER_AGENT)]
         self._seite: str | None = None
+        self.adresse: str | None = None
+        # Wohin die empfangene Seite geschrieben wird, wenn sie sich nicht lesen lässt (zur Fehlersuche).
+        self.fehlerseite: Path | None = None
         self.geladen = 0
         self.gesamt = 0
 
     def _hole(self, url: str) -> str:
         with self._oeffner.open(url, timeout=self.timeout) as antwort:
+            self.adresse = antwort.geturl()
             return antwort.read().decode(antwort.headers.get_content_charset() or "utf-8", errors="replace")
 
     def _ergebnis(self, seite: str) -> dict:
@@ -278,7 +299,23 @@ class Sitzung:
         return self._seite is not None and self.geladen < min(self.gesamt, MAX_TREFFER)
 
     def suche(self, **felder) -> dict:
-        return self._ergebnis(self._hole(suchadresse(self._hole(MASKE), **felder)))
+        maske = self._hole(MASKE)
+        try:
+            adresse = suchadresse(maske, adresse=self.adresse, **felder)
+        except ValueError as fehler:
+            raise ValueError(f"{fehler}{self._ablegen(maske)}") from fehler
+        return self._ergebnis(self._hole(adresse))
+
+    def _ablegen(self, seite: str) -> str:
+        """Legt eine unlesbare Seite für die Fehlersuche ab und nennt den Ort (öffentlicher Inhalt der Seite)."""
+        if self.fehlerseite is None:
+            return ""
+        try:
+            self.fehlerseite.parent.mkdir(parents=True, exist_ok=True)
+            self.fehlerseite.write_text(f"<!-- {self.adresse} -->\n{seite}", encoding="utf-8")
+        except OSError:
+            return ""
+        return f" Die empfangene Seite liegt zur Prüfung unter {self.fehlerseite}."
 
     def weiter(self) -> dict:
         if not self.weitere or self._seite is None or (adresse := weiteradresse(self._seite)) is None:

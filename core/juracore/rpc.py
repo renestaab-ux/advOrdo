@@ -10,12 +10,15 @@ Antwort:  {"id": 1, "result": [...]}  oder  {"id": 1, "error": {"message": "..."
 
 from __future__ import annotations
 
+import http.client
 import json
 import logging
 import sqlite3
 import sys
 import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -54,7 +57,7 @@ class Kern:
         # Beides gehört zur aktiven Arbeitsumgebung; die Wissensbasis teilen sich alle Umgebungen.
         self.umgebungen = Umgebungen(Path(db_pfad).parent)
         self._oeffne_akten(self.umgebungen.ordner())
-        self.recherche = recherche.Recherche(self.con)
+        self.recherche = recherche.Recherche(self.con, diagnose=Path(db_pfad).parent / "diagnose")
         self.ki_datei = Path(db_pfad).parent / "ki.json"
         # Externe Programme gelten für das Gerät, nicht je Arbeitsumgebung.
         self.programme_datei = Path(db_pfad).parent / "programme.json"
@@ -641,9 +644,12 @@ class Kern:
         Treffer bekommen ``urteil_id``, wenn sie schon gespeichert sind."""
         try:
             ergebnis = f()
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as fehler:
-            grund = getattr(fehler, "reason", fehler)
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as fehler:
+            grund = getattr(fehler, "reason", None) or type(fehler).__name__
             raise OSError(f"Die Quelle ist nicht erreichbar ({grund}). Bitte später erneut versuchen.") from fehler
+        except (zipfile.BadZipFile, ET.ParseError) as fehler:
+            # Sonst kein erwarteter Fehler des Kerns: Er würde beendet statt eine Meldung zu geben.
+            raise ValueError(f"Die Quelle hat keine lesbare Entscheidung geliefert ({fehler}).") from fehler
         if isinstance(ergebnis, dict) and "treffer" in ergebnis:
             ergebnis["treffer"] = urteile.gespeichert(self.akten, ergebnis["treffer"])
         return ergebnis

@@ -17,6 +17,7 @@ from __future__ import annotations
 import sqlite3
 from collections import OrderedDict
 from collections.abc import Callable
+from pathlib import Path
 
 from . import bayern, neuris, rii_suche, verzeichnis
 from . import volltext as rii
@@ -35,8 +36,10 @@ class Recherche:
 
     def __init__(self, wissen: sqlite3.Connection,
                  lader: dict[str, Callable[[str], bytes]] | None = None,
-                 sitzung: Callable[[], rii_suche.Sitzung] = rii_suche.Sitzung) -> None:
+                 sitzung: Callable[[], rii_suche.Sitzung] = rii_suche.Sitzung,
+                 diagnose: Path | None = None) -> None:
         self.wissen = wissen
+        self.diagnose = diagnose
         self.lader = {RII: rii.lade, BAYERN: bayern.lade, NEURIS: neuris.lade} | (lader or {})
         self._neue_sitzung = sitzung
         self._rii: rii_suche.Sitzung | None = None
@@ -81,6 +84,8 @@ class Recherche:
             ergebnis = rii_suche.lokal(self.wissen, f.get("gericht"), az, f.get("von"), f.get("bis"))
             return {"quelle": RII, "ort": "verzeichnis"} | ergebnis
         self._rii = self._neue_sitzung()
+        if self.diagnose is not None:
+            self._rii.fehlerseite = self.diagnose / "rii-suchmaske.html"
         ergebnis = self._rii.suche(text=f.get("volltext") or "", norm=f.get("norm") or "", gericht=f.get("gericht"),
                                    aktenzeichen=az, von=f.get("von"), bis=f.get("bis"))
         return {"quelle": RII, "ort": "online"} | ergebnis
