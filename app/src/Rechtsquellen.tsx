@@ -10,8 +10,11 @@ import {
   zeitpunkt,
 } from "./kern";
 
-/** Bereich „Rechtsprechung“: die Quellen, gegen die Urteilszitate geprüft und aus denen Volltexte genommen werden. */
-export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
+/**
+ * Einstellungen, Reiter „Rechtsquellen“: die Quellen, gegen die Urteilszitate geprüft und aus denen Volltexte
+ * genommen werden. Gearbeitet wird mit den Entscheidungen in der Akte („Rechtsprechung der Akte“).
+ */
+export default function Rechtsquellen({ onAkte }: { onAkte: () => void }) {
   const [stand, setStand] = useState<RechtsprechungStand | null>(null);
   const [eigene, setEigene] = useState<EigeneUrteile | null>(null);
   const [quellen, setQuellen] = useState<RechtsprechungQuellen | null>(null);
@@ -59,13 +62,10 @@ export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
   const geladen = anzahl("rii");
 
   return (
-    <div className="rechtsprechung">
-      <header className="kopf">
-        <h1>Rechtsprechung</h1>
-      </header>
+    <>
       <p className="erklaerung">
         Urteilszitate in Akten prüft die App gegen diese Quellen. Geladen werden nur öffentliche Verzeichnisse und
-        Entscheidungen; aus der Akte verlässt nichts das Gerät.
+        Entscheidungen; aus der Akte verlässt nichts das Gerät. Die Gesetze selbst verwaltet der Bereich „Gesetze“.
       </p>
       {laeuft && <p className="status">{laeuft}</p>}
       {fehler && <p className="fehler">{fehler}</p>}
@@ -170,6 +170,6 @@ export default function Rechtsprechung({ onAkte }: { onAkte: () => void }) {
           <li>EuGH und EuG (EUR-Lex, curia.europa.eu)</li>
         </ul>
       </section>
-    </div>
+    </>
   );
 }

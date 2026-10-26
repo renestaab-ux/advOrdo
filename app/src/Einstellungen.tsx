@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import AktenEinstellungen from "./AktenEinstellungen";
 import Diagnose from "./Diagnose";
 import Programme from "./Programme";
+import Rechtsquellen from "./Rechtsquellen";
 import Umgebungen from "./Umgebungen";
 import {
   AKZENTE,
@@ -18,7 +19,16 @@ import { KiStatus, Marke, UmgebungsListe, groesseText, istDesktop, kern } from "
 const KONTEXTE = [8192, 16384, 32768];
 const KONTEXTE_EXTERN = [32768, 131072];
 
-export type EinstellungsReiter = "allgemeines" | "umgebungen" | "eigene" | "akten" | "ki" | "extern" | "programme" | "diagnose";
+export type EinstellungsReiter =
+  | "allgemeines"
+  | "umgebungen"
+  | "eigene"
+  | "akten"
+  | "rechtsquellen"
+  | "ki"
+  | "extern"
+  | "programme"
+  | "diagnose";
 
 // Ein Reiter je Thema; „Diagnose“ steht immer zuletzt.
 const REITER: { id: EinstellungsReiter; titel: string }[] = [
@@ -26,6 +36,7 @@ const REITER: { id: EinstellungsReiter; titel: string }[] = [
   { id: "umgebungen", titel: "Arbeitsumgebungen" },
   { id: "eigene", titel: "Eigene Daten" },
   { id: "akten", titel: "Akten" },
+  { id: "rechtsquellen", titel: "Rechtsquellen" },
   { id: "ki", titel: "Lokales Sprachmodell" },
   { id: "extern", titel: "Externe KI" },
   { id: "programme", titel: "Programme" },
@@ -45,6 +56,7 @@ export default function Einstellungen({
   umgebungen,
   onUmgebungen,
   onEigeneDaten,
+  onAkten,
 }: {
   reiter: EinstellungsReiter;
   onReiter: (r: EinstellungsReiter) => void;
@@ -54,6 +66,7 @@ export default function Einstellungen({
   umgebungen: UmgebungsListe | null;
   onUmgebungen: (liste: UmgebungsListe, gewechselt: boolean) => void;
   onEigeneDaten: () => void;
+  onAkten: () => void;
 }) {
   const [status, setStatus] = useState<KiStatus | null>(null);
   const [anbieter, setAnbieter] = useState("ollama");
@@ -154,6 +167,8 @@ export default function Einstellungen({
     );
   } else if (reiter === "akten") {
     inhalt = <AktenEinstellungen umgebungen={umgebungen} />;
+  } else if (reiter === "rechtsquellen") {
+    inhalt = <Rechtsquellen onAkte={onAkten} />;
   } else if (reiter === "ki") {
     inhalt = (
       <>

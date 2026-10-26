@@ -500,7 +500,7 @@ als Text in die Zwischenablage; er enthält keine Dokumentinhalte und keine Schl
 Beim Einlesen erkennt die App auch Rechtsprechungszitate („BGH, Urteil vom 12.10.2016 – VIII ZR 103/15“,
 „BAG, Urt. v. 20.2.2019 – 2 AZR 746/14“, „OLG Hamm, Beschl. v. …“, „EuGH, C-497/13“) und prüft sie gegen
 das Verzeichnis der Bundesgerichte von rechtsprechung-im-internet.de (BVerfG, BGH, BVerwG, BFH, BAG, BSG,
-BPatG, GmS-OGB). Das Verzeichnis lädt man einmal im Bereich **Rechtsprechung** („Verzeichnis laden“); es ist
+BPatG, GmS-OGB). Das Verzeichnis lädt man einmal in den **Einstellungen → Rechtsquellen** („Verzeichnis laden“); es ist
 eine öffentliche Liste und wird wie die Gesetze unverändert unter seiner SHA-256-Prüfsumme archiviert.
 Danach zeigt die Akte im Reiter **Rechtsprechung der Akte**:
 
@@ -517,8 +517,8 @@ Geprüft wird nur, ob es die Entscheidung gibt, nicht, ob sie die zitierte Aussa
 ergänzen …“), z. B. ein PDF-Ausdruck aus juris oder beck-online für ein OLG-Urteil, das nicht im Verzeichnis steht.
 Gericht, Aktenzeichen und Datum werden aus dem Zitat vorgeschlagen, die Quelle aus dem Dateinamen. Die Datei wird
 unverändert bei der Akte abgelegt (`akten/akte-<id>/urteile/`) und gelesen; Randnummern werden erkannt. Das ergänzte
-Urteil gilt auch für andere Zitate der Akte mit demselben Gericht und Aktenzeichen. Der Bereich **Rechtsprechung**
-zeigt alle Quellen und wie viele Entscheidungen selbst ergänzt wurden.
+Urteil gilt auch für andere Zitate der Akte mit demselben Gericht und Aktenzeichen. Der Reiter
+**Einstellungen → Rechtsquellen** zeigt alle Quellen und wie viele Entscheidungen selbst ergänzt wurden.
 
 **Volltexte laden und Randnummern prüfen:** „Volltexte laden“ im Reiter „Rechtsprechung der Akte“ holt die belegten
 Entscheidungen der Bundesgerichte von rechtsprechung-im-internet.de (Leitsatz, Tenor, Tatbestand, Gründe mit
@@ -539,7 +539,7 @@ zurück auf Standard).
   eine, bleibt das Zitat „nicht im Verzeichnis“ mit einem Hinweis.
 - Zitate der **Bundesgerichte**, die im Verzeichnis fehlen (z. B. ganz neue Entscheidungen), sucht die App bei
   **NeuRIS**, dem Rechtsinformationsportal des Bundes. NeuRIS ist noch in der Testphase und deshalb zunächst aus;
-  einschalten im Bereich **Rechtsprechung** („NeuRIS-Rechtsprechung nutzen“).
+  einschalten in den **Einstellungen → Rechtsquellen** („NeuRIS-Rechtsprechung nutzen“).
 
 Was online gefunden wird, gilt als belegt (die Quelle steht im Hinweis), und „Volltext laden“ holt die
 Entscheidung dann aus dieser Quelle: bei Bayern das ZIP (Archiv `RECHTSPRECHUNG/bayern/`), bei NeuRIS das HTML

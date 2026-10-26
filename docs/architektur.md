@@ -194,7 +194,7 @@ ihrem letzten Eintrag.
 - Realdaten-Test mit vollständigem BGB/ZPO-XML (Sonderfälle: Tabellen, Anlagen, verschachtelte Listen)
 - Installer über GitHub Actions bauen und signieren (bisher lokal, siehe README)
 - Rechtsprechung: weitere Landesportale (z. B. NRWE), EuGH (EUR-Lex); prüfen, ob die zitierte Rn. die Aussage trägt
-- Bayern und NeuRIS: Formate an echten Abrufen bestätigen; Suchmaske im Bereich Rechtsprechung; Landesrecht Bayern
+- Bayern und NeuRIS: Formate an echten Abrufen bestätigen; Suchmaske in den Einstellungen unter Rechtsquellen; Landesrecht Bayern
 - Chronologie exportieren (Word, PDF, Markdown)
 - Tesseract für den Installer mitliefern (Windows), damit keine eigene Installation nötig ist
 - Externe Anbieter (Modus „Externer Anbieter“) mit Warnhinweis und Schlüsselspeicher
