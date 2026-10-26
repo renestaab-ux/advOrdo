@@ -21,6 +21,7 @@ die anderen nicht berührt.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -173,6 +174,10 @@ def _doknr(entscheidung: dict | None) -> str | None:
     return m.group(1) if m else None
 
 
+def _dateiname(quelle: str, doknr: str) -> str:
+    return {RII: f"jb-{doknr}.zip", BAYERN: f"{doknr}.zip", NEURIS: f"{doknr}.html"}[quelle]
+
+
 def _speichere_volltext(
     con: sqlite3.Connection, akte_id: int | None, zitat: str | None, daten: bytes, archiv: Path,
     quelle: str = RII, entscheidung: dict | None = None,
@@ -185,7 +190,7 @@ def _speichere_volltext(
         return vorhanden["id"]
     kopf = {"spruchkoerper": v.spruchkoerper, "doktyp": v.doktyp, "normen": v.normen,
             "vorinstanz": v.vorinstanz, "titel": v.titel}
-    dateiname = {RII: f"jb-{v.doknr}.zip", BAYERN: f"{v.doknr}.zip", NEURIS: f"{v.doknr}.html"}[quelle]
+    dateiname = _dateiname(quelle, v.doknr)
     with con:
         urteil_id = con.execute(
             """INSERT INTO urteil (akte_id, zitat, gericht, aktenzeichen, az_norm, datum, quelle, herkunft, dateiname,
@@ -450,3 +455,42 @@ def suche(con: sqlite3.Connection, suchtext: str) -> dict:
         g["fundstellen"].sort(key=lambda f: f["nr"])
         del g["gewicht"]
     return {"urteile": ergebnis, "treffer": sum(len(g["fundstellen"]) for g in ergebnis)}
+
+
+# --- Online-Recherche: Treffer ansehen und in die Sammlung übernehmen ------------------------------------
+
+
+def vorschau(daten: bytes, quelle: str, treffer: dict | None = None) -> dict:
+    """Liest einen geladenen Volltext zur Ansicht, ohne ihn zu speichern (Form wie ``volltext``, ``id`` None)."""
+    leser, herkunft, _ordner_name, _endung = _QUELLEN[quelle]
+    v = leser(daten, treffer)
+    return {"id": None, "akte_id": None, "zitat": None, "gericht": v.gericht, "aktenzeichen": v.aktenzeichen,
+            "datum": v.datum, "quelle": quelle, "herkunft": herkunft, "dateiname": _dateiname(quelle, v.doknr),
+            "format": quelle,
+            "sha256": None, "lesart": "datei", "hinzugefuegt_am": None, "doknr": v.doknr, "hinweise": [],
+            "kopf": {"spruchkoerper": v.spruchkoerper, "doktyp": v.doktyp, "normen": v.normen,
+                     "vorinstanz": v.vorinstanz, "titel": v.titel},
+            "abschnitte": [{"nr": i, "seite": None, "rn": a.rn, "text": a.text, "teil": a.teil}
+                           for i, a in enumerate(v.absaetze, 1)]}
+
+
+def in_sammlung(con: sqlite3.Connection, daten: bytes, quelle: str, archiv: Path,
+                treffer: dict | None = None) -> dict:
+    """Übernimmt einen online gefundenen Volltext in die Sammlung (ohne Akte). Steht dieselbe Datei schon in der
+    Sammlung oder in einer Akte, bleibt es bei der vorhandenen Entscheidung."""
+    if quelle not in _QUELLEN:
+        raise ValueError(f"Unbekannte Quelle: {quelle!r}")
+    vorhanden = con.execute("SELECT id FROM urteil WHERE sha256 = ? ORDER BY akte_id IS NOT NULL, id",
+                            (hashlib.sha256(daten).hexdigest(),)).fetchone()
+    if vorhanden:
+        return {"urteil_id": vorhanden["id"], "neu": False}
+    return {"urteil_id": _speichere_volltext(con, None, None, daten, archiv, quelle, treffer), "neu": True}
+
+
+def gespeichert(con: sqlite3.Connection, treffer: list[dict]) -> list[dict]:
+    """Ergänzt Treffer einer Online-Suche um ``urteil_id``, wenn die Entscheidung schon gespeichert ist."""
+    ids: dict[tuple[str, str], int] = {}
+    for z in con.execute(
+            "SELECT id, quelle, doknr FROM urteil WHERE doknr IS NOT NULL ORDER BY akte_id IS NOT NULL, id"):
+        ids.setdefault((z["quelle"], z["doknr"]), z["id"])
+    return [t | {"urteil_id": ids.get((t["quelle"], t["doknr"]))} for t in treffer]

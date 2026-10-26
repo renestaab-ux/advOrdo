@@ -12,10 +12,12 @@ import {
 import { open } from "@tauri-apps/plugin-dialog";
 import AktenWahl from "./AktenWahl";
 import { Rueckfrage, VolltextAnsicht } from "./Akte";
+import RechtsprechungSuche, { trefferSchluessel } from "./RechtsprechungSuche";
 import {
   Akte,
   Erkannt,
   KopfVorschlag,
+  RechercheTreffer,
   SammlungEintrag,
   SammlungSuche,
   URTEIL_ARTEN,
@@ -32,6 +34,7 @@ import {
 } from "./kern";
 
 type Zuordnung = "alle" | "zugeordnet" | "frei";
+type Ansicht = "sammlung" | "suche";
 
 /** Breite des Volltexts rechts, je Gerät gemerkt; die Liste links behält mindestens LISTE_MIN. */
 const VOLLTEXT_STANDARD = 520;
@@ -80,7 +83,12 @@ export default function Rechtsprechung({
   const [filter, setFilter] = useState("");
   const [suchtext, setSuchtext] = useState("");
   const [treffer, setTreffer] = useState<SammlungSuche | null>(null);
+  const [ansicht, setAnsicht] = useState<Ansicht>("sammlung");
   const [volltext, setVolltext] = useState<UrteilVolltext | null>(null);
+  /** Treffer der Online-Suche, der rechts offen ist und noch nicht gespeichert wurde. */
+  const [vorschau, setVorschau] = useState<RechercheTreffer | null>(null);
+  /** Seit dem Öffnen des Bereichs gespeicherte Treffer: Schlüssel → Entscheidung. */
+  const [gespeichert, setGespeichert] = useState<Record<string, number>>({});
   const [rn, setRn] = useState<number | null>(null);
   const [neu, setNeu] = useState<NeueDatei | null>(null);
   const [loeschfrage, setLoeschfrage] = useState<SammlungEintrag | null>(null);
@@ -181,6 +189,51 @@ export default function Rechtsprechung({
     if (volltext?.sha256 === e.sha256) return;
     const v = await ausfuehren("Lade Volltext …", () => kern<UrteilVolltext>("akten.urteil", { urteil_id: e.id }));
     setVolltext(v ?? null);
+    setVorschau(null);
+  }
+
+  async function gespeicherteOeffnen(urteilId: number) {
+    const v = await ausfuehren("Lade Volltext …", () => kern<UrteilVolltext>("akten.urteil", { urteil_id: urteilId }));
+    if (v) {
+      setVolltext(v);
+      setVorschau(null);
+    }
+  }
+
+  /** Treffer der Online-Suche öffnen: gespeicherte aus der Sammlung, sonst von der Quelle laden (noch ohne Speichern). */
+  async function trefferOeffnen(t: RechercheTreffer) {
+    setRn(null);
+    setMeldung(null);
+    const id = t.urteil_id ?? gespeichert[trefferSchluessel(t)];
+    if (id != null) return gespeicherteOeffnen(id);
+    const v = await ausfuehren(`Lade die Entscheidung von ${URTEIL_QUELLE_NAME[t.quelle]} …`, () =>
+      kern<UrteilVolltext>("rechtsprechung.recherche_oeffnen", { quelle: t.quelle, doknr: t.doknr, treffer: t }),
+    );
+    if (v) {
+      setVolltext(v);
+      setVorschau(t);
+    }
+  }
+
+  /** Den offenen Treffer in die Sammlung übernehmen, auf Wunsch gleich einer Akte zugeordnet. */
+  async function trefferSpeichern(t: RechercheTreffer, akteId: number | null) {
+    const akte = akteId != null ? akten.find((a) => a.id === akteId) : undefined;
+    const r = await ausfuehren("Übernehme in die Sammlung …", async () => {
+      const s = await kern<{ urteil_id: number; neu: boolean }>("rechtsprechung.recherche_speichern", {
+        quelle: t.quelle,
+        doknr: t.doknr,
+        treffer: t,
+      });
+      if (akteId != null) await kern("rechtsprechung.zuordnen", { urteil_id: s.urteil_id, akte_id: akteId });
+      return s;
+    });
+    if (!r) return;
+    setGespeichert((g) => ({ ...g, [trefferSchluessel(t)]: r.urteil_id }));
+    const titel = urteilTitel(volltext ?? { gericht: t.gericht, datum: t.datum, aktenzeichen: t.aktenzeichen, kopf: null });
+    const zuAkte = akte ? ` und der Akte ${akte.aktenzeichen ?? akte.name} zugeordnet` : "";
+    setMeldung(r.neu ? `${titel} steht jetzt in der Sammlung${zuAkte}.` : `${titel} stand schon in der Sammlung${zuAkte ? `; jetzt${zuAkte}` : ""}.`);
+    await laden();
+    await gespeicherteOeffnen(r.urteil_id);
   }
 
   async function zuordnen(e: SammlungEintrag, akteId: number | null) {
@@ -224,6 +277,7 @@ export default function Rechtsprechung({
       filters: [{ name: "Entscheidung (PDF, Word, Text)", extensions: ["pdf", "docx", "txt", "md"] }],
     });
     if (typeof gewaehlt !== "string") return;
+    setAnsicht("sammlung");
     const name = gewaehlt.split(/[\\/]/).pop() ?? gewaehlt;
     // Quelle aus dem Dateinamen vorschlagen, wenn er sie nennt (z. B. „juris_BGH_VIII_ZR_999-20.pdf“).
     const herkunft = URTEIL_QUELLEN.find((q) => name.toLowerCase().includes(q.toLowerCase().split(" ")[0])) ?? "";
@@ -293,14 +347,49 @@ export default function Rechtsprechung({
             Eigene Datei hinzufügen …
           </button>
         </header>
-        <p className="erklaerung">
-          Alle gespeicherten Entscheidungen, aus allen Akten und ohne Akte. Geladen werden sie in der Akte unter
-          „Rechtsprechung der Akte“ oder hier als eigene Datei;{" "}
-          <button className="link" onClick={onQuellen}>
-            Quellen in den Einstellungen
-          </button>
-          .
-        </p>
+        <div className="wahl-reihe bereich-wahl" role="group" aria-label="Ansicht">
+          {(
+            [
+              ["sammlung", `Gespeicherte Entscheidungen (${anzahl})`],
+              ["suche", "Online suchen"],
+            ] as [Ansicht, string][]
+          ).map(([id, titel]) => (
+            <button key={id} className={`chip${ansicht === id ? " aktiv" : ""}`} onClick={() => setAnsicht(id)}>
+              {titel}
+            </button>
+          ))}
+        </div>
+        {ansicht === "sammlung" ? (
+          <p className="erklaerung">
+            Alle gespeicherten Entscheidungen, aus allen Akten und ohne Akte. Sie kommen aus der Akte („Rechtsprechung
+            der Akte“), aus der Online-Suche oder als eigene Datei;{" "}
+            <button className="link" onClick={onQuellen}>
+              Quellen in den Einstellungen
+            </button>
+            .
+          </p>
+        ) : (
+          <p className="erklaerung">
+            Entscheidungen bei rechtsprechung-im-internet.de, gesetze-bayern.de und NeuRIS suchen. Ein Treffer öffnet sich
+            rechts; von dort kommt er in die Sammlung und auf Wunsch gleich in eine Akte.
+          </p>
+        )}
+
+        {laeuft && <p className="status">{laeuft}</p>}
+        {fehler && <p className="fehler">{fehler}</p>}
+        {meldung && !laeuft && <p className="hinweis">{meldung}</p>}
+
+        {/* Beide Ansichten bleiben bestehen, damit Suche und Filter beim Umschalten erhalten bleiben. */}
+        <div hidden={ansicht !== "suche"}>
+          <RechtsprechungSuche
+            offen={vorschau ? trefferSchluessel(vorschau) : volltext?.doknr ? `${volltext.quelle}:${volltext.doknr}` : null}
+            gespeichert={gespeichert}
+            gesperrt={!!laeuft}
+            onOeffnen={trefferOeffnen}
+            onQuellen={onQuellen}
+          />
+        </div>
+        <div hidden={ansicht !== "sammlung"}>
 
         {neu && (
           <form className="rueckfrage" aria-label="Entscheidung hinzufügen" onSubmit={dateiSpeichern}>
@@ -429,14 +518,11 @@ export default function Rechtsprechung({
           />
         </div>
 
-        {laeuft && <p className="status">{laeuft}</p>}
-        {fehler && <p className="fehler">{fehler}</p>}
-        {meldung && !laeuft && <p className="hinweis">{meldung}</p>}
-
         {eintraege && anzahl === 0 && (
           <p className="leer">
             Noch keine Entscheidungen gespeichert. Sie kommen hierher, wenn man in einer Akte unter „Rechtsprechung der
-            Akte“ Volltexte lädt oder ein Urteil selbst ergänzt, oder über „Eigene Datei hinzufügen …“.
+            Akte“ Volltexte lädt oder ein Urteil selbst ergänzt, über „Online suchen“ oder über „Eigene Datei
+            hinzufügen …“.
           </p>
         )}
         {anzahl > 0 && sichtbar.length === 0 && (
@@ -518,12 +604,13 @@ export default function Rechtsprechung({
                   knopf="Akte zuordnen …"
                 />
                 <button className="link klein" onClick={() => setLoeschfrage(e)} disabled={!!laeuft}>
-                  entfernen
+                  Entscheidung entfernen
                 </button>
               </div>
             </li>
           ))}
         </ul>
+        </div>
       </div>
       {volltext && (
         <div
@@ -536,7 +623,31 @@ export default function Rechtsprechung({
           onDoubleClick={() => setzeBreite(VOLLTEXT_STANDARD)}
         />
       )}
-      {volltext && <VolltextAnsicht volltext={volltext} rn={rn} onSchliessen={() => setVolltext(null)} />}
+      {volltext && (
+        <VolltextAnsicht
+          volltext={volltext}
+          rn={rn}
+          onSchliessen={() => {
+            setVolltext(null);
+            setVorschau(null);
+          }}
+          aktionen={
+            vorschau && (
+              <>
+                <button className="klein" onClick={() => trefferSpeichern(vorschau, null)} disabled={!!laeuft}>
+                  In die Sammlung
+                </button>
+                <AktenWahl
+                  akten={akten}
+                  akteId={null}
+                  onWahl={(id) => id != null && trefferSpeichern(vorschau, id)}
+                  knopf="In die Sammlung und Akte zuordnen …"
+                />
+              </>
+            )
+          }
+        />
+      )}
     </div>
   );
 }

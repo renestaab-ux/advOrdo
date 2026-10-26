@@ -95,7 +95,7 @@ class Treffer:
     def als_dict(self) -> dict:
         return {"quelle": "bayern", "doknr": self.doknr, "gericht": self.gericht, "spruchkoerper": None,
                 "datum": self.datum, "aktenzeichen": self.aktenzeichen or "", "doktyp": self.doktyp,
-                "titel": self.titel, "link": adresse(self.doknr)}
+                "titel": self.titel, "ausschnitt": None, "link": adresse(self.doknr)}
 
 
 _TITEL = re.compile(
@@ -138,8 +138,25 @@ def lies_trefferliste(seite: str) -> tuple[list[Treffer], int | None]:
 _TOKEN = re.compile(r'__RequestVerificationToken"[^>]*value="([^"]+)"')
 
 
-def suche(aktenzeichen: str, timeout: float = 30) -> tuple[list[Treffer], int | None]:
-    """Sucht Entscheidungen mit diesem Aktenzeichen. Je Suche eine eigene Sitzung (Filter wirken je Sitzung)."""
+# Gerichtsbarkeiten, nach denen das Portal filtert (oberste Ebene des Gerichtsbaums).
+GERICHTSBARKEITEN = ("Verfassungsgerichtsbarkeit", "Ordentliche Gerichtsbarkeit", "Verwaltungsgerichtsbarkeit",
+                     "Finanzgerichtsbarkeit", "Arbeitsgerichtsbarkeit", "Sozialgerichtsbarkeit", "Dienstgericht",
+                     "Sonstige Gerichte")
+
+
+def _tag(iso: str | None) -> str:
+    if not iso:
+        return ""
+    j, m, t = iso.split("-")
+    return f"{t}.{m}.{j}"
+
+
+def suche(aktenzeichen: str = "", timeout: float = 30, *, volltext: str = "", von: str | None = None,
+          bis: str | None = None, gerichtsbarkeit: str | None = None) -> tuple[list[Treffer], int | None]:
+    """Sucht Entscheidungen nach Aktenzeichen, Volltext, Zeitraum (ISO) und Gerichtsbarkeit. Je Suche eine eigene
+    Sitzung, weil die Filter je Sitzung gelten. Geliefert wird die erste Seite der Trefferliste."""
+    if gerichtsbarkeit is not None and gerichtsbarkeit not in GERICHTSBARKEITEN:
+        raise ValueError(f"Unbekannte Gerichtsbarkeit: {gerichtsbarkeit!r}")
     oeffner = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     oeffner.addheaders = [("User-Agent", USER_AGENT)]
 
@@ -148,12 +165,15 @@ def suche(aktenzeichen: str, timeout: float = 30) -> tuple[list[Treffer], int | 
             return antwort.read().decode("utf-8", errors="replace")
 
     hole("/Search/Filter/DOKTYP/rspr")
+    if gerichtsbarkeit:
+        hole("/Search/Filter/LEVEL1RSPRTREENODE/" + urllib.parse.quote(gerichtsbarkeit))
     formular = hole("/Search/Hitlist")
     token = _TOKEN.search(formular)
     if token is None:
         raise ValueError("Das Suchformular von gesetze-bayern.de hat sich geändert (kein Prüfzeichen gefunden).")
-    felder = {"SearchFields.Aktenzeichen": aktenzeichen, "SearchFields.Content": "", "SearchFields.DatumVon": "",
-              "SearchFields.DatumBis": "", "__RequestVerificationToken": html.unescape(token.group(1))}
+    felder = {"SearchFields.Aktenzeichen": aktenzeichen.strip(), "SearchFields.Content": volltext.strip(),
+              "SearchFields.DatumVon": _tag(von), "SearchFields.DatumBis": _tag(bis),
+              "__RequestVerificationToken": html.unescape(token.group(1))}
     # Die Antwort leitet auf die Trefferliste weiter; urllib folgt der Weiterleitung mit GET.
     return lies_trefferliste(hole("/Search", urllib.parse.urlencode(felder).encode()))
 

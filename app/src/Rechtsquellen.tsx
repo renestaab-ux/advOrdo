@@ -94,7 +94,8 @@ export default function Rechtsquellen({ onAkte }: { onAkte: () => void }) {
         )}
         <p className="grenze">
           Das Verzeichnis enthält keine Texte. Die Volltexte der zitierten Entscheidungen lädt man je Akte unter
-          „Rechtsprechung der Akte“ („Volltexte laden“).
+          „Rechtsprechung der Akte“ („Volltexte laden“); weitere Entscheidungen findet man im Bereich „Rechtsprechung“
+          unter „Online suchen“.
         </p>
       </section>
 

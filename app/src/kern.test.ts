@@ -50,6 +50,9 @@ import {
   optionPasst,
   type Arbeitskopie,
   exportTeile,
+  rechercheFelder,
+  riiOnline,
+  trefferTitel,
 } from "./kern";
 
 describe("istZitat", () => {
@@ -580,5 +583,41 @@ describe("kiModusName", () => {
     expect(kiModusName({ aktiv: "extern", titel: "Google Gemini", modell: "m", ort: null })).toBe(
       "Externer Anbieter (Google Gemini)",
     );
+  });
+});
+
+describe("Online-Recherche", () => {
+  const leer = { gericht: "", gerichtsbarkeit: "", aktenzeichen: "", volltext: "", norm: "", von: "", bis: "" };
+
+  it("sucht bei rechtsprechung-im-internet.de nur mit Volltext, Norm oder ECLI auf der Seite", () => {
+    expect(riiOnline({ ...leer, aktenzeichen: "VIII ZR 103/15" })).toBe(false);
+    expect(riiOnline({ ...leer, aktenzeichen: " ecli:DE:BGH:2016" })).toBe(true);
+    expect(riiOnline({ ...leer, norm: "§ 476 BGB" })).toBe(true);
+    expect(riiOnline({ ...leer, volltext: "Gebrauchtwagen" })).toBe(true);
+  });
+
+  it("sendet nur ausgefüllte Felder, die die Maske der Quelle hat", () => {
+    const f = { ...leer, gericht: "BGH", gerichtsbarkeit: "Ordentliche Gerichtsbarkeit", norm: "§ 1 BGB", volltext: " x " };
+    expect(rechercheFelder("rii", f)).toEqual({ gericht: "BGH", norm: "§ 1 BGB", volltext: "x" });
+    expect(rechercheFelder("bayern", f)).toEqual({ gerichtsbarkeit: "Ordentliche Gerichtsbarkeit", volltext: "x" });
+    expect(rechercheFelder("neuris", f)).toEqual({ gericht: "BGH", volltext: "x" });
+  });
+
+  it("betitelt Treffer wie gespeicherte Entscheidungen", () => {
+    const t = {
+      quelle: "rii" as const,
+      doknr: "KORE301892016",
+      gericht: "BGH",
+      spruchkoerper: "8. Zivilsenat",
+      datum: "2016-10-12",
+      aktenzeichen: "VIII ZR 103/15",
+      doktyp: "Urteil",
+      titel: null,
+      ausschnitt: null,
+      link: null,
+      urteil_id: null,
+    };
+    expect(trefferTitel(t)).toBe("BGH 8. Zivilsenat, Urteil vom 12.10.2016 – VIII ZR 103/15");
+    expect(trefferTitel({ ...t, doktyp: null, spruchkoerper: null })).toBe("BGH, Entscheidung vom 12.10.2016 – VIII ZR 103/15");
   });
 });

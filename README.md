@@ -555,12 +555,21 @@ in der Volltextleiste. **Eigene Datei hinzufügen …** legt eine Entscheidung
 ohne Akte ab (`<Ablage>/rechtsprechung/`); Gericht, Aktenzeichen, Datum, Art und Quelle schlägt die App dabei aus dem
 Kopf des Dokuments vor (beschriftete Felder wie bei juris und openJur, Zitierzeile wie bei beck-online oder Kopf einer
 Ausfertigung mit „Verkündet am …“), jeweils mit Fundstelle zum Prüfen; **Akte zuordnen …** ordnet sie einer oder mehreren Akten zu, das × an
-einer Akte löst die Zuordnung (die Entscheidung bleibt in der Sammlung), **entfernen** nimmt sie ganz heraus, auch
+einer Akte löst die Zuordnung (die Entscheidung bleibt in der Sammlung), **Entscheidung entfernen** nimmt sie ganz heraus, auch
 aus allen Akten. Wird eine Akte gelöscht, verschwinden ihre Zuordnungen; die anderen bleiben. In der Akte stehen
 zugeordnete Entscheidungen, die in ihren Dokumenten nicht zitiert sind, im Reiter „Rechtsprechung“ unter **Zur
 weiteren Bearbeitung zugeordnet** (mit Volltext und „Zuordnung lösen“); Chat und Gegenüberstellung beziehen sie mit
-ein. Die Online-Suche
-nach Entscheidungen (wie in JuraBox Lite) folgt in einem späteren Schritt.
+ein.
+
+**Online suchen** (im Bereich „Rechtsprechung“, wie in JuraBox Lite): je Quelle eine eigene Maske.
+rechtsprechung-im-internet.de: Gericht, Aktenzeichen und Zeitraum sucht die App im geladenen Verzeichnis, ohne Netz;
+mit Volltext, Norm (z. B. „§ 476 BGB“) oder ECLI fragt sie die Suche der Seite ab (25 Treffer je Seite, „Weitere
+Treffer laden“, höchstens 200). Gerichtsentscheidungen Bayern: Gerichtsbarkeit, Aktenzeichen, Volltext, Zeitraum
+(erste Trefferseite; für mehr die Suche eingrenzen). NeuRIS (nur wenn unter Einstellungen → Rechtsquellen
+eingeschaltet): Gericht, Aktenzeichen, Suchbegriff, Zeitraum. Gesucht wird erst auf „Suchen“; an die Quelle gehen nur
+die eingegebenen Begriffe. Ein Treffer öffnet sich rechts, ohne gespeichert zu werden; **In die Sammlung** übernimmt
+ihn (unverändert im Roharchiv, SHA-256), **In die Sammlung und Akte zuordnen …** ordnet ihn zugleich einer Akte zu.
+Schon gespeicherte Treffer tragen „in der Sammlung“.
 
 Nutzung: Nach den Nutzungshinweisen von gesetze-bayern.de dürfen Vorschriften und Entscheidungen uneingeschränkt
 weiterverwendet werden; die redaktionellen Leitsätze (C.H.Beck) sind urheberrechtlich geschützt, die Datenbank

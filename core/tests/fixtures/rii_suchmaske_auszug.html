@@ -1,0 +1,23 @@
+<!-- Nachgebauter Auszug der Suchmaske von rechtsprechung-im-internet.de (Aufbau laut JuraBox Lite 5.2c). -->
+<html><head>
+<base href="https://www.rechtsprechung-im-internet.de/jportal/portal/t/1a2b/page/bsjrsprod.psml/js_pane/Suchportlet2/">
+</head><body>
+<form name="searchForm" method="get" action="/jportal/portal/t/1a2b/page/bsjrsprod.psml;jsessionid=ABC123?action=portlets.jw.MainAction">
+  <input type="hidden" name="sugline" value="1">
+  <input type="hidden" name="desc" value="text"><input type="text" name="query" value="">
+  <input type="hidden" name="desc" value="norm"><input type="text" name="query" value="">
+  <input type="hidden" name="desc" value="date"><input type="hidden" name="query" value="date">
+  <input type="text" name="dateFrom" value=""><input type="text" name="dateTo" value="">
+  <input type="hidden" name="desc" value="court_author">
+  <select name="query">
+    <option value="" selected>Alle Gerichte</option>
+    <option value="bverfg">BVerfG</option>
+    <option value="bgh">BGH</option>
+    <option value="bverwg">BVerwG</option>
+  </select>
+  <input type="hidden" name="desc" value="filenumber"><input type="text" name="query" value="">
+  <input type="checkbox" name="nurLeitsatz" value="1">
+  <input type="submit" name="standardsuche" value="suchen">
+  <input type="reset" name="zuruecksetzen" value="Zurücksetzen">
+</form>
+</body></html>

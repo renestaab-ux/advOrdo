@@ -14,6 +14,7 @@ import json
 import logging
 import sqlite3
 import sys
+import urllib.error
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
@@ -37,7 +38,7 @@ from .ki import wissen as ki_wissen
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
 from .rechner import basiszins, fristen, verzugszinsen
-from .rechtsprechung import online, verzeichnis
+from .rechtsprechung import online, recherche, verzeichnis
 from .umgebungen import Umgebungen
 
 log = logging.getLogger("juracore.rpc")
@@ -53,6 +54,7 @@ class Kern:
         # Beides gehört zur aktiven Arbeitsumgebung; die Wissensbasis teilen sich alle Umgebungen.
         self.umgebungen = Umgebungen(Path(db_pfad).parent)
         self._oeffne_akten(self.umgebungen.ordner())
+        self.recherche = recherche.Recherche(self.con)
         self.ki_datei = Path(db_pfad).parent / "ki.json"
         # Externe Programme gelten für das Gerät, nicht je Arbeitsumgebung.
         self.programme_datei = Path(db_pfad).parent / "programme.json"
@@ -213,6 +215,14 @@ class Kern:
             "rechtsprechung.loesen": lambda urteil_id: urteile.loesen(self.akten, urteil_id, self.ablage),
             "rechtsprechung.entfernen": lambda urteil_id: urteile.aus_sammlung_entfernen(
                 self.akten, urteil_id, self.ablage),
+            "rechtsprechung.recherche": self.recherche_suche,
+            "rechtsprechung.recherche_weiter": lambda quelle: self._recherche_ergebnis(
+                lambda: self.recherche.weiter(quelle)),
+            "rechtsprechung.recherche_oeffnen": lambda quelle, doknr, treffer=None: self._recherche_ergebnis(
+                lambda: urteile.vorschau(self.recherche.daten(quelle, doknr), quelle, treffer)),
+            "rechtsprechung.recherche_speichern": lambda quelle, doknr, treffer=None: self._recherche_ergebnis(
+                lambda: urteile.in_sammlung(self.akten, self.recherche.daten(quelle, doknr), quelle, self.archiv,
+                                            treffer)),
             "akten.urteil": lambda urteil_id: urteile.volltext(self.akten, urteil_id),
             "akten.urteil_entfernen": lambda urteil_id: urteile.entfernen(self.akten, urteil_id, self.ablage),
             "rechtsprechung.stand": lambda: verzeichnis.stand(self.con),
@@ -621,6 +631,22 @@ class Kern:
 
     def _online_quellen(self) -> set[str]:
         return online.quellen(online.einstellungen(self.quellen_datei))
+
+    def recherche_suche(self, quelle: str, felder: dict) -> dict:
+        neuris_an = online.einstellungen(self.quellen_datei)["neuris"]
+        return self._recherche_ergebnis(lambda: self.recherche.suche(quelle, felder, neuris_an))
+
+    def _recherche_ergebnis(self, f: Callable[[], Any]) -> Any:
+        """Führt einen Abruf der Online-Recherche aus; Netzfehler werden zu einer verständlichen Meldung,
+        Treffer bekommen ``urteil_id``, wenn sie schon gespeichert sind."""
+        try:
+            ergebnis = f()
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as fehler:
+            grund = getattr(fehler, "reason", fehler)
+            raise OSError(f"Die Quelle ist nicht erreichbar ({grund}). Bitte später erneut versuchen.") from fehler
+        if isinstance(ergebnis, dict) and "treffer" in ergebnis:
+            ergebnis["treffer"] = urteile.gespeichert(self.akten, ergebnis["treffer"])
+        return ergebnis
 
     def online_pruefen(self, akte_id: int, neu: bool = False) -> dict:
         """Prüft offene Zitate einer Akte bei gesetze-bayern.de bzw. NeuRIS; gesendet wird nur das Aktenzeichen."""

@@ -56,6 +56,14 @@ def _hole(url: str, timeout: float) -> bytes:
 # --- Suche -----------------------------------------------------------------------------------------
 
 
+def _ausschnitt(fundstellen: list | None) -> str | None:
+    """Erster Textausschnitt einer Volltextsuche (``textMatches[].text``), ohne Markup."""
+    for f in fundstellen or []:
+        if isinstance(f, dict) and (text := " ".join(re.sub(r"<[^>]+>", " ", f.get("text") or "").split())):
+            return text
+    return None
+
+
 def lies_treffer(daten: bytes | str | dict) -> tuple[list[dict], int | None]:
     """Liest eine Trefferliste (JSON-LD: ``member[].item``) in die Form der übrigen Quellen."""
     antwort = daten if isinstance(daten, dict) else json.loads(daten)
@@ -73,15 +81,23 @@ def lies_treffer(daten: bytes | str | dict) -> tuple[list[dict], int | None]:
             "datum": datum if datum and re.fullmatch(r"\d{4}-\d{2}-\d{2}", datum) else None,
             "aktenzeichen": ", ".join(aktenzeichen), "aktenzeichen_liste": aktenzeichen,
             "doktyp": item.get("documentType"), "ecli": item.get("ecli"), "titel": item.get("headline"),
+            "ausschnitt": _ausschnitt(m.get("textMatches")),
             "link": adresse(doknr),
         })
     gesamt = antwort.get("totalItems")
     return treffer, int(gesamt) if isinstance(gesamt, int | str) and str(gesamt).isdigit() else None
 
 
-def suche(aktenzeichen: str, timeout: float = 30) -> tuple[list[dict], int | None]:
-    """Sucht Entscheidungen mit diesem Aktenzeichen."""
-    abfrage = urllib.parse.urlencode({"fileNumber": aktenzeichen, "size": SEITENGROESSE, "pageIndex": 0})
+GERICHTE = ("BVerfG", "BGH", "BVerwG", "BFH", "BAG", "BSG", "BPatG")
+
+
+def suche(aktenzeichen: str = "", timeout: float = 30, *, suchbegriff: str = "", gericht: str | None = None,
+          von: str | None = None, bis: str | None = None, seite: int = 0) -> tuple[list[dict], int | None]:
+    """Sucht Entscheidungen nach Aktenzeichen, Suchbegriff, Gericht und Zeitraum (ISO), neueste zuerst."""
+    werte = {"fileNumber": aktenzeichen.strip(), "searchTerm": suchbegriff.strip(), "court": gericht or "",
+             "dateFrom": von or "", "dateTo": bis or ""}
+    abfrage = urllib.parse.urlencode({k: v for k, v in werte.items() if v} | {
+        "size": SEITENGROESSE, "pageIndex": seite, "sort": "-date"})
     return lies_treffer(_hole(f"{BASIS}/rechtsprechung?{abfrage}", timeout))
 
 
