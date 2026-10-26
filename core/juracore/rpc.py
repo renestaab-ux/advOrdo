@@ -690,6 +690,11 @@ class Kern:
         except (ValueError, LookupError, TypeError, OSError, RuntimeError, sqlite3.Error) as fehler:
             log.warning("Fehler bei Anfrage %s: %s", anfrage_id, fehler)
             return {"id": anfrage_id, "error": {"message": str(fehler), "typ": type(fehler).__name__}}
+        except Exception as fehler:  # noqa: BLE001 – ein unerwarteter Fehler darf den Kern nicht beenden
+            log.exception("Unerwarteter Fehler bei Anfrage %s", anfrage_id)
+            return {"id": anfrage_id, "error": {
+                "message": f"Unerwarteter Fehler im Analysekern ({type(fehler).__name__}: {fehler}).",
+                "typ": type(fehler).__name__}}
 
 
 def serve(db_pfad: Path | None = None, archiv: Path | None = None) -> None:
@@ -701,5 +706,12 @@ def serve(db_pfad: Path | None = None, archiv: Path | None = None) -> None:
         if not zeile.strip():
             continue
         antwort = kern.bearbeite(zeile)
-        sys.stdout.write(json.dumps(antwort, ensure_ascii=False) + "\n")
+        try:
+            text = json.dumps(antwort, ensure_ascii=False)
+            text.encode("utf-8")
+        except (TypeError, ValueError) as fehler:  # nicht als JSON/UTF-8 darstellbar: Meldung statt Absturz
+            log.exception("Antwort auf Anfrage %s nicht darstellbar", antwort.get("id"))
+            text = json.dumps({"id": antwort.get("id"), "error": {
+                "message": f"Die Antwort des Analysekerns ließ sich nicht übertragen ({fehler}).", "typ": "Antwort"}})
+        sys.stdout.write(text + "\n")
         sys.stdout.flush()

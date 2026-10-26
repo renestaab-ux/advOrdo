@@ -18,6 +18,7 @@ einzelne Abrufe, kein Massenabruf.
 from __future__ import annotations
 
 import html
+import http.client
 import http.cookiejar
 import io
 import re
@@ -182,8 +183,14 @@ def lade(doknr: str, timeout: float = 60) -> bytes:
     """Lädt das ZIP einer Entscheidung."""
     anfrage = urllib.request.Request(f"{BASIS}/Content/Zip/{_pruefe_doknr(doknr)}",
                                      headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
-        return antwort.read()
+    for versuch in range(3):
+        try:
+            with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
+                return antwort.read()
+        except http.client.IncompleteRead:
+            if versuch == 2:  # Das Portal bricht die Übertragung gelegentlich ab; zweimal neu versuchen.
+                raise
+    raise AssertionError("unerreichbar")
 
 
 # --- Volltext --------------------------------------------------------------------------------------
