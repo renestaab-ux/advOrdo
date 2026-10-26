@@ -34,8 +34,10 @@ jobs:
 
       - name: Analysekern testen
         working-directory: core
+        # --no-cache: Der Ruff-Zwischenspeicher (core/.ruff_cache) bleibt wegen clean: false zwischen den Läufen liegen.
+        # Ist er beschädigt (z. B. nach hartem Ausschalten), stürzt Ruff ab („wrong package cache for file“).
         run: |
-          ..\.venv-ci\Scripts\python -m ruff check .; if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ..\.venv-ci\Scripts\python -m ruff check --no-cache .; if ($LASTEXITCODE) { exit $LASTEXITCODE }
           ..\.venv-ci\Scripts\python -m pytest -q; if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Oberfläche bauen und testen
@@ -75,7 +77,7 @@ jobs:
       - name: Analysekern testen
         working-directory: core
         run: |
-          ../.venv-ci/bin/python -m ruff check .
+          ../.venv-ci/bin/python -m ruff check --no-cache .
           ../.venv-ci/bin/python -m pytest -q
 
       - name: Oberfläche bauen und testen
