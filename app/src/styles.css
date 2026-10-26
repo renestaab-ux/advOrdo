@@ -16,33 +16,46 @@
   --band-text: #f3f6fa;
   --band-leise: #b9c8d8;
   --gefahr: #b3261e;
-  color-scheme: light dark;
+  color-scheme: light;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 15px;
   color: var(--text);
   background: var(--hintergrund);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --hintergrund: #1b1c1e;
-    --flaeche: #242528;
-    --text: #e8e8e4;
-    --text-leise: #a0a09a;
-    --linie: #36373b;
-    --akzent: #8fb3db;
-    --gut: #7cc08a;
-    --warnung: #e0b45a;
-    --fehler: #e38787;
-    --knopf: #3a6794;
-    --knopf-text: #ffffff;
-    --feld: #2c2d31;
-    --band: linear-gradient(100deg, #15283c, #1d3a57);
-    --band-text: #eef2f6;
-    --band-leise: #9fb3c7;
-    --gefahr: #f2b8b5;
-  }
+/* Dunkel: gesetzt von darstellung.ts nach Einstellungen → Allgemeines (Hell, Dunkel oder wie das System). */
+:root[data-thema="hell"] { color-scheme: light; }
+:root[data-thema="dunkel"] {
+  color-scheme: dark;
+  --hintergrund: #1b1c1e;
+  --flaeche: #242528;
+  --text: #e8e8e4;
+  --text-leise: #a0a09a;
+  --linie: #36373b;
+  --akzent: #8fb3db;
+  --gut: #7cc08a;
+  --warnung: #e0b45a;
+  --fehler: #e38787;
+  --knopf: #3a6794;
+  --knopf-text: #ffffff;
+  --feld: #2c2d31;
+  --band: linear-gradient(100deg, #15283c, #1d3a57);
+  --band-text: #eef2f6;
+  --band-leise: #9fb3c7;
+  --gefahr: #f2b8b5;
 }
+
+/* Farbakzente; Blau ist die Vorgabe oben. Je Farbe ein Satz für hell und einer für dunkel. */
+:root[data-akzent="petrol"] { --akzent: #1f5f66; --knopf: #1f5f66; --band: linear-gradient(100deg, #163f45, #22636b); --band-leise: #b3d0d3; }
+:root[data-thema="dunkel"][data-akzent="petrol"] { --akzent: #7cc4c9; --knopf: #2f7178; --band: linear-gradient(100deg, #0f2c30, #184449); --band-leise: #98bfc2; }
+:root[data-akzent="gruen"] { --akzent: #2f5e3a; --knopf: #2f5e3a; --band: linear-gradient(100deg, #21422a, #346b42); --band-leise: #bcd3c0; }
+:root[data-thema="dunkel"][data-akzent="gruen"] { --akzent: #8cc79a; --knopf: #3d7449; --band: linear-gradient(100deg, #152b1b, #20412a); --band-leise: #a3c2aa; }
+:root[data-akzent="bordeaux"] { --akzent: #7a2838; --knopf: #7a2838; --band: linear-gradient(100deg, #561c28, #84303f); --band-leise: #e0bcc3; }
+:root[data-thema="dunkel"][data-akzent="bordeaux"] { --akzent: #e09aa8; --knopf: #8a3a4a; --band: linear-gradient(100deg, #3a141c, #55202b); --band-leise: #d0a6ae; }
+:root[data-akzent="violett"] { --akzent: #533f7a; --knopf: #533f7a; --band: linear-gradient(100deg, #3a2c57, #5c4787); --band-leise: #cbc0e0; }
+:root[data-thema="dunkel"][data-akzent="violett"] { --akzent: #b8a6e3; --knopf: #5f4a8c; --band: linear-gradient(100deg, #251c3a, #372a55); --band-leise: #b4a8cf; }
+:root[data-akzent="graphit"] { --akzent: #3d4248; --knopf: #3d4248; --band: linear-gradient(100deg, #2a2e33, #474d55); --band-leise: #c3c7cc; }
+:root[data-thema="dunkel"][data-akzent="graphit"] { --akzent: #b8bec6; --knopf: #555c65; --band: linear-gradient(100deg, #1f2226, #30353b); --band-leise: #a9aeb5; }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--hintergrund); }
@@ -927,4 +940,25 @@ details.kurz-hinweis summary { cursor: pointer; }
 .chat-gegenueber > summary { cursor: pointer; color: var(--text-leise); }
 @media (max-width: 1100px) {
   .gegenueber-spalten { grid-template-columns: 1fr; }
+}
+
+/* Einstellungen: ein Reiter je Thema links, rechts nur das gewählte Thema; Diagnose immer zuletzt. */
+.einstellungen-raster { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; align-items: start; margin-top: 16px; }
+.einstellungen-reiter { position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px; }
+.einstellungen-reiter .nav-eintrag { width: 100%; }
+.einstellungen-reiter .trenner-oben { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--linie); }
+.einstellungen-flaeche > .karte:first-child, .einstellungen-flaeche > .ki-zeile:first-child { margin-top: 0; }
+.einstellungen-flaeche .diagnose { max-width: 980px; }
+.wahl-reihe { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+.wahl-reihe button { background: var(--feld); color: var(--text); border: 1px solid var(--linie); display: inline-flex; align-items: center; gap: 8px; }
+.wahl-reihe button[aria-pressed="true"] { border-color: var(--akzent); box-shadow: inset 0 0 0 1px var(--akzent); font-weight: 600; }
+.farbmuster { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 1px solid rgb(0 0 0 / 15%); }
+.darstellung-gruppe { margin: 14px 0 0; }
+.darstellung-gruppe h3 { font-size: 14px; margin: 0; }
+.darstellung-probe { margin-top: 18px; padding: 12px 16px; border-radius: 8px; background: var(--band); color: var(--band-text); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.darstellung-probe .leise { color: var(--band-leise); }
+@media (max-width: 760px) {
+  .einstellungen-raster { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .einstellungen-reiter { position: static; flex-direction: row; flex-wrap: wrap; }
+  .einstellungen-reiter .nav-eintrag { width: auto; }
 }

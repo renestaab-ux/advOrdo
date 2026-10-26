@@ -32,7 +32,7 @@ async function mitteilungenPruefen(): Promise<DiagnoseErgebnis> {
  * Diagnose: prüft Kern, Datenbanken, Archiv, Texterkennung, Programme, Sprachmodelle und die Online-Rechtsquellen
  * einzeln und erklärt, was bei einem Fehler zu tun ist. Erst auf Klick, weil dabei Rechtsquellen angefragt werden.
  */
-export default function Diagnose({ onZurueck }: { onZurueck: () => void }) {
+export default function Diagnose() {
   const [pruefungen, setPruefungen] = useState<DiagnosePruefung[]>([]);
   const [ergebnisse, setErgebnisse] = useState<Record<string, DiagnoseErgebnis>>({});
   const [laeuft, setLaeuft] = useState<string | null>(null);
@@ -85,12 +85,7 @@ export default function Diagnose({ onZurueck }: { onZurueck: () => void }) {
 
   return (
     <div className="diagnose">
-      <div className="kopf">
-        <h1>Diagnose</h1>
-        <button className="zweitrangig" onClick={onZurueck}>
-          Zurück zu den Einstellungen
-        </button>
-      </div>
+      <h2>Diagnose</h2>
       <p className="erklaerung">
         Prüft, ob alle Teile von JuraBox funktionieren: Datenordner, Datenbanken, das Archiv der Rechtsquellen,
         Texterkennung, Programme, die Sprachmodelle und die Rechtsquellen im Internet. Ins Netz gehen nur kurze Abrufe der
