@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  nachrichtAlter,
   Akte,
   SammlungEintrag,
   erkanntText,
@@ -619,5 +620,18 @@ describe("Online-Recherche", () => {
     };
     expect(trefferTitel(t)).toBe("BGH 8. Zivilsenat, Urteil vom 12.10.2016 – VIII ZR 103/15");
     expect(trefferTitel({ ...t, doktyp: null, spruchkoerper: null })).toBe("BGH, Entscheidung vom 12.10.2016 – VIII ZR 103/15");
+  });
+});
+
+describe("nachrichtAlter", () => {
+  const jetzt = new Date(2026, 9, 26, 18, 0);
+  it("nennt Minuten und Stunden am selben Tag", () => {
+    expect(nachrichtAlter(new Date(2026, 9, 26, 17, 55).toISOString(), jetzt)).toBe("vor 5 Min.");
+    expect(nachrichtAlter(new Date(2026, 9, 26, 15, 0).toISOString(), jetzt)).toBe("vor 3 Std.");
+  });
+  it("nennt gestern bzw. das Datum", () => {
+    expect(nachrichtAlter(new Date(2026, 9, 25, 9, 0).toISOString(), jetzt)).toBe("gestern");
+    expect(nachrichtAlter(new Date(2026, 9, 20, 9, 0).toISOString(), jetzt)).toBe("20.10.2026");
+    expect(nachrichtAlter(null, jetzt)).toBe("");
   });
 });

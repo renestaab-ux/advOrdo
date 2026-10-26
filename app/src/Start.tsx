@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Zeichen, { SymbolName } from "./Symbole";
 import {
   Akte,
@@ -6,12 +6,15 @@ import {
   KalenderEintrag,
   KiModus,
   Marke,
+  NachrichtenListe,
   kiModusName,
   abstandText,
   akteTitel,
   datumLang,
   istDesktop,
   kern,
+  nachrichtAlter,
+  zeitpunkt,
   zuletztGeoeffnet,
 } from "./kern";
 
@@ -31,8 +34,10 @@ export default function Start({
   modus,
   umgebung,
   marke,
+  onNachrichten,
 }: {
   onWahl: (ziel: StartZiel) => void;
+  onNachrichten: () => void;
   onAkte: (akteId: number, reiter?: "fristen") => void;
   modus: KiModus | null;
   umgebung: string | null;
@@ -133,6 +138,8 @@ export default function Start({
             )}
           </section>
 
+          <StartNachrichten onVerwalten={onNachrichten} />
+
           <section className="kachel kachel-info" aria-label="Ihr Arbeitsbereich">
             <h2>Ihr Arbeitsbereich</h2>
             <dl>
@@ -158,5 +165,103 @@ export default function Start({
         </div>
       </div>
     </div>
+  );
+}
+
+const WENIGE = 8;
+const VIELE = 30;
+
+/** Nachrichten aus den RSS-Feeds der Einstellungen; ohne eingetragenen Feed erscheint nichts. */
+function StartNachrichten({ onVerwalten }: { onVerwalten: () => void }) {
+  const [liste, setListe] = useState<NachrichtenListe | null>(null);
+  const [alle, setAlle] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const warte = useRef<number | null>(null);
+
+  function laden(aktualisieren = false, limit = alle ? VIELE : WENIGE, runde = 0) {
+    if (warte.current != null) window.clearTimeout(warte.current);
+    kern<NachrichtenListe>("nachrichten.liste", { limit, aktualisieren }).then(
+      (l) => {
+        setListe(l);
+        // Der Kern lädt im Hintergrund; bis er fertig ist, alle zwei Sekunden nachsehen (höchstens eine Minute).
+        if (l.laeuft && runde < 30) warte.current = window.setTimeout(() => laden(false, limit, runde + 1), 2000);
+      },
+      () => setListe(null),
+    );
+  }
+
+  useEffect(() => {
+    if (istDesktop) laden();
+    return () => {
+      if (warte.current != null) window.clearTimeout(warte.current);
+    };
+  }, []);
+
+  if (!liste || liste.feeds === 0) return null;
+
+  async function oeffnen(link: string) {
+    setFehler(null);
+    try {
+      await kern("nachrichten.oeffnen", { adresse: link });
+    } catch (e) {
+      setFehler(String(e));
+    }
+  }
+
+  return (
+    <section className="kachel kachel-liste kachel-nachrichten" aria-label="Nachrichten">
+      <div className="nachrichten-kopf">
+        <h2>Nachrichten</h2>
+        <span className="leise">
+          {liste.laeuft ? "Lade …" : liste.stand ? `Stand ${zeitpunkt(liste.stand)}` : ""}
+        </span>
+        <button className="link klein" onClick={() => laden(true)} disabled={liste.laeuft}>
+          Aktualisieren
+        </button>
+      </div>
+      {liste.eintraege.length > 0 ? (
+        <ul>
+          {liste.eintraege.map((n, i) => (
+            <li key={`${n.feed_id}-${n.link ?? n.titel}-${i}`}>
+              {n.link ? (
+                <button className="link" onClick={() => void oeffnen(n.link!)} title={n.auszug || n.link}>
+                  {n.titel}
+                </button>
+              ) : (
+                <span title={n.auszug}>{n.titel}</span>
+              )}
+              <span className="leise">
+                {n.quelle}
+                {n.datum && ` · ${nachrichtAlter(n.datum)}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="leer">{liste.laeuft ? "Lade Nachrichten …" : "Keine Nachrichten geladen."}</p>
+      )}
+      {liste.fehler.length > 0 && (
+        <p className="hinweis klein">
+          Nicht geladen: {liste.fehler.map((f) => `${f.titel} (${f.text})`).join("; ")}
+        </p>
+      )}
+      {fehler && <p className="fehler">{fehler}</p>}
+      <div className="nachrichten-fuss">
+        {liste.gesamt > WENIGE && (
+          <button
+            className="link klein"
+            onClick={() => {
+              setAlle(!alle);
+              laden(false, alle ? WENIGE : VIELE);
+            }}
+          >
+            {alle ? "Weniger anzeigen" : `Mehr anzeigen (${Math.min(liste.gesamt, VIELE)})`}
+          </button>
+        )}
+        <button className="link klein" onClick={onVerwalten}>
+          Feeds verwalten
+        </button>
+      </div>
+    </section>
   );
 }

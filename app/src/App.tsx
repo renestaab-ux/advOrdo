@@ -183,6 +183,7 @@ export default function App() {
             modus={modus}
             umgebung={umgebung?.name ?? null}
             marke={marke}
+            onNachrichten={() => zuEinstellungen("nachrichten")}
           />
         )}
         {bereich === "toolbox" && <Toolbox />}

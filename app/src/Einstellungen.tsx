@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import AktenEinstellungen from "./AktenEinstellungen";
 import Diagnose from "./Diagnose";
+import Nachrichten from "./Nachrichten";
 import Programme from "./Programme";
 import Rechtsquellen from "./Rechtsquellen";
 import Umgebungen from "./Umgebungen";
@@ -25,6 +26,7 @@ export type EinstellungsReiter =
   | "eigene"
   | "akten"
   | "rechtsquellen"
+  | "nachrichten"
   | "ki"
   | "extern"
   | "programme"
@@ -37,6 +39,7 @@ const REITER: { id: EinstellungsReiter; titel: string }[] = [
   { id: "eigene", titel: "Eigene Daten" },
   { id: "akten", titel: "Akten" },
   { id: "rechtsquellen", titel: "Rechtsquellen" },
+  { id: "nachrichten", titel: "Nachrichten" },
   { id: "ki", titel: "Lokales Sprachmodell" },
   { id: "extern", titel: "Externe KI" },
   { id: "programme", titel: "Programme" },
@@ -169,6 +172,8 @@ export default function Einstellungen({
     inhalt = <AktenEinstellungen umgebungen={umgebungen} />;
   } else if (reiter === "rechtsquellen") {
     inhalt = <Rechtsquellen onAkte={onAkten} />;
+  } else if (reiter === "nachrichten") {
+    inhalt = <Nachrichten />;
   } else if (reiter === "ki") {
     inhalt = (
       <>

@@ -17,6 +17,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import urllib.parse
 from pathlib import Path
 
 ARTEN = {"pdf": "PDF-Programm", "text": "Textverarbeitung"}
@@ -136,3 +137,16 @@ def _ausfuehren(aufruf: list[str]) -> None:
         )
     except OSError as fehler:
         raise RuntimeError(f"{aufruf[0]} ließ sich nicht starten: {fehler}") from fehler
+
+
+def adresse_oeffnen(adresse: str) -> None:
+    """Öffnet eine Internetadresse (z. B. eine Nachricht der Startseite) im Standardbrowser."""
+    if urllib.parse.urlsplit(adresse).scheme not in ("http", "https"):
+        raise ValueError("Nur Adressen mit http:// oder https:// lassen sich öffnen.")
+    if sys.platform == "win32":
+        try:
+            os.startfile(adresse)  # type: ignore[attr-defined]  # nur unter Windows vorhanden
+        except OSError as fehler:
+            raise RuntimeError(f"Der Browser ließ sich nicht öffnen ({fehler}).") from fehler
+        return
+    _ausfuehren(["open" if sys.platform == "darwin" else "xdg-open", adresse])

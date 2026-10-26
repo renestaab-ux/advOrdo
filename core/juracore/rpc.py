@@ -23,7 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, db, diagnose, einstellungen, programme
+from . import __version__, db, diagnose, einstellungen, nachrichten, programme
 from .abgleich import abgleich
 from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, notizen, stammdaten, verfahren
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
@@ -66,6 +66,9 @@ class Kern:
         self.auftraege = Auftraege()
         self.basiszins_datei = Path(db_pfad).parent / "basiszins.json"
         self.quellen_datei = Path(db_pfad).parent / "rechtsprechung-quellen.json"
+        # Nachrichten-Feeds der Startseite gelten für das Gerät; geladen wird im Hintergrund.
+        self.nachrichten = nachrichten.Nachrichten(
+            Path(db_pfad).parent / "nachrichten.json", Path(db_pfad).parent / "nachrichten-cache.json")
         # Für die Diagnose austauschbar (Tests ohne Netz).
         self.diagnose_oeffnen = urllib.request.urlopen
         self.methoden: dict[str, Callable[..., Any]] = {
@@ -178,6 +181,12 @@ class Kern:
             ),
             "akten.tags_setzen": lambda dokument_id, tags: akte.tags_setzen(self.akten, dokument_id, tags),
             "akten.dokument": lambda dokument_id: akte.dokument(self.akten, dokument_id),
+            "nachrichten.einstellungen": self.nachrichten.einstellungen,
+            "nachrichten.hinzufuegen": self.nachrichten_hinzufuegen,
+            "nachrichten.umbenennen": self.nachrichten.umbenennen,
+            "nachrichten.entfernen": self.nachrichten.entfernen,
+            "nachrichten.liste": self.nachrichten.liste,
+            "nachrichten.oeffnen": programme.adresse_oeffnen,
             "programme.einstellungen": lambda: programme.lade(self.programme_datei),
             "programme.setzen": lambda art, programm="", parameter="": programme.speichere(
                 self.programme_datei, art, programm, parameter),
@@ -631,6 +640,13 @@ class Kern:
         return ki_gegenueberstellung.gegenueberstellen(
             Analyse(self.akten, modell, e.aktiver_kontext), int(akte_id),
             None if dokument_id is None else int(dokument_id), nur_gespeichert=True)
+
+    def nachrichten_hinzufuegen(self, url: str, titel: str = "") -> dict:
+        try:
+            return self.nachrichten.hinzufuegen(url, titel)
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as fehler:
+            grund = getattr(fehler, "reason", None) or type(fehler).__name__
+            raise OSError(f"Die Adresse ist nicht erreichbar ({grund}).") from fehler
 
     def _online_quellen(self) -> set[str]:
         return online.quellen(online.einstellungen(self.quellen_datei))
