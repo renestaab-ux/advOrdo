@@ -18,13 +18,17 @@ einzelne Abrufe, kein Massenabruf.
 from __future__ import annotations
 
 import html
+import http.client
 import http.cookiejar
 import io
 import re
+import struct
+import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 from dataclasses import dataclass
 from html.entities import name2codepoint
 
@@ -32,6 +36,8 @@ from .verzeichnis import USER_AGENT
 from .volltext import Absatz, Volltext
 
 BASIS = "https://www.gesetze-bayern.de"
+VERSUCHE = 3
+PAUSE = 1.0  # Sekunden vor dem zweiten Versuch, vor dem dritten doppelt so lang
 HERKUNFT = "gesetze-bayern.de"
 HINWEIS = ("Quelle: Bürgerservice BAYERN.RECHT (gesetze-bayern.de). Redaktionell bearbeitete, anonymisierte "
            "Fassung, kein amtlicher Text; redaktionelle Leitsätze urheberrechtlich geschützt.")
@@ -95,7 +101,7 @@ class Treffer:
     def als_dict(self) -> dict:
         return {"quelle": "bayern", "doknr": self.doknr, "gericht": self.gericht, "spruchkoerper": None,
                 "datum": self.datum, "aktenzeichen": self.aktenzeichen or "", "doktyp": self.doktyp,
-                "titel": self.titel, "link": adresse(self.doknr)}
+                "titel": self.titel, "ausschnitt": None, "link": adresse(self.doknr)}
 
 
 _TITEL = re.compile(
@@ -138,8 +144,25 @@ def lies_trefferliste(seite: str) -> tuple[list[Treffer], int | None]:
 _TOKEN = re.compile(r'__RequestVerificationToken"[^>]*value="([^"]+)"')
 
 
-def suche(aktenzeichen: str, timeout: float = 30) -> tuple[list[Treffer], int | None]:
-    """Sucht Entscheidungen mit diesem Aktenzeichen. Je Suche eine eigene Sitzung (Filter wirken je Sitzung)."""
+# Gerichtsbarkeiten, nach denen das Portal filtert (oberste Ebene des Gerichtsbaums).
+GERICHTSBARKEITEN = ("Verfassungsgerichtsbarkeit", "Ordentliche Gerichtsbarkeit", "Verwaltungsgerichtsbarkeit",
+                     "Finanzgerichtsbarkeit", "Arbeitsgerichtsbarkeit", "Sozialgerichtsbarkeit", "Dienstgericht",
+                     "Sonstige Gerichte")
+
+
+def _tag(iso: str | None) -> str:
+    if not iso:
+        return ""
+    j, m, t = iso.split("-")
+    return f"{t}.{m}.{j}"
+
+
+def suche(aktenzeichen: str = "", timeout: float = 30, *, volltext: str = "", von: str | None = None,
+          bis: str | None = None, gerichtsbarkeit: str | None = None) -> tuple[list[Treffer], int | None]:
+    """Sucht Entscheidungen nach Aktenzeichen, Volltext, Zeitraum (ISO) und Gerichtsbarkeit. Je Suche eine eigene
+    Sitzung, weil die Filter je Sitzung gelten. Geliefert wird die erste Seite der Trefferliste."""
+    if gerichtsbarkeit is not None and gerichtsbarkeit not in GERICHTSBARKEITEN:
+        raise ValueError(f"Unbekannte Gerichtsbarkeit: {gerichtsbarkeit!r}")
     oeffner = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     oeffner.addheaders = [("User-Agent", USER_AGENT)]
 
@@ -148,12 +171,15 @@ def suche(aktenzeichen: str, timeout: float = 30) -> tuple[list[Treffer], int | 
             return antwort.read().decode("utf-8", errors="replace")
 
     hole("/Search/Filter/DOKTYP/rspr")
+    if gerichtsbarkeit:
+        hole("/Search/Filter/LEVEL1RSPRTREENODE/" + urllib.parse.quote(gerichtsbarkeit))
     formular = hole("/Search/Hitlist")
     token = _TOKEN.search(formular)
     if token is None:
         raise ValueError("Das Suchformular von gesetze-bayern.de hat sich geändert (kein Prüfzeichen gefunden).")
-    felder = {"SearchFields.Aktenzeichen": aktenzeichen, "SearchFields.Content": "", "SearchFields.DatumVon": "",
-              "SearchFields.DatumBis": "", "__RequestVerificationToken": html.unescape(token.group(1))}
+    felder = {"SearchFields.Aktenzeichen": aktenzeichen.strip(), "SearchFields.Content": volltext.strip(),
+              "SearchFields.DatumVon": _tag(von), "SearchFields.DatumBis": _tag(bis),
+              "__RequestVerificationToken": html.unescape(token.group(1))}
     # Die Antwort leitet auf die Trefferliste weiter; urllib folgt der Weiterleitung mit GET.
     return lies_trefferliste(hole("/Search", urllib.parse.urlencode(felder).encode()))
 
@@ -162,8 +188,80 @@ def lade(doknr: str, timeout: float = 60) -> bytes:
     """Lädt das ZIP einer Entscheidung."""
     anfrage = urllib.request.Request(f"{BASIS}/Content/Zip/{_pruefe_doknr(doknr)}",
                                      headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
-        return antwort.read()
+    # Das Portal bricht die Übertragung gelegentlich ab, manchmal ohne Fehler: Dann kommt ein abgeschnittenes ZIP an
+    # („Bad magic number for central directory“). Deshalb das ZIP prüfen und bis zu zweimal neu laden.
+    for versuch in range(VERSUCHE):
+        if versuch:
+            time.sleep(PAUSE * versuch)
+        try:
+            with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
+                daten = antwort.read()
+        except http.client.IncompleteRead:
+            if versuch == VERSUCHE - 1:
+                raise
+            continue
+        if _vollstaendig(daten):
+            return daten
+    raise ValueError(f"gesetze-bayern.de hat die Entscheidung {doknr} nach {VERSUCHE} Versuchen nur unvollständig "
+                     "geliefert. Bitte gleich noch einmal öffnen.")
+
+
+def _vollstaendig(daten: bytes) -> bool:
+    """Ob sich aus den geladenen Daten die Entscheidung lesen lässt (XML ohne ZIP-Hülle, ein heiles ZIP oder ein ZIP
+    mit beschädigtem Verzeichnis, aus dem sich die XML-Datei noch retten lässt)."""
+    if daten[:2] != b"PK":
+        return bool(daten.strip())
+    try:
+        _xml_aus_zip(daten)
+        return True
+    except ValueError:
+        return False
+
+
+_KOPF = struct.Struct("<4sHHHHHIIIHH")  # lokaler Dateikopf eines ZIP-Eintrags
+
+
+def _rette_xml(daten: bytes) -> tuple[str, bytes]:
+    """Liest die XML-Datei über die lokalen Dateiköpfe statt über das Inhaltsverzeichnis am Ende des ZIP.
+
+    Manche ZIP-Dateien des Portals haben ein fehlerhaftes Inhaltsverzeichnis („Bad magic number for central
+    directory“), die Einträge selbst sind aber heil."""
+    pos = 0
+    while (pos := daten.find(b"PK\x03\x04", pos)) >= 0 and pos + _KOPF.size <= len(daten):
+        _sig, _ver, flag, methode, _zeit, _tag, _crc, groesse, _roh, nlen, elen = _KOPF.unpack_from(daten, pos)
+        name = daten[pos + _KOPF.size:pos + _KOPF.size + nlen].decode("utf-8" if flag & 0x800 else "cp437", "replace")
+        start = pos + _KOPF.size + nlen + elen
+        pos = start
+        if not name.lower().endswith(".xml") or name.upper().startswith("META-INF/"):
+            continue
+        if methode == 0 and groesse and not flag & 0x08:
+            if start + groesse > len(daten):
+                raise ValueError("Die Entscheidung im ZIP ist abgeschnitten.")
+            inhalt = daten[start:start + groesse]
+        elif methode == 8:
+            d = zlib.decompressobj(-15)
+            inhalt = d.decompress(daten[start:])
+            if not d.eof:
+                raise ValueError("Die Entscheidung im ZIP ist abgeschnitten.")
+        else:
+            raise ValueError(f"Unbekannte Packart {methode} im ZIP.")
+        return name, inhalt
+    raise ValueError("Im ZIP ist keine Entscheidung (XML-Datei) zu finden.")
+
+
+def _xml_aus_zip(daten: bytes) -> tuple[str, bytes]:
+    """Name und Inhalt der einzigen XML-Datei im ZIP (neben META-INF/manifest.xml)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(daten)) as z:
+            xmls = [n for n in z.namelist() if n.lower().endswith(".xml") and not n.upper().startswith("META-INF/")]
+            if len(xmls) != 1:
+                raise ValueError(f"Erwartet genau eine XML-Datei im Archiv, gefunden: {xmls}")
+            return xmls[0], z.read(xmls[0])
+    except (zipfile.BadZipFile, EOFError, zlib.error):
+        try:
+            return _rette_xml(daten)
+        except (zlib.error, struct.error) as fehler:
+            raise ValueError(f"Das ZIP ist beschädigt ({fehler}).") from fehler
 
 
 # --- Volltext --------------------------------------------------------------------------------------
@@ -221,13 +319,9 @@ def _absaetze(teil: str, el: ET.Element) -> list[Absatz]:
 def lies(daten: bytes, entscheidung: dict | None = None) -> Volltext:
     """Liest eine Entscheidung (ZIP mit bayportalrsp/<doknr>.xml oder die XML-Datei selbst)."""
     if daten[:2] == b"PK":
-        with zipfile.ZipFile(io.BytesIO(daten)) as z:
-            # Neben der Entscheidung liegt META-INF/manifest.xml im Archiv.
-            xmls = [n for n in z.namelist() if n.lower().endswith(".xml") and not n.upper().startswith("META-INF/")]
-            if len(xmls) != 1:
-                raise ValueError(f"Erwartet genau eine XML-Datei im Archiv, gefunden: {xmls}")
-            doknr_datei = xmls[0].rsplit("/", 1)[-1][:-4]
-            daten = z.read(xmls[0])
+        # Neben der Entscheidung liegt META-INF/manifest.xml im Archiv.
+        name, daten = _xml_aus_zip(daten)
+        doknr_datei = name.rsplit("/", 1)[-1][:-4]
     else:
         doknr_datei = None
     try:

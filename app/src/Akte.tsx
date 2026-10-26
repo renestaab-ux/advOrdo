@@ -646,13 +646,14 @@ export default function Akte({
         <Rueckfrage
           frage={
             loeschfrage.art === "urteil"
-              ? `Ergänztes Urteil „${loeschfrage.name}“ aus der Akte entfernen?`
+              ? `Entscheidung „${loeschfrage.name}“ aus der Akte entfernen?`
               : `Dokument „${dokumente.find((d) => d.id === loeschfrage.id)?.dateiname}“ aus der Akte entfernen?`
           }
           erklaerung={
             loeschfrage.art === "urteil"
-              ? "Entfernt werden der gelesene Text und die Kopie, die die App abgelegt hat. Deine Datei am " +
-                "ursprünglichen Ort bleibt unverändert."
+              ? "Entfernt werden der gelesene Text und die Kopie, die die App abgelegt hat. Steht die Entscheidung " +
+                "nicht noch in einer anderen Akte oder ohne Akte in der Sammlung, verschwindet sie auch dort. Deine " +
+                "Datei am ursprünglichen Ort und geladene Volltexte im Roharchiv bleiben unverändert."
               : "Entfernt werden der gelesene Text, die Normzitate, die Tags und die Kopie, die die App beim Einlesen " +
                 "abgelegt hat. Deine Originaldatei am ursprünglichen Ort bleibt unverändert."
           }
@@ -1497,7 +1498,7 @@ function RechtsprechungAnsicht({
                     {offen === u.urteil.id ? "Volltext schließen" : `Volltext anzeigen (${urteilHerkunft(u.urteil)})`}
                   </button>
                   <button className="link klein gefahr" onClick={() => onEntfernen(u.urteil!)} disabled={laeuft}>
-                    entfernen
+                    Entscheidung entfernen
                   </button>
                 </>
               ) : (
@@ -1651,10 +1652,13 @@ export function VolltextAnsicht({
   volltext,
   rn,
   onSchliessen,
+  aktionen,
 }: {
   volltext: UrteilVolltext;
   rn: number | null;
   onSchliessen: () => void;
+  /** Weitere Knöpfe in der Leiste, z. B. „In die Sammlung“ bei einem Treffer der Online-Suche. */
+  aktionen?: ReactNode;
 }) {
   const v = volltext;
   useEffect(() => {
@@ -1665,7 +1669,8 @@ export function VolltextAnsicht({
     <aside className="akte-seite volltext">
       {/* Eigene Leiste oben, bleibt beim Blättern stehen: Schließen ist immer erreichbar. */}
       <div className="volltext-leiste">
-        <span className="leise">Volltext</span>
+        <span className="leise">{v.id == null ? "Treffer, noch nicht gespeichert" : "Volltext"}</span>
+        {aktionen}
         <button className="zweitrangig klein" onClick={onSchliessen}>
           Volltext schließen
         </button>

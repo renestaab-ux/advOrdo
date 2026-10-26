@@ -911,6 +911,89 @@ export interface SammlungSuche {
   treffer: number;
 }
 
+/** Quellen der Online-Recherche im Bereich „Rechtsprechung“. */
+export type RechercheQuelle = "rii" | "bayern" | "neuris";
+
+/** Ein Treffer der Online-Recherche; ``urteil_id`` ist gesetzt, wenn die Entscheidung schon gespeichert ist. */
+export interface RechercheTreffer {
+  quelle: RechercheQuelle;
+  doknr: string;
+  gericht: string;
+  spruchkoerper: string | null;
+  datum: string | null;
+  aktenzeichen: string;
+  doktyp: string | null;
+  titel: string | null;
+  normen?: string | null;
+  ausschnitt: string | null;
+  link: string | null;
+  urteil_id: number | null;
+}
+
+export interface RechercheErgebnis {
+  quelle: RechercheQuelle;
+  /** „verzeichnis“: im geladenen Verzeichnis gesucht, ohne Netz; „online“: bei der Quelle selbst. */
+  ort: "verzeichnis" | "online";
+  treffer: RechercheTreffer[];
+  gesamt: number;
+  weitere: boolean;
+}
+
+/** Felder der Suchmasken; leere Felder werden nicht gesendet. */
+export interface RechercheFelder {
+  gericht: string;
+  gerichtsbarkeit: string;
+  aktenzeichen: string;
+  volltext: string;
+  norm: string;
+  von: string;
+  bis: string;
+}
+
+export const RECHERCHE_QUELLE_NAME: Record<RechercheQuelle, string> = {
+  rii: "rechtsprechung-im-internet.de",
+  bayern: "Gerichtsentscheidungen Bayern",
+  neuris: "NeuRIS (Testphase)",
+};
+
+export const RECHERCHE_GERICHTE = ["BVerfG", "BGH", "BVerwG", "BFH", "BAG", "BSG", "BPatG"];
+
+export const BAYERN_GERICHTSBARKEITEN = [
+  "Verfassungsgerichtsbarkeit",
+  "Ordentliche Gerichtsbarkeit",
+  "Verwaltungsgerichtsbarkeit",
+  "Finanzgerichtsbarkeit",
+  "Arbeitsgerichtsbarkeit",
+  "Sozialgerichtsbarkeit",
+  "Dienstgericht",
+  "Sonstige Gerichte",
+];
+
+/** Geht die Suche bei rechtsprechung-im-internet.de an die Seite (Volltext, Norm, ECLI) oder ins Verzeichnis? */
+export function riiOnline(f: Pick<RechercheFelder, "volltext" | "norm" | "aktenzeichen">): boolean {
+  return !!(f.volltext.trim() || f.norm.trim() || f.aktenzeichen.trim().toUpperCase().startsWith("ECLI"));
+}
+
+/** Nur die Felder, die die Maske der Quelle hat und die ausgefüllt sind. */
+export function rechercheFelder(quelle: RechercheQuelle, f: RechercheFelder): Partial<RechercheFelder> {
+  const je: Record<RechercheQuelle, (keyof RechercheFelder)[]> = {
+    rii: ["gericht", "aktenzeichen", "volltext", "norm", "von", "bis"],
+    bayern: ["gerichtsbarkeit", "aktenzeichen", "volltext", "von", "bis"],
+    neuris: ["gericht", "aktenzeichen", "volltext", "von", "bis"],
+  };
+  return Object.fromEntries(je[quelle].filter((k) => f[k].trim()).map((k) => [k, f[k].trim()]));
+}
+
+/** Titelzeile eines Treffers wie bei gespeicherten Entscheidungen. */
+export function trefferTitel(t: RechercheTreffer): string {
+  return urteilTitel({
+    gericht: t.gericht,
+    datum: t.datum,
+    aktenzeichen: t.aktenzeichen,
+    kopf: { spruchkoerper: t.spruchkoerper, doktyp: t.doktyp, normen: t.normen ?? null, vorinstanz: [], titel: t.titel },
+  });
+}
+
 /** Ein aus dem Dokument erkannter Wert mit seiner Fundstelle. */
 export interface Erkannt {
   wert: string;

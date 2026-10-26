@@ -10,11 +10,15 @@ Antwort:  {"id": 1, "result": [...]}  oder  {"id": 1, "error": {"message": "..."
 
 from __future__ import annotations
 
+import http.client
 import json
 import logging
 import sqlite3
 import sys
+import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -37,7 +41,7 @@ from .ki import wissen as ki_wissen
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
 from .rechner import basiszins, fristen, verzugszinsen
-from .rechtsprechung import online, verzeichnis
+from .rechtsprechung import online, recherche, verzeichnis
 from .umgebungen import Umgebungen
 
 log = logging.getLogger("juracore.rpc")
@@ -53,6 +57,7 @@ class Kern:
         # Beides gehört zur aktiven Arbeitsumgebung; die Wissensbasis teilen sich alle Umgebungen.
         self.umgebungen = Umgebungen(Path(db_pfad).parent)
         self._oeffne_akten(self.umgebungen.ordner())
+        self.recherche = recherche.Recherche(self.con, diagnose=Path(db_pfad).parent / "diagnose")
         self.ki_datei = Path(db_pfad).parent / "ki.json"
         # Externe Programme gelten für das Gerät, nicht je Arbeitsumgebung.
         self.programme_datei = Path(db_pfad).parent / "programme.json"
@@ -213,6 +218,14 @@ class Kern:
             "rechtsprechung.loesen": lambda urteil_id: urteile.loesen(self.akten, urteil_id, self.ablage),
             "rechtsprechung.entfernen": lambda urteil_id: urteile.aus_sammlung_entfernen(
                 self.akten, urteil_id, self.ablage),
+            "rechtsprechung.recherche": self.recherche_suche,
+            "rechtsprechung.recherche_weiter": lambda quelle: self._recherche_ergebnis(
+                lambda: self.recherche.weiter(quelle)),
+            "rechtsprechung.recherche_oeffnen": lambda quelle, doknr, treffer=None: self._recherche_ergebnis(
+                lambda: urteile.vorschau(self.recherche.daten(quelle, doknr), quelle, treffer)),
+            "rechtsprechung.recherche_speichern": lambda quelle, doknr, treffer=None: self._recherche_ergebnis(
+                lambda: urteile.in_sammlung(self.akten, self.recherche.daten(quelle, doknr), quelle, self.archiv,
+                                            treffer)),
             "akten.urteil": lambda urteil_id: urteile.volltext(self.akten, urteil_id),
             "akten.urteil_entfernen": lambda urteil_id: urteile.entfernen(self.akten, urteil_id, self.ablage),
             "rechtsprechung.stand": lambda: verzeichnis.stand(self.con),
@@ -622,6 +635,25 @@ class Kern:
     def _online_quellen(self) -> set[str]:
         return online.quellen(online.einstellungen(self.quellen_datei))
 
+    def recherche_suche(self, quelle: str, felder: dict) -> dict:
+        neuris_an = online.einstellungen(self.quellen_datei)["neuris"]
+        return self._recherche_ergebnis(lambda: self.recherche.suche(quelle, felder, neuris_an))
+
+    def _recherche_ergebnis(self, f: Callable[[], Any]) -> Any:
+        """Führt einen Abruf der Online-Recherche aus; Netzfehler werden zu einer verständlichen Meldung,
+        Treffer bekommen ``urteil_id``, wenn sie schon gespeichert sind."""
+        try:
+            ergebnis = f()
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as fehler:
+            grund = getattr(fehler, "reason", None) or type(fehler).__name__
+            raise OSError(f"Die Quelle ist nicht erreichbar ({grund}). Bitte später erneut versuchen.") from fehler
+        except (zipfile.BadZipFile, ET.ParseError) as fehler:
+            # Sonst kein erwarteter Fehler des Kerns: Er würde beendet statt eine Meldung zu geben.
+            raise ValueError(f"Die Quelle hat keine lesbare Entscheidung geliefert ({fehler}).") from fehler
+        if isinstance(ergebnis, dict) and "treffer" in ergebnis:
+            ergebnis["treffer"] = urteile.gespeichert(self.akten, ergebnis["treffer"])
+        return ergebnis
+
     def online_pruefen(self, akte_id: int, neu: bool = False) -> dict:
         """Prüft offene Zitate einer Akte bei gesetze-bayern.de bzw. NeuRIS; gesendet wird nur das Aktenzeichen."""
         aktiv = self._online_quellen()
@@ -658,6 +690,11 @@ class Kern:
         except (ValueError, LookupError, TypeError, OSError, RuntimeError, sqlite3.Error) as fehler:
             log.warning("Fehler bei Anfrage %s: %s", anfrage_id, fehler)
             return {"id": anfrage_id, "error": {"message": str(fehler), "typ": type(fehler).__name__}}
+        except Exception as fehler:  # noqa: BLE001 – ein unerwarteter Fehler darf den Kern nicht beenden
+            log.exception("Unerwarteter Fehler bei Anfrage %s", anfrage_id)
+            return {"id": anfrage_id, "error": {
+                "message": f"Unerwarteter Fehler im Analysekern ({type(fehler).__name__}: {fehler}).",
+                "typ": type(fehler).__name__}}
 
 
 def serve(db_pfad: Path | None = None, archiv: Path | None = None) -> None:
@@ -669,5 +706,12 @@ def serve(db_pfad: Path | None = None, archiv: Path | None = None) -> None:
         if not zeile.strip():
             continue
         antwort = kern.bearbeite(zeile)
-        sys.stdout.write(json.dumps(antwort, ensure_ascii=False) + "\n")
+        try:
+            text = json.dumps(antwort, ensure_ascii=False)
+            text.encode("utf-8")
+        except (TypeError, ValueError) as fehler:  # nicht als JSON/UTF-8 darstellbar: Meldung statt Absturz
+            log.exception("Antwort auf Anfrage %s nicht darstellbar", antwort.get("id"))
+            text = json.dumps({"id": antwort.get("id"), "error": {
+                "message": f"Die Antwort des Analysekerns ließ sich nicht übertragen ({fehler}).", "typ": "Antwort"}})
+        sys.stdout.write(text + "\n")
         sys.stdout.flush()

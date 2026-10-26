@@ -1008,5 +1008,16 @@ details.kurz-hinweis summary { cursor: pointer; }
 .feld-mit-fundstelle .feld-hinweis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .volltext-leiste { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 0 6px; margin-bottom: 8px; background: var(--hintergrund); border-bottom: 1px solid var(--linie); }
 .volltext-leiste button { padding: 3px 10px; font-size: 13px; }
+.volltext-leiste > span:first-child { flex: 1; }
+.volltext-leiste { flex-wrap: wrap; }
+.recherche-maske { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; margin: 10px 0; }
+.recherche-maske label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.recherche-maske .zeitraum { display: flex; gap: 6px; }
+.recherche-maske .zeitraum input { flex: 1; min-width: 0; }
+.recherche-aktionen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.recherche-ausschnitt { margin: 4px 0 0; font-size: 13px; color: var(--text-leise); }
+.recherche-fuss { display: flex; align-items: center; gap: 12px; margin: 10px 0 24px; }
+.marke-gespeichert { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: normal; background: color-mix(in srgb, var(--akzent) 14%, var(--hintergrund)); }
+.bereich-wahl { margin: 0 0 10px; }
 .sammlung-liste .kopf button { white-space: nowrap; }
 .zugeordnet { margin-bottom: 18px; }

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
@@ -47,13 +48,21 @@ def adresse(doknr: str) -> str:
     return f"{BASIS}/rechtsprechung/{_pruefe_doknr(doknr)}.html"
 
 
-def _hole(url: str, timeout: float) -> bytes:
-    anfrage = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+def _hole(url: str, timeout: float, art: str = "application/json") -> bytes:
+    anfrage = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": art})
     with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
         return antwort.read()
 
 
 # --- Suche -----------------------------------------------------------------------------------------
+
+
+def _ausschnitt(fundstellen: list | None) -> str | None:
+    """Erster Textausschnitt einer Volltextsuche (``textMatches[].text``), ohne Markup."""
+    for f in fundstellen or []:
+        if isinstance(f, dict) and (text := " ".join(re.sub(r"<[^>]+>", " ", f.get("text") or "").split())):
+            return text
+    return None
 
 
 def lies_treffer(daten: bytes | str | dict) -> tuple[list[dict], int | None]:
@@ -73,21 +82,35 @@ def lies_treffer(daten: bytes | str | dict) -> tuple[list[dict], int | None]:
             "datum": datum if datum and re.fullmatch(r"\d{4}-\d{2}-\d{2}", datum) else None,
             "aktenzeichen": ", ".join(aktenzeichen), "aktenzeichen_liste": aktenzeichen,
             "doktyp": item.get("documentType"), "ecli": item.get("ecli"), "titel": item.get("headline"),
+            "ausschnitt": _ausschnitt(m.get("textMatches")),
             "link": adresse(doknr),
         })
     gesamt = antwort.get("totalItems")
     return treffer, int(gesamt) if isinstance(gesamt, int | str) and str(gesamt).isdigit() else None
 
 
-def suche(aktenzeichen: str, timeout: float = 30) -> tuple[list[dict], int | None]:
-    """Sucht Entscheidungen mit diesem Aktenzeichen."""
-    abfrage = urllib.parse.urlencode({"fileNumber": aktenzeichen, "size": SEITENGROESSE, "pageIndex": 0})
+GERICHTE = ("BVerfG", "BGH", "BVerwG", "BFH", "BAG", "BSG", "BPatG")
+
+
+def suche(aktenzeichen: str = "", timeout: float = 30, *, suchbegriff: str = "", gericht: str | None = None,
+          von: str | None = None, bis: str | None = None, seite: int = 0) -> tuple[list[dict], int | None]:
+    """Sucht Entscheidungen nach Aktenzeichen, Suchbegriff, Gericht und Zeitraum (ISO), neueste zuerst."""
+    werte = {"fileNumber": aktenzeichen.strip(), "searchTerm": suchbegriff.strip(), "court": gericht or "",
+             "dateFrom": von or "", "dateTo": bis or ""}
+    abfrage = urllib.parse.urlencode({k: v for k, v in werte.items() if v} | {
+        "size": SEITENGROESSE, "pageIndex": seite, "sort": "-date"})
     return lies_treffer(_hole(f"{BASIS}/rechtsprechung?{abfrage}", timeout))
 
 
 def lade(doknr: str, timeout: float = 60) -> bytes:
     """Lädt den Volltext (HTML) einer Entscheidung."""
-    return _hole(adresse(doknr), timeout)
+    # Der Volltext ist HTML; mit „Accept: application/json“ antwortet die Schnittstelle mit „Not Found“.
+    try:
+        return _hole(adresse(doknr), timeout, "text/html")
+    except urllib.error.HTTPError as fehler:
+        if fehler.code == 404:
+            raise ValueError(f"NeuRIS liefert für {doknr} keinen Volltext (Not Found).") from fehler
+        raise
 
 
 # --- Volltext --------------------------------------------------------------------------------------

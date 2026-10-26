@@ -150,6 +150,19 @@ akte_id)`, `rechtsprechung.loesen(urteil_id)`, `rechtsprechung.entfernen(urteil_
 (`urteile.zur_bearbeitung`) die zugeordneten Entscheidungen, die kein Zitat der Akte trifft (Abschnitt „Zur weiteren
 Bearbeitung zugeordnet“).
 
+Online-Recherche (`juracore.rechtsprechung.recherche`, `rii_suche`; Bereich „Rechtsprechung“ → „Online suchen“):
+`Recherche` hält je Quelle die laufende Suche (zum Weiterblättern) und die zuletzt geöffneten Volltexte im Speicher.
+rechtsprechung-im-internet.de: ohne Volltext, Norm und ECLI sucht `rii_suche.lokal` in der Tabelle `entscheidung`
+der Wissensbasis; sonst bedient `rii_suche.Sitzung` die „Erweiterte Suche“ der Seite nach JuraBox Lite 5.2c (Maske
+laden, `searchForm` mit allen Feldern in Reihenfolge absenden, Trefferliste lesen, über `resultListForm` gegen den
+`<base href>` der letzten Seite weiterblättern; eigene Sitzung und Kennung je Suche, höchstens 200 Treffer). Bayern
+(`bayern.suche`) und NeuRIS (`neuris.suche`) nehmen dazu Volltext, Zeitraum und Gerichtsbarkeit bzw. Gericht. RPC:
+`rechtsprechung.recherche(quelle, felder)`, `rechtsprechung.recherche_weiter(quelle)`,
+`rechtsprechung.recherche_oeffnen(quelle, doknr, treffer)` (Volltext zur Ansicht, nicht gespeichert, `id` null),
+`rechtsprechung.recherche_speichern(quelle, doknr, treffer)` (`urteile.in_sammlung`: neue Zeile ohne Akte, außer die
+Datei ist schon gespeichert). Treffer tragen `urteil_id`, wenn die Entscheidung (Quelle + Dokumentnummer) schon in der
+Sammlung steht. Netzfehler kommen als Meldung „Die Quelle ist nicht erreichbar …“.
+
 Dokumentansicht (`juracore.dokumente.ansicht`): `akten.seitenbild(dokument_id, seite, breite)` rendert eine Seite der
 abgelegten PDF-Kopie mit PDFium und gibt sie als PNG-Data-URL zurück (eigener PNG-Kodierer über `zlib`, kein Pillow;
 Breite 200 bis 2400 Pixel). Die Oberfläche hat keine Dateirechte; sie fordert nur die Seiten an, die sichtbar werden.
