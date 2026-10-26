@@ -55,11 +55,12 @@ export default function App() {
     }
   }
   const umgebung = aktiveUmgebung(umgebungen);
-  // Kanzlei- bzw. Firmenlogo und Kurzbezeichnung; gehören zur Umgebung und werden nach einem Wechsel neu geladen.
+  // Kanzlei- bzw. Firmenlogo und Kurzbezeichnung; gehören zur Umgebung. Neu geladen bei jedem Bereichswechsel,
+  // damit ein in „Eigene Daten“ geänderter Name gleich auf der Startseite steht.
   const [marke, setMarke] = useState<Marke | null>(null);
   useEffect(() => {
     if (istDesktop) void kern<Marke>("marke.lesen").then(setMarke, () => setMarke(null));
-  }, [stand]);
+  }, [stand, bereich]);
   // Mitteilungen des Systems bei Vorfrist, Ablauf und Terminen, solange die App läuft.
   useErinnerungen(umgebungen ? umgebungen.aktiv : undefined);
   // „Akte anlegen“ (Startbildschirm oder „+ Neue Akte“): eigene Seite für den Anlegeprozess.
