@@ -40,7 +40,7 @@ VERALTET_NACH = timedelta(minutes=30)
 JE_FEED = 30  # so viele Einträge je Feed werden behalten
 AUSZUG = 280
 
-# Vorschläge: nur Adressen, die beim Einbau (2026-10-26) als Feed abrufbar waren.
+# Vorschläge: nur Adressen, die beim Einbau (2026-10-26) als Feed abrufbar waren (BGH: in der App geprüft).
 VORSCHLAEGE: list[dict[str, str]] = [
     {"titel": "LTO – Alle Beiträge", "url": "https://www.lto.de/rss/feed.xml",
      "hinweis": "Legal Tribune Online, Nachrichten und Hintergründe"},
@@ -51,6 +51,9 @@ VORSCHLAEGE: list[dict[str, str]] = [
      "hinweis": "Legal Tribune Online, ein Rechtsgebiet; weitere unter lto.de/rss"},
     {"titel": "beck-aktuell", "url": "https://www.beck-aktuell.de/rss.xml",
      "hinweis": "C.H.Beck, „Heute im Recht“"},
+    {"titel": "BGH – Pressemitteilungen",
+     "url": "https://www.bundesgerichtshof.de/DE/Service/RSSFeed/Function/RSS_PM.xml?nn=373238",
+     "hinweis": "Bundesgerichtshof"},
     {"titel": "BAG – Pressemitteilungen", "url": "https://www.bundesarbeitsgericht.de/feed/presse/neueste",
      "hinweis": "Bundesarbeitsgericht"},
     {"titel": "BAG – Entscheidungen", "url": "https://www.bundesarbeitsgericht.de/feed/entscheidung/neueste",

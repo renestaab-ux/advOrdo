@@ -120,8 +120,8 @@ export default function Nachrichten() {
             ))}
           </ul>
           <p className="grenze">
-            Feeds von Bundesgerichtshof, Bundesverfassungsgericht oder Bundesgesetzblatt ließen sich beim Einbau nicht
-            prüfen und fehlen deshalb hier. Wer auf deren Webseiten einen Feed findet, trägt dessen Adresse oben ein.
+            Feeds von Bundesverfassungsgericht oder Bundesgesetzblatt ließen sich beim Einbau nicht prüfen und fehlen
+            deshalb hier. Wer auf deren Webseiten einen Feed findet, trägt dessen Adresse oben ein.
           </p>
         </section>
       )}
