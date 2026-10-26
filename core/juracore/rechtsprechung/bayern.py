@@ -22,6 +22,7 @@ import http.client
 import http.cookiejar
 import io
 import re
+import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -33,6 +34,8 @@ from .verzeichnis import USER_AGENT
 from .volltext import Absatz, Volltext
 
 BASIS = "https://www.gesetze-bayern.de"
+VERSUCHE = 3
+PAUSE = 1.0  # Sekunden vor dem zweiten Versuch, vor dem dritten doppelt so lang
 HERKUNFT = "gesetze-bayern.de"
 HINWEIS = ("Quelle: Bürgerservice BAYERN.RECHT (gesetze-bayern.de). Redaktionell bearbeitete, anonymisierte "
            "Fassung, kein amtlicher Text; redaktionelle Leitsätze urheberrechtlich geschützt.")
@@ -183,14 +186,33 @@ def lade(doknr: str, timeout: float = 60) -> bytes:
     """Lädt das ZIP einer Entscheidung."""
     anfrage = urllib.request.Request(f"{BASIS}/Content/Zip/{_pruefe_doknr(doknr)}",
                                      headers={"User-Agent": USER_AGENT})
-    for versuch in range(3):
+    # Das Portal bricht die Übertragung gelegentlich ab, manchmal ohne Fehler: Dann kommt ein abgeschnittenes ZIP an
+    # („Bad magic number for central directory“). Deshalb das ZIP prüfen und bis zu zweimal neu laden.
+    for versuch in range(VERSUCHE):
+        if versuch:
+            time.sleep(PAUSE * versuch)
         try:
             with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
-                return antwort.read()
+                daten = antwort.read()
         except http.client.IncompleteRead:
-            if versuch == 2:  # Das Portal bricht die Übertragung gelegentlich ab; zweimal neu versuchen.
+            if versuch == VERSUCHE - 1:
                 raise
-    raise AssertionError("unerreichbar")
+            continue
+        if _vollstaendig(daten):
+            return daten
+    raise ValueError(f"gesetze-bayern.de hat die Entscheidung {doknr} nach {VERSUCHE} Versuchen nur unvollständig "
+                     "geliefert. Bitte gleich noch einmal öffnen.")
+
+
+def _vollstaendig(daten: bytes) -> bool:
+    """Ob ein geladenes ZIP vollständig ist (eine XML-Datei ohne ZIP-Hülle gilt als vollständig)."""
+    if daten[:2] != b"PK":
+        return bool(daten.strip())
+    try:
+        with zipfile.ZipFile(io.BytesIO(daten)) as z:
+            return z.testzip() is None
+    except (zipfile.BadZipFile, EOFError):
+        return False
 
 
 # --- Volltext --------------------------------------------------------------------------------------

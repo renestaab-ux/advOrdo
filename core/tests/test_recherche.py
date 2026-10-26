@@ -301,3 +301,28 @@ def test_neuris_volltext_als_html(monkeypatch):
     assert arten == ["text/html"]
     with pytest.raises(ValueError, match="keinen Volltext"):
         neuris.lade("FEHLT")
+
+
+def test_bayern_abgeschnittenes_zip_wird_neu_geladen(monkeypatch):
+    ganz = _bay_zip()
+    antworten = [ganz[: len(ganz) // 2], ganz]
+
+    class Antwort:
+        def __init__(self, daten):
+            self.daten = daten
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return self.daten
+
+    monkeypatch.setattr(bayern, "PAUSE", 0)
+    monkeypatch.setattr(bayern.urllib.request, "urlopen", lambda *a, **k: Antwort(antworten.pop(0)))
+    assert bayern.lade("Y-300-Z-BECKRS-B-2023-N-99999") == ganz
+    monkeypatch.setattr(bayern.urllib.request, "urlopen", lambda *a, **k: Antwort(ganz[:100]))
+    with pytest.raises(ValueError, match="unvollständig"):
+        bayern.lade("Y-300-Z-BECKRS-B-2023-N-99999")
