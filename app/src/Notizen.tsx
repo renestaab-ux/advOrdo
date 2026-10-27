@@ -1,9 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
-import { AktenDokument, Notiz, kern, zeitpunkt } from "./kern";
+import { AktenDokument, Notiz, dokumentName, kern, zeitpunkt } from "./kern";
 
-/** Reiter „Notizen“: kurze Vermerke zur Akte oder zu einem Dokument; wichtige werden oben angeheftet. */
-export default function Notizen({ akteId }: { akteId: number }) {
-  const [notizen, setNotizen] = useState<Notiz[] | null>(null);
+/** Reiter „Notizen“: kurze Vermerke zur Akte oder zu einem Dokument; wichtige werden oben angeheftet.
+ *  Mit ``dokumentId`` (Ansicht „Details“) nur die Notizen zu diesem Dokument, neue gehören zu ihm. */
+export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId: number; dokumentId?: number }) {
+  const [alle, setNotizen] = useState<Notiz[] | null>(null);
+  const notizen = festesDokument == null ? alle : (alle?.filter((n) => n.dokument_id === festesDokument) ?? null);
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [text, setText] = useState("");
   const [dokumentId, setDokumentId] = useState("");
@@ -14,8 +16,9 @@ export default function Notizen({ akteId }: { akteId: number }) {
 
   useEffect(() => {
     void kern<Notiz[]>("akten.notizen", { akte_id: akteId }).then(setNotizen, (e) => setFehler(String(e)));
-    void kern<AktenDokument[]>("akten.dokumente", { akte_id: akteId }).then(setDokumente, () => undefined);
-  }, [akteId]);
+    if (festesDokument == null)
+      void kern<AktenDokument[]>("akten.dokumente", { akte_id: akteId }).then(setDokumente, () => undefined);
+  }, [akteId, festesDokument]);
 
   async function mit(f: () => Promise<Notiz[]>) {
     setFehler(null);
@@ -34,7 +37,7 @@ export default function Notizen({ akteId }: { akteId: number }) {
       kern<Notiz[]>("akten.notiz_speichern", {
         akte_id: akteId,
         text,
-        dokument_id: dokumentId ? Number(dokumentId) : null,
+        dokument_id: festesDokument ?? (dokumentId ? Number(dokumentId) : null),
         angeheftet: anheften,
       }),
     );
@@ -48,7 +51,7 @@ export default function Notizen({ akteId }: { akteId: number }) {
     <div className="notizen">
       <form className="karte notiz-neu" onSubmit={hinzufuegen}>
         <label className="feld">
-          Neue Notiz
+          {festesDokument == null ? "Neue Notiz" : "Neue Notiz zu diesem Dokument"}
           <textarea
             rows={3}
             value={text}
@@ -57,17 +60,19 @@ export default function Notizen({ akteId }: { akteId: number }) {
           />
         </label>
         <div className="notiz-optionen">
-          <label>
-            Zu Dokument{" "}
-            <select value={dokumentId} onChange={(e) => setDokumentId(e.target.value)}>
-              <option value="">(zur ganzen Akte)</option>
-              {dokumente.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.dateiname}
-                </option>
-              ))}
-            </select>
-          </label>
+          {festesDokument == null && (
+            <label>
+              Zu Dokument{" "}
+              <select value={dokumentId} onChange={(e) => setDokumentId(e.target.value)}>
+                <option value="">(zur ganzen Akte)</option>
+                {dokumente.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {dokumentName(d)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             <input type="checkbox" checked={anheften} onChange={(e) => setAnheften(e.target.checked)} /> oben anheften
           </label>
@@ -78,7 +83,9 @@ export default function Notizen({ akteId }: { akteId: number }) {
       </form>
 
       {fehler && <p className="fehler">{fehler}</p>}
-      {notizen && notizen.length === 0 && <p className="leer">Noch keine Notizen.</p>}
+      {notizen && notizen.length === 0 && (
+        <p className="leer">{festesDokument == null ? "Noch keine Notizen." : "Noch keine Notiz zu diesem Dokument."}</p>
+      )}
       {loeschfrage && (
         <div className="rueckfrage" role="alertdialog" aria-label="Notiz löschen?">
           <strong>Diese Notiz löschen?</strong>
@@ -131,7 +138,7 @@ export default function Notizen({ akteId }: { akteId: number }) {
                   <span className="leise klein">
                     {n.angeheftet && "📌 angeheftet · "}
                     {zeitpunkt(n.geaendert_am)}
-                    {n.dokument && ` · zu ${n.dokument}`}
+                    {n.dokument && festesDokument == null && ` · zu ${n.dokument}`}
                   </span>
                   <span className="aktionen">
                     <button

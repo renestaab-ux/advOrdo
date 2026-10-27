@@ -37,7 +37,7 @@ from . import datum, lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 _URTEIL = """
 -- Entscheidungen im Volltext: selbst ergänzt (z. B. PDF aus juris) oder geladen. Gehören zu einer Akte oder
@@ -94,8 +94,23 @@ CREATE TABLE IF NOT EXISTS dokument (
     datum_text      TEXT,                   -- die Datumszeile, z. B. "Freiburg, den 23.06.2025"
     gespeichert_am  TEXT,                   -- letztes Speichern (Word-Eigenschaften oder Dateidatum), ISO
     gespeichert_quelle TEXT,                -- word oder datei
+    -- Metadaten von Hand (juracore.dokumente.metadaten); jede Änderung steht in dokument_aenderung.
+    titel           TEXT,                   -- z. B. "Klageschrift"; NULL = Dateiname
+    art             TEXT,                   -- Schreiben, Schriftsatz, Verfügung, Urteil … (metadaten.ARTEN)
+    datum_erkannt   TEXT,                   -- nur bei datum_quelle "manuell": JSON des erkannten Datums
     UNIQUE (akte_id, sha256)
 );
+
+-- Änderungsverlauf der Metadaten eines Dokuments: Feld, alter und neuer Wert als Text.
+CREATE TABLE IF NOT EXISTS dokument_aenderung (
+    id              INTEGER PRIMARY KEY,
+    dokument_id     INTEGER NOT NULL REFERENCES dokument(id) ON DELETE CASCADE,
+    feld            TEXT NOT NULL,          -- titel, datum, schlagworte, beteiligte
+    alt             TEXT,
+    neu             TEXT,
+    zeitpunkt       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS dokument_aenderung_dokument ON dokument_aenderung (dokument_id, id);
 
 -- Fassungen eines Dokuments (juracore.dokumente.fassungen): Nr. 1 ist die eingelesene Datei, jede in einem
 -- externen Programm bearbeitete und übernommene Datei kommt als neue Nummer hinzu. Die Dateien bleiben alle
@@ -268,6 +283,8 @@ def _migriere(con: sqlite3.Connection) -> None:
     for tabelle, spalte, typ in (("urteilszitat", "rn_zitiert", "INTEGER"), ("urteil", "doknr", "TEXT"),
                                  ("urteil", "kopf", "TEXT"), ("urteil_abschnitt", "teil", "TEXT"),
                                  ("seite", "woerter", "TEXT"),
+                                 ("dokument", "titel", "TEXT"), ("dokument", "art", "TEXT"),
+                                 ("dokument", "datum_erkannt", "TEXT"),
                                  *(("dokument", s, t) for s, t in _DATUM_SPALTEN.items())):
         if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
             con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
@@ -334,6 +351,14 @@ _DATUM_SPALTEN = {
 
 
 def _datum_speichern(con: sqlite3.Connection, dokument_id: int, d: dict) -> None:
+    """Speichert das erkannte Datum. Steht ein Datum von Hand fest, bleibt es; das erkannte wird nur vorgemerkt."""
+    z = con.execute("SELECT datum_quelle FROM dokument WHERE id = ?", (dokument_id,)).fetchone()
+    if z is not None and z["datum_quelle"] == "manuell":
+        con.execute(
+            "UPDATE dokument SET datum_erkannt = ?, gespeichert_am = ?, gespeichert_quelle = ? WHERE id = ?",
+            (json.dumps(d, ensure_ascii=False), d["gespeichert"], d["gespeichert_quelle"], dokument_id),
+        )
+        return
     con.execute(
         """UPDATE dokument SET datum = ?, datum_quelle = ?, datum_abschnitt = ?, datum_seite = ?, datum_text = ?,
                                gespeichert_am = ?, gespeichert_quelle = ? WHERE id = ?""",
@@ -930,7 +955,9 @@ def tags_setzen(con: sqlite3.Connection, dokument_id: int, tags: list[str]) -> l
         raise LookupError(f"Dokument {dokument_id} gibt es nicht.")
     neu = _bereinige_tags(tags)
     bisher = {r["name"].casefold(): r for r in con.execute("SELECT * FROM tag WHERE dokument_id = ?", (dokument_id,))}
+    alt_text = ", ".join(sorted((t["name"] for t in _tags(con, dokument_id)), key=str.casefold))
     with con:
+        aenderung_merken(con, dokument_id, "schlagworte", alt_text, ", ".join(sorted(neu, key=str.casefold)))
         con.execute("DELETE FROM tag WHERE dokument_id = ?", (dokument_id,))
         con.executemany(
             "INSERT INTO tag (dokument_id, name, quelle) VALUES (?, ?, ?)",
@@ -942,3 +969,13 @@ def tags_setzen(con: sqlite3.Connection, dokument_id: int, tags: list[str]) -> l
 def _tags(con: sqlite3.Connection, dokument_id: int) -> list[dict]:
     zeilen = con.execute("SELECT name, quelle FROM tag WHERE dokument_id = ? ORDER BY name", (dokument_id,))
     return [dict(t) for t in zeilen]
+
+
+def aenderung_merken(con: sqlite3.Connection, dokument_id: int, feld: str, alt: str | None, neu: str | None) -> None:
+    """Hält eine Änderung an den Metadaten im Verlauf fest (innerhalb der Transaktion des Aufrufers)."""
+    if (alt or "") == (neu or ""):
+        return
+    con.execute(
+        "INSERT INTO dokument_aenderung (dokument_id, feld, alt, neu, zeitpunkt) VALUES (?, ?, ?, ?, ?)",
+        (dokument_id, feld, alt or None, neu or None, _jetzt()),
+    )

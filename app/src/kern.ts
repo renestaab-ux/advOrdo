@@ -578,6 +578,87 @@ export interface AktenDokument {
   fassung: { nr: number; erstellt_am: string; quelle: "import" | "bearbeitet" };
   /** Ob es eine Arbeitskopie zum Bearbeiten in einem externen Programm gibt. */
   arbeitskopie: boolean;
+  /** Titel von Hand (Ansicht „Details“); null = es gilt der Dateiname. */
+  titel: string | null;
+  /** Art des Dokuments: Schreiben, Schriftsatz, Verfügung, Urteil … (Ansicht „Details“). */
+  art: string | null;
+  /** Wer das Dokument erstellt hat (Ansicht „Details“); fehlt bei älteren Abrufen. */
+  absender?: MetaAbsender | null;
+}
+
+/** Anzeigename eines Dokuments: der Titel, sonst der Dateiname. */
+export function dokumentName(d: Pick<AktenDokument, "titel" | "dateiname">): string {
+  return d.titel?.trim() || d.dateiname;
+}
+
+/** Fundstelle eines Vorschlags in der Ansicht „Details“. */
+export interface MetaFundstelle {
+  abschnitt: number;
+  seite: number | null;
+  text: string | null;
+}
+
+/** Aus dem Text erkannter Wert; eingetragen wird er erst nach Bestätigung. */
+export interface MetaVorschlag {
+  wert: string;
+  grund: string;
+  fundstelle: MetaFundstelle | null;
+}
+
+/** Absender eines Dokuments: "eigene" (wir selbst) oder die Nummer einer Beteiligung der Akte. */
+export interface MetaAbsender {
+  wert: "eigene" | number;
+  name: string;
+  rolle_text: string;
+}
+
+export interface MetaAbsenderVorschlag extends MetaAbsender {
+  grund: string;
+  fundstelle: MetaFundstelle | null;
+}
+
+export interface MetaBeteiligterVorschlag {
+  beteiligung_id: number;
+  name: string;
+  rolle_text: string;
+  grund: string;
+  fundstelle: MetaFundstelle | null;
+}
+
+export type MetaVerlaufEintrag =
+  | { art: "fassung"; zeitpunkt: string; nr: number; dateiname: string; quelle: "import" | "bearbeitet" }
+  | { art: "aenderung"; zeitpunkt: string; id: number; feld: string; feld_text: string; alt: string | null; neu: string | null };
+
+/** Metadaten eines Dokuments (Kern: akten.metadaten). */
+export interface DokumentMetadaten {
+  dokument_id: number;
+  dateiname: string;
+  titel: string;
+  art: string;
+  /** Auswahlliste für die Art; eigene Angaben sind ebenfalls möglich. */
+  arten: string[];
+  absender: MetaAbsender | null;
+  datum: {
+    wert: string | null;
+    quelle: DatumQuelle | null;
+    seite: number | null;
+    abschnitt: number | null;
+    text: string | null;
+    /** Nur bei einem Datum von Hand: das erkannte Datum. */
+    erkannt: { datum: string | null; quelle: DatumQuelle } | null;
+  };
+  schlagworte: Tag[];
+  beteiligte: Beteiligung[];
+  akte_beteiligte: Beteiligung[];
+  vorschlaege: {
+    titel: MetaVorschlag[];
+    art: MetaVorschlag | null;
+    absender: MetaAbsenderVorschlag | null;
+    datum: MetaVorschlag | null;
+    schlagworte: MetaVorschlag[];
+    beteiligte: MetaBeteiligterVorschlag[];
+  };
+  verlauf: MetaVerlaufEintrag[];
 }
 
 /** Eine Fassung eines Dokuments; die Dateien aller Fassungen bleiben unverändert abgelegt. */
@@ -629,7 +710,7 @@ export function kopieSchluessel(k: Arbeitskopie): string {
   return `${k.dokument_id}|${k.geaendert_am ?? ""}`;
 }
 
-export type DatumQuelle = "dokument" | "word" | "datei" | "unbekannt";
+export type DatumQuelle = "dokument" | "word" | "datei" | "manuell" | "unbekannt";
 
 export interface Tag {
   name: string;
@@ -1787,6 +1868,12 @@ export function dokumentDatum(
         text: datumDe(d.datum),
         herkunft: "Dateidatum",
         erklaerung: `Keine Datumszeile im Dokument. ${gespeichert}`,
+      };
+    case "manuell":
+      return {
+        text: datumDe(d.datum),
+        herkunft: "von Hand",
+        erklaerung: "Von Hand eingetragen (Ansicht „Details“).",
       };
   }
 }

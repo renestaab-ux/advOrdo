@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  dokumentName,
   Beteiligung,
   empfaengerVorschlag,
   nachrichtAlter,
@@ -317,6 +318,14 @@ describe("Datum eines Dokuments", () => {
 
   it("zeigt einen Strich, wenn nichts bekannt ist", () => {
     expect(dokumentDatum({ ...leer, datum: null, datum_quelle: "unbekannt" }).text).toBe("–");
+    const vonHand = dokumentDatum({ ...leer, datum: "2026-08-28", datum_quelle: "manuell" });
+    expect([vonHand.text, vonHand.herkunft]).toEqual(["28.08.2026", "von Hand"]);
+  });
+
+  it("zeigt den Titel vor dem Dateinamen", () => {
+    expect(dokumentName({ titel: "Verfügung LG Freiburg", dateiname: "05_Verfuegung.docx" })).toBe("Verfügung LG Freiburg");
+    expect(dokumentName({ titel: "  ", dateiname: "05_Verfuegung.docx" })).toBe("05_Verfuegung.docx");
+    expect(dokumentName({ titel: null, dateiname: "05_Verfuegung.docx" })).toBe("05_Verfuegung.docx");
   });
 });
 

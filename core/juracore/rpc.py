@@ -27,7 +27,7 @@ from . import __version__, db, diagnose, einstellungen, gerichte, nachrichten, p
 from .abgleich import abgleich
 from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, notizen, stammdaten, verfahren
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
-from .dokumente import akte, ansicht, fassungen, lesen, ocr, suche, urteile
+from .dokumente import akte, ansicht, fassungen, lesen, metadaten, ocr, suche, urteile
 from .eigene import daten as eigene
 from .eigene import marke
 from .eigene.felder import FELDER, FORMEN
@@ -173,7 +173,7 @@ class Kern:
             "beteiligte.loeschen": lambda beteiligter_id: beteiligte.loeschen(self.akten, beteiligter_id),
             "beteiligte.beziehung_setzen": lambda von, zu, art, vorhanden=True, funktion=None: (
                 beteiligte.beziehung_setzen(self.akten, von, zu, art, vorhanden, funktion)),
-            "akten.dokumente": lambda akte_id: akte.dokumente(self.akten, akte_id),
+            "akten.dokumente": lambda akte_id: metadaten.mit_absender(self.akten, akte.dokumente(self.akten, akte_id)),
             "akten.loeschen": lambda akte_id: akte.akte_loeschen(self.akten, akte_id, self.ablage),
             "akten.importieren": lambda akte_id, pfad, tags=None, herkunft=None: akte.importiere(
                 self.akten, self.con, akte_id, pfad, self.ablage, tags=tags, herkunft=herkunft
@@ -183,6 +183,11 @@ class Kern:
                 self.akten, dokument_id, self.ablage
             ),
             "akten.tags_setzen": lambda dokument_id, tags: akte.tags_setzen(self.akten, dokument_id, tags),
+            # Ansicht „Details“: Titel, Datum, Schlagworte, Beteiligte, Vorschläge und Verlauf eines Dokuments.
+            "akten.metadaten": lambda dokument_id: metadaten.lesen(self.akten, dokument_id, self._eigene_namen()),
+            "akten.metadaten_speichern": lambda dokument_id, titel=None, datum=None, schlagworte=None,
+                beteiligte=None, art=None, absender=None: metadaten.speichern(
+                self.akten, dokument_id, titel, datum, schlagworte, beteiligte, art, absender, self._eigene_namen()),
             "akten.dokument": lambda dokument_id: akte.dokument(self.akten, dokument_id),
             "nachrichten.einstellungen": self.nachrichten.einstellungen,
             "nachrichten.hinzufuegen": self.nachrichten_hinzufuegen,
@@ -379,6 +384,12 @@ class Kern:
         return [v | {"dateiname": e["dateiname"]} for i in ids
                 for e in [kalender.dokument_vorschlaege(self.akten, i, land)] for v in e["vorschlaege"]]
 
+    def _eigene_namen(self, s: dict | None = None) -> list[str]:
+        """Name der eigenen Kanzlei bzw. Organisation und der beauftragten Kanzleien (Eigene Daten)."""
+        s = s or eigene.stand(self.akten, mit_archiv=False)
+        return [n for n in (s["organisation_name"], *(k["daten"].get("name", "") for k in s["beauftragte_kanzleien"]))
+                if n]
+
     def rubrum_lesen(self, pfad: str | None = None, dokument_id: int | None = None,
                      akte_id: int | None = None) -> dict:
         """Erkennt das Rubrum für „Akte aus Dokument“ bzw. „Verfahren aus Dokument“: aus einer Datei (ohne sie
@@ -399,7 +410,7 @@ class Kern:
         else:
             raise ValueError("Bitte eine Datei oder ein Dokument der Akte wählen.")
         s = eigene.stand(self.akten, mit_archiv=False)
-        namen = [s["organisation_name"], *(k["daten"].get("name", "") for k in s["beauftragte_kanzleien"])]
+        namen = self._eigene_namen(s)
         konzern = [{"id": k["id"], "name": k["daten"].get("name", "")} for k in s["konzerngesellschaften"]]
         r = aus_dokument.vorschau(self.akten, abschnitte, namen, konzern)
         if akte_id is not None:

@@ -90,7 +90,8 @@ def liste(con: sqlite3.Connection, akte_id: int, heute: date | None = None) -> l
     """Alle Einträge der Akte: offene nach Datum, darunter die erledigten (neueste zuerst)."""
     heute = heute or date.today()
     zeilen = con.execute(
-        """SELECT k.*, d.dateiname AS dokument FROM kalender k LEFT JOIN dokument d ON d.id = k.dokument_id
+        """SELECT k.*, COALESCE(d.titel, d.dateiname) AS dokument FROM kalender k
+           LEFT JOIN dokument d ON d.id = k.dokument_id
            WHERE k.akte_id = ? ORDER BY k.erledigt_am IS NOT NULL, k.datum, k.uhrzeit, k.id""", (akte_id,)).fetchall()
     eintraege = [_zeile(z, heute) for z in zeilen]
     offen = [e for e in eintraege if not e["erledigt_am"]]
@@ -208,7 +209,7 @@ def naechste(con: sqlite3.Connection, tage: int | None = None, limit: int = 50,
     heute = heute or date.today()
     bis = (heute + timedelta(days=tage)).isoformat() if tage is not None else "9999-12-31"
     zeilen = con.execute(
-        """SELECT k.*, a.name AS akte, a.aktenzeichen, d.dateiname AS dokument FROM kalender k
+        """SELECT k.*, a.name AS akte, a.aktenzeichen, COALESCE(d.titel, d.dateiname) AS dokument FROM kalender k
            JOIN akte a ON a.id = k.akte_id LEFT JOIN dokument d ON d.id = k.dokument_id
            WHERE k.erledigt_am IS NULL AND k.datum <= ? AND a.status != 'abgeschlossen'
            ORDER BY k.datum, k.uhrzeit, k.id LIMIT ?""", (bis, limit)).fetchall()

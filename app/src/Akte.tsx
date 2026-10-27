@@ -9,6 +9,7 @@ import {
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import Chat from "./Chat";
+import DokumentDetails, { DetailsGriff } from "./DokumentDetails";
 import DokumentExtern, { UebernahmeFrage } from "./DokumentExtern";
 import { GegenueberstellungBereich } from "./Gegenueberstellung";
 import { BelegAnsicht } from "./Gesetze";
@@ -42,6 +43,7 @@ import {
   UrteilVolltext,
   ZitatStatus,
   dokumentDatum,
+  dokumentName,
   fundstelle,
   istDesktop,
   kern,
@@ -62,7 +64,7 @@ import {
 
 type Ansicht = "dokument" | "normen" | "rechtsprechung" | "chat";
 /** Was zum geöffneten Dokument gezeigt wird. */
-type DokModus = "text" | "original" | "normen" | "rechtsprechung" | "chat";
+type DokModus = "text" | "original" | "normen" | "rechtsprechung" | "chat" | "details";
 
 /** Breite der Seitenleiste (Wortlaut, Volltext), je Gerät gemerkt. */
 const SEITE_STANDARD = 360;
@@ -124,9 +126,14 @@ interface Filter {
   tag: string | null;
   /** Nur Dokumente mit Zitaten, die nicht belegt sind. */
   unbelegt: boolean;
+  /** Art aus „Details“; "" = ohne Art. */
+  art: string | null;
+  /** Absender aus „Details“: "eigene", Nummer der Beteiligung als Text; "" = ohne Absender. */
+  absender: string | null;
 }
 
-const KEIN_FILTER: Filter = { ordner: null, tag: null, unbelegt: false };
+const KEIN_FILTER: Filter = { ordner: null, tag: null, unbelegt: false, art: null, absender: null };
+const absenderSchluessel = (d: AktenDokument) => (d.absender ? String(d.absender.wert) : "");
 
 const oberordner = (d: AktenDokument) => (d.herkunft ? d.herkunft.split(/[\\/]/)[0] : "");
 const unbelegt = (d: AktenDokument) => !!(d.zitate.nicht_gefunden || d.zitate.unbekanntes_gesetz);
@@ -174,6 +181,9 @@ export default function Akte({
   const [ocr, setOcr] = useState<OcrStatus | null>(null);
   const [gesetzeGeladen, setGesetzeGeladen] = useState<number | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  // Ungespeicherte Eingaben in „Details“: vor einem Wechsel des Dokuments oder der Ansicht wird nachgefragt.
+  const details = useRef<DetailsGriff>(null);
+  const [verlassen, setVerlassen] = useState<{ weiter: () => void } | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [ordnerFrage, setOrdnerFrage] = useState<OrdnerFrage | null>(null);
@@ -434,7 +444,29 @@ export default function Akte({
     if (inhalt?.dokument.id === dokumentId) await oeffneDokument(dokumentId);
   }
 
+  /** Nach dem Speichern in „Details“: Liste und Kopf zeigen Titel, Datum und Tags neu; die Ansicht bleibt. */
+  async function metadatenGespeichert(id: number) {
+    await ladeDokumente();
+    const d = await kern<DokumentInhalt>("akten.dokument", { dokument_id: id }).catch(() => null);
+    // Inzwischen kann ein anderes Dokument geöffnet sein (Speichern in der Rückfrage vor dem Wechsel).
+    if (d) setInhalt((alt) => (alt?.dokument.id === id ? d : alt));
+  }
+
+  /** Führt ``weiter`` aus; stehen in „Details“ ungespeicherte Eingaben, erst nach der Rückfrage. */
+  function nachRueckfrage(weiter: () => void) {
+    if (dokModus === "details" && details.current?.offen()) setVerlassen({ weiter });
+    else weiter();
+  }
+
   async function oeffneDokument(id: number, abschnitt?: number) {
+    if (dokModus === "details" && details.current?.offen()) {
+      setVerlassen({ weiter: () => void dokumentOeffnen(id, abschnitt) });
+      return;
+    }
+    await dokumentOeffnen(id, abschnitt);
+  }
+
+  async function dokumentOeffnen(id: number, abschnitt?: number) {
     const d = await ausfuehren("Lade Dokument …", () => kern<DokumentInhalt>("akten.dokument", { dokument_id: id }));
     if (!d) return;
     setInhalt(d);
@@ -605,17 +637,31 @@ export default function Akte({
   const weitereTags = tags.filter((t) => !BETEILIGTE.includes(t.name));
   const ohneTag = dokumente.filter((d) => d.tags.length === 0).length;
   const mitUnbelegt = dokumente.filter(unbelegt).length;
+  // Metadaten aus „Details“: Art und Absender; ohne Angabe stehen sie unter „ohne …“.
+  const arten = [...zaehle(dokumente.map((d) => d.art ?? "")).entries()].sort(
+    (a, b) => Number(a[0] === "") - Number(b[0] === "") || a[0].localeCompare(b[0], "de"),
+  );
+  const absenderNamen = new Map(dokumente.filter((d) => d.absender).map((d) => [absenderSchluessel(d), d.absender!]));
+  const absender = [...zaehle(dokumente.map(absenderSchluessel)).entries()].sort(
+    (a, b) =>
+      Number(a[0] === "") - Number(b[0] === "") ||
+      (a[0] === "eigene" ? -1 : b[0] === "eigene" ? 1 : 0) ||
+      (absenderNamen.get(a[0])?.name ?? "").localeCompare(absenderNamen.get(b[0])?.name ?? "", "de"),
+  );
   const gefiltert = dokumente.filter(
     (d) =>
       (filter.ordner == null || oberordner(d) === filter.ordner) &&
       (filter.tag == null || (filter.tag === "" ? d.tags.length === 0 : d.tags.some((t) => t.name === filter.tag))) &&
-      (!filter.unbelegt || unbelegt(d)),
+      (!filter.unbelegt || unbelegt(d)) &&
+      (filter.art == null || (d.art ?? "") === filter.art) &&
+      (filter.absender == null || absenderSchluessel(d) === filter.absender),
   );
   // Zeitlich geordnet: neueste zuerst wie in einer Papierakte von oben; Dokumente ohne Datum am Ende.
   const sichtbar = nachDatum
     ? [...gefiltert].sort((a, b) => (b.datum ?? "").localeCompare(a.datum ?? "") || a.dateiname.localeCompare(b.dateiname, "de"))
     : gefiltert;
-  const gefiltertAktiv = filter.ordner != null || filter.tag != null || filter.unbelegt;
+  const gefiltertAktiv =
+    filter.ordner != null || filter.tag != null || filter.unbelegt || filter.art != null || filter.absender != null;
   const mitOrdnern = ordner.some(([o]) => o !== "");
 
   const zeigeVolltextSeite =
@@ -786,6 +832,28 @@ export default function Akte({
           <>
             <h3>Dokumente</h3>
             {filterKnopf(!gefiltertAktiv, "Alle Dokumente", dokumente.length, () => setFilter(KEIN_FILTER))}
+            {arten.some(([a]) => a !== "") && (
+              <>
+                <h4>Art</h4>
+                {arten.map(([a, n]) =>
+                  filterKnopf(filter.art === a, a || "ohne Art", n, () => setFilter({ ...filter, art: filter.art === a ? null : a }), "unter"),
+                )}
+              </>
+            )}
+            {absender.some(([a]) => a !== "") && (
+              <>
+                <h4>Absender</h4>
+                {absender.map(([a, n]) =>
+                  filterKnopf(
+                    filter.absender === a,
+                    a === "" ? "ohne Absender" : a === "eigene" ? "Wir" : (absenderNamen.get(a)?.name ?? a),
+                    n,
+                    () => setFilter({ ...filter, absender: filter.absender === a ? null : a }),
+                    "unter",
+                  ),
+                )}
+              </>
+            )}
             {mitOrdnern && (
               <>
                 <h3>Ordner</h3>
@@ -798,7 +866,7 @@ export default function Akte({
             )}
             {(parteien.length > 0 || weitereTags.length > 0) && (
               <>
-                <h3>Partei und Tags</h3>
+                <h3>Tags</h3>
                 {[...parteien, ...weitereTags].map((t) =>
                   filterKnopf(filter.tag === t.name, t.name, t.anzahl, () =>
                     setFilter({ ...filter, tag: filter.tag === t.name ? null : t.name }),
@@ -889,9 +957,12 @@ export default function Akte({
                   </td>
                   <td>
                     <button className="link" onClick={() => oeffneDokument(d.id)}>
-                      {d.dateiname}
+                      {dokumentName(d)}
                     </button>
                     <div className="herkunft">
+                      {d.art && <>{d.art} · </>}
+                      {d.absender && <>von {d.absender.wert === "eigene" ? "uns" : d.absender.name} · </>}
+                      {d.titel && <>{d.dateiname} · </>}
                       {lesartText(d)}
                       {d.seiten != null && <> · {d.seiten} S.</>}
                       {d.randnummern > 0 && <> · {d.randnummern} Rn.</>}
@@ -951,7 +1022,45 @@ export default function Akte({
       <section className="akte-offen" aria-label="Geöffnetes Dokument">
         {inhalt ? (
           <>
-            <DokModusLeiste dokument={inhalt.dokument} modus={dokModus} onModus={waehleDokModus} />
+            <DokModusLeiste
+              dokument={inhalt.dokument}
+              modus={dokModus}
+              onModus={(m) => m !== dokModus && nachRueckfrage(() => void waehleDokModus(m))}
+            />
+            {verlassen && (
+              <div className="rueckfrage" role="alertdialog" aria-label="Änderungen speichern?">
+                <strong>Änderungen speichern?</strong>
+                <p>In „Details“ gibt es Eingaben, die noch nicht gespeichert sind.</p>
+                <div className="aktionen">
+                  <button
+                    onClick={async () => {
+                      if (await details.current?.speichern()) {
+                        const { weiter } = verlassen;
+                        setVerlassen(null);
+                        weiter();
+                      }
+                    }}
+                    autoFocus
+                  >
+                    Speichern
+                  </button>
+                  <button
+                    className="gefahr-voll"
+                    onClick={() => {
+                      details.current?.verwerfen();
+                      const { weiter } = verlassen;
+                      setVerlassen(null);
+                      weiter();
+                    }}
+                  >
+                    Verwerfen
+                  </button>
+                  <button className="zweitrangig" onClick={() => setVerlassen(null)}>
+                    Abbrechen
+                  </button>
+                </div>
+              </div>
+            )}
             <DokumentExtern
               key={`${inhalt.dokument.id}-${inhalt.dokument.fassung.nr}`}
               dokument={inhalt.dokument}
@@ -977,6 +1086,15 @@ export default function Akte({
                 {dokModus === "rechtsprechung" &&
                   rechtsprechungAnsicht("In diesem Dokument wurden keine Rechtsprechungszitate erkannt.", inhalt.dokument.id)}
                 {dokModus === "chat" && <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />}
+                {dokModus === "details" && (
+                  <DokumentDetails
+                    key={inhalt.dokument.id}
+                    ref={details}
+                    akteId={akteId}
+                    dokumentId={inhalt.dokument.id}
+                    onGespeichert={() => void metadatenGespeichert(inhalt.dokument.id)}
+                  />
+                )}
               </>,
             )}
           </>
@@ -1243,6 +1361,7 @@ const DOK_MODI: { modus: DokModus; text: string }[] = [
   { modus: "normen", text: "Normen" },
   { modus: "rechtsprechung", text: "Rechtsprechung" },
   { modus: "chat", text: "Chat" },
+  { modus: "details", text: "Details" },
 ];
 
 function DokModusLeiste({
@@ -1257,7 +1376,9 @@ function DokModusLeiste({
   const pdf = dokument.format === "pdf";
   return (
     <div className="dok-modi" role="tablist" aria-label={`Darstellung von ${dokument.dateiname}`}>
-      <span className="dok-modi-name">{dokument.dateiname}</span>
+      <span className="dok-modi-name" title={dokument.titel ? dokument.dateiname : undefined}>
+        {dokumentName(dokument)}
+      </span>
       {DOK_MODI.map((m) => (
         <button
           key={m.modus}

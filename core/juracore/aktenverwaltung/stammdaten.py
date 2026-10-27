@@ -31,6 +31,21 @@ CREATE TABLE IF NOT EXISTS akte_beteiligung (
 CREATE INDEX IF NOT EXISTS akte_beteiligung_akte ON akte_beteiligung (akte_id);
 CREATE INDEX IF NOT EXISTS akte_beteiligung_beteiligter ON akte_beteiligung (beteiligter_id);
 
+-- Beteiligte der Akte, die ein Dokument betrifft (Absender, Empfänger, Parteien); juracore.dokumente.metadaten.
+CREATE TABLE IF NOT EXISTS dokument_beteiligung (
+    dokument_id     INTEGER NOT NULL REFERENCES dokument(id) ON DELETE CASCADE,
+    beteiligung_id  INTEGER NOT NULL REFERENCES akte_beteiligung(id) ON DELETE CASCADE,
+    PRIMARY KEY (dokument_id, beteiligung_id)
+);
+
+-- Absender eines Dokuments (wer es erstellt hat): eine Beteiligung der Akte oder wir selbst (eigene = 1).
+CREATE TABLE IF NOT EXISTS dokument_absender (
+    dokument_id     INTEGER PRIMARY KEY REFERENCES dokument(id) ON DELETE CASCADE,
+    beteiligung_id  INTEGER REFERENCES akte_beteiligung(id) ON DELETE CASCADE,
+    eigene          INTEGER NOT NULL DEFAULT 0,
+    CHECK ((beteiligung_id IS NOT NULL) + eigene = 1)
+);
+
 -- Jedes je vergebene Aktenzeichen, auch das einer gelöschten Akte: es wird nie ein zweites Mal vergeben.
 CREATE TABLE IF NOT EXISTS aktenzeichen_vergeben (
     aktenzeichen TEXT PRIMARY KEY COLLATE NOCASE,

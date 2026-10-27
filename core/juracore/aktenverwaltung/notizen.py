@@ -31,7 +31,8 @@ def _jetzt() -> str:
 def liste(con: sqlite3.Connection, akte_id: int, dokument_id: int | None = None) -> list[dict]:
     """Notizen der Akte (angeheftete zuerst, sonst neueste zuerst); mit ``dokument_id`` nur die zu diesem Dokument."""
     zeilen = con.execute(
-        """SELECT n.*, d.dateiname AS dokument FROM aktennotiz n LEFT JOIN dokument d ON d.id = n.dokument_id
+        """SELECT n.*, COALESCE(d.titel, d.dateiname) AS dokument FROM aktennotiz n
+           LEFT JOIN dokument d ON d.id = n.dokument_id
            WHERE n.akte_id = ? AND (? IS NULL OR n.dokument_id = ?)
            ORDER BY n.angeheftet DESC, n.geaendert_am DESC, n.id DESC""", (akte_id, dokument_id, dokument_id))
     return [dict(z) | {"angeheftet": bool(z["angeheftet"])} for z in zeilen]
