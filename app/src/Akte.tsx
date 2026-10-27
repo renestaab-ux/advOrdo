@@ -297,6 +297,15 @@ export default function Akte({
     });
   }, [akteId, ausfuehren, ladeDokumente]);
 
+  // Kam ein Dokument von außerhalb dieser Ansicht dazu (z. B. ein erzeugtes Schriftstück), die Liste neu laden.
+  const dokumentZahl = useRef(akte.dokumente);
+  useEffect(() => {
+    if (!istDesktop || dokumentZahl.current === akte.dokumente) return;
+    dokumentZahl.current = akte.dokumente;
+    void ladeDokumente();
+    void ladeKopien();
+  }, [akte.dokumente, ladeDokumente, ladeKopien]);
+
   // Ein Reiter der ganzen Akte lädt seine Liste beim Öffnen.
   useEffect(() => {
     if (!istDesktop) return;

@@ -6,6 +6,7 @@ import Nachrichten from "./Nachrichten";
 import Gerichtsverzeichnis from "./Gerichtsverzeichnis";
 import Programme from "./Programme";
 import Rechtsquellen from "./Rechtsquellen";
+import SchriftVorlagenEinstellungen from "./SchriftVorlagen";
 import Umgebungen from "./Umgebungen";
 import {
   AKZENTE,
@@ -26,6 +27,7 @@ export type EinstellungsReiter =
   | "umgebungen"
   | "eigene"
   | "akten"
+  | "schriftstuecke"
   | "rechtsquellen"
   | "nachrichten"
   | "ki"
@@ -39,6 +41,7 @@ const REITER: { id: EinstellungsReiter; titel: string }[] = [
   { id: "umgebungen", titel: "Arbeitsumgebungen" },
   { id: "eigene", titel: "Eigene Daten" },
   { id: "akten", titel: "Akten" },
+  { id: "schriftstuecke", titel: "Schriftstücke" },
   { id: "rechtsquellen", titel: "Rechtsquellen" },
   { id: "nachrichten", titel: "Nachrichten" },
   { id: "ki", titel: "Lokales Sprachmodell" },
@@ -176,6 +179,8 @@ export default function Einstellungen({
         <Gerichtsverzeichnis />
       </>
     );
+  } else if (reiter === "schriftstuecke") {
+    inhalt = <SchriftVorlagenEinstellungen />;
   } else if (reiter === "rechtsquellen") {
     inhalt = <Rechtsquellen onAkte={onAkten} />;
   } else if (reiter === "nachrichten") {

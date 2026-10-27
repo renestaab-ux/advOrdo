@@ -20,7 +20,7 @@ def con(tmp_path):
 
 
 def test_ohne_logo(tmp_path, con):
-    assert marke.lesen(tmp_path, con) == {"logo": None, "kurzbezeichnung": "", "name": ""}
+    assert marke.lesen(tmp_path, con) == {"logo": None, "kurzbezeichnung": "", "name": "", "druckbild": False}
 
 
 def test_logo_setzen_ersetzen_entfernen(tmp_path, con):

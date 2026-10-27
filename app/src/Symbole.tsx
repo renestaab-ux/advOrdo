@@ -130,6 +130,14 @@ const PFADE = {
       <path d="M15 4v4h4M8.5 12h7M8.5 15.5h5" />
     </>
   ),
+  schriftstueck: (
+    <>
+      <path d="M13 3H6v18h7" />
+      <path d="M13 3l4 4v2.5" />
+      <path d="M8.5 8h4M8.5 11.5h5M8.5 15h2.5" />
+      <path d="m14 20 .6-2.6 5.2-5.2a1.4 1.4 0 0 1 2 2L16.6 19.4z" />
+    </>
+  ),
   dokumentLesen: (
     <>
       <path d="M6 3h8l4 4v6" />

@@ -1048,3 +1048,27 @@ details.kurz-hinweis summary { cursor: pointer; }
 .bereich-wahl { margin: 0 0 10px; }
 .sammlung-liste .kopf button { white-space: nowrap; }
 .zugeordnet { margin-bottom: 18px; }
+
+/* --- Schriftstücke aus der Akte ------------------------------------------------------------------------------- */
+.schriftstuecke .karte { max-width: 900px; }
+.schriftstuecke h2 { font-size: 18px; margin: 4px 0 12px; }
+.schrift-wahl { display: flex; flex-wrap: wrap; gap: 12px 16px; }
+.schrift-wahl .feld { display: grid; gap: 4px; min-width: 220px; flex: 1 1 220px; }
+.schrift-wahl select { max-width: 100%; }
+.schriftstuecke .aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.schrift-ergebnis { margin-top: 12px; }
+.schrift-vorschau, .schrift-katalog { margin-top: 14px; }
+.schrift-vorschau summary, .schrift-katalog summary { cursor: pointer; font-weight: 600; }
+.schrift-vorschau table, .schrift-katalog table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.schrift-vorschau th, .schrift-katalog th { text-align: left; font-weight: 500; vertical-align: top; padding: 4px 12px 4px 0; width: 34%; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.schrift-vorschau td, .schrift-katalog td { padding: 4px 0; vertical-align: top; white-space: pre-line; overflow-wrap: anywhere; }
+.schrift-vorschau tr + tr th, .schrift-vorschau tr + tr td, .schrift-katalog tr + tr th, .schrift-katalog tr + tr td { border-top: 1px solid var(--linie); }
+.schrift-vorschau tr.leer th { color: var(--warnung); }
+.schrift-gruppe h3 { font-size: 14px; margin: 14px 0 0; }
+.schrift-liste { list-style: none; margin: 8px 0; padding: 0; }
+.schrift-liste li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 0; border-top: 1px solid var(--linie); }
+.schrift-liste li .aktionen { margin-top: 0; }
+@media (max-width: 700px) { .schrift-vorschau th, .schrift-katalog th { white-space: normal; width: 45%; } }
+.schrift-anleitung { margin: 0; padding-left: 22px; display: grid; gap: 10px; }
+.schrift-anleitung .aktionen { margin-top: 8px; }
+.schrift-hinweis p { margin: 0; }
