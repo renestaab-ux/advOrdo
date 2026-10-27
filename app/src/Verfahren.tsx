@@ -241,7 +241,7 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
                 ))}
               </datalist>
               <span className="leise klein">
-                {!verzeichnisGeladen && "Alle Gerichte schlägt das Feld vor, wenn unter Einstellungen das Gerichtsverzeichnis geladen ist. "}
+                {!verzeichnisGeladen && "Alle Gerichte schlägt das Feld vor, wenn unter Einstellungen → Akten das Gerichtsverzeichnis geladen ist. "}
                 Anschrift und Zuständigkeit: <OrtsverzeichnisKnopf onFehler={setFehler} />
               </span>
             </label>

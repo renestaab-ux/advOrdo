@@ -337,7 +337,7 @@ Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1. In der Akte öffnen **St
   Beteiligtenverzeichnis. Welche Seite wir vertreten, leitet sie aus „Eigene Daten“ ab (eigene Kanzlei als
   Prozessbevollmächtigte, Konzerngesellschaft als Partei) oder fragt. Erst „Akte anlegen“ übernimmt die Auswahl, liest
   das Dokument ein und startet die Kollisionsprüfung.
-- **Gerichtsverzeichnis** (Einstellungen → Gerichtsverzeichnis → „Verzeichnis laden“): lädt auf Klick die
+- **Gerichtsverzeichnis** (Einstellungen → Akten → Gerichtsverzeichnis → „Verzeichnis laden“): lädt auf Klick die
   XJustiz-Codeliste „GDS.Gerichte“ aus XRepository (gültige Version, unverändert unter SHA-256 archiviert in
   `GERICHTE/`). Danach schlägt das Feld „Gericht“ in den Verfahren alle Gerichte mit amtlichem Namen vor;
   Staatsanwaltschaften und Grundbuchämter bleiben außen vor. Die Liste enthält keine Anschriften und Zuständigkeiten,
