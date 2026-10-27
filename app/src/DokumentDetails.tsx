@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
   BETEILIGTE,
   DokumentMetadaten,
@@ -34,6 +34,32 @@ function ausMeta(m: DokumentMetadaten): Entwurf {
   };
 }
 
+/** Was die Akte über ungespeicherte Eingaben wissen muss, bevor sie das Dokument oder die Ansicht wechselt. */
+export interface DetailsGriff {
+  /** Ob es ungespeicherte Änderungen gibt. */
+  offen: () => boolean;
+  /** Speichert sie; false, wenn das Speichern scheitert. */
+  speichern: () => Promise<boolean>;
+  /** Verwirft sie, damit sie auch beim Verlassen nicht gespeichert werden. */
+  verwerfen: () => void;
+}
+
+/** Parameter für akten.metadaten_speichern mit allen geänderten Feldern; null, wenn nichts geändert ist. */
+function aenderungen(meta: DokumentMetadaten, entwurf: Entwurf): Record<string, unknown> | null {
+  const bisher = ausMeta(meta);
+  const params: Record<string, unknown> = { dokument_id: meta.dokument_id };
+  if (entwurf.titel.trim() !== bisher.titel) params.titel = entwurf.titel.trim();
+  if (entwurf.art.trim() !== bisher.art) params.art = entwurf.art.trim();
+  if (entwurf.absender !== bisher.absender)
+    params.absender = entwurf.absender === "" || entwurf.absender === "eigene" ? entwurf.absender : Number(entwurf.absender);
+  // Wer das erkannte Datum wieder wählt, kehrt zur Erkennung zurück (auch nach einer neuen Fassung).
+  const erkannt = meta.datum.erkannt?.datum;
+  if (entwurf.datum !== bisher.datum) params.datum = erkannt && entwurf.datum === erkannt ? "" : entwurf.datum;
+  if (!gleicheListe(entwurf.schlagworte, bisher.schlagworte)) params.schlagworte = entwurf.schlagworte;
+  if (!gleicheListe(entwurf.beteiligte, bisher.beteiligte)) params.beteiligte = entwurf.beteiligte;
+  return Object.keys(params).length > 1 ? params : null;
+}
+
 const gleicheListe = <T,>(a: T[], b: T[]) => a.length === b.length && [...a].sort().every((x, i) => x === [...b].sort()[i]);
 const enthaelt = (liste: string[], wert: string) =>
   liste.some((x) => x.toLocaleLowerCase("de") === wert.toLocaleLowerCase("de"));
@@ -49,23 +75,54 @@ const DATUM_HERKUNFT: Record<string, string> = {
  * Ansicht „Details“ eines Dokuments: Titel, Art, Absender, Datum, Schlagworte, Beteiligte und Notizen, dazu der Verlauf.
  * Was der Kern im Text erkennt, steht als Vorschlag mit Fundstelle daneben und wird nur auf Klick übernommen.
  * Die Fundstellen sind bewusst kein Link: Ein Sprung in den Text würde nicht gespeicherte Eingaben verwerfen.
+ * Vor einem Wechsel innerhalb der Akte fragt die Akte nach (DetailsGriff); wer die Akte oder den Reiter verlässt,
+ * dessen Eingaben werden gespeichert, wie bei den Stammdaten.
  */
-export default function DokumentDetails({
-  akteId,
-  dokumentId,
-  onGespeichert,
-}: {
-  akteId: number;
-  dokumentId: number;
-  /** Nach dem Speichern: Dokumentliste und Kopf neu laden (Titel, Datum, Tags). */
-  onGespeichert: () => void;
-}) {
+const DokumentDetails = forwardRef<
+  DetailsGriff,
+  {
+    akteId: number;
+    dokumentId: number;
+    /** Nach dem Speichern: Dokumentliste und Kopf neu laden (Titel, Datum, Tags). */
+    onGespeichert: () => void;
+  }
+>(function DokumentDetails({ akteId, dokumentId, onGespeichert }, griff) {
   const [meta, setMeta] = useState<DokumentMetadaten | null>(null);
   const [entwurf, setEntwurf] = useState<Entwurf | null>(null);
   const [neuesWort, setNeuesWort] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [gespeichert, setGespeichert] = useState(false);
+  // Stand für den Griff und fürs Speichern beim Verlassen (nach dem letzten Rendern).
+  const stand = useRef<{ meta: DokumentMetadaten | null; entwurf: Entwurf | null }>({ meta: null, entwurf: null });
+  stand.current = { meta, entwurf };
+  const gespeichertRef = useRef(onGespeichert);
+  gespeichertRef.current = onGespeichert;
+
+  useImperativeHandle(griff, () => ({
+    offen: () => !!(stand.current.meta && stand.current.entwurf && aenderungen(stand.current.meta, stand.current.entwurf)),
+    speichern: () => speichern(),
+    verwerfen: () => {
+      const m = stand.current.meta;
+      if (m) {
+        stand.current.entwurf = ausMeta(m);
+        setEntwurf(ausMeta(m));
+      }
+    },
+  }));
+
+  useEffect(
+    () => () => {
+      const { meta: m, entwurf: e } = stand.current;
+      const params = m && e ? aenderungen(m, e) : null;
+      if (params)
+        void kern("akten.metadaten_speichern", params).then(
+          () => gespeichertRef.current(),
+          () => undefined,
+        );
+    },
+    [],
+  );
 
   useEffect(() => {
     setMeta(null);
@@ -98,29 +155,24 @@ export default function DokumentDetails({
     setGespeichert(false);
   };
 
-  async function speichern(e?: FormEvent) {
+  async function speichern(e?: FormEvent): Promise<boolean> {
     e?.preventDefault();
-    if (!entwurf || !meta) return;
-    const erkannt = meta.datum.erkannt?.datum;
-    const params: Record<string, unknown> = { dokument_id: dokumentId };
-    if (geaendert.titel) params.titel = entwurf.titel.trim();
-    if (geaendert.art) params.art = entwurf.art.trim();
-    if (geaendert.absender)
-      params.absender = entwurf.absender === "" || entwurf.absender === "eigene" ? entwurf.absender : Number(entwurf.absender);
-    // Wer das erkannte Datum wieder wählt, kehrt zur Erkennung zurück (auch nach einer neuen Fassung).
-    if (geaendert.datum) params.datum = erkannt && entwurf.datum === erkannt ? "" : entwurf.datum;
-    if (geaendert.schlagworte) params.schlagworte = entwurf.schlagworte;
-    if (geaendert.beteiligte) params.beteiligte = entwurf.beteiligte;
+    const { meta: m0, entwurf: e0 } = stand.current;
+    const params = m0 && e0 ? aenderungen(m0, e0) : null;
+    if (!params) return true;
     setLaeuft(true);
     setFehler(null);
     try {
       const m = await kern<DokumentMetadaten>("akten.metadaten_speichern", params);
+      stand.current = { meta: m, entwurf: ausMeta(m) };
       setMeta(m);
       setEntwurf(ausMeta(m));
       setGespeichert(true);
-      onGespeichert();
+      gespeichertRef.current();
+      return true;
     } catch (fehler) {
       setFehler(String(fehler));
+      return false;
     } finally {
       setLaeuft(false);
     }
@@ -388,7 +440,9 @@ export default function DokumentDetails({
       </section>
     </div>
   );
-}
+});
+
+export default DokumentDetails;
 
 function fundstelleText(f: MetaFundstelle): string {
   return f.seite != null ? `S. ${f.seite}, Abs. ${f.abschnitt}` : `Abs. ${f.abschnitt}`;

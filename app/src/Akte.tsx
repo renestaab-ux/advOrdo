@@ -9,7 +9,7 @@ import {
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import Chat from "./Chat";
-import DokumentDetails from "./DokumentDetails";
+import DokumentDetails, { DetailsGriff } from "./DokumentDetails";
 import DokumentExtern, { UebernahmeFrage } from "./DokumentExtern";
 import { GegenueberstellungBereich } from "./Gegenueberstellung";
 import { BelegAnsicht } from "./Gesetze";
@@ -181,6 +181,9 @@ export default function Akte({
   const [ocr, setOcr] = useState<OcrStatus | null>(null);
   const [gesetzeGeladen, setGesetzeGeladen] = useState<number | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  // Ungespeicherte Eingaben in „Details“: vor einem Wechsel des Dokuments oder der Ansicht wird nachgefragt.
+  const details = useRef<DetailsGriff>(null);
+  const [verlassen, setVerlassen] = useState<{ weiter: () => void } | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [ordnerFrage, setOrdnerFrage] = useState<OrdnerFrage | null>(null);
@@ -445,10 +448,25 @@ export default function Akte({
   async function metadatenGespeichert(id: number) {
     await ladeDokumente();
     const d = await kern<DokumentInhalt>("akten.dokument", { dokument_id: id }).catch(() => null);
-    if (d) setInhalt(d);
+    // Inzwischen kann ein anderes Dokument geöffnet sein (Speichern in der Rückfrage vor dem Wechsel).
+    if (d) setInhalt((alt) => (alt?.dokument.id === id ? d : alt));
+  }
+
+  /** Führt ``weiter`` aus; stehen in „Details“ ungespeicherte Eingaben, erst nach der Rückfrage. */
+  function nachRueckfrage(weiter: () => void) {
+    if (dokModus === "details" && details.current?.offen()) setVerlassen({ weiter });
+    else weiter();
   }
 
   async function oeffneDokument(id: number, abschnitt?: number) {
+    if (dokModus === "details" && details.current?.offen()) {
+      setVerlassen({ weiter: () => void dokumentOeffnen(id, abschnitt) });
+      return;
+    }
+    await dokumentOeffnen(id, abschnitt);
+  }
+
+  async function dokumentOeffnen(id: number, abschnitt?: number) {
     const d = await ausfuehren("Lade Dokument …", () => kern<DokumentInhalt>("akten.dokument", { dokument_id: id }));
     if (!d) return;
     setInhalt(d);
@@ -1004,7 +1022,45 @@ export default function Akte({
       <section className="akte-offen" aria-label="Geöffnetes Dokument">
         {inhalt ? (
           <>
-            <DokModusLeiste dokument={inhalt.dokument} modus={dokModus} onModus={waehleDokModus} />
+            <DokModusLeiste
+              dokument={inhalt.dokument}
+              modus={dokModus}
+              onModus={(m) => m !== dokModus && nachRueckfrage(() => void waehleDokModus(m))}
+            />
+            {verlassen && (
+              <div className="rueckfrage" role="alertdialog" aria-label="Änderungen speichern?">
+                <strong>Änderungen speichern?</strong>
+                <p>In „Details“ gibt es Eingaben, die noch nicht gespeichert sind.</p>
+                <div className="aktionen">
+                  <button
+                    onClick={async () => {
+                      if (await details.current?.speichern()) {
+                        const { weiter } = verlassen;
+                        setVerlassen(null);
+                        weiter();
+                      }
+                    }}
+                    autoFocus
+                  >
+                    Speichern
+                  </button>
+                  <button
+                    className="gefahr-voll"
+                    onClick={() => {
+                      details.current?.verwerfen();
+                      const { weiter } = verlassen;
+                      setVerlassen(null);
+                      weiter();
+                    }}
+                  >
+                    Verwerfen
+                  </button>
+                  <button className="zweitrangig" onClick={() => setVerlassen(null)}>
+                    Abbrechen
+                  </button>
+                </div>
+              </div>
+            )}
             <DokumentExtern
               key={`${inhalt.dokument.id}-${inhalt.dokument.fassung.nr}`}
               dokument={inhalt.dokument}
@@ -1032,6 +1088,8 @@ export default function Akte({
                 {dokModus === "chat" && <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />}
                 {dokModus === "details" && (
                   <DokumentDetails
+                    key={inhalt.dokument.id}
+                    ref={details}
                     akteId={akteId}
                     dokumentId={inhalt.dokument.id}
                     onGespeichert={() => void metadatenGespeichert(inhalt.dokument.id)}
