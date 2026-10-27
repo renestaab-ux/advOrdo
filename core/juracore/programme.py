@@ -118,6 +118,16 @@ def im_ordner_zeigen(datei: Path) -> None:
     _ausfuehren(ordner_befehl(datei))
 
 
+def im_browser_oeffnen(adresse: str) -> None:
+    """Öffnet eine Internetadresse im Standardbrowser, ohne die Ausgabe des Kerns zu stören."""
+    if not adresse.startswith("https://"):
+        raise ValueError("Nur https-Adressen werden geöffnet.")
+    if sys.platform == "win32":
+        os.startfile(adresse)  # type: ignore[attr-defined]  # nur unter Windows vorhanden
+        return
+    _ausfuehren(["open" if sys.platform == "darwin" else "xdg-open", adresse])
+
+
 def _ausfuehren(aufruf: list[str]) -> None:
     if shutil.which(aufruf[0]) is None and not Path(aufruf[0]).exists():
         if aufruf[0] == "xdg-open":

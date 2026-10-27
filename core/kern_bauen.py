@@ -46,6 +46,7 @@ def main() -> int:
             "--collect-submodules", "juracore",
             "--collect-all", "pypdfium2",
             "--collect-all", "pypdfium2_raw",
+            "--collect-submodules", "truststore",
             "--add-data", f"{daten}{os.pathsep}juracore/gesetze",
             "--distpath", str(ZIEL),
             "--workpath", str(tmp_pfad / "build"),

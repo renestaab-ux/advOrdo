@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import AktenEinstellungen from "./AktenEinstellungen";
 import Diagnose from "./Diagnose";
 import Nachrichten from "./Nachrichten";
+import Gerichtsverzeichnis from "./Gerichtsverzeichnis";
 import Programme from "./Programme";
 import Rechtsquellen from "./Rechtsquellen";
 import Umgebungen from "./Umgebungen";
@@ -169,7 +170,12 @@ export default function Einstellungen({
       </section>
     );
   } else if (reiter === "akten") {
-    inhalt = <AktenEinstellungen umgebungen={umgebungen} />;
+    inhalt = (
+      <>
+        <AktenEinstellungen umgebungen={umgebungen} />
+        <Gerichtsverzeichnis />
+      </>
+    );
   } else if (reiter === "rechtsquellen") {
     inhalt = <Rechtsquellen onAkte={onAkten} />;
   } else if (reiter === "nachrichten") {
