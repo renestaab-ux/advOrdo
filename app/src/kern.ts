@@ -658,7 +658,71 @@ export interface DokumentMetadaten {
     schlagworte: MetaVorschlag[];
     beteiligte: MetaBeteiligterVorschlag[];
   };
+  benennung: MetaBenennung;
   verlauf: MetaVerlaufEintrag[];
+}
+
+/** Bausteine für den Titel nach dem Schema „Wer schreibt was an wen“; Schlüssel: Beteiligungs-ID als Text oder "eigene". */
+export interface MetaBenennung {
+  kurznamen: Record<string, string>;
+  /** Im Kopf des Dokuments genannt, in der Reihenfolge des Auftretens. */
+  empfaenger: string[];
+  vertragsparteien: string[];
+  was: { schreiben: string | null; schriftsatz: string | null; vertrag: string | null };
+}
+
+/** Arten, bei denen das Gericht „schreibt“: der Titel ist nur „LG Freiburg Urteil“. */
+const GERICHTSARTEN = ["urteil", "beschluss", "verfügung", "ladung", "protokoll", "mahnbescheid", "vollstreckungsbescheid"];
+
+/**
+ * Titel nach dem Schema „Wer schreibt was an wen“ aus Art und Absender (wie gerade eingegeben):
+ * Schreiben „RA Müller Zahlungsaufforderung an Schneider“, Schriftsatz „RA Müller Klageschrift gegen Schneider“,
+ * Urteil/Beschluss „LG Freiburg Urteil“, Vertrag „Kaufvertrag zwischen Müller und Schneider“.
+ * Fehlende Teile fallen weg; null, wenn nichts Brauchbares bleibt.
+ */
+export function titelNachSchema(
+  b: MetaBenennung,
+  art: string,
+  absender: string,
+  akteBeteiligte: Beteiligung[],
+): string | null {
+  const kurz = (schluessel: string | undefined) => (schluessel ? (b.kurznamen[schluessel] ?? "") : "");
+  const ersteMit = (rolle: string) => akteBeteiligte.find((x) => x.rolle === rolle);
+  const art_ = art.trim();
+  const klein = art_.toLocaleLowerCase("de");
+  const satz = (...teile: string[]) => teile.filter((t) => t.trim()).join(" ") || null;
+
+  if (klein.includes("vertrag") || klein.includes("vereinbarung")) {
+    const ausgeschlossen = new Set(akteBeteiligte.filter((x) => x.rolle === "gericht").map((x) => String(x.id)));
+    let parteien = b.vertragsparteien.filter((s) => s !== "eigene" && !ausgeschlossen.has(s));
+    if (parteien.length < 2)
+      parteien = [ersteMit("mandant"), ersteMit("gegner")].filter((x) => x).map((x) => String(x!.id));
+    const namen = parteien.slice(0, 2).map(kurz).filter((n) => n);
+    const was = b.was.vertrag ?? art_;
+    if (namen.length === 2) return `${was} zwischen ${namen[0]} und ${namen[1]}`;
+    return namen.length === 1 ? `${was} mit ${namen[0]}` : null;
+  }
+
+  const wer = kurz(absender);
+  if (GERICHTSARTEN.includes(klein)) return wer ? satz(wer, art_) : null;
+
+  if (klein === "schriftsatz") {
+    const seite =
+      absender === "eigene" ? "eigene" : akteBeteiligte.find((x) => String(x.id) === absender)?.seite;
+    const gegen =
+      seite === "eigene"
+        ? (ersteMit("gegner") ?? akteBeteiligte.find((x) => x.seite === "gegen"))
+        : seite === "gegen"
+          ? ersteMit("mandant")
+          : undefined;
+    const g = gegen ? kurz(String(gegen.id)) : "";
+    return wer || g ? satz(wer, b.was.schriftsatz ?? "Schriftsatz", g ? `gegen ${g}` : "") : null;
+  }
+
+  // Schreiben, E-Mail und alles Übrige. Ohne bekannten Absender steht vorn meist der Briefkopf: dann den zweiten.
+  const kandidaten = b.empfaenger.filter((s) => s !== absender);
+  const an = kurz(absender ? kandidaten[0] : kandidaten[1]);
+  return wer || an ? satz(wer, b.was.schreiben ?? (art_ || "Schreiben"), an ? `an ${an}` : "") : null;
 }
 
 /** Eine Fassung eines Dokuments; die Dateien aller Fassungen bleiben unverändert abgelegt. */

@@ -8,6 +8,7 @@ import {
   kern,
   sortiereTags,
   tagsAusText,
+  titelNachSchema,
   zeitpunkt,
 } from "./kern";
 import Notizen from "./Notizen";
@@ -185,7 +186,17 @@ const DokumentDetails = forwardRef<
   }
 
   const v = meta.vorschlaege;
-  const titelVorschlaege = v.titel.filter((t) => t.wert !== entwurf.titel.trim());
+  // Solange Art oder Absender leer sind, rechnet das Schema mit dem jeweiligen Vorschlag.
+  const schema = titelNachSchema(
+    meta.benennung,
+    entwurf.art.trim() || (v.art?.wert ?? ""),
+    entwurf.absender || (v.absender ? String(v.absender.wert) : ""),
+    meta.akte_beteiligte,
+  );
+  const titelVorschlaege = [
+    ...(schema ? [{ wert: schema, grund: "Schema „Wer schreibt was an wen“, aus Art und Absender", fundstelle: null }] : []),
+    ...v.titel.filter((t) => t.wert !== schema),
+  ].filter((t) => t.wert !== entwurf.titel.trim());
   const wortVorschlaege = v.schlagworte.filter((t) => !enthaelt(entwurf.schlagworte, t.wert));
   const vorgeschlagen = new Map(v.beteiligte.map((b) => [b.beteiligung_id, b]));
   const datumVorschlag = v.datum && v.datum.wert !== entwurf.datum ? v.datum : null;

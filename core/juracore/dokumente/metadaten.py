@@ -146,6 +146,7 @@ def lesen(con: sqlite3.Connection, dokument_id: int, eigene_namen: list[str] | N
         "beteiligte": [b for b in akte_beteiligte if b["id"] in verknuepft],
         "akte_beteiligte": akte_beteiligte,
         "vorschlaege": vorschlaege(con, dokument_id, akte_beteiligte, eigene_namen),
+        "benennung": benennung(con, dokument_id, akte_beteiligte, eigene_namen or []),
         "verlauf": verlauf(con, dokument_id, akte_beteiligte),
     }
 
@@ -214,6 +215,118 @@ def _titel_vorschlaege(d: sqlite3.Row, abschnitte: list[dict], r: dict, nach_nr:
             gesehen.add(v["wert"].casefold())
             ergebnis.append(v)
     return ergebnis[:3]
+
+
+# --------------------------------------------------------------------------- Benennung „Wer schreibt was an wen“
+
+# Kanzleien: „Albrecht Tiedemann Rechtsanwälte“ → „RA Albrecht Tiedemann“.
+_KANZLEI = re.compile(r"(?:\s*,\s*|\s+)(?:Rechtsanw\w*|Anwaltskanzlei|Anwälte|Kanzlei|Partnerschaft\w*|PartG\b|"
+                      r"&\s*Partner\b).*$")
+_KANZLEI_VORN = re.compile(r"^(?:Rechtsanwaltskanzlei|Anwaltskanzlei|Kanzlei|Rechtsanwält\w*|Anwälte)\s+")
+_ANWALTSROLLEN = ("bevollmaechtigter_gegner", "vertretender_anwalt")
+# Was ein Schreiben ist, aus Betreff und ersten Absätzen (erster Treffer gewinnt).
+_SCHREIBEN_WAS = (("kündig", "Kündigung"), ("rücktritt", "Rücktritt"), ("widerruf", "Widerruf"),
+                  ("anfecht", "Anfechtung"), ("abmahnung", "Abmahnung"), ("mahnung", "Mahnung"),
+                  ("wir lehnen", "Ablehnung"), ("lehnen wir", "Ablehnung"),
+                  ("zahlungsaufforderung", "Zahlungsaufforderung"), ("zur zahlung", "Zahlungsaufforderung"),
+                  ("nacherfüllung", "Nacherfüllungsverlangen"), ("nachbesserung", "Nacherfüllungsverlangen"),
+                  ("nachlieferung", "Nacherfüllungsverlangen"), ("mängelrüge", "Mängelrüge"),
+                  ("mangelanzeige", "Mängelrüge"), ("vergleichsvorschlag", "Vergleichsvorschlag"),
+                  ("terminsverlegung", "Terminsverlegung"), ("neuer termin", "Terminsverlegung"),
+                  ("termin", "Terminsnachricht"),
+                  ("stellungnahme", "Stellungnahme"))
+_SCHRIFTSATZ_WAS = {"Klage": "Klageschrift"}
+_SCHRIFTSATZ_KURZ = ("Widerspruch", "Einspruch", "Stellungnahme", "Klageschrift", "Klageerwiderung", "Replik",
+                     "Duplik", "Anspruchsbegründung", "Berufung", "Berufungsbegründung")
+
+
+def kurzname(b: dict, nachname: str = "") -> str:
+    """Kurzer Name für Titel: Gericht abgekürzt, Kanzlei als „RA …“, Person mit Nachnamen."""
+    name = " ".join((b.get("name") or "").split())
+    if b.get("rolle") == "gericht":
+        return _gericht_kurz(name)
+    ohne = _KANZLEI_VORN.sub("", name)
+    kanzlei = _KANZLEI.search(ohne)
+    if ohne != name or (kanzlei and kanzlei.start() > 0):
+        return f"RA {(ohne[:kanzlei.start()] if kanzlei else ohne).strip(' ,&')}"
+    if b.get("art") == "person":
+        nach = nachname or (name.split() or [""])[-1]
+        return f"RA {nach}" if b.get("rolle") in _ANWALTSROLLEN else nach
+    return name
+
+
+def benennung(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list[dict],
+              eigene_namen: list[str]) -> dict:
+    """Bausteine für Titel nach dem Schema „Wer schreibt was an wen“ (die Oberfläche setzt sie zusammen, je nach
+    gewählter Art und gewähltem Absender): Kurznamen der Beteiligten, erkanntes „Was“, Empfänger, Vertragsparteien.
+    """
+    abschnitte = _abschnitte(con, dokument_id, 40)
+    nachnamen = {}
+    for b in akte_beteiligte:
+        if b.get("beteiligter_id") is not None and b.get("art") == "person":
+            z = con.execute("SELECT daten FROM beteiligter WHERE id = ?", (b["beteiligter_id"],)).fetchone()
+            nachnamen[b["id"]] = (json.loads(z["daten"]).get("nachname") or "").strip() if z else ""
+    kurz = {str(b["id"]): kurzname(b, nachnamen.get(b["id"], "")) for b in akte_beteiligte}
+    # Eigene Seite: Kanzlei aus „Eigene Daten“ („RA Albrecht Tiedemann“); ohne Eintrag bleibt das „Wer“ leer.
+    kurz["eigene"] = kurzname({"name": eigene_namen[0], "art": "organisation"}) if eigene_namen else ""
+
+    # Wer im Kopf genannt ist, in der Reihenfolge des Auftretens (Anschrift bzw. Vertragsparteien). Schlüssel wie in
+    # kurznamen: Beteiligungs-ID als Text oder „eigene“.
+    suche: list[tuple[str, list[re.Pattern]]] = []
+    for b in akte_beteiligte:
+        muster = _suchmuster(con, b)
+        if b["rolle"] == "gericht":
+            muster.append(re.compile(re.escape(_gericht_kurz(b["name"])) + r"(?!\w)"))
+        suche.append((str(b["id"]), muster))
+    if eigene_namen:
+        suche.append((EIGENE, [re.compile(r"(?<!\w)" + r"\s+".join(map(re.escape, n.split())) + r"(?!\w)",
+                                          re.IGNORECASE) for n in eigene_namen if n.strip()]))
+    genannt = []
+    for schluessel, muster in suche:
+        pos = next((i for i, a in enumerate(abschnitte[:12]) if any(p.search(a["text"]) for p in muster)), None)
+        if pos is not None:
+            genannt.append((pos, schluessel))
+    reihenfolge = [s for _, s in sorted(genannt, key=lambda g: g[0])]
+
+    r = rubrum.erkenne(abschnitte) if abschnitte else {}
+    return {
+        "kurznamen": kurz,
+        "empfaenger": reihenfolge,
+        "vertragsparteien": reihenfolge,
+        "was": {
+            "schreiben": _was_schreiben(abschnitte),
+            "schriftsatz": _was_schriftsatz(abschnitte, r),
+            "vertrag": _was_vertrag(abschnitte),
+        },
+    }
+
+
+def _was_schreiben(abschnitte: list[dict]) -> str | None:
+    anrede = next((i for i, a in enumerate(abschnitte) if a["text"].startswith(("Sehr geehrte", "Guten Tag"))), None)
+    # Betreff (vor der Anrede) und die ersten beiden Absätze danach.
+    bereich = (abschnitte[max(0, anrede - 3):anrede + 7] if anrede is not None else abschnitte[:10])
+    text = " ".join(a["text"] for a in bereich).casefold()
+    return next((was for wort, was in _SCHREIBEN_WAS if wort in text), None)
+
+
+def _was_schriftsatz(abschnitte: list[dict], r: dict) -> str | None:
+    if art := (r.get("dokumentart") or {}).get("wert"):
+        return _SCHRIFTSATZ_WAS.get(art, art)
+    for a in abschnitte[:20]:
+        text = a["text"].strip()
+        if text in _SCHRIFTSATZ_KURZ:
+            return text
+        if len(text) <= 60 and text.split(" ")[0] in _SCHRIFTSATZ_KURZ:
+            return text.split(" ")[0]
+    return None
+
+
+def _was_vertrag(abschnitte: list[dict]) -> str | None:
+    for a in abschnitte[:10]:
+        erstes = (a["text"].split() or [""])[0].strip(" *#:")
+        if re.search(r"(?:vertrag|vereinbarung)$", erstes, re.IGNORECASE) and erstes[:1].isupper():
+            return erstes
+    return None
 
 
 def _ist_schreiben(abschnitte: list[dict]) -> dict | None:

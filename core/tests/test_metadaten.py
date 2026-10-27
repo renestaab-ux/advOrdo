@@ -212,3 +212,35 @@ def test_absender_in_der_dokumentliste(tmp_path):
     kern.methoden["akten.metadaten_speichern"](dokument_id=dok, absender="eigene", art="Schreiben")
     d = kern.methoden["akten.dokumente"](akte_id=a["id"])[0]
     assert d["absender"]["wert"] == "eigene" and d["art"] == "Schreiben"
+
+
+def test_benennung_wer_schreibt_was_an_wen(akten, con, tmp_path):
+    zeilen = SCHREIBEN[:-1] + [
+        "wir zeigen an, dass uns Frau Dr. Brückner beauftragt hat. Namens unserer Mandantin erklären wir hiermit "
+        "den Rücktritt vom Werkvertrag."]
+    akte_id, dok = _dokument(akten, con, tmp_path, "ruecktritt.txt", zeilen)
+    ids = _beteiligte(akten, akte_id)
+    b = metadaten.lesen(akten, dok, ["Albrecht Tiedemann Rechtsanwälte"])["benennung"]
+    assert b["kurznamen"]["eigene"] == "RA Albrecht Tiedemann"
+    assert b["kurznamen"][str(ids["Dr. Lena Brückner"])] == "Brückner"
+    assert b["kurznamen"][str(ids["Landgericht Freiburg im Breisgau"])] == "LG Freiburg im Breisgau"
+    assert b["kurznamen"][str(ids["Weber Haustechnik GmbH"])] == "Weber Haustechnik GmbH"
+    assert b["was"]["schreiben"] == "Rücktritt"
+    # Briefkopf (wir) vor Anschrift (Weber).
+    assert b["empfaenger"][:2] == ["eigene", str(ids["Weber Haustechnik GmbH"])]
+
+
+def test_benennung_vertrag_und_kanzlei(akten, con, tmp_path):
+    zeilen = ["Werkvertrag", "zwischen", "Frau Dr. Lena Brückner", "und", "Weber Haustechnik GmbH"]
+    akte_id, dok = _dokument(akten, con, tmp_path, "vertrag.txt", zeilen)
+    ids = _beteiligte(akten, akte_id)
+    b = metadaten.lesen(akten, dok)["benennung"]
+    assert b["was"]["vertrag"] == "Werkvertrag"
+    assert b["vertragsparteien"] == [str(ids["Dr. Lena Brückner"]), str(ids["Weber Haustechnik GmbH"])]
+    assert b["kurznamen"]["eigene"] == ""
+    assert metadaten.kurzname({"name": "Kanzlei Weiß & Partner Rechtsanwälte PartG mbB", "art": "organisation"}) \
+        == "RA Weiß"
+    assert metadaten.kurzname({"name": "Albrecht Tiedemann Rechtsanwälte", "art": "organisation"}) \
+        == "RA Albrecht Tiedemann"
+    assert metadaten.kurzname({"name": "Dr. Jonas Weiß", "art": "person", "rolle": "bevollmaechtigter_gegner"},
+                              "Weiß") == "RA Weiß"
