@@ -86,6 +86,8 @@ body { margin: 0; background: var(--hintergrund); }
 .bald { font-size: 11px; margin-left: 6px; color: var(--text-leise); }
 .modus { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--gut); padding: 4px 6px; white-space: nowrap; }
 .modus-punkt { flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.modus.aus { color: var(--text-leise); background: none; border: none; border-radius: 6px; font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+.modus.aus:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
 [hidden] { display: none !important; }
 .symbol { vertical-align: middle; }
 
@@ -381,6 +383,7 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .schalter { display: flex; align-items: center; gap: 10px; font-weight: 600; margin: 8px 0 12px; }
 .schalter input { width: 18px; height: 18px; accent-color: var(--warnung); }
 .schalter .leise { font-weight: 400; }
+.ki-schalter input { accent-color: var(--knopf); }
 .rueckfrage .schalter { font-weight: 400; }
 .rechtshinweis { font-size: 13px; line-height: 1.5; padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--warnung) 9%, transparent); border: 1px solid color-mix(in srgb, var(--warnung) 40%, transparent); }
 .rechtshinweis ul { margin: 6px 0; padding-left: 20px; }
@@ -606,6 +609,7 @@ table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
   background: rgb(255 255 255 / 12%); color: var(--band-text); white-space: nowrap; }
 .modus-pille .modus-punkt { background: #7cd38e; }
 .modus-pille.extern .modus-punkt { background: #f0c060; }
+.modus-pille.aus .modus-punkt { background: var(--band-leise); }
 
 /* Startseite */
 .kachel { grid-template-rows: auto auto auto; }

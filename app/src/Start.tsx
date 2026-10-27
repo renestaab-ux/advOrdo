@@ -54,7 +54,8 @@ export default function Start({
     void kern<EigeneKurzstand>("eigene.kurzstand").then(setProfil, () => setProfil(null));
     void kern<Akte[]>("akten.liste").then(setAkten, () => setAkten([]));
   }, []);
-  const extern = modus?.aktiv === "extern";
+  const aus = !!modus?.aus;
+  const extern = !aus && modus?.aktiv === "extern";
   const zuletzt = zuletztGeoeffnet(akten ?? [], 5);
 
   return (
@@ -64,7 +65,7 @@ export default function Start({
           <p className="kopfband-ueber">Startseite</p>
           <h1>Willkommen bei JuraBox</h1>
         </div>
-        <span className={extern ? "modus-pille extern" : "modus-pille"}>
+        <span className={aus ? "modus-pille aus" : extern ? "modus-pille extern" : "modus-pille"}>
           <span className="modus-punkt" aria-hidden />
           KI: {kiModusName(modus)}
         </span>
@@ -84,7 +85,7 @@ export default function Start({
                 <Zeichen name={k.symbol} groesse={40} />
               </span>
               <span className="kachel-titel">{k.titel}</span>
-              <span className="kachel-text">{k.text}</span>
+              <span className="kachel-text">{aus && k.ziel === "akten" ? "Übersicht, Dokumente und Vergleich" : k.text}</span>
               {k.ziel === "eigene" && profil && (
                 <span className={profil.eingerichtet && profil.fehlend === 0 ? "kachel-stand gut" : "kachel-stand"}>
                   {profil.text}
@@ -144,8 +145,10 @@ export default function Start({
             <h2>Ihr Arbeitsbereich</h2>
             <dl>
               <dt>KI-Modus</dt>
-              <dd className={extern ? "hinweis" : "gut"}>
-                {extern
+              <dd className={extern ? "hinweis" : aus ? undefined : "gut"}>
+                {aus
+                  ? "Nicht aktiv: Die KI ist ausgeschaltet. Dokumente und Akten bleiben auf diesem Gerät."
+                  : extern
                   ? `Externer Anbieter (${modus?.titel}): Analyse und Chat senden Dokumenttexte dorthin.`
                   : modus?.ort === "netzwerk"
                     ? "Lokales Netzwerk: Das Sprachmodell läuft auf einem anderen Rechner im eigenen Netz; Dokumente und Akten verlassen es nicht."

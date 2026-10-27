@@ -595,11 +595,14 @@ describe("exportTeile", () => {
 describe("kiModusName", () => {
   it("unterscheidet eigenen Rechner, lokales Netzwerk und externen Anbieter", () => {
     expect(kiModusName(null)).toBe("Eigener Rechner");
-    expect(kiModusName({ aktiv: "lokal", titel: null, modell: "m", ort: "geraet" })).toBe("Eigener Rechner");
-    expect(kiModusName({ aktiv: "lokal", titel: null, modell: "m", ort: "netzwerk" })).toBe("Lokales Netzwerk");
-    expect(kiModusName({ aktiv: "extern", titel: "Google Gemini", modell: "m", ort: null })).toBe(
+    expect(kiModusName({ aus: false, aktiv: "lokal", titel: null, modell: "m", ort: "geraet" })).toBe("Eigener Rechner");
+    expect(kiModusName({ aus: false, aktiv: "lokal", titel: null, modell: "m", ort: "netzwerk" })).toBe("Lokales Netzwerk");
+    expect(kiModusName({ aus: false, aktiv: "extern", titel: "Google Gemini", modell: "m", ort: null })).toBe(
       "Externer Anbieter (Google Gemini)",
     );
+  });
+  it("zeigt „Nicht aktiv“, wenn die KI ausgeschaltet ist", () => {
+    expect(kiModusName({ aus: true, aktiv: "extern", titel: "Google Gemini", modell: "m", ort: null })).toBe("Nicht aktiv");
   });
 });
 

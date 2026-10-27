@@ -695,7 +695,7 @@ export interface MetaKiErgebnis {
 }
 
 export type MetaKiStand =
-  | { status: "aus" }
+  | { status: "aus"; abgeschaltet?: boolean }
   | { status: "belegt" }
   | { status: "laeuft"; auftrag: KiAuftrag }
   | { status: "fertig"; ergebnis: MetaKiErgebnis }
@@ -1477,6 +1477,8 @@ export interface KiExternStatus {
 
 export interface KiStatus {
   /** Welches Modell Analyse und Chat verwenden. */
+  /** Schalter „KI verwenden“ aus: kein Sprachmodell wird gefragt. */
+  abgeschaltet: boolean;
   aktiv: "lokal" | "extern";
   /** Dokumentinhalte gehen an einen externen Anbieter. */
   extern: boolean;
@@ -1491,6 +1493,8 @@ export interface KiStatus {
 
 /** Für die Anzeige in der Navigation, ohne Anfrage an ein Modell. */
 export interface KiModus {
+  /** KI in den Einstellungen ausgeschaltet; Knöpfe, die ein Sprachmodell brauchen, sind ausgeblendet. */
+  aus: boolean;
   aktiv: "lokal" | "extern";
   titel: string | null;
   modell: string;
@@ -1500,6 +1504,7 @@ export interface KiModus {
 
 /** Kurzname des KI-Modus für Navigation und Startseite. */
 export function kiModusName(modus: KiModus | null): string {
+  if (modus?.aus) return "Nicht aktiv";
   if (modus?.aktiv === "extern") return `Externer Anbieter (${modus.titel})`;
   return modus?.ort === "netzwerk" ? "Lokales Netzwerk" : "Eigener Rechner";
 }

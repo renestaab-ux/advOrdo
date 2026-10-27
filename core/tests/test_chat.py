@@ -153,7 +153,7 @@ def test_externe_ki_nur_mit_schalter(tmp_path):
     assert geheim not in (tmp_path / "ki.json").read_text(encoding="utf-8")
     if sys.platform != "win32":
         assert os.stat(tmp_path / "ki-schluessel.json").st_mode & 0o077 == 0
-    assert aufruf("ki.modus")["result"] == {"aktiv": "extern", "titel": "Anthropic Claude",
+    assert aufruf("ki.modus")["result"] == {"aus": False, "aktiv": "extern", "titel": "Anthropic Claude",
                                            "modell": "claude-opus-5-5", "ort": None}
 
     akte_id = aufruf("akten.anlegen", name="Test")["result"]["id"]

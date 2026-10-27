@@ -284,7 +284,7 @@ def test_ki_vorschlaege_mit_beleg(tmp_path):
     datei.write_text("\n\n".join(WIDERSPRUCH), encoding="utf-8")
     dok = kern.methoden["akten.importieren"](akte_id=akte_id, pfad=str(datei))["dokument_id"]
     ids = _beteiligte(kern.akten, akte_id)
-    assert kern.methoden["akten.metadaten_ki"](dokument_id=dok) == {"status": "aus"}
+    assert kern.methoden["akten.metadaten_ki"](dokument_id=dok) == {"status": "aus", "abgeschaltet": False}
 
     class Modell:
         modell = "attrappe:1b"
