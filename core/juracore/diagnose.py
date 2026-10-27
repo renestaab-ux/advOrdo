@@ -151,6 +151,8 @@ def _programme(k: Any) -> dict:
 
 def _ki_lokal(k: Any) -> dict:
     e = ki_anbieter.lade_einstellungen(k.ki_datei)
+    if e.abgeschaltet:
+        return _ergebnis("aus", "Die KI ist ausgeschaltet; die App fragt kein Sprachmodell.")
     s = ki_anbieter.status(e)
     netz = ki_anbieter.endpunkt_ort(e.endpunkt) == ki_anbieter.NETZWERK
     details = [f"{s['anbieter_titel']} unter {s['endpunkt']}"
@@ -178,6 +180,8 @@ def _ki_extern(k: Any) -> dict:
     e = ki_anbieter.lade_einstellungen(k.ki_datei)
     if not e.extern_freigegeben:
         return _ergebnis("aus", "Externe KI ist nicht eingebunden; Dokumente bleiben auf dem Gerät.")
+    if e.abgeschaltet:
+        return _ergebnis("aus", "Die KI ist ausgeschaltet; Dokumente bleiben auf dem Gerät.")
     s = ki_anbieter.status_extern(e, k._schluessel(e), verbindung=True)
     details = [f"Anbieter: {s['anbieter_titel']}", f"Modell: {s['modell'] or '–'}",
                "Gewählt für Analyse und Chat" if e.extern else "Hinterlegt, aber „Lokal“ ist gewählt",

@@ -12,6 +12,7 @@ import Chat from "./Chat";
 import DokumentDetails, { DetailsGriff } from "./DokumentDetails";
 import DokumentExtern, { UebernahmeFrage } from "./DokumentExtern";
 import { GegenueberstellungBereich } from "./Gegenueberstellung";
+import { useKiAn } from "./kiSchalter";
 import { BelegAnsicht } from "./Gesetze";
 import { gemerkt, merke } from "./merken";
 import Zeichen from "./Symbole";
@@ -166,6 +167,7 @@ export default function Akte({
   onEinstellungen?: () => void;
 }) {
   const akteId = akte.id;
+  const kiAn = useKiAn();
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [beteiligte, setBeteiligte] = useState<Beteiligung[]>([]);
   const [inhalt, setInhalt] = useState<DokumentInhalt | null>(null);
@@ -743,7 +745,7 @@ export default function Akte({
   const rechtsprechungAnsicht = (leer?: string, dokumentId?: number) =>
     urteile && (
       <>
-        {urteile.length > 0 && (
+        {kiAn && urteile.length > 0 && (
           <GegenueberstellungBereich
             key={`${akteId}-${dokumentId ?? ""}`}
             akteId={akteId}
@@ -810,7 +812,7 @@ export default function Akte({
         {reiter === "normen" &&
           arbeitsflaeche(normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} />)}
         {reiter === "rechtsprechung" && arbeitsflaeche(rechtsprechungAnsicht())}
-        {reiter === "chat" && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
+        {kiAn && reiter === "chat" && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
       </div>
     );
   }
@@ -1085,7 +1087,7 @@ export default function Akte({
                 )}
                 {dokModus === "rechtsprechung" &&
                   rechtsprechungAnsicht("In diesem Dokument wurden keine Rechtsprechungszitate erkannt.", inhalt.dokument.id)}
-                {dokModus === "chat" && <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />}
+                {kiAn && dokModus === "chat" && <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />}
                 {dokModus === "details" && (
                   <DokumentDetails
                     key={inhalt.dokument.id}
@@ -1374,12 +1376,14 @@ function DokModusLeiste({
   onModus: (m: DokModus) => void;
 }) {
   const pdf = dokument.format === "pdf";
+  // Ohne KI (Einstellungen) kein Chat mit dem Dokument.
+  const kiAn = useKiAn();
   return (
     <div className="dok-modi" role="tablist" aria-label={`Darstellung von ${dokument.dateiname}`}>
       <span className="dok-modi-name" title={dokument.titel ? dokument.dateiname : undefined}>
         {dokumentName(dokument)}
       </span>
-      {DOK_MODI.map((m) => (
+      {DOK_MODI.filter((m) => kiAn || m.modus !== "chat").map((m) => (
         <button
           key={m.modus}
           role="tab"

@@ -108,6 +108,22 @@ export default function Einstellungen({
     if (istDesktop) void pruefe();
   }, []);
 
+  // Schalter „KI verwenden“: aus heißt, die App fragt kein Sprachmodell; die Angaben darunter bleiben gespeichert.
+  async function schalten(an: boolean) {
+    setLaeuft(true);
+    setFehler(null);
+    try {
+      await kern<KiStatus>("ki.schalten", { an });
+      onGeaendert?.();
+      // Eingeschaltet: das Modellprogramm wieder fragen, ob es bereit ist.
+      uebernehme(await kern<KiStatus>("ki.status"));
+    } catch (err) {
+      setFehler(String(err));
+    } finally {
+      setLaeuft(false);
+    }
+  }
+
   async function speichern(e: FormEvent) {
     e.preventDefault();
     setLaeuft(true);
@@ -131,7 +147,8 @@ export default function Einstellungen({
     lokal.modell === modell &&
     lokal.kontext === kontext;
 
-  const kiZeile = status && (
+  const abgeschaltet = status?.abgeschaltet ?? false;
+  const kiZeile = status && !abgeschaltet && (
     <p className={status.extern ? "ki-zeile extern" : status.bereit ? "ki-zeile bereit" : "ki-zeile"}>
       Analyse und Chat verwenden{" "}
       {status.extern
@@ -186,8 +203,34 @@ export default function Einstellungen({
   } else if (reiter === "nachrichten") {
     inhalt = <Nachrichten />;
   } else if (reiter === "ki") {
-    inhalt = (
+    const schalter = (
+      <section className="karte">
+        <h2>KI verwenden</h2>
+        <label className="schalter ki-schalter">
+          <input
+            type="checkbox"
+            checked={status != null && !abgeschaltet}
+            disabled={status == null || laeuft}
+            onChange={(e) => void schalten(e.target.checked)}
+          />
+          <span>KI einschalten</span>
+          <span className="leise">{status == null ? "" : abgeschaltet ? "aus" : "eingeschaltet (Voreinstellung)"}</span>
+        </label>
+        <p className="erklaerung">
+          {abgeschaltet
+            ? "Die KI ist ausgeschaltet. JuraBox fragt kein Sprachmodell, weder auf diesem Gerät noch im Netzwerk oder bei einem externen Anbieter. Analyse, Chat und Gegenüberstellung sind ausgeblendet; Texterkennung, Normen, Rechtsprechung, Vergleich, Suche und die Vorschläge in „Details“ arbeiten ohne KI weiter. Die Einstellungen des Sprachmodells bleiben gespeichert."
+            : "Ausgeschaltet fragt JuraBox kein Sprachmodell mehr, auch keinen externen Anbieter. Knöpfe und Reiter, die zwingend eine KI brauchen (Analyse, Chat, Gegenüberstellung), verschwinden dann; alles andere arbeitet ohne KI weiter."}
+        </p>
+      </section>
+    );
+    inhalt = abgeschaltet ? (
       <>
+        {schalter}
+        {fehler && <p className="fehler">{fehler}</p>}
+      </>
+    ) : (
+      <>
+        {schalter}
         {kiZeile}
         <section className="karte">
           <h2>Lokales Sprachmodell</h2>
@@ -301,7 +344,15 @@ export default function Einstellungen({
       </>
     );
   } else if (reiter === "extern") {
-    inhalt = (
+    inhalt = abgeschaltet ? (
+      <section className="hinweis-box">
+        Die KI ist ausgeschaltet; es wird auch kein externer Anbieter gefragt. Einschalten unter{" "}
+        <button className="link" onClick={() => onReiter("ki")}>
+          Lokales Sprachmodell
+        </button>
+        .
+      </section>
+    ) : (
       <>
         {kiZeile}
         {status ? (

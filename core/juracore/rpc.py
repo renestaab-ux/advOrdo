@@ -276,6 +276,7 @@ class Kern:
             "ki.status": self.ki_status,
             "ki.modus": self.ki_modus,
             "ki.einstellungen_setzen": self.ki_einstellungen_setzen,
+            "ki.schalten": self.ki_schalten,
             "ki.extern_setzen": self.ki_extern_setzen,
             "ki.starten": self.ki_starten,
             "ki.auftrag": self.auftraege.status,
@@ -563,13 +564,21 @@ class Kern:
         """Ohne Anfrage an ein Modell: ob Dokumentinhalte das Gerät verlassen (für die Anzeige in der Navigation)."""
         e = ki_anbieter.lade_einstellungen(self.ki_datei)
         titel = ki_anbieter.EXTERNE[e.extern_anbieter]["titel"] if e.extern else None
-        return {"aktiv": ki_anbieter.EXTERN if e.extern else ki_anbieter.LOKAL, "titel": titel,
-                "modell": e.aktives_modell, "ort": None if e.extern else ki_anbieter.endpunkt_ort(e.endpunkt)}
+        return {"aus": e.abgeschaltet, "aktiv": ki_anbieter.EXTERN if e.extern else ki_anbieter.LOKAL,
+                "titel": titel, "modell": e.aktives_modell,
+                "ort": None if e.extern else ki_anbieter.endpunkt_ort(e.endpunkt)}
 
     def ki_einstellungen_setzen(self, anbieter: str, endpunkt: str, modell: str = "", kontext: int = 16384) -> dict:
         """Das lokale Modell; die Einstellungen der externen KI bleiben, wie sie sind."""
         e = ki_anbieter.lade_einstellungen(self.ki_datei)
         e.anbieter, e.endpunkt, e.modell, e.kontext = anbieter, endpunkt, modell, kontext
+        ki_anbieter.speichere_einstellungen(self.ki_datei, e)
+        return ki_anbieter.gesamtstatus(e, self._schluessel(e))
+
+    def ki_schalten(self, an: bool) -> dict:
+        """Schalter „KI verwenden“; aus fragt die App kein Sprachmodell mehr, die übrigen Einstellungen bleiben."""
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        e.abgeschaltet = not an
         ki_anbieter.speichere_einstellungen(self.ki_datei, e)
         return ki_anbieter.gesamtstatus(e, self._schluessel(e))
 
@@ -606,6 +615,8 @@ class Kern:
 
     def _ki_modell(self) -> tuple[ki_anbieter.KiEinstellungen, ki_anbieter.Anbieter]:
         e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        if e.abgeschaltet:
+            raise ValueError(ki_anbieter.AUSGESCHALTET)
         if not e.aktives_modell:
             raise ValueError("Kein Sprachmodell gewählt. Bitte unter „Einstellungen“ ein Modell auswählen.")
         return e, self.ki_fabrik(e, self._schluessel(e) if e.extern else None)
@@ -685,12 +696,13 @@ class Kern:
     def metadaten_ki(self, dokument_id: int, neu: bool = False) -> dict:
         """Art, Absender, Empfänger und Gegenstand eines Dokuments vom Sprachmodell, sofern eines eingerichtet ist.
 
-        Status "aus" (kein Modell, die Texterkennung gilt), "fertig" mit Ergebnis (auch aus dem Speicher),
-        "laeuft" mit Auftrag (Ergebnis über ``ki.auftrag``) oder "belegt" (das Modell arbeitet an etwas anderem).
+        Status "aus" (KI ausgeschaltet oder kein Modell, die Texterkennung gilt), "fertig" mit Ergebnis (auch aus
+        dem Speicher), "laeuft" mit Auftrag (Ergebnis über ``ki.auftrag``) oder "belegt" (das Modell arbeitet an
+        etwas anderem).
         """
         e = ki_anbieter.lade_einstellungen(self.ki_datei)
-        if not e.aktives_modell:
-            return {"status": "aus"}
+        if e.abgeschaltet or not e.aktives_modell:
+            return {"status": "aus", "abgeschaltet": e.abgeschaltet}
         _, modell = self._ki_modell()
         d = self.akten.execute("SELECT akte_id FROM dokument WHERE id = ?", (int(dokument_id),)).fetchone()
         if d is None:
@@ -717,7 +729,7 @@ class Kern:
     def ki_gegenueberstellung(self, akte_id: int, dokument_id: int | None = None) -> dict:
         """Gespeicherte Gegenüberstellungen (Schriftsatz und zitierte Entscheidung), ohne das Modell zu fragen."""
         e = ki_anbieter.lade_einstellungen(self.ki_datei)
-        if not e.aktives_modell:
+        if e.abgeschaltet or not e.aktives_modell:
             return {"zitate": [], "offen": 0, "anzahl": 0, "modell": None}
         _, modell = self._ki_modell()
         return ki_gegenueberstellung.gegenueberstellen(

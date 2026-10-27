@@ -28,6 +28,7 @@ import {
   zuletztGeoeffnet,
 } from "./kern";
 import { SortKopf, useSortierung } from "./Sortierung";
+import { useKiAn } from "./kiSchalter";
 
 /** Reiter einer geöffneten Akte; „stammdaten“ öffnet der Knopf im Kopf. */
 export type Reiter =
@@ -52,6 +53,8 @@ const REITER: { id: Reiter; titel: string; symbol: SymbolName }[] = [
   { id: "rechtsprechung", titel: "Rechtsprechung", symbol: "rechtsprechung" },
   { id: "chat", titel: "Chat mit der Akte", symbol: "chat" },
 ];
+/** Reiter, die zwingend ein Sprachmodell brauchen; ausgeblendet, wenn die KI ausgeschaltet ist. */
+const KI_REITER: Reiter[] = ["analyse", "chat"];
 
 /** Kleinschreibung ohne Akzente, damit „bruckner“ auch „Brückner“ findet. */
 const bearbeitet = (a: AkteTyp) => a.geaendert_am ?? a.angelegt_am;
@@ -575,6 +578,7 @@ function AkteRahmen({
 }) {
   const [loeschfrage, setLoeschfrage] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  const kiAn = useKiAn();
   const gericht = akte.gerichte[0];
   // Dokumente, Normen, Rechtsprechung und Chat teilen sich eine Ansicht, die beim Wechsel zu Vergleich oder Analyse
   // erhalten bleibt (geöffnetes Dokument, Filter).
@@ -653,7 +657,7 @@ function AkteRahmen({
       </header>
 
       <nav className="akte-reiter" role="tablist" aria-label="Bereiche der Akte">
-        {REITER.map((r) => (
+        {REITER.filter((r) => kiAn || !KI_REITER.includes(r.id)).map((r) => (
           <button
             key={r.id}
             role="tab"
@@ -713,7 +717,7 @@ function AkteRahmen({
           <AkteStammdaten key={`b${akte.id}`} akteId={akte.id} teil="beteiligte" onGeaendert={onGeaendert} />
         )}
         {reiter === "vergleich" && <Vergleich key={akte.id} akteId={akte.id} />}
-        {reiter === "analyse" && <Analyse key={akte.id} akteId={akte.id} onEinstellungen={() => onEinstellungen()} />}
+        {kiAn && reiter === "analyse" && <Analyse key={akte.id} akteId={akte.id} onEinstellungen={() => onEinstellungen()} />}
         <div hidden={!istAkteReiter(reiter)} className="akte-reiter-halter">
           <Akte
             key={akte.id}

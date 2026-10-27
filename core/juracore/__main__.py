@@ -134,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
 def _ki_einstellungen(a: argparse.Namespace, db_pfad: Path) -> ki_anbieter.KiEinstellungen:
     """Gespeicherte Einstellungen, überschrieben durch die Optionen der Kommandozeile."""
     e = ki_anbieter.lade_einstellungen(db_pfad.parent / "ki.json")
+    if e.abgeschaltet:
+        raise SystemExit(ki_anbieter.AUSGESCHALTET)
     if a.anbieter:
         e.anbieter = ki_anbieter.OPENAI if a.anbieter == "lmstudio" else ki_anbieter.OLLAMA
         e.endpunkt = ki_anbieter.ANBIETER[e.anbieter]["endpunkt"]

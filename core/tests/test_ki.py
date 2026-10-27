@@ -192,7 +192,37 @@ def test_modus_nennt_den_ort(tmp_path):
     kern = rpc.Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
     assert kern.ki_modus()["ort"] == "geraet"
     anbieter.speichere_einstellungen(kern.ki_datei, anbieter.KiEinstellungen("openai", "http://192.168.178.20:1234"))
-    assert kern.ki_modus() == {"aktiv": "lokal", "titel": None, "modell": "", "ort": "netzwerk"}
+    assert kern.ki_modus() == {"aus": False, "aktiv": "lokal", "titel": None, "modell": "",
+                                "ort": "netzwerk"}
+
+
+def test_ki_abschalten(tmp_path, monkeypatch):
+    """Ausgeschaltet fragt die App kein Modell, prüft keine Verbindung und behält die übrigen Einstellungen."""
+    kern = rpc.Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
+    anbieter.speichere_einstellungen(kern.ki_datei, anbieter.KiEinstellungen("openai", "http://127.0.0.1:1234", "m"))
+
+    def kein_netz(*_a, **_k):
+        raise AssertionError("ausgeschaltet keine Verbindung")
+
+    monkeypatch.setattr(anbieter, "erzeuge", kein_netz)
+    kern.ki_fabrik = kein_netz
+    stand = kern.ki_schalten(False)
+    assert stand["abgeschaltet"] is True and stand["bereit"] is False
+    assert stand["lokal"]["hinweis"] == anbieter.AUSGESCHALTET
+    assert kern.ki_modus()["aus"] is True
+    assert kern.ki_status()["abgeschaltet"] is True
+    with pytest.raises(ValueError, match="ausgeschaltet"):
+        kern.ki_starten("widersprueche", akte_id=1)
+    with pytest.raises(ValueError, match="ausgeschaltet"):
+        kern.ki_chat_fragen(1, "Frage?")
+    assert kern.metadaten_ki(1) == {"status": "aus", "abgeschaltet": True}
+    assert kern.ki_gegenueberstellung(1)["zitate"] == []
+
+    e = anbieter.lade_einstellungen(kern.ki_datei)
+    assert (e.abgeschaltet, e.anbieter, e.modell) == (True, "openai", "m")
+    monkeypatch.undo()
+    assert kern.ki_schalten(True)["abgeschaltet"] is False
+    assert kern.ki_modus()["aus"] is False
 
 
 def test_einstellungen_speichern_und_laden(tmp_path):

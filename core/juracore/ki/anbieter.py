@@ -20,6 +20,9 @@ im Datenverzeichnis und werden nie an die Oberfläche zurückgegeben.
 Das Modell antwortet ausschließlich mit JSON nach einem vorgegebenen Schema
 (strukturierte Ausgabe). Temperatur 0 und ein fester Startwert machen die
 Antworten so reproduzierbar, wie es das Modellprogramm zulässt.
+
+Mit dem Schalter „KI verwenden“ (``abgeschaltet``) lässt sich die KI ganz ausschalten: Dann fragt die App kein
+Sprachmodell, weder lokal noch extern, und prüft auch keine Verbindung. Die übrigen Einstellungen bleiben erhalten.
 """
 
 from __future__ import annotations
@@ -84,8 +87,11 @@ class KiEinstellungen:
     extern_modell: str = ""
     extern_adresse: str = ""  # nur für ANDERER; sonst die feste Adresse des Anbieters
     extern_kontext: int = 32768
+    # Schalter „KI verwenden“: ausgeschaltet fragt die App kein Sprachmodell, die Einstellungen oben bleiben.
+    abgeschaltet: bool = False
 
     def pruefen(self) -> KiEinstellungen:
+        self.abgeschaltet = bool(self.abgeschaltet)
         if self.anbieter not in ANBIETER:
             raise ValueError(f"Unbekannter Anbieter: {self.anbieter!r}")
         self.endpunkt = pruefe_lokal(self.endpunkt)
@@ -687,6 +693,9 @@ def erzeuge(e: KiEinstellungen) -> Anbieter:
     return klasse(e.endpunkt, e.modell, e.kontext)
 
 
+AUSGESCHALTET = "Die KI ist ausgeschaltet (Einstellungen → Lokales Sprachmodell)."
+
+
 def status(e: KiEinstellungen) -> dict:
     """Ob das Modellprogramm läuft, welche Modelle installiert sind und ob das gewählte dabei ist."""
     ergebnis: dict[str, Any] = {
@@ -702,6 +711,9 @@ def status(e: KiEinstellungen) -> dict:
         "bereit": False,
         "hinweis": None,
     }
+    if e.abgeschaltet:
+        ergebnis["hinweis"] = AUSGESCHALTET
+        return ergebnis
     try:
         ergebnis["modelle"] = erzeuge(e).modelle()
         ergebnis["erreichbar"] = True
@@ -743,6 +755,9 @@ def status_extern(e: KiEinstellungen, schluessel: str | None, verbindung: bool =
     if not e.extern_freigegeben:
         ergebnis["hinweis"] = "Externe KI ist nicht eingebunden."
         return ergebnis
+    if e.abgeschaltet:
+        ergebnis["hinweis"] = AUSGESCHALTET
+        return ergebnis
     if not schluessel:
         ergebnis["hinweis"] = "Bitte den API-Schlüssel des Anbieters hinterlegen."
         return ergebnis
@@ -770,6 +785,7 @@ def gesamtstatus(e: KiEinstellungen, schluessel: str | None, verbindung: bool = 
     extern = status_extern(e, schluessel, verbindung)
     aktiv = extern if e.extern else lokal
     return {
+        "abgeschaltet": e.abgeschaltet,
         "aktiv": EXTERN if e.extern else LOKAL,
         "extern": e.extern,
         "bereit": aktiv["bereit"],

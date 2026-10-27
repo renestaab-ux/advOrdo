@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DokumentAnsicht } from "./Akte";
 import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
+import { useKiAn } from "./kiSchalter";
 import {
   Abgleich,
   AbgleichFundstelle,
@@ -17,6 +18,7 @@ type Umfang = "alle" | "zwei";
 
 /** Gleicht die Angaben der Dokumente einer Akte ab: ganze Akte oder zwei gewählte Dokumente. */
 export default function Vergleich({ akteId }: { akteId: number }) {
+  const kiAn = useKiAn();
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [umfang, setUmfang] = useState<Umfang>("alle");
   const [paar, setPaar] = useState<[number | null, number | null]>([null, null]);
@@ -172,10 +174,12 @@ export default function Vergleich({ akteId }: { akteId: number }) {
               </details>
             )}
             </Zitatbereich>
-            <p className="grenze">
-              Aussagen ohne Zahl oder Datum, etwa ob eine Nachbesserung angeboten oder abgelehnt wurde, prüft der Bereich
-              „Analyse“ mit dem lokalen Sprachmodell.
-            </p>
+            {kiAn && (
+              <p className="grenze">
+                Aussagen ohne Zahl oder Datum, etwa ob eine Nachbesserung angeboten oder abgelehnt wurde, prüft der Bereich
+                „Analyse“ mit dem lokalen Sprachmodell.
+              </p>
+            )}
           </div>
           {offen && (
             <aside className="akte-seite vergleich-dokument">

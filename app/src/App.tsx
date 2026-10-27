@@ -12,6 +12,7 @@ import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
 import { useErinnerungen } from "./erinnerungen";
+import { KiAn } from "./kiSchalter";
 import { KiModus, Marke, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName, mitDruckbild } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
@@ -131,7 +132,16 @@ export default function App() {
           </button>
         ))}
         <div className="nav-fuss">
-          {modus?.aktiv === "extern" ? (
+          {modus?.aus ? (
+            <button
+              className="modus aus"
+              onClick={() => zuEinstellungen("ki")}
+              title="KI-Modus: Nicht aktiv. Die KI ist ausgeschaltet; die App fragt kein Sprachmodell. Einschalten unter „Einstellungen → Lokales Sprachmodell“."
+            >
+              <span className="modus-punkt" aria-hidden />
+              <span className="nav-text">KI-Modus: {kiModusName(modus)}</span>
+            </button>
+          ) : modus?.aktiv === "extern" ? (
             <button
               className="modus extern"
               onClick={() => zuEinstellungen("extern")}
@@ -175,49 +185,51 @@ export default function App() {
           </button>
         </div>
       </nav>
-      <main className={bereich === "akten" && (akteId != null || anlegen) ? "inhalt ohne-rand" : "inhalt"} key={stand}>
-        {bereich === "start" && (
-          <Start
-            onWahl={(z) => void starte(z)}
-            onAkte={oeffneAkte}
-            modus={modus}
-            umgebung={umgebung?.name ?? null}
-            marke={marke}
-            onNachrichten={() => zuEinstellungen("nachrichten")}
-          />
-        )}
-        {bereich === "toolbox" && <Toolbox />}
-        {bereich === "eigene" && <EigeneDaten onZurueck={() => setBereich("start")} />}
-        {bereich === "akten" && (
-          <Akten
-            anlegen={anlegen}
-            onAnlegen={setAnlegen}
-            akteId={akteId}
-            setAkteId={setAkteId}
-            reiterWunsch={reiterWunsch}
-            onEinstellungen={(r) => zuEinstellungen(r ?? "ki")}
-          />
-        )}
-        {bereich === "suche" && <Suche onAkte={oeffneAkte} />}
-        {bereich === "beteiligte" && <Beteiligte onAkte={oeffneAkte} />}
-        {bereich === "rechtsprechung" && (
-          <Rechtsprechung onAkte={(id) => oeffneAkte(id, "rechtsprechung")} onQuellen={() => zuEinstellungen("rechtsquellen")} />
-        )}
-        {bereich === "gesetze" && <Gesetze />}
-        {bereich === "einstellungen" && (
-          <Einstellungen
-            reiter={einstellungsReiter}
-            onReiter={setEinstellungsReiter}
-            marke={marke}
-            onMarke={(m) => void mitDruckbild(m).then(setMarke)}
-            onGeaendert={ladeModus}
-            umgebungen={umgebungen}
-            onUmgebungen={umgebungGeaendert}
-            onEigeneDaten={() => setBereich("eigene")}
-            onAkten={() => setBereich("akten")}
-          />
-        )}
-      </main>
+      <KiAn.Provider value={!modus?.aus}>
+        <main className={bereich === "akten" && (akteId != null || anlegen) ? "inhalt ohne-rand" : "inhalt"} key={stand}>
+          {bereich === "start" && (
+            <Start
+              onWahl={(z) => void starte(z)}
+              onAkte={oeffneAkte}
+              modus={modus}
+              umgebung={umgebung?.name ?? null}
+              marke={marke}
+              onNachrichten={() => zuEinstellungen("nachrichten")}
+            />
+          )}
+          {bereich === "toolbox" && <Toolbox />}
+          {bereich === "eigene" && <EigeneDaten onZurueck={() => setBereich("start")} />}
+          {bereich === "akten" && (
+            <Akten
+              anlegen={anlegen}
+              onAnlegen={setAnlegen}
+              akteId={akteId}
+              setAkteId={setAkteId}
+              reiterWunsch={reiterWunsch}
+              onEinstellungen={(r) => zuEinstellungen(r ?? "ki")}
+            />
+          )}
+          {bereich === "suche" && <Suche onAkte={oeffneAkte} />}
+          {bereich === "beteiligte" && <Beteiligte onAkte={oeffneAkte} />}
+          {bereich === "rechtsprechung" && (
+            <Rechtsprechung onAkte={(id) => oeffneAkte(id, "rechtsprechung")} onQuellen={() => zuEinstellungen("rechtsquellen")} />
+          )}
+          {bereich === "gesetze" && <Gesetze />}
+          {bereich === "einstellungen" && (
+            <Einstellungen
+              reiter={einstellungsReiter}
+              onReiter={setEinstellungsReiter}
+              marke={marke}
+              onMarke={(m) => void mitDruckbild(m).then(setMarke)}
+              onGeaendert={ladeModus}
+              umgebungen={umgebungen}
+              onUmgebungen={umgebungGeaendert}
+              onEigeneDaten={() => setBereich("eigene")}
+              onAkten={() => setBereich("akten")}
+            />
+          )}
+        </main>
+      </KiAn.Provider>
     </div>
   );
 }

@@ -540,7 +540,11 @@ function fundstelleText(f: MetaFundstelle): string {
 /** Woher die Vorschläge kommen: KI (mit Stand) oder Texterkennung. */
 function KiHinweis({ ki, onNeu }: { ki: MetaKiStand | null; onNeu: () => void }) {
   if (!ki || ki.status === "aus")
-    return <span className="feld-hinweis">Vorschläge aus der Texterkennung (kein Sprachmodell eingerichtet).</span>;
+    return (
+      <span className="feld-hinweis">
+        Vorschläge aus der Texterkennung ({ki?.status === "aus" && ki.abgeschaltet ? "KI ausgeschaltet" : "kein Sprachmodell eingerichtet"}).
+      </span>
+    );
   if (ki.status === "laeuft")
     return (
       <span className="feld-hinweis">
