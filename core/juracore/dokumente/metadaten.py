@@ -29,6 +29,7 @@ ARTEN = ("Schreiben", "E-Mail", "Schriftsatz", "Verfügung", "Beschluss", "Urtei
          "Sonstiges")
 MAX_ART = 60
 EIGENE = "eigene"  # Absender: wir selbst (eigene Kanzlei bzw. Rechtsabteilung)
+FREI = "frei:"  # Absender außerhalb der Akte: "frei:Amtsgericht Stuttgart"
 # Erkannte Dokumentart (juracore.aktenverwaltung.rubrum) → Art.
 _ART_AUS_DOKUMENTART = {"Urteil": "Urteil", "Versäumnisurteil": "Urteil", "Beschluss": "Beschluss",
                         "Verfügung": "Verfügung", "Ladung": "Ladung", "Mahnbescheid": "Mahnbescheid",
@@ -99,7 +100,15 @@ def _namen(akte_beteiligte: list[dict], ids: list[int]) -> str:
 # --------------------------------------------------------------------------- Lesen
 
 
+def frei(name: str) -> dict:
+    """Absender ohne Beteiligung in der Akte; wert "frei:<Name>" (Auswahl, Filter, Speichern)."""
+    return {"wert": FREI + name, "name": name, "rolle_text": ""}
+
+
 def _absender(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list[dict]) -> dict | None:
+    name = con.execute("SELECT absender_frei FROM dokument WHERE id = ?", (dokument_id,)).fetchone()
+    if name and name[0]:
+        return frei(name[0])
     z = con.execute("SELECT beteiligung_id, eigene FROM dokument_absender WHERE dokument_id = ?",
                     (dokument_id,)).fetchone()
     if z is None:
@@ -146,6 +155,7 @@ def lesen(con: sqlite3.Connection, dokument_id: int, eigene_namen: list[str] | N
         "beteiligte": [b for b in akte_beteiligte if b["id"] in verknuepft],
         "akte_beteiligte": akte_beteiligte,
         "vorschlaege": vorschlaege(con, dokument_id, akte_beteiligte, eigene_namen),
+        "benennung": benennung(con, dokument_id, akte_beteiligte, eigene_namen or []),
         "verlauf": verlauf(con, dokument_id, akte_beteiligte),
     }
 
@@ -216,6 +226,154 @@ def _titel_vorschlaege(d: sqlite3.Row, abschnitte: list[dict], r: dict, nach_nr:
     return ergebnis[:3]
 
 
+# --------------------------------------------------------------------------- Benennung „Wer schreibt was an wen“
+
+# Kanzleien: „Albrecht Tiedemann Rechtsanwälte“ → „RA Albrecht Tiedemann“.
+_KANZLEI = re.compile(r"(?:\s*,\s*|\s+)(?:Rechtsanw\w*|Anwaltskanzlei|Anwälte|Kanzlei|Partnerschaft\w*|PartG\b|"
+                      r"&\s*Partner\b).*$")
+_KANZLEI_VORN = re.compile(r"^(?:Rechtsanwaltskanzlei|Anwaltskanzlei|Kanzlei|Rechtsanwält\w*|Anwälte)\s+")
+# Schlüssel in kurznamen für Gerichte aus dem Text, die keine Beteiligung der Akte sind.
+GERICHT_AN = "gericht_an"  # Empfänger („An das Amtsgericht Stuttgart“)
+GERICHT_KOPF = "gericht_kopf"  # im Kopf erkanntes Gericht, z. B. das Mahngericht beim Mahnbescheid
+_ANWALTSROLLEN = ("bevollmaechtigter_gegner", "vertretender_anwalt")
+# Was ein Schreiben ist, aus Betreff und ersten Absätzen (erster Treffer gewinnt).
+_SCHREIBEN_WAS = (("kündig", "Kündigung"), ("rücktritt", "Rücktritt"), ("widerruf", "Widerruf"),
+                  ("anfecht", "Anfechtung"), ("abmahnung", "Abmahnung"), ("mahnung", "Mahnung"),
+                  ("wir lehnen", "Ablehnung"), ("lehnen wir", "Ablehnung"),
+                  ("zahlungsaufforderung", "Zahlungsaufforderung"), ("zur zahlung", "Zahlungsaufforderung"),
+                  ("nacherfüllung", "Nacherfüllungsverlangen"), ("nachbesserung", "Nacherfüllungsverlangen"),
+                  ("nachlieferung", "Nacherfüllungsverlangen"), ("mängelrüge", "Mängelrüge"),
+                  ("mangelanzeige", "Mängelrüge"), ("vergleichsvorschlag", "Vergleichsvorschlag"),
+                  ("terminsverlegung", "Terminsverlegung"), ("neuer termin", "Terminsverlegung"),
+                  ("termin", "Terminsnachricht"),
+                  ("stellungnahme", "Stellungnahme"))
+_SCHRIFTSATZ_WAS = {"Klage": "Klageschrift"}
+_SCHRIFTSATZ_KURZ = ("Widerspruch", "Einspruch", "Stellungnahme", "Klageschrift", "Klageerwiderung", "Replik",
+                     "Duplik", "Anspruchsbegründung", "Berufung", "Berufungsbegründung")
+
+
+_AN_DAS = re.compile(r"(?:^|\s)An\s+(?:das|den|die)\b\s*(.*)$", re.DOTALL)
+_GERICHT_NAME = re.compile(r"[A-ZÄÖÜ][\w-]*gericht\b[^\d,–(]*")
+_ANSCHRIFT_WORT = re.compile(r"\s+\S*(?:straße|str\.|platz|weg|allee|ring|gasse|Postfach)\b.*$",
+                             re.IGNORECASE | re.DOTALL)
+
+
+def gericht_empfaenger(abschnitte: list[dict]) -> tuple[dict, str] | None:
+    """Das Gericht in der Anschrift („An das Amtsgericht Stuttgart“), auch wenn „An das“ am Ende des Absatzes davor
+    steht (PDF). Ergebnis: Absatz mit dem Gerichtsnamen und der Name ohne Anschrift."""
+    for i, a in enumerate(abschnitte[:10]):
+        m = _AN_DAS.search(a["text"])
+        if not m:
+            continue
+        kandidaten = [(a, m.group(1))] if m.group(1).strip() else []
+        kandidaten += [(b, b["text"]) for b in abschnitte[i + 1:i + 2]]
+        for absatz, text in kandidaten:
+            if g := _GERICHT_NAME.match(" ".join(text.split())):
+                name = _ANSCHRIFT_WORT.sub("", g.group(0)).strip(" –-")
+                return absatz, " ".join(name.split()[:6])
+        return None
+    return None
+
+
+def kurzname(b: dict, nachname: str = "") -> str:
+    """Kurzer Name für Titel: Gericht abgekürzt, Kanzlei als „RA …“, Person mit Nachnamen."""
+    name = " ".join((b.get("name") or "").split())
+    if b.get("rolle") == "gericht":
+        return _gericht_kurz(name)
+    ohne = _KANZLEI_VORN.sub("", name)
+    kanzlei = _KANZLEI.search(ohne)
+    if ohne != name or (kanzlei and kanzlei.start() > 0):
+        return f"RA {(ohne[:kanzlei.start()] if kanzlei else ohne).strip(' ,&')}"
+    if b.get("art") == "person":
+        nach = nachname or (name.split() or [""])[-1]
+        return f"RA {nach}" if b.get("rolle") in _ANWALTSROLLEN else nach
+    return name
+
+
+def benennung(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list[dict],
+              eigene_namen: list[str]) -> dict:
+    """Bausteine für Titel nach dem Schema „Wer schreibt was an wen“ (die Oberfläche setzt sie zusammen, je nach
+    gewählter Art und gewähltem Absender): Kurznamen der Beteiligten, erkanntes „Was“, Empfänger, Vertragsparteien.
+    """
+    abschnitte = _abschnitte(con, dokument_id, 40)
+    nachnamen = {}
+    for b in akte_beteiligte:
+        if b.get("beteiligter_id") is not None and b.get("art") == "person":
+            z = con.execute("SELECT daten FROM beteiligter WHERE id = ?", (b["beteiligter_id"],)).fetchone()
+            nachnamen[b["id"]] = (json.loads(z["daten"]).get("nachname") or "").strip() if z else ""
+    kurz = {str(b["id"]): kurzname(b, nachnamen.get(b["id"], "")) for b in akte_beteiligte}
+    # Eigene Seite: Kanzlei aus „Eigene Daten“ („RA Albrecht Tiedemann“); ohne Eintrag bleibt das „Wer“ leer.
+    kurz["eigene"] = kurzname({"name": eigene_namen[0], "art": "organisation"}) if eigene_namen else ""
+
+    # Wer im Kopf genannt ist, in der Reihenfolge des Auftretens (Anschrift bzw. Vertragsparteien). Schlüssel wie in
+    # kurznamen: Beteiligungs-ID als Text oder „eigene“.
+    suche: list[tuple[str, list[re.Pattern]]] = []
+    for b in akte_beteiligte:
+        muster = _suchmuster(con, b)
+        if b["rolle"] == "gericht":
+            muster.append(re.compile(re.escape(_gericht_kurz(b["name"])) + r"(?!\w)"))
+        suche.append((str(b["id"]), muster))
+    if eigene_namen:
+        suche.append((EIGENE, [re.compile(r"(?<!\w)" + r"\s+".join(map(re.escape, n.split())) + r"(?!\w)",
+                                          re.IGNORECASE) for n in eigene_namen if n.strip()]))
+    genannt = []
+    for schluessel, muster in suche:
+        pos = next((i for i, a in enumerate(abschnitte[:12]) if any(p.search(a["text"]) for p in muster)), None)
+        if pos is not None:
+            genannt.append((pos, schluessel))
+    # Ein Gericht in der Anschrift, das (noch) nicht zur Akte gehört, z. B. das Mahngericht.
+    if an := gericht_empfaenger(abschnitte):
+        kurz_an = _gericht_kurz(an[1])
+        bekannt = next((str(b["id"]) for b in akte_beteiligte
+                        if b["rolle"] == "gericht" and _gericht_kurz(b["name"]) == kurz_an), None)
+        if bekannt is None:
+            kurz[GERICHT_AN] = kurz_an
+            genannt.append((next(i for i, a in enumerate(abschnitte) if a is an[0]), GERICHT_AN))
+    reihenfolge = [s for _, s in sorted(genannt, key=lambda g: g[0])]
+
+    r = rubrum.erkenne(abschnitte) if abschnitte else {}
+    if r.get("gericht"):
+        kurz[GERICHT_KOPF] = _gericht_kurz(r["gericht"]["name"])
+    return {
+        "kurznamen": kurz,
+        "empfaenger": reihenfolge,
+        "vertragsparteien": reihenfolge,
+        "was": {
+            "schreiben": _was_schreiben(abschnitte),
+            "schriftsatz": _was_schriftsatz(abschnitte, r),
+            "vertrag": _was_vertrag(abschnitte),
+        },
+    }
+
+
+def _was_schreiben(abschnitte: list[dict]) -> str | None:
+    anrede = next((i for i, a in enumerate(abschnitte) if a["text"].startswith(("Sehr geehrte", "Guten Tag"))), None)
+    # Betreff (vor der Anrede) und die ersten beiden Absätze danach.
+    bereich = (abschnitte[max(0, anrede - 3):anrede + 7] if anrede is not None else abschnitte[:10])
+    text = " ".join(a["text"] for a in bereich).casefold()
+    return next((was for wort, was in _SCHREIBEN_WAS if wort in text), None)
+
+
+def _was_schriftsatz(abschnitte: list[dict], r: dict) -> str | None:
+    if art := (r.get("dokumentart") or {}).get("wert"):
+        return _SCHRIFTSATZ_WAS.get(art, art)
+    for a in abschnitte[:20]:
+        text = a["text"].strip()
+        if text in _SCHRIFTSATZ_KURZ:
+            return text
+        if len(text) <= 60 and text.split(" ")[0] in _SCHRIFTSATZ_KURZ:
+            return text.split(" ")[0]
+    return None
+
+
+def _was_vertrag(abschnitte: list[dict]) -> str | None:
+    for a in abschnitte[:10]:
+        erstes = (a["text"].split() or [""])[0].strip(" *#:")
+        if re.search(r"(?:vertrag|vereinbarung)$", erstes, re.IGNORECASE) and erstes[:1].isupper():
+            return erstes
+    return None
+
+
 def _ist_schreiben(abschnitte: list[dict]) -> dict | None:
     return next((a for a in abschnitte[:30] if a["text"].startswith(("Sehr geehrte", "Guten Tag", "Hallo"))), None)
 
@@ -233,9 +391,8 @@ def _art_vorschlag(abschnitte: list[dict], r: dict, nach_nr: dict) -> dict | Non
             if wert := next((w for endung, w in _ART_AUS_UEBERSCHRIFT if erstes.endswith(endung)), None):
                 return {"wert": wert, "grund": "Überschrift", "fundstelle": _fund(a)}
     # „An das Amtsgericht …“ ohne erkannte Dokumentart: ein Schriftsatz an das Gericht (z. B. Widerspruch).
-    if a := next((a for a in abschnitte[:10] if a["text"].startswith(("An das", "An den"))
-                  and "gericht" in a["text"].casefold()), None):
-        return {"wert": "Schriftsatz", "grund": "an das Gericht gerichtet", "fundstelle": _fund(a)}
+    if an := gericht_empfaenger(abschnitte):
+        return {"wert": "Schriftsatz", "grund": f"an das {an[1]} gerichtet", "fundstelle": _fund(an[0])}
     if a := _ist_schreiben(abschnitte):
         return {"wert": "Schreiben", "grund": "Briefform mit Anrede", "fundstelle": _fund(a)}
     return None
@@ -256,8 +413,9 @@ def _absender_vorschlag(con: sqlite3.Connection, dokument_id: int, abschnitte: l
         b = next((b for b in gerichte if _gleich(b["name"], gericht["name"])), None)
         grund = f"vom {gericht['name']} erlassen" if vom_gericht else "Gericht im Briefkopf"
         fund = _fund(nach_nr[gericht["fundstelle"]["abschnitt"]])
-        vorschlag = ({"wert": b["id"], "name": b["name"], "rolle_text": b["rolle_text"], "grund": grund,
-                      "fundstelle": fund} if b else None)
+        # Ein Gericht außerhalb der Akte (z. B. das Mahngericht) wird mit seinem Namen vorgeschlagen.
+        vorschlag = ({"wert": b["id"], "name": b["name"], "rolle_text": b["rolle_text"]} if b
+                     else frei(gericht["name"])) | {"grund": grund, "fundstelle": fund}
     if vorschlag is None and not vom_gericht:
         # Briefkopf: die ersten Absätze; bei Schriftsätzen steht dort die Kanzlei, die ihn einreicht.
         for a in abschnitte[:2]:
@@ -423,10 +581,16 @@ def speichern(con: sqlite3.Connection, dokument_id: int, titel: str | None = Non
 
 def _absender_setzen(con: sqlite3.Connection, dokument_id: int, absender: str | int,
                      akte_beteiligte: list[dict]) -> None:
-    """``absender``: "eigene" (wir), die Nummer einer Beteiligung der Akte oder "" (keiner)."""
+    """``absender``: "eigene" (wir), die Nummer einer Beteiligung der Akte, "frei:<Name>" (jemand außerhalb der
+    Akte, z. B. das Mahngericht) oder "" (keiner)."""
     alt = _absender(con, dokument_id, akte_beteiligte)
     con.execute("DELETE FROM dokument_absender WHERE dokument_id = ?", (dokument_id,))
-    if absender == EIGENE:
+    con.execute("UPDATE dokument SET absender_frei = NULL WHERE id = ?", (dokument_id,))
+    if isinstance(absender, str) and absender.startswith(FREI):
+        name = " ".join(absender[len(FREI):].split())[:120]
+        if name:
+            con.execute("UPDATE dokument SET absender_frei = ? WHERE id = ?", (name, dokument_id))
+    elif absender == EIGENE:
         con.execute("INSERT INTO dokument_absender (dokument_id, eigene) VALUES (?, 1)", (dokument_id,))
     elif absender not in ("", None):
         beteiligung_id = int(absender)

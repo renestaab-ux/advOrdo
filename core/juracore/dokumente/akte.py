@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS dokument (
     titel           TEXT,                   -- z. B. "Klageschrift"; NULL = Dateiname
     art             TEXT,                   -- Schreiben, Schriftsatz, Verfügung, Urteil … (metadaten.ARTEN)
     datum_erkannt   TEXT,                   -- nur bei datum_quelle "manuell": JSON des erkannten Datums
+    absender_frei   TEXT,                   -- Absender außerhalb der Akte, z. B. "Amtsgericht Stuttgart"
     UNIQUE (akte_id, sha256)
 );
 
@@ -284,7 +285,7 @@ def _migriere(con: sqlite3.Connection) -> None:
                                  ("urteil", "kopf", "TEXT"), ("urteil_abschnitt", "teil", "TEXT"),
                                  ("seite", "woerter", "TEXT"),
                                  ("dokument", "titel", "TEXT"), ("dokument", "art", "TEXT"),
-                                 ("dokument", "datum_erkannt", "TEXT"),
+                                 ("dokument", "datum_erkannt", "TEXT"), ("dokument", "absender_frei", "TEXT"),
                                  *(("dokument", s, t) for s, t in _DATUM_SPALTEN.items())):
         if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
             con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")

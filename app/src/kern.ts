@@ -605,9 +605,12 @@ export interface MetaVorschlag {
   fundstelle: MetaFundstelle | null;
 }
 
-/** Absender eines Dokuments: "eigene" (wir selbst) oder die Nummer einer Beteiligung der Akte. */
+/**
+ * Absender eines Dokuments: "eigene" (wir selbst), die Nummer einer Beteiligung der Akte oder "frei:<Name>" für
+ * jemanden außerhalb der Akte (z. B. das Mahngericht).
+ */
 export interface MetaAbsender {
-  wert: "eigene" | number;
+  wert: "eigene" | number | `frei:${string}`;
   name: string;
   rolle_text: string;
 }
@@ -658,7 +661,142 @@ export interface DokumentMetadaten {
     schlagworte: MetaVorschlag[];
     beteiligte: MetaBeteiligterVorschlag[];
   };
+  benennung: MetaBenennung;
   verlauf: MetaVerlaufEintrag[];
+}
+
+/**
+ * Bausteine für den Titel nach dem Schema „Wer schreibt was an wen“. Schlüssel: Beteiligungs-ID als Text, "eigene",
+ * "gericht_an" (Gericht in der Anschrift, nicht in der Akte) oder "gericht_kopf" (Gericht im Kopf des Dokuments).
+ */
+export interface MetaBenennung {
+  kurznamen: Record<string, string>;
+  /** Im Kopf des Dokuments genannt, in der Reihenfolge des Auftretens. */
+  empfaenger: string[];
+  vertragsparteien: string[];
+  was: { schreiben: string | null; schriftsatz: string | null; vertrag: string | null };
+}
+
+/** Vorschläge des Sprachmodells (Kern: akten.metadaten_ki); jede Angabe ist mit einem Zitat im Dokument belegt. */
+export interface MetaKiErgebnis {
+  art: MetaVorschlag | null;
+  /** wert null: nicht in der Akte; dann zählt nur der Name (schluessel) für den Titel. */
+  absender: MetaAbsenderVorschlag | null;
+  benennung: {
+    kurznamen: Record<string, string>;
+    empfaenger: string[];
+    vertragsparteien: string[];
+    was: Partial<MetaBenennung["was"]>;
+  };
+  /** Angaben, deren Zitat im Dokument nicht steht und die deshalb verworfen wurden. */
+  verworfen: number;
+  modell: string;
+  gespeichert?: boolean;
+}
+
+export type MetaKiStand =
+  | { status: "aus" }
+  | { status: "belegt" }
+  | { status: "laeuft"; auftrag: KiAuftrag }
+  | { status: "fertig"; ergebnis: MetaKiErgebnis }
+  | { status: "fehler"; fehler: string };
+
+/** Benennung der Texterkennung, ergänzt um das, was die KI belegt erkannt hat (die KI geht vor). */
+export function mitKi(b: MetaBenennung, ki: MetaKiErgebnis | null | undefined): MetaBenennung {
+  if (!ki) return b;
+  const k = ki.benennung;
+  return {
+    kurznamen: { ...b.kurznamen, ...k.kurznamen },
+    empfaenger: k.empfaenger.length ? [...k.empfaenger, ...b.empfaenger.filter((e) => !k.empfaenger.includes(e))] : b.empfaenger,
+    vertragsparteien: k.vertragsparteien.length >= 2 ? k.vertragsparteien : b.vertragsparteien,
+    was: { ...b.was, ...k.was },
+  };
+}
+
+export const FREI = "frei:";
+
+const GERICHT_KURZ: [string, string][] = [
+  ["Bundesgerichtshof", "BGH"],
+  ["Oberlandesgericht", "OLG"],
+  ["Landesarbeitsgericht", "LAG"],
+  ["Landessozialgericht", "LSG"],
+  ["Oberverwaltungsgericht", "OVG"],
+  ["Verwaltungsgerichtshof", "VGH"],
+  ["Bundesarbeitsgericht", "BAG"],
+  ["Landgericht", "LG"],
+  ["Amtsgericht", "AG"],
+  ["Arbeitsgericht", "ArbG"],
+  ["Sozialgericht", "SG"],
+  ["Verwaltungsgericht", "VG"],
+  ["Finanzgericht", "FG"],
+];
+
+/** „Amtsgericht Stuttgart“ → „AG Stuttgart“ (wie im Kern); andere Namen bleiben, wie sie sind. */
+export function gerichtKurz(name: string): string {
+  const n = name.trim().replace(/\s+/g, " ");
+  const treffer = GERICHT_KURZ.find(([lang]) => n.startsWith(lang));
+  return treffer ? treffer[1] + n.slice(treffer[0].length) : n;
+}
+
+/** Arten, bei denen das Gericht „schreibt“: der Titel ist nur „LG Freiburg Urteil“. */
+const GERICHTSARTEN = ["urteil", "beschluss", "verfügung", "ladung", "protokoll", "mahnbescheid", "vollstreckungsbescheid"];
+
+/**
+ * Titel nach dem Schema „Wer schreibt was an wen“ aus Art und Absender (wie gerade eingegeben):
+ * Schreiben „RA Müller Zahlungsaufforderung an Schneider“, Schriftsatz „RA Müller Klageschrift gegen Schneider“,
+ * Urteil/Beschluss „LG Freiburg Urteil“, Vertrag „Kaufvertrag zwischen Müller und Schneider“.
+ * Fehlende Teile fallen weg; null, wenn nichts Brauchbares bleibt.
+ */
+export function titelNachSchema(
+  b: MetaBenennung,
+  art: string,
+  absender: string,
+  akteBeteiligte: Beteiligung[],
+): string | null {
+  const kurz = (schluessel: string | undefined) =>
+    !schluessel ? "" : (b.kurznamen[schluessel] ?? (schluessel.startsWith(FREI) ? gerichtKurz(schluessel.slice(FREI.length)) : ""));
+  const ersteMit = (rolle: string) => akteBeteiligte.find((x) => x.rolle === rolle);
+  const art_ = art.trim();
+  const klein = art_.toLocaleLowerCase("de");
+  const satz = (...teile: string[]) => teile.filter((t) => t.trim()).join(" ") || null;
+
+  if (klein.includes("vertrag") || klein.includes("vereinbarung")) {
+    const ausgeschlossen = new Set(akteBeteiligte.filter((x) => x.rolle === "gericht").map((x) => String(x.id)));
+    let parteien = b.vertragsparteien.filter((s) => s !== "eigene" && !ausgeschlossen.has(s));
+    if (parteien.length < 2)
+      parteien = [ersteMit("mandant"), ersteMit("gegner")].filter((x) => x).map((x) => String(x!.id));
+    const namen = parteien.slice(0, 2).map(kurz).filter((n) => n);
+    const was = b.was.vertrag ?? art_;
+    if (namen.length === 2) return `${was} zwischen ${namen[0]} und ${namen[1]}`;
+    return namen.length === 1 ? `${was} mit ${namen[0]}` : null;
+  }
+
+  const wer = kurz(absender);
+  // Ohne Absender: das im Kopf erkannte Gericht, auch wenn es nicht zur Akte gehört (Mahngericht).
+  if (GERICHTSARTEN.includes(klein)) {
+    const gericht = wer || kurz("gericht_kopf");
+    return gericht ? satz(gericht, art_) : null;
+  }
+
+  if (klein === "schriftsatz") {
+    const seite =
+      absender === "eigene" ? "eigene" : akteBeteiligte.find((x) => String(x.id) === absender)?.seite;
+    const gegen =
+      seite === "eigene"
+        ? (ersteMit("gegner") ?? akteBeteiligte.find((x) => x.seite === "gegen"))
+        : seite === "gegen"
+          ? ersteMit("mandant")
+          : undefined;
+    const g = gegen ? kurz(String(gegen.id)) : "";
+    // Ein Gericht außerhalb der Akte (z. B. das Mahngericht) wird als Empfänger genannt.
+    const an = kurz(b.empfaenger.find((e) => e === "gericht_an" || (e.startsWith(FREI) && /gericht/i.test(e))));
+    return wer || g ? satz(wer, b.was.schriftsatz ?? "Schriftsatz", g ? `gegen ${g}` : "", an ? `an ${an}` : "") : null;
+  }
+
+  // Schreiben, E-Mail und alles Übrige. Ohne bekannten Absender steht vorn meist der Briefkopf: dann den zweiten.
+  const kandidaten = b.empfaenger.filter((s) => s !== absender);
+  const an = kurz(absender ? kandidaten[0] : kandidaten[1]);
+  return wer || an ? satz(wer, b.was.schreiben ?? (art_ || "Schreiben"), an ? `an ${an}` : "") : null;
 }
 
 /** Eine Fassung eines Dokuments; die Dateien aller Fassungen bleiben unverändert abgelegt. */
@@ -1372,7 +1510,8 @@ export type KiAufgabe =
   | "widersprueche"
   | "chronologie"
   | "gegenueberstellung"
-  | "chat";
+  | "chat"
+  | "metadaten";
 
 export type GegenueberstellungErgebnis =
   | "traegt"

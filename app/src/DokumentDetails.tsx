@@ -1,13 +1,19 @@
-import { FormEvent, forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { FormEvent, forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
   BETEILIGTE,
   DokumentMetadaten,
+  KiAuftrag,
+  MetaKiErgebnis,
+  MetaKiStand,
   MetaFundstelle,
   MetaVerlaufEintrag,
   datumDe,
+  FREI,
   kern,
+  mitKi,
   sortiereTags,
   tagsAusText,
+  titelNachSchema,
   zeitpunkt,
 } from "./kern";
 import Notizen from "./Notizen";
@@ -51,7 +57,11 @@ function aenderungen(meta: DokumentMetadaten, entwurf: Entwurf): Record<string, 
   if (entwurf.titel.trim() !== bisher.titel) params.titel = entwurf.titel.trim();
   if (entwurf.art.trim() !== bisher.art) params.art = entwurf.art.trim();
   if (entwurf.absender !== bisher.absender)
-    params.absender = entwurf.absender === "" || entwurf.absender === "eigene" ? entwurf.absender : Number(entwurf.absender);
+    params.absender = /^\d+$/.test(entwurf.absender)
+      ? Number(entwurf.absender)
+      : entwurf.absender.trim() === FREI
+        ? ""
+        : entwurf.absender;
   // Wer das erkannte Datum wieder wählt, kehrt zur Erkennung zurück (auch nach einer neuen Fassung).
   const erkannt = meta.datum.erkannt?.datum;
   if (entwurf.datum !== bisher.datum) params.datum = erkannt && entwurf.datum === erkannt ? "" : entwurf.datum;
@@ -124,6 +134,36 @@ const DokumentDetails = forwardRef<
     [],
   );
 
+  // Sprachmodell: ist eines eingerichtet, gehen seine (belegten) Vorschläge vor; sonst gilt die Texterkennung.
+  const [ki, setKi] = useState<MetaKiStand | null>(null);
+  const kiStarten = useCallback(
+    (neu: boolean) => {
+      kern<MetaKiStand>("akten.metadaten_ki", { dokument_id: dokumentId, neu }).then(setKi, (e) =>
+        setKi({ status: "fehler", fehler: String(e) }),
+      );
+    },
+    [dokumentId],
+  );
+  useEffect(() => {
+    setKi(null);
+    kiStarten(false);
+  }, [kiStarten]);
+  const kiAuftrag = ki?.status === "laeuft" ? ki.auftrag.auftrag_id : null;
+  useEffect(() => {
+    if (kiAuftrag == null) return;
+    const takt = window.setInterval(async () => {
+      try {
+        const a = await kern<KiAuftrag>("ki.auftrag", { auftrag_id: kiAuftrag });
+        if (a.status === "laeuft") setKi({ status: "laeuft", auftrag: a });
+        else if (a.status === "fertig") setKi({ status: "fertig", ergebnis: a.ergebnis as MetaKiErgebnis });
+        else setKi({ status: "fehler", fehler: a.fehler ?? "abgebrochen" });
+      } catch (e) {
+        setKi({ status: "fehler", fehler: String(e) });
+      }
+    }, 1500);
+    return () => window.clearInterval(takt);
+  }, [kiAuftrag]);
+
   useEffect(() => {
     setMeta(null);
     setEntwurf(null);
@@ -185,12 +225,43 @@ const DokumentDetails = forwardRef<
   }
 
   const v = meta.vorschlaege;
-  const titelVorschlaege = v.titel.filter((t) => t.wert !== entwurf.titel.trim());
+  const kiErgebnis = ki?.status === "fertig" ? ki.ergebnis : null;
+  // Art und Absender: zuerst die KI, dann die Texterkennung.
+  const artVorschlaege = [kiErgebnis?.art, v.art].filter((a): a is NonNullable<typeof a> => !!a);
+  const absenderVorschlaege = [
+    kiErgebnis?.absender ?? null,
+    v.absender,
+  ].filter((a): a is NonNullable<typeof a> => !!a);
+  // Solange Art oder Absender leer sind, rechnet das Schema mit dem jeweiligen Vorschlag (auch einem Absender,
+  // den die KI erkannt hat, der aber nicht zur Akte gehört).
+  const schema = titelNachSchema(
+    mitKi(meta.benennung, kiErgebnis),
+    entwurf.art.trim() || (artVorschlaege[0]?.wert ?? ""),
+    entwurf.absender ||
+      (kiErgebnis?.absender ? String(kiErgebnis.absender.wert) : "") ||
+      (v.absender ? String(v.absender.wert) : ""),
+    meta.akte_beteiligte,
+  );
+  const titelVorschlaege = [
+    ...(schema
+      ? [
+          {
+            wert: schema,
+            grund: `Schema „Wer schreibt was an wen“, aus Art und Absender${kiErgebnis ? ", mit KI" : ""}`,
+            fundstelle: null,
+          },
+        ]
+      : []),
+    ...v.titel.filter((t) => t.wert !== schema),
+  ].filter((t) => t.wert !== entwurf.titel.trim());
   const wortVorschlaege = v.schlagworte.filter((t) => !enthaelt(entwurf.schlagworte, t.wert));
   const vorgeschlagen = new Map(v.beteiligte.map((b) => [b.beteiligung_id, b]));
   const datumVorschlag = v.datum && v.datum.wert !== entwurf.datum ? v.datum : null;
-  const artVorschlag = v.art && v.art.wert !== entwurf.art.trim() ? v.art : null;
-  const absenderVorschlag = v.absender && String(v.absender.wert) !== entwurf.absender ? v.absender : null;
+  const artVorschlag = artVorschlaege.filter((a, i) => a.wert !== entwurf.art.trim() && artVorschlaege.findIndex((b) => b.wert === a.wert) === i);
+  const absenderVorschlag = absenderVorschlaege.filter(
+    (a, i) =>
+      String(a.wert) !== entwurf.absender && absenderVorschlaege.findIndex((b) => String(b.wert) === String(a.wert)) === i,
+  );
 
   return (
     <div className="dok-details">
@@ -207,6 +278,7 @@ const DokumentDetails = forwardRef<
           <span className="feld-hinweis">
             Steht in der Dokumentliste vor dem Dateinamen. Leer lassen, um den Dateinamen ({meta.dateiname}) zu zeigen.
           </span>
+          <KiHinweis ki={ki} onNeu={() => kiStarten(true)} />
           {titelVorschlaege.map((t) => (
             <Vorschlag
               key={t.wert}
@@ -234,18 +306,23 @@ const DokumentDetails = forwardRef<
                 <option key={a} value={a} />
               ))}
             </datalist>
-            {artVorschlag && (
+            {artVorschlag.map((a) => (
               <Vorschlag
-                wert={artVorschlag.wert}
-                grund={artVorschlag.grund}
-                fundstelle={artVorschlag.fundstelle}
-                  onUebernehmen={() => aendere({ art: artVorschlag.wert })}
+                key={a.wert}
+                wert={a.wert}
+                grund={a.grund}
+                fundstelle={a.fundstelle}
+                onUebernehmen={() => aendere({ art: a.wert })}
               />
-            )}
+            ))}
           </div>
           <div className="feld">
             <label htmlFor="meta-absender">Absender (wer hat es erstellt?)</label>
-            <select id="meta-absender" value={entwurf.absender} onChange={(e) => aendere({ absender: e.target.value })}>
+            <select
+              id="meta-absender"
+              value={entwurf.absender.startsWith(FREI) ? FREI : entwurf.absender}
+              onChange={(e) => aendere({ absender: e.target.value })}
+            >
               <option value="">(nicht angegeben)</option>
               <option value="eigene">Wir (eigene Seite)</option>
               {meta.akte_beteiligte.map((b) => (
@@ -253,15 +330,27 @@ const DokumentDetails = forwardRef<
                   {b.name} · {b.rolle_text}
                 </option>
               ))}
+              <option value={FREI}>Andere (nicht in der Akte) …</option>
             </select>
-            {absenderVorschlag && (
-              <Vorschlag
-                wert={absenderVorschlag.rolle_text ? `${absenderVorschlag.name} (${absenderVorschlag.rolle_text})` : absenderVorschlag.name}
-                grund={absenderVorschlag.grund}
-                fundstelle={absenderVorschlag.fundstelle}
-                  onUebernehmen={() => aendere({ absender: String(absenderVorschlag.wert) })}
+            {entwurf.absender.startsWith(FREI) && (
+              <input
+                aria-label="Absender außerhalb der Akte"
+                value={entwurf.absender.slice(FREI.length)}
+                onChange={(e) => aendere({ absender: FREI + e.target.value })}
+                placeholder="z. B. Amtsgericht Stuttgart"
+                maxLength={120}
+                autoFocus
               />
             )}
+            {absenderVorschlag.map((a) => (
+              <Vorschlag
+                key={String(a.wert)}
+                wert={a.rolle_text ? `${a.name} (${a.rolle_text})` : a.name}
+                grund={a.grund}
+                fundstelle={a.fundstelle}
+                onUebernehmen={() => aendere({ absender: String(a.wert) })}
+              />
+            ))}
           </div>
         </div>
 
@@ -368,7 +457,7 @@ const DokumentDetails = forwardRef<
               {meta.akte_beteiligte.map((b) => {
                 const gewaehlt = entwurf.beteiligte.includes(b.id);
                 // Wer als Absender gewählt oder vorgeschlagen ist, wird hier nicht noch einmal vorgeschlagen.
-                const istAbsender = String(b.id) === entwurf.absender || b.id === absenderVorschlag?.wert;
+                const istAbsender = String(b.id) === entwurf.absender || absenderVorschlag.some((a) => a.wert === b.id);
                 const vorschlag = !gewaehlt && !istAbsender ? vorgeschlagen.get(b.id) : undefined;
                 return (
                   <li key={b.id} className={vorschlag ? "vorgeschlagen" : undefined}>
@@ -446,6 +535,40 @@ export default DokumentDetails;
 
 function fundstelleText(f: MetaFundstelle): string {
   return f.seite != null ? `S. ${f.seite}, Abs. ${f.abschnitt}` : `Abs. ${f.abschnitt}`;
+}
+
+/** Woher die Vorschläge kommen: KI (mit Stand) oder Texterkennung. */
+function KiHinweis({ ki, onNeu }: { ki: MetaKiStand | null; onNeu: () => void }) {
+  if (!ki || ki.status === "aus")
+    return <span className="feld-hinweis">Vorschläge aus der Texterkennung (kein Sprachmodell eingerichtet).</span>;
+  if (ki.status === "laeuft")
+    return (
+      <span className="feld-hinweis">
+        Die KI liest das Dokument ({ki.auftrag.sekunden} s) … Bis dahin Vorschläge aus der Texterkennung.
+      </span>
+    );
+  if (ki.status === "fertig") {
+    const e = ki.ergebnis;
+    return (
+      <span className="feld-hinweis">
+        Vorschläge der KI ({e.modell}), jede Angabe mit Fundstelle geprüft
+        {e.verworfen > 0 && `; ${e.verworfen} ohne Beleg verworfen`}; ergänzt um die Texterkennung.{" "}
+        <button type="button" className="link klein" onClick={onNeu}>
+          neu erkennen
+        </button>
+      </span>
+    );
+  }
+  return (
+    <span className="feld-hinweis">
+      {ki.status === "belegt"
+        ? "Die KI arbeitet gerade an einem anderen Auftrag; Vorschläge aus der Texterkennung."
+        : `KI nicht verfügbar (${ki.fehler}); Vorschläge aus der Texterkennung.`}{" "}
+      <button type="button" className="link klein" onClick={onNeu}>
+        erneut versuchen
+      </button>
+    </span>
+  );
 }
 
 function Vorschlag({

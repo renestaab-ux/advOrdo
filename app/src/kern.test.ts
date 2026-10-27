@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   dokumentName,
+  titelNachSchema,
+  mitKi,
   Beteiligung,
   empfaengerVorschlag,
   nachrichtAlter,
@@ -660,5 +662,110 @@ describe("empfaengerVorschlag", () => {
     expect(empfaengerVorschlag(liste, "brief")).toBe(4);
     expect(empfaengerVorschlag(liste.slice(0, 2), "eigen")).toBe(2);
     expect(empfaengerVorschlag([], "brief")).toBeNull();
+  });
+});
+
+describe("titelNachSchema", () => {
+  const bet = (id: number, rolle: string, seite: Beteiligung["seite"], name: string): Beteiligung => ({
+    id, rolle, rolle_text: rolle, seite, gruppe: rolle === "gericht" ? "gericht" : seite, name,
+    quelle: "verzeichnis", beteiligter_id: id, art: "person", aktenzeichen: "",
+  });
+  const akte = [
+    bet(1, "mandant", "eigene", "Max Müller"),
+    bet(2, "gegner", "gegen", "Erika Schneider"),
+    bet(3, "bevollmaechtigter_gegner", "gegen", "Schulz Rechtsanwälte"),
+    bet(4, "gericht", "neutral", "Landgericht Freiburg"),
+  ];
+  const benennung = (was: Partial<Parameters<typeof titelNachSchema>[0]["was"]> = {}, empfaenger: string[] = []) => ({
+    kurznamen: { "1": "Müller", "2": "Schneider", "3": "RA Schulz", "4": "LG Freiburg", eigene: "RA Albrecht" },
+    empfaenger,
+    vertragsparteien: empfaenger,
+    was: { schreiben: null, schriftsatz: null, vertrag: null, ...was },
+  });
+
+  it("Schreiben: wer schreibt was an wen", () => {
+    expect(titelNachSchema(benennung({ schreiben: "Kündigung" }, ["1", "2"]), "Schreiben", "1", akte)).toBe(
+      "Müller Kündigung an Schneider",
+    );
+    expect(
+      titelNachSchema(benennung({ schreiben: "Zahlungsaufforderung" }, ["eigene", "2"]), "Schreiben", "eigene", akte),
+    ).toBe("RA Albrecht Zahlungsaufforderung an Schneider");
+    expect(titelNachSchema(benennung({}, ["4", "eigene"]), "Schreiben", "4", akte)).toBe(
+      "LG Freiburg Schreiben an RA Albrecht",
+    );
+  });
+
+  it("Schriftsatz: gegen die andere Seite", () => {
+    expect(titelNachSchema(benennung({ schriftsatz: "Klageschrift" }), "Schriftsatz", "eigene", akte)).toBe(
+      "RA Albrecht Klageschrift gegen Schneider",
+    );
+    expect(titelNachSchema(benennung({ schriftsatz: "Klageerwiderung" }), "Schriftsatz", "3", akte)).toBe(
+      "RA Schulz Klageerwiderung gegen Müller",
+    );
+    expect(titelNachSchema(benennung(), "Schriftsatz", "", akte)).toBeNull();
+  });
+
+  it("Urteil und Beschluss: nur das Gericht", () => {
+    expect(titelNachSchema(benennung(), "Urteil", "4", akte)).toBe("LG Freiburg Urteil");
+    expect(titelNachSchema(benennung(), "Beschluss", "", akte)).toBeNull();
+  });
+
+  it("Vertrag: zwischen den Parteien", () => {
+    expect(titelNachSchema(benennung({ vertrag: "Kaufvertrag" }, ["1", "2"]), "Vertrag", "", akte)).toBe(
+      "Kaufvertrag zwischen Müller und Schneider",
+    );
+    expect(titelNachSchema(benennung(), "Vertrag", "", akte)).toBe("Vertrag zwischen Müller und Schneider");
+  });
+});
+
+describe("mitKi", () => {
+  it("die KI geht vor, die Texterkennung füllt auf", () => {
+    const regel = {
+      kurznamen: { "1": "Müller", eigene: "RA Albrecht" },
+      empfaenger: ["eigene", "1"],
+      vertragsparteien: [],
+      was: { schreiben: null, schriftsatz: "Schriftsatz", vertrag: null },
+    };
+    const ki = {
+      art: null,
+      absender: null,
+      benennung: {
+        kurznamen: { "frei:Amtsgericht Stuttgart": "AG Stuttgart" },
+        empfaenger: ["frei:Amtsgericht Stuttgart"],
+        vertragsparteien: [],
+        was: { schriftsatz: "Widerspruch" },
+      },
+      verworfen: 0,
+      modell: "m",
+    };
+    const b = mitKi(regel, ki);
+    expect(b.empfaenger).toEqual(["frei:Amtsgericht Stuttgart", "eigene", "1"]);
+    expect(b.was.schriftsatz).toBe("Widerspruch");
+    expect(b.kurznamen["1"]).toBe("Müller");
+    expect(mitKi(regel, null)).toBe(regel);
+  });
+});
+
+describe("titelNachSchema mit Gericht außerhalb der Akte", () => {
+  const b = (id: number, rolle: string, seite: Beteiligung["seite"]): Beteiligung => ({
+    id, rolle, rolle_text: rolle, seite, gruppe: seite, name: String(id), quelle: "verzeichnis",
+    beteiligter_id: id, art: "organisation", aktenzeichen: "",
+  });
+  const akte = [b(3, "mandant", "eigene"), b(1, "gegner", "gegen")];
+  const benennung = {
+    kurznamen: { "1": "Brückner", "3": "Weber Haustechnik GmbH", eigene: "RA Albrecht Tiedemann",
+      gericht_an: "AG Stuttgart", gericht_kopf: "AG Stuttgart" },
+    empfaenger: ["eigene", "gericht_an", "3", "1"],
+    vertragsparteien: [],
+    was: { schreiben: null, schriftsatz: "Widerspruch", vertrag: null },
+  };
+  it("Widerspruch an das Mahngericht, Mahnbescheid vom Mahngericht", () => {
+    expect(titelNachSchema(benennung, "Schriftsatz", "eigene", akte)).toBe(
+      "RA Albrecht Tiedemann Widerspruch gegen Brückner an AG Stuttgart",
+    );
+    expect(titelNachSchema(benennung, "Mahnbescheid", "", akte)).toBe("AG Stuttgart Mahnbescheid");
+    // Absender von Hand außerhalb der Akte: abgekürzt wie ein Gericht der Akte.
+    expect(titelNachSchema(benennung, "Beschluss", "frei:Amtsgericht  Stuttgart", akte)).toBe("AG Stuttgart Beschluss");
+    expect(titelNachSchema(benennung, "Schreiben", "frei:Müller Bau KG", akte)).toBe("Müller Bau KG Schreiben an RA Albrecht Tiedemann");
   });
 });

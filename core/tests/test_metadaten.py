@@ -212,3 +212,179 @@ def test_absender_in_der_dokumentliste(tmp_path):
     kern.methoden["akten.metadaten_speichern"](dokument_id=dok, absender="eigene", art="Schreiben")
     d = kern.methoden["akten.dokumente"](akte_id=a["id"])[0]
     assert d["absender"]["wert"] == "eigene" and d["art"] == "Schreiben"
+
+
+def test_benennung_wer_schreibt_was_an_wen(akten, con, tmp_path):
+    zeilen = SCHREIBEN[:-1] + [
+        "wir zeigen an, dass uns Frau Dr. Brückner beauftragt hat. Namens unserer Mandantin erklären wir hiermit "
+        "den Rücktritt vom Werkvertrag."]
+    akte_id, dok = _dokument(akten, con, tmp_path, "ruecktritt.txt", zeilen)
+    ids = _beteiligte(akten, akte_id)
+    b = metadaten.lesen(akten, dok, ["Albrecht Tiedemann Rechtsanwälte"])["benennung"]
+    assert b["kurznamen"]["eigene"] == "RA Albrecht Tiedemann"
+    assert b["kurznamen"][str(ids["Dr. Lena Brückner"])] == "Brückner"
+    assert b["kurznamen"][str(ids["Landgericht Freiburg im Breisgau"])] == "LG Freiburg im Breisgau"
+    assert b["kurznamen"][str(ids["Weber Haustechnik GmbH"])] == "Weber Haustechnik GmbH"
+    assert b["was"]["schreiben"] == "Rücktritt"
+    # Briefkopf (wir) vor Anschrift (Weber).
+    assert b["empfaenger"][:2] == ["eigene", str(ids["Weber Haustechnik GmbH"])]
+
+
+def test_benennung_vertrag_und_kanzlei(akten, con, tmp_path):
+    zeilen = ["Werkvertrag", "zwischen", "Frau Dr. Lena Brückner", "und", "Weber Haustechnik GmbH"]
+    akte_id, dok = _dokument(akten, con, tmp_path, "vertrag.txt", zeilen)
+    ids = _beteiligte(akten, akte_id)
+    b = metadaten.lesen(akten, dok)["benennung"]
+    assert b["was"]["vertrag"] == "Werkvertrag"
+    assert b["vertragsparteien"] == [str(ids["Dr. Lena Brückner"]), str(ids["Weber Haustechnik GmbH"])]
+    assert b["kurznamen"]["eigene"] == ""
+    assert metadaten.kurzname({"name": "Kanzlei Weiß & Partner Rechtsanwälte PartG mbB", "art": "organisation"}) \
+        == "RA Weiß"
+    assert metadaten.kurzname({"name": "Albrecht Tiedemann Rechtsanwälte", "art": "organisation"}) \
+        == "RA Albrecht Tiedemann"
+    assert metadaten.kurzname({"name": "Dr. Jonas Weiß", "art": "person", "rolle": "bevollmaechtigter_gegner"},
+                              "Weiß") == "RA Weiß"
+
+
+WIDERSPRUCH = [
+    "Albrecht Tiedemann Rechtsanwälte",
+    "Kaiser-Joseph-Straße 300 · 79098 Freiburg im Breisgau FIKTIVER SCHRIFTSATZ An das",
+    "Amtsgericht Stuttgart",
+    "– Zentrales Mahngericht –",
+    "70049 Stuttgart",
+    "In dem Mahnverfahren",
+    "Dr. Lena Brückner ./. Weber Haustechnik GmbH",
+    "zeigen wir an, dass wir die Antragsgegnerin vertreten.",
+    "Namens und in Vollmacht der Antragsgegnerin legen wir gegen den Mahnbescheid vom 03.06.2026",
+    "Widerspruch",
+    "in vollem Umfang ein.",
+]
+
+
+def test_gericht_ausserhalb_der_akte_als_empfaenger(akten, con, tmp_path):
+    akte_id, dok = _dokument(akten, con, tmp_path, "widerspruch.txt", WIDERSPRUCH)
+    _beteiligte(akten, akte_id)
+    m = metadaten.lesen(akten, dok, ["Albrecht Tiedemann Rechtsanwälte"])
+    assert m["vorschlaege"]["art"]["wert"] == "Schriftsatz"
+    assert "Amtsgericht Stuttgart" in m["vorschlaege"]["art"]["grund"]
+    b = m["benennung"]
+    assert b["kurznamen"][metadaten.GERICHT_AN] == "AG Stuttgart"
+    assert b["empfaenger"][:2] == ["eigene", metadaten.GERICHT_AN]
+    assert b["was"]["schriftsatz"] == "Widerspruch"
+
+
+def test_ki_vorschlaege_mit_beleg(tmp_path):
+    import time
+
+    from juracore.ki import metadaten as ki_metadaten
+
+    kern = Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
+    akte_id = akte.akte_anlegen(kern.akten, "Brückner ./. Weber")["id"]
+    datei = tmp_path / "widerspruch.txt"
+    datei.write_text("\n\n".join(WIDERSPRUCH), encoding="utf-8")
+    dok = kern.methoden["akten.importieren"](akte_id=akte_id, pfad=str(datei))["dokument_id"]
+    ids = _beteiligte(kern.akten, akte_id)
+    assert kern.methoden["akten.metadaten_ki"](dokument_id=dok) == {"status": "aus"}
+
+    class Modell:
+        modell = "attrappe:1b"
+        anfragen = 0
+
+        def chat(self, system, nutzer, schema):
+            Modell.anfragen += 1
+            assert f"B{ids['Dr. Lena Brückner']}: Dr. Lena Brückner" in nutzer
+            return {
+                "art": {"wert": "Schriftsatz", "absatz": 10, "zitat": "Widerspruch"},
+                "was": {"wert": "Widerspruch", "absatz": 9, "zitat": "legen wir gegen den Mahnbescheid vom"},
+                "absender": {"kennung": "W", "name": "Albrecht Tiedemann", "absatz": 1,
+                             "zitat": "Albrecht Tiedemann Rechtsanwälte"},
+                "empfaenger": {"kennung": "", "name": "Amtsgericht Stuttgart", "absatz": 3,
+                               "zitat": "Amtsgericht Stuttgart"},
+                # erfundenes Zitat: wird verworfen
+                "vertragsparteien": [{"kennung": "B1", "name": "x", "absatz": 2, "zitat": "steht nirgends im Text"}],
+            }
+
+    kern.ki_fabrik = lambda e, schluessel=None: Modell()
+    kern.methoden["ki.einstellungen_setzen"](anbieter="ollama", endpunkt="http://127.0.0.1:9", modell="attrappe:1b")
+    start = kern.methoden["akten.metadaten_ki"](dokument_id=dok)
+    assert start["status"] == "laeuft"
+    for _ in range(200):
+        stand = kern.methoden["ki.auftrag"](auftrag_id=start["auftrag"]["auftrag_id"])
+        if stand["status"] != "laeuft":
+            break
+        time.sleep(0.02)
+    assert stand["status"] == "fertig", stand
+    e = stand["ergebnis"]
+    assert e["art"]["wert"] == "Schriftsatz" and e["art"]["fundstelle"]["abschnitt"] == 10
+    assert e["absender"]["wert"] == "eigene"
+    assert e["benennung"]["empfaenger"] == ["frei:Amtsgericht Stuttgart"]
+    assert e["benennung"]["kurznamen"] == {"frei:Amtsgericht Stuttgart": "AG Stuttgart"}
+    assert e["benennung"]["was"] == {"schriftsatz": "Widerspruch"}
+    assert e["benennung"]["vertragsparteien"] == [] and e["verworfen"] == 1
+    # Beim nächsten Öffnen aus dem Speicher, ohne neue Anfrage.
+    wieder = kern.methoden["akten.metadaten_ki"](dokument_id=dok)
+    assert wieder["status"] == "fertig" and wieder["ergebnis"]["gespeichert"] is True
+    assert Modell.anfragen == 1
+    assert ki_metadaten.AUFGABE == "metadaten"
+
+
+MAHNBESCHEID = [
+    "Amtsgericht Stuttgart",
+    "– Zentrales Mahngericht Baden-Württemberg –",
+    "Postfach 10 60 08, 70049 Stuttgart",
+    "Geschäftsnummer: 26-4815162-0-3",
+    "Datum: 03.06.2026",
+    "Mahnbescheid",
+    "Antragsteller:",
+    "Frau Dr. Lena Brückner, Ahornstieg 7, 79100 Freiburg im Breisgau",
+    "Antragsgegner:",
+    "Weber Haustechnik GmbH, Elzstraße 21, 79312 Emmendingen",
+    "Im Falle des Widerspruchs wird die Sache an das Landgericht Freiburg im Breisgau abgegeben.",
+]
+
+
+def test_absender_ausserhalb_der_akte(akten, con, tmp_path):
+    akte_id, dok = _dokument(akten, con, tmp_path, "mahnbescheid.txt", MAHNBESCHEID)
+    _beteiligte(akten, akte_id)
+    m = metadaten.lesen(akten, dok)
+    # Das Mahngericht gehört nicht zur Akte: vorgeschlagen wird es mit Namen, nicht das Landgericht der Akte.
+    v = m["vorschlaege"]["absender"]
+    assert v["wert"] == "frei:Amtsgericht Stuttgart" and v["name"] == "Amtsgericht Stuttgart"
+    metadaten.speichern(akten, dok, absender="frei:Amtsgericht Stuttgart")
+    m = metadaten.lesen(akten, dok)
+    assert m["absender"] == {"wert": "frei:Amtsgericht Stuttgart", "name": "Amtsgericht Stuttgart", "rolle_text": ""}
+    assert m["vorschlaege"]["absender"] is None
+    assert m["verlauf"][0]["feld"] == "absender" and m["verlauf"][0]["neu"] == "Amtsgericht Stuttgart"
+    assert metadaten.mit_absender(akten, akte.dokumente(akten, akte_id))[0]["absender"]["name"] == "Amtsgericht Stuttgart"
+    metadaten.speichern(akten, dok, absender="eigene")
+    assert metadaten.lesen(akten, dok)["absender"]["wert"] == "eigene"
+
+
+def test_ki_name_muss_zum_beleg_passen():
+    from juracore.ki.metadaten import name_passt
+
+    assert name_passt("Amtsgericht Stuttgart", "Amtsgericht Stuttgart")
+    assert not name_passt("Landgericht Stuttgart", "Amtsgericht Stuttgart")
+    assert name_passt("Dr. Lena Brückner", "Frau Dr. Brückner, Ahornstieg 7")
+    assert not name_passt("Weber Haustechnik GmbH", "Albrecht Tiedemann Rechtsanwälte")
+
+
+def test_ki_absender_nur_aus_kopf_oder_unterschrift():
+    from juracore.ki import belege
+    from juracore.ki.metadaten import auswerten
+
+    zeilen = MAHNBESCHEID + ["Belehrung"] * 10
+    abschnitte = [{"nr": i, "text": z, "seite": 1, "seitenwechsel": "[]", "rn": None}
+                  for i, z in enumerate(zeilen, 1)]
+    t = belege.Text(1, "mahnbescheid.pdf", [], abschnitte)
+    lg = {"id": 4, "name": "Landgericht Freiburg im Breisgau", "rolle_text": "Gericht", "rolle": "gericht"}
+    leer = {"kennung": "", "name": "", "absatz": 0, "zitat": ""}
+    antwort = {"art": {"wert": "", "absatz": 0, "zitat": ""}, "was": {"wert": "", "absatz": 0, "zitat": ""},
+               "absender": {"kennung": "B4", "name": "Landgericht Freiburg", "absatz": 11,
+                            "zitat": "wird die Sache an das Landgericht Freiburg im Breisgau abgegeben"},
+               "empfaenger": leer, "vertragsparteien": []}
+    e = auswerten(t, antwort, [lg])
+    assert e["absender"] is None and e["verworfen"] == 1
+    antwort["absender"] = {"kennung": "", "name": "Amtsgericht Stuttgart", "absatz": 1,
+                           "zitat": "Amtsgericht Stuttgart"}
+    assert auswerten(t, antwort, [lg])["absender"]["wert"] == "frei:Amtsgericht Stuttgart"
