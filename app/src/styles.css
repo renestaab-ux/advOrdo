@@ -186,7 +186,8 @@ code { font-family: ui-monospace, monospace; }
 .reiter { display: flex; gap: 8px; margin: 8px 0 4px; }
 .reiter-aktiv { cursor: default; }
 .dok-modi { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--linie); }
-.dok-modi-name { font-weight: 600; margin-right: auto; overflow-wrap: anywhere; }
+/* Dateiname in eigener Zeile, die Ansichtsknöpfe stehen darunter in einer Reihe. */
+.dok-modi-name { flex: 0 0 100%; font-weight: 600; overflow-wrap: anywhere; margin-bottom: 2px; }
 .dok-modi button { padding: 4px 10px; font-size: 13px; }
 .original { display: flex; flex-direction: column; gap: 14px; }
 .original-seite { margin: 0; }
