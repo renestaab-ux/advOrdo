@@ -9,6 +9,7 @@ import {
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import Chat from "./Chat";
+import DokumentDetails from "./DokumentDetails";
 import DokumentExtern, { UebernahmeFrage } from "./DokumentExtern";
 import { GegenueberstellungBereich } from "./Gegenueberstellung";
 import { BelegAnsicht } from "./Gesetze";
@@ -42,6 +43,7 @@ import {
   UrteilVolltext,
   ZitatStatus,
   dokumentDatum,
+  dokumentName,
   fundstelle,
   istDesktop,
   kern,
@@ -62,7 +64,7 @@ import {
 
 type Ansicht = "dokument" | "normen" | "rechtsprechung" | "chat";
 /** Was zum geöffneten Dokument gezeigt wird. */
-type DokModus = "text" | "original" | "normen" | "rechtsprechung" | "chat";
+type DokModus = "text" | "original" | "normen" | "rechtsprechung" | "chat" | "details";
 
 /** Breite der Seitenleiste (Wortlaut, Volltext), je Gerät gemerkt. */
 const SEITE_STANDARD = 360;
@@ -432,6 +434,13 @@ export default function Akte({
     setTagEdit(null);
     await ladeDokumente();
     if (inhalt?.dokument.id === dokumentId) await oeffneDokument(dokumentId);
+  }
+
+  /** Nach dem Speichern in „Details“: Liste und Kopf zeigen Titel, Datum und Tags neu; die Ansicht bleibt. */
+  async function metadatenGespeichert(id: number) {
+    await ladeDokumente();
+    const d = await kern<DokumentInhalt>("akten.dokument", { dokument_id: id }).catch(() => null);
+    if (d) setInhalt(d);
   }
 
   async function oeffneDokument(id: number, abschnitt?: number) {
@@ -889,9 +898,10 @@ export default function Akte({
                   </td>
                   <td>
                     <button className="link" onClick={() => oeffneDokument(d.id)}>
-                      {d.dateiname}
+                      {dokumentName(d)}
                     </button>
                     <div className="herkunft">
+                      {d.titel && <>{d.dateiname} · </>}
                       {lesartText(d)}
                       {d.seiten != null && <> · {d.seiten} S.</>}
                       {d.randnummern > 0 && <> · {d.randnummern} Rn.</>}
@@ -977,6 +987,14 @@ export default function Akte({
                 {dokModus === "rechtsprechung" &&
                   rechtsprechungAnsicht("In diesem Dokument wurden keine Rechtsprechungszitate erkannt.", inhalt.dokument.id)}
                 {dokModus === "chat" && <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />}
+                {dokModus === "details" && (
+                  <DokumentDetails
+                    akteId={akteId}
+                    dokumentId={inhalt.dokument.id}
+                    onGespeichert={() => void metadatenGespeichert(inhalt.dokument.id)}
+                    onFundstelle={(abschnitt) => void oeffneDokument(inhalt.dokument.id, abschnitt)}
+                  />
+                )}
               </>,
             )}
           </>
@@ -1243,6 +1261,7 @@ const DOK_MODI: { modus: DokModus; text: string }[] = [
   { modus: "normen", text: "Normen" },
   { modus: "rechtsprechung", text: "Rechtsprechung" },
   { modus: "chat", text: "Chat" },
+  { modus: "details", text: "Details" },
 ];
 
 function DokModusLeiste({
@@ -1257,7 +1276,9 @@ function DokModusLeiste({
   const pdf = dokument.format === "pdf";
   return (
     <div className="dok-modi" role="tablist" aria-label={`Darstellung von ${dokument.dateiname}`}>
-      <span className="dok-modi-name">{dokument.dateiname}</span>
+      <span className="dok-modi-name" title={dokument.titel ? dokument.dateiname : undefined}>
+        {dokumentName(dokument)}
+      </span>
       {DOK_MODI.map((m) => (
         <button
           key={m.modus}

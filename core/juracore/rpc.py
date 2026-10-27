@@ -27,7 +27,7 @@ from . import __version__, db, diagnose, einstellungen, gerichte, nachrichten, p
 from .abgleich import abgleich
 from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, notizen, stammdaten, verfahren
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
-from .dokumente import akte, ansicht, fassungen, lesen, ocr, suche, urteile
+from .dokumente import akte, ansicht, fassungen, lesen, metadaten, ocr, suche, urteile
 from .eigene import daten as eigene
 from .eigene import marke
 from .eigene.felder import FELDER, FORMEN
@@ -183,6 +183,10 @@ class Kern:
                 self.akten, dokument_id, self.ablage
             ),
             "akten.tags_setzen": lambda dokument_id, tags: akte.tags_setzen(self.akten, dokument_id, tags),
+            # Ansicht „Details“: Titel, Datum, Schlagworte, Beteiligte, Vorschläge und Verlauf eines Dokuments.
+            "akten.metadaten": lambda dokument_id: metadaten.lesen(self.akten, dokument_id),
+            "akten.metadaten_speichern": lambda dokument_id, titel=None, datum=None, schlagworte=None,
+                beteiligte=None: metadaten.speichern(self.akten, dokument_id, titel, datum, schlagworte, beteiligte),
             "akten.dokument": lambda dokument_id: akte.dokument(self.akten, dokument_id),
             "nachrichten.einstellungen": self.nachrichten.einstellungen,
             "nachrichten.hinzufuegen": self.nachrichten_hinzufuegen,
