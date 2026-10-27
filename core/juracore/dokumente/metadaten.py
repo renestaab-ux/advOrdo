@@ -223,6 +223,9 @@ def _titel_vorschlaege(d: sqlite3.Row, abschnitte: list[dict], r: dict, nach_nr:
 _KANZLEI = re.compile(r"(?:\s*,\s*|\s+)(?:Rechtsanw\w*|Anwaltskanzlei|Anwälte|Kanzlei|Partnerschaft\w*|PartG\b|"
                       r"&\s*Partner\b).*$")
 _KANZLEI_VORN = re.compile(r"^(?:Rechtsanwaltskanzlei|Anwaltskanzlei|Kanzlei|Rechtsanwält\w*|Anwälte)\s+")
+# Schlüssel in kurznamen für Gerichte aus dem Text, die keine Beteiligung der Akte sind.
+GERICHT_AN = "gericht_an"  # Empfänger („An das Amtsgericht Stuttgart“)
+GERICHT_KOPF = "gericht_kopf"  # im Kopf erkanntes Gericht, z. B. das Mahngericht beim Mahnbescheid
 _ANWALTSROLLEN = ("bevollmaechtigter_gegner", "vertretender_anwalt")
 # Was ein Schreiben ist, aus Betreff und ersten Absätzen (erster Treffer gewinnt).
 _SCHREIBEN_WAS = (("kündig", "Kündigung"), ("rücktritt", "Rücktritt"), ("widerruf", "Widerruf"),
@@ -238,6 +241,29 @@ _SCHREIBEN_WAS = (("kündig", "Kündigung"), ("rücktritt", "Rücktritt"), ("wid
 _SCHRIFTSATZ_WAS = {"Klage": "Klageschrift"}
 _SCHRIFTSATZ_KURZ = ("Widerspruch", "Einspruch", "Stellungnahme", "Klageschrift", "Klageerwiderung", "Replik",
                      "Duplik", "Anspruchsbegründung", "Berufung", "Berufungsbegründung")
+
+
+_AN_DAS = re.compile(r"(?:^|\s)An\s+(?:das|den|die)\b\s*(.*)$", re.DOTALL)
+_GERICHT_NAME = re.compile(r"[A-ZÄÖÜ][\w-]*gericht\b[^\d,–(]*")
+_ANSCHRIFT_WORT = re.compile(r"\s+\S*(?:straße|str\.|platz|weg|allee|ring|gasse|Postfach)\b.*$",
+                             re.IGNORECASE | re.DOTALL)
+
+
+def gericht_empfaenger(abschnitte: list[dict]) -> tuple[dict, str] | None:
+    """Das Gericht in der Anschrift („An das Amtsgericht Stuttgart“), auch wenn „An das“ am Ende des Absatzes davor
+    steht (PDF). Ergebnis: Absatz mit dem Gerichtsnamen und der Name ohne Anschrift."""
+    for i, a in enumerate(abschnitte[:10]):
+        m = _AN_DAS.search(a["text"])
+        if not m:
+            continue
+        kandidaten = [(a, m.group(1))] if m.group(1).strip() else []
+        kandidaten += [(b, b["text"]) for b in abschnitte[i + 1:i + 2]]
+        for absatz, text in kandidaten:
+            if g := _GERICHT_NAME.match(" ".join(text.split())):
+                name = _ANSCHRIFT_WORT.sub("", g.group(0)).strip(" –-")
+                return absatz, " ".join(name.split()[:6])
+        return None
+    return None
 
 
 def kurzname(b: dict, nachname: str = "") -> str:
@@ -286,9 +312,19 @@ def benennung(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list[d
         pos = next((i for i, a in enumerate(abschnitte[:12]) if any(p.search(a["text"]) for p in muster)), None)
         if pos is not None:
             genannt.append((pos, schluessel))
+    # Ein Gericht in der Anschrift, das (noch) nicht zur Akte gehört, z. B. das Mahngericht.
+    if an := gericht_empfaenger(abschnitte):
+        kurz_an = _gericht_kurz(an[1])
+        bekannt = next((str(b["id"]) for b in akte_beteiligte
+                        if b["rolle"] == "gericht" and _gericht_kurz(b["name"]) == kurz_an), None)
+        if bekannt is None:
+            kurz[GERICHT_AN] = kurz_an
+            genannt.append((next(i for i, a in enumerate(abschnitte) if a is an[0]), GERICHT_AN))
     reihenfolge = [s for _, s in sorted(genannt, key=lambda g: g[0])]
 
     r = rubrum.erkenne(abschnitte) if abschnitte else {}
+    if r.get("gericht"):
+        kurz[GERICHT_KOPF] = _gericht_kurz(r["gericht"]["name"])
     return {
         "kurznamen": kurz,
         "empfaenger": reihenfolge,
@@ -346,9 +382,8 @@ def _art_vorschlag(abschnitte: list[dict], r: dict, nach_nr: dict) -> dict | Non
             if wert := next((w for endung, w in _ART_AUS_UEBERSCHRIFT if erstes.endswith(endung)), None):
                 return {"wert": wert, "grund": "Überschrift", "fundstelle": _fund(a)}
     # „An das Amtsgericht …“ ohne erkannte Dokumentart: ein Schriftsatz an das Gericht (z. B. Widerspruch).
-    if a := next((a for a in abschnitte[:10] if a["text"].startswith(("An das", "An den"))
-                  and "gericht" in a["text"].casefold()), None):
-        return {"wert": "Schriftsatz", "grund": "an das Gericht gerichtet", "fundstelle": _fund(a)}
+    if an := gericht_empfaenger(abschnitte):
+        return {"wert": "Schriftsatz", "grund": f"an das {an[1]} gerichtet", "fundstelle": _fund(an[0])}
     if a := _ist_schreiben(abschnitte):
         return {"wert": "Schreiben", "grund": "Briefform mit Anrede", "fundstelle": _fund(a)}
     return None

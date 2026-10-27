@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   dokumentName,
   titelNachSchema,
+  mitKi,
   Beteiligung,
   empfaengerVorschlag,
   nachrichtAlter,
@@ -714,5 +715,54 @@ describe("titelNachSchema", () => {
       "Kaufvertrag zwischen Müller und Schneider",
     );
     expect(titelNachSchema(benennung(), "Vertrag", "", akte)).toBe("Vertrag zwischen Müller und Schneider");
+  });
+});
+
+describe("mitKi", () => {
+  it("die KI geht vor, die Texterkennung füllt auf", () => {
+    const regel = {
+      kurznamen: { "1": "Müller", eigene: "RA Albrecht" },
+      empfaenger: ["eigene", "1"],
+      vertragsparteien: [],
+      was: { schreiben: null, schriftsatz: "Schriftsatz", vertrag: null },
+    };
+    const ki = {
+      art: null,
+      absender: null,
+      benennung: {
+        kurznamen: { "ki:Amtsgericht Stuttgart": "AG Stuttgart" },
+        empfaenger: ["ki:Amtsgericht Stuttgart"],
+        vertragsparteien: [],
+        was: { schriftsatz: "Widerspruch" },
+      },
+      verworfen: 0,
+      modell: "m",
+    };
+    const b = mitKi(regel, ki);
+    expect(b.empfaenger).toEqual(["ki:Amtsgericht Stuttgart", "eigene", "1"]);
+    expect(b.was.schriftsatz).toBe("Widerspruch");
+    expect(b.kurznamen["1"]).toBe("Müller");
+    expect(mitKi(regel, null)).toBe(regel);
+  });
+});
+
+describe("titelNachSchema mit Gericht außerhalb der Akte", () => {
+  const b = (id: number, rolle: string, seite: Beteiligung["seite"]): Beteiligung => ({
+    id, rolle, rolle_text: rolle, seite, gruppe: seite, name: String(id), quelle: "verzeichnis",
+    beteiligter_id: id, art: "organisation", aktenzeichen: "",
+  });
+  const akte = [b(3, "mandant", "eigene"), b(1, "gegner", "gegen")];
+  const benennung = {
+    kurznamen: { "1": "Brückner", "3": "Weber Haustechnik GmbH", eigene: "RA Albrecht Tiedemann",
+      gericht_an: "AG Stuttgart", gericht_kopf: "AG Stuttgart" },
+    empfaenger: ["eigene", "gericht_an", "3", "1"],
+    vertragsparteien: [],
+    was: { schreiben: null, schriftsatz: "Widerspruch", vertrag: null },
+  };
+  it("Widerspruch an das Mahngericht, Mahnbescheid vom Mahngericht", () => {
+    expect(titelNachSchema(benennung, "Schriftsatz", "eigene", akte)).toBe(
+      "RA Albrecht Tiedemann Widerspruch gegen Brückner an AG Stuttgart",
+    );
+    expect(titelNachSchema(benennung, "Mahnbescheid", "", akte)).toBe("AG Stuttgart Mahnbescheid");
   });
 });

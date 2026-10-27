@@ -244,3 +244,85 @@ def test_benennung_vertrag_und_kanzlei(akten, con, tmp_path):
         == "RA Albrecht Tiedemann"
     assert metadaten.kurzname({"name": "Dr. Jonas Weiß", "art": "person", "rolle": "bevollmaechtigter_gegner"},
                               "Weiß") == "RA Weiß"
+
+
+WIDERSPRUCH = [
+    "Albrecht Tiedemann Rechtsanwälte",
+    "Kaiser-Joseph-Straße 300 · 79098 Freiburg im Breisgau FIKTIVER SCHRIFTSATZ An das",
+    "Amtsgericht Stuttgart",
+    "– Zentrales Mahngericht –",
+    "70049 Stuttgart",
+    "In dem Mahnverfahren",
+    "Dr. Lena Brückner ./. Weber Haustechnik GmbH",
+    "zeigen wir an, dass wir die Antragsgegnerin vertreten.",
+    "Namens und in Vollmacht der Antragsgegnerin legen wir gegen den Mahnbescheid vom 03.06.2026",
+    "Widerspruch",
+    "in vollem Umfang ein.",
+]
+
+
+def test_gericht_ausserhalb_der_akte_als_empfaenger(akten, con, tmp_path):
+    akte_id, dok = _dokument(akten, con, tmp_path, "widerspruch.txt", WIDERSPRUCH)
+    _beteiligte(akten, akte_id)
+    m = metadaten.lesen(akten, dok, ["Albrecht Tiedemann Rechtsanwälte"])
+    assert m["vorschlaege"]["art"]["wert"] == "Schriftsatz"
+    assert "Amtsgericht Stuttgart" in m["vorschlaege"]["art"]["grund"]
+    b = m["benennung"]
+    assert b["kurznamen"][metadaten.GERICHT_AN] == "AG Stuttgart"
+    assert b["empfaenger"][:2] == ["eigene", metadaten.GERICHT_AN]
+    assert b["was"]["schriftsatz"] == "Widerspruch"
+
+
+def test_ki_vorschlaege_mit_beleg(tmp_path):
+    import time
+
+    from juracore.ki import metadaten as ki_metadaten
+
+    kern = Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
+    akte_id = akte.akte_anlegen(kern.akten, "Brückner ./. Weber")["id"]
+    datei = tmp_path / "widerspruch.txt"
+    datei.write_text("\n\n".join(WIDERSPRUCH), encoding="utf-8")
+    dok = kern.methoden["akten.importieren"](akte_id=akte_id, pfad=str(datei))["dokument_id"]
+    ids = _beteiligte(kern.akten, akte_id)
+    assert kern.methoden["akten.metadaten_ki"](dokument_id=dok) == {"status": "aus"}
+
+    class Modell:
+        modell = "attrappe:1b"
+        anfragen = 0
+
+        def chat(self, system, nutzer, schema):
+            Modell.anfragen += 1
+            assert f"B{ids['Dr. Lena Brückner']}: Dr. Lena Brückner" in nutzer
+            return {
+                "art": {"wert": "Schriftsatz", "absatz": 10, "zitat": "Widerspruch"},
+                "was": {"wert": "Widerspruch", "absatz": 9, "zitat": "legen wir gegen den Mahnbescheid vom"},
+                "absender": {"kennung": "W", "name": "Albrecht Tiedemann", "absatz": 1,
+                             "zitat": "Albrecht Tiedemann Rechtsanwälte"},
+                "empfaenger": {"kennung": "", "name": "Amtsgericht Stuttgart", "absatz": 3,
+                               "zitat": "Amtsgericht Stuttgart"},
+                # erfundenes Zitat: wird verworfen
+                "vertragsparteien": [{"kennung": "B1", "name": "x", "absatz": 2, "zitat": "steht nirgends im Text"}],
+            }
+
+    kern.ki_fabrik = lambda e, schluessel=None: Modell()
+    kern.methoden["ki.einstellungen_setzen"](anbieter="ollama", endpunkt="http://127.0.0.1:9", modell="attrappe:1b")
+    start = kern.methoden["akten.metadaten_ki"](dokument_id=dok)
+    assert start["status"] == "laeuft"
+    for _ in range(200):
+        stand = kern.methoden["ki.auftrag"](auftrag_id=start["auftrag"]["auftrag_id"])
+        if stand["status"] != "laeuft":
+            break
+        time.sleep(0.02)
+    assert stand["status"] == "fertig", stand
+    e = stand["ergebnis"]
+    assert e["art"]["wert"] == "Schriftsatz" and e["art"]["fundstelle"]["abschnitt"] == 10
+    assert e["absender"]["wert"] == "eigene"
+    assert e["benennung"]["empfaenger"] == ["ki:Amtsgericht Stuttgart"]
+    assert e["benennung"]["kurznamen"] == {"ki:Amtsgericht Stuttgart": "AG Stuttgart"}
+    assert e["benennung"]["was"] == {"schriftsatz": "Widerspruch"}
+    assert e["benennung"]["vertragsparteien"] == [] and e["verworfen"] == 1
+    # Beim nächsten Öffnen aus dem Speicher, ohne neue Anfrage.
+    wieder = kern.methoden["akten.metadaten_ki"](dokument_id=dok)
+    assert wieder["status"] == "fertig" and wieder["ergebnis"]["gespeichert"] is True
+    assert Modell.anfragen == 1
+    assert ki_metadaten.AUFGABE == "metadaten"

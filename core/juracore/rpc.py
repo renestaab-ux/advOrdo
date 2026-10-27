@@ -36,6 +36,7 @@ from .ki import anbieter as ki_anbieter
 from .ki import chat as ki_chat
 from .ki import export as ki_export
 from .ki import gegenueberstellung as ki_gegenueberstellung
+from .ki import metadaten as ki_metadaten
 from .ki import speicher as ki_speicher
 from .ki import wissen as ki_wissen
 from .ki.analyse import Analyse
@@ -185,6 +186,7 @@ class Kern:
             "akten.tags_setzen": lambda dokument_id, tags: akte.tags_setzen(self.akten, dokument_id, tags),
             # Ansicht „Details“: Titel, Datum, Schlagworte, Beteiligte, Vorschläge und Verlauf eines Dokuments.
             "akten.metadaten": lambda dokument_id: metadaten.lesen(self.akten, dokument_id, self._eigene_namen()),
+            "akten.metadaten_ki": self.metadaten_ki,
             "akten.metadaten_speichern": lambda dokument_id, titel=None, datum=None, schlagworte=None,
                 beteiligte=None, art=None, absender=None: metadaten.speichern(
                 self.akten, dokument_id, titel, datum, schlagworte, beteiligte, art, absender, self._eigene_namen()),
@@ -679,6 +681,38 @@ class Kern:
                 con.close()
 
         return self.auftraege.starte(aufgabe, arbeit)
+
+    def metadaten_ki(self, dokument_id: int, neu: bool = False) -> dict:
+        """Art, Absender, Empfänger und Gegenstand eines Dokuments vom Sprachmodell, sofern eines eingerichtet ist.
+
+        Status "aus" (kein Modell, die Texterkennung gilt), "fertig" mit Ergebnis (auch aus dem Speicher),
+        "laeuft" mit Auftrag (Ergebnis über ``ki.auftrag``) oder "belegt" (das Modell arbeitet an etwas anderem).
+        """
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        if not e.aktives_modell:
+            return {"status": "aus"}
+        _, modell = self._ki_modell()
+        d = self.akten.execute("SELECT akte_id FROM dokument WHERE id = ?", (int(dokument_id),)).fetchone()
+        if d is None:
+            raise LookupError(f"Dokument {dokument_id} gibt es nicht.")
+        beteiligte = stammdaten.beteiligungen(self.akten, d["akte_id"])
+        eigene = self._eigene_namen()
+        if not neu and (alt := ki_metadaten.gespeichert(Analyse(self.akten, modell, e.aktiver_kontext),
+                                                        int(dokument_id), beteiligte, eigene)) is not None:
+            return {"status": "fertig", "ergebnis": alt}
+
+        def arbeit(auftrag) -> dict:
+            con = akte.oeffne(self.akten_pfad)
+            try:
+                analyse = Analyse(con, modell, e.aktiver_kontext, auftrag, neu=bool(neu))
+                return ki_metadaten.erkennen(analyse, int(dokument_id), beteiligte, eigene)
+            finally:
+                con.close()
+
+        try:
+            return {"status": "laeuft", "auftrag": self.auftraege.starte(ki_metadaten.AUFGABE, arbeit)}
+        except RuntimeError:
+            return {"status": "belegt"}
 
     def ki_gegenueberstellung(self, akte_id: int, dokument_id: int | None = None) -> dict:
         """Gespeicherte Gegenüberstellungen (Schriftsatz und zitierte Entscheidung), ohne das Modell zu fragen."""
