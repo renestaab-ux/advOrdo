@@ -5,6 +5,7 @@ import Analyse from "./Analyse";
 import AusDokument from "./AusDokument";
 import Fristen from "./Fristen";
 import Notizen from "./Notizen";
+import Schriftstuecke from "./Schriftstuecke";
 import Zeichen, { SymbolName } from "./Symbole";
 import Vergleich from "./Vergleich";
 import VerfahrenKarte from "./Verfahren";
@@ -28,13 +29,22 @@ import {
 import { SortKopf, useSortierung } from "./Sortierung";
 
 /** Reiter einer geöffneten Akte; „stammdaten“ öffnet der Knopf im Kopf. */
-export type Reiter = AkteReiter | "beteiligte" | "fristen" | "notizen" | "vergleich" | "analyse" | "stammdaten";
+export type Reiter =
+  | AkteReiter
+  | "beteiligte"
+  | "fristen"
+  | "notizen"
+  | "schriftstuecke"
+  | "vergleich"
+  | "analyse"
+  | "stammdaten";
 
 const REITER: { id: Reiter; titel: string; symbol: SymbolName }[] = [
   { id: "dokumente", titel: "Dokumente", symbol: "dokumente" },
   { id: "beteiligte", titel: "Beteiligte", symbol: "beteiligte" },
   { id: "fristen", titel: "Fristen", symbol: "fristen" },
   { id: "notizen", titel: "Notizen", symbol: "notizen" },
+  { id: "schriftstuecke", titel: "Schriftstücke", symbol: "schriftstueck" },
   { id: "vergleich", titel: "Vergleich", symbol: "vergleich" },
   { id: "analyse", titel: "Analyse", symbol: "analyse" },
   { id: "normen", titel: "Normen", symbol: "gesetze" },
@@ -687,6 +697,14 @@ function AkteRahmen({
         {reiter === "stammdaten" && <VerfahrenKarte key={`v${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
         {reiter === "fristen" && <Fristen key={`f${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
         {reiter === "notizen" && <Notizen key={`n${akte.id}`} akteId={akte.id} />}
+        {reiter === "schriftstuecke" && (
+          <Schriftstuecke
+            key={`sch${akte.id}`}
+            akteId={akte.id}
+            onGeaendert={onGeaendert}
+            onDokumente={() => onReiter("dokumente")}
+          />
+        )}
         {reiter === "beteiligte" && (
           <AkteStammdaten key={`b${akte.id}`} akteId={akte.id} teil="beteiligte" onGeaendert={onGeaendert} />
         )}

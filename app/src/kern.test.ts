@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  Beteiligung,
+  empfaengerVorschlag,
   nachrichtAlter,
   Akte,
   SammlungEintrag,
@@ -636,5 +638,18 @@ describe("nachrichtAlter", () => {
     expect(nachrichtAlter(new Date(2026, 9, 25, 9, 0).toISOString(), jetzt)).toBe("gestern");
     expect(nachrichtAlter(new Date(2026, 9, 20, 9, 0).toISOString(), jetzt)).toBe("20.10.2026");
     expect(nachrichtAlter(null, jetzt)).toBe("");
+  });
+});
+
+describe("empfaengerVorschlag", () => {
+  const b = (id: number, rolle: string) =>
+    ({ id, rolle, rolle_text: rolle, seite: "neutral", gruppe: "neutral", name: `B${id}`, quelle: "verzeichnis",
+       beteiligter_id: id, art: "person", aktenzeichen: "" }) as Beteiligung;
+  const liste = [b(1, "mandant"), b(2, "gegner"), b(3, "gericht"), b(4, "bevollmaechtigter_gegner")];
+  it("Schriftsatz an das Gericht, Brief an den Gegnervertreter", () => {
+    expect(empfaengerVorschlag(liste, "schriftsatz")).toBe(3);
+    expect(empfaengerVorschlag(liste, "brief")).toBe(4);
+    expect(empfaengerVorschlag(liste.slice(0, 2), "eigen")).toBe(2);
+    expect(empfaengerVorschlag([], "brief")).toBeNull();
   });
 });

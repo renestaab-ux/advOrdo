@@ -2063,3 +2063,58 @@ export function nachrichtAlter(iso: string | null, jetzt: Date = new Date()): st
   if (d.toDateString() === gestern.toDateString()) return "gestern";
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
+
+// --------------------------------------------------------------------------- Schriftstücke
+
+/** Eine Vorlage für Schriftstücke: mitgeliefert („grund:brief“) oder eigene Word-Datei („eigen:Datei.docx“). */
+export interface SchriftVorlage {
+  id: string;
+  titel: string;
+  art: "brief" | "schriftsatz" | "eigen";
+  beschreibung?: string;
+  datei?: string;
+  /** Platzhalter in der Vorlage, in der Schreibweise des Katalogs. */
+  platzhalter: string[];
+  /** Platzhalter, die JuraBox nicht kennt (Tippfehler); sie bleiben im Schriftstück stehen. */
+  unbekannt: string[];
+  fehler?: string;
+}
+
+export interface SchriftVorlagen {
+  grund: SchriftVorlage[];
+  eigene: SchriftVorlage[];
+  ordner: string;
+  logo_hinweis: string | null;
+}
+
+export interface PlatzhalterEintrag {
+  platzhalter: string;
+  gruppe: string;
+  bedeutung: string;
+  wo: string;
+}
+
+export interface SchriftVorschau {
+  zeilen: { platzhalter: string; wert: string | null; bekannt: boolean; wo: string }[];
+  hinweise: string[];
+}
+
+export interface SchriftErgebnis {
+  dateiname: string;
+  leer: string[];
+  unbekannt: string[];
+  hinweise: string[];
+  pfad?: string;
+  dokument_id?: number;
+  neu?: boolean;
+}
+
+/** Schriftsatz an das Gericht, Brief an den Gegnervertreter, sonst an den Gegner (wie im Kern). */
+export function empfaengerVorschlag(beteiligte: Beteiligung[], art: SchriftVorlage["art"]): number | null {
+  const reihenfolge = art === "schriftsatz" ? ["gericht"] : ["bevollmaechtigter_gegner", "gegner", "mandant"];
+  for (const rolle of reihenfolge) {
+    const b = beteiligte.find((x) => x.rolle === rolle);
+    if (b) return b.id;
+  }
+  return beteiligte[0]?.id ?? null;
+}

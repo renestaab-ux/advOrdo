@@ -42,6 +42,8 @@ from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
 from .rechner import basiszins, fristen, prozesskosten, verzugszinsen
 from .rechtsprechung import online, recherche, verzeichnis
+from .schriftstuecke import platzhalter as schrift_platzhalter
+from .schriftstuecke import vorlagen as schrift_vorlagen
 from .umgebungen import Umgebungen
 
 log = logging.getLogger("juracore.rpc")
@@ -245,6 +247,23 @@ class Kern:
             "gerichte.laden_datei": self.gerichte_laden_datei,
             "gerichte.namen": lambda: gerichte.namen(self.con),
             "gerichte.verzeichnis_oeffnen": lambda: gerichte.verzeichnis_oeffnen(),
+            # Schriftstücke aus der Akte: Grundvorlagen und eigene Word-Vorlagen der Umgebung mit Platzhaltern.
+            "schriftstuecke.vorlagen": lambda: schrift_vorlagen.liste(self.umgebungen.ordner()),
+            "schriftstuecke.katalog": schrift_platzhalter.katalog,
+            "schriftstuecke.vorschau": lambda akte_id, vorlage, empfaenger_id=None, verfahren_id=None: (
+                schrift_vorlagen.vorschau(self.akten, self.umgebungen.ordner(), akte_id, vorlage, empfaenger_id,
+                                          verfahren_id)),
+            "schriftstuecke.erzeugen": lambda akte_id, vorlage, empfaenger_id=None, verfahren_id=None, pfad=None,
+                in_akte=True: schrift_vorlagen.erzeugen(self.akten, self.con, self.umgebungen.ordner(), self.ablage,
+                                                        akte_id, vorlage, empfaenger_id, verfahren_id, pfad, in_akte),
+            "schriftstuecke.vorlage_hinzufuegen": lambda pfad: schrift_vorlagen.hinzufuegen(
+                self.umgebungen.ordner(), pfad),
+            "schriftstuecke.vorlage_entfernen": lambda datei: schrift_vorlagen.entfernen(
+                self.umgebungen.ordner(), datei),
+            "schriftstuecke.vorlage_bearbeiten": self.vorlage_bearbeiten,
+            "schriftstuecke.vorlagen_ordner": self.vorlagen_ordner,
+            "schriftstuecke.grundvorlage_speichern": lambda vorlage, pfad: schrift_vorlagen.grundvorlage_speichern(
+                self.umgebungen.ordner(), vorlage, pfad),
             "akten.abgleich": lambda akte_id, dokument_ids=None: abgleich.abgleich(self.akten, akte_id, dokument_ids),
             "ki.status": self.ki_status,
             "ki.modus": self.ki_modus,
@@ -302,6 +321,18 @@ class Kern:
         programm = self._programm(dokument_id)
         programme.starten(Path(kopie["pfad"]), programm)
         return kopie | {"programm": programm["programm"] or "Standardprogramm"}
+
+    def vorlage_bearbeiten(self, datei: str) -> dict:
+        """Eigene Vorlage in der eingestellten Textverarbeitung öffnen; Änderungen gelten beim nächsten Erzeugen."""
+        pfad = schrift_vorlagen.pfad(self.umgebungen.ordner(), datei)
+        programm = programme.lade(self.programme_datei)["text"]
+        programme.starten(pfad, programm)
+        return {"pfad": str(pfad), "programm": programm["programm"] or "Standardprogramm"}
+
+    def vorlagen_ordner(self) -> dict:
+        ordner = schrift_vorlagen.ordner_anlegen(self.umgebungen.ordner())
+        programme.im_ordner_zeigen(ordner)
+        return {"pfad": str(ordner)}
 
     def im_ordner_zeigen(self, dokument_id: int) -> dict:
         """Zeigt die Arbeitskopie, sonst eine Kopie zum Ansehen im Dateimanager, nie die Ablage selbst."""
