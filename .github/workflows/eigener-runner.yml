@@ -1,8 +1,8 @@
 name: CI (eigener Rechner)
 
-# Dieselben Prüfungen wie in ci.yml, aber auf selbst gehosteten Runnern (den eigenen Rechnern unter Windows und macOS).
+# Dieselben Prüfungen wie in ci.yml, aber auf selbst gehosteten Runnern (den eigenen Rechnern unter Windows, macOS und Linux).
 # Kostet keine Actions-Minuten. Ein Job läuft nur, solange auf dem jeweiligen Rechner der Runner gestartet ist
-# (Windows: run.cmd, macOS: ./run.sh); sonst wartet er, bis der Runner wieder online ist.
+# (Windows: run.cmd, macOS und Linux: ./run.sh); sonst wartet er, bis der Runner wieder online ist.
 # Nur für das private Repository gedacht: Vor einer Veröffentlichung die Runner entfernen oder diese Datei löschen.
 
 on:
@@ -69,6 +69,45 @@ jobs:
       - name: Python-Umgebung für den Lauf
         run: |
           # Homebrew-Python 3.12 bevorzugen (python.org-Python bringt keine Zertifikate mit).
+          PY=$(command -v python3.12 || command -v python3)
+          "$PY" --version
+          "$PY" -m venv .venv-ci
+          .venv-ci/bin/python -m pip install -e "core[dev]"
+
+      - name: Analysekern testen
+        working-directory: core
+        run: |
+          ../.venv-ci/bin/python -m ruff check --no-cache .
+          ../.venv-ci/bin/python -m pytest -q
+
+      - name: Oberfläche bauen und testen
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - name: Desktop-Hülle testen
+        working-directory: app/src-tauri
+        run: |
+          export JURACORE_PYTHON="$(cd ../.. && pwd)/.venv-ci/bin/python"
+          cargo test
+
+  test-linux:
+    name: Tests (eigener Linux-Rechner)
+    runs-on: [self-hosted, Linux]
+    defaults:
+      run:
+        # Login-Shell, damit Rust (~/.cargo/bin) und Node aus dem Profil im PATH sind; -e bricht beim ersten Fehler ab.
+        shell: bash -l -e -o pipefail {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Wie unter Windows und macOS: target/ bleibt erhalten, damit der Rust-Build schnell ist.
+          clean: false
+
+      - name: Python-Umgebung für den Lauf
+        run: |
           PY=$(command -v python3.12 || command -v python3)
           "$PY" --version
           "$PY" -m venv .venv-ci
