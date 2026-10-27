@@ -1,6 +1,6 @@
 // Menüleiste unter macOS. Tauris Standardmenü nennt die App in „Über …“, „… ausblenden“ und „… beenden“
-// nach dem Programmnamen; im Entwicklungsmodus ist das der Paketname „juristischer-datenabgleich“, der bewusst
-// so bleibt (Datenordner). Dieses Menü setzt den sichtbaren Namen aus `productName` und deutsche Bezeichnungen.
+// nach dem Programmnamen; im Entwicklungsmodus ist das die Programmdatei „jurabox“. Dieses Menü setzt den
+// sichtbaren Namen aus `productName` und deutsche Bezeichnungen.
 // Windows und Linux zeigen kein Menü; die Funktion wird nur unter macOS eingebunden.
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 

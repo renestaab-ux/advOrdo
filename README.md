@@ -11,6 +11,7 @@ Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzu
 Die App hieß früher „Juristischer Datenabgleich“. Interne Bezeichner tragen den alten
 Namen bewusst weiter (Tauri-Kennung `de.juristischer-datenabgleich.app`, Paketnamen,
 Datenverzeichnisse), damit vorhandene Akten, Gesetze und Einstellungen an ihrem Ort bleiben.
+Nur die Programmdatei heißt `jurabox`, weil macOS sie im Entwicklungsmodus im Dock anzeigt.
 
 ## Aufbau
 
