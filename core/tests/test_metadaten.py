@@ -367,3 +367,24 @@ def test_ki_name_muss_zum_beleg_passen():
     assert not name_passt("Landgericht Stuttgart", "Amtsgericht Stuttgart")
     assert name_passt("Dr. Lena Brückner", "Frau Dr. Brückner, Ahornstieg 7")
     assert not name_passt("Weber Haustechnik GmbH", "Albrecht Tiedemann Rechtsanwälte")
+
+
+def test_ki_absender_nur_aus_kopf_oder_unterschrift():
+    from juracore.ki import belege
+    from juracore.ki.metadaten import auswerten
+
+    zeilen = MAHNBESCHEID + ["Belehrung"] * 10
+    abschnitte = [{"nr": i, "text": z, "seite": 1, "seitenwechsel": "[]", "rn": None}
+                  for i, z in enumerate(zeilen, 1)]
+    t = belege.Text(1, "mahnbescheid.pdf", [], abschnitte)
+    lg = {"id": 4, "name": "Landgericht Freiburg im Breisgau", "rolle_text": "Gericht", "rolle": "gericht"}
+    leer = {"kennung": "", "name": "", "absatz": 0, "zitat": ""}
+    antwort = {"art": {"wert": "", "absatz": 0, "zitat": ""}, "was": {"wert": "", "absatz": 0, "zitat": ""},
+               "absender": {"kennung": "B4", "name": "Landgericht Freiburg", "absatz": 11,
+                            "zitat": "wird die Sache an das Landgericht Freiburg im Breisgau abgegeben"},
+               "empfaenger": leer, "vertragsparteien": []}
+    e = auswerten(t, antwort, [lg])
+    assert e["absender"] is None and e["verworfen"] == 1
+    antwort["absender"] = {"kennung": "", "name": "Amtsgericht Stuttgart", "absatz": 1,
+                           "zitat": "Amtsgericht Stuttgart"}
+    assert auswerten(t, antwort, [lg])["absender"]["wert"] == "frei:Amtsgericht Stuttgart"

@@ -19,6 +19,8 @@ AUFGABE = "metadaten"
 # Kopf und Schluss reichen für Absender, Empfänger und Art; der Rest des Dokuments kostet nur Zeit.
 KOPF_ZEICHEN = 5000
 SCHLUSS_ABSAETZE = 3
+# Absätze, in denen Briefkopf und Anschrift stehen (PDF trennt sie oft in viele kurze Absätze).
+KOPF_ABSAETZE = 10
 
 _ANGABE = {
     "type": "object",
@@ -195,9 +197,18 @@ def auswerten(t: belege.Text, antwort: dict, akte_beteiligte: list[dict]) -> dic
 
     kurznamen: dict[str, str] = {}
 
-    def person(angabe: object) -> tuple[str, dict] | None:
+    # Wo Absender und Empfänger stehen dürfen: im Kopf (Briefkopf, Anschrift) bzw. bei der Unterschrift. Ein
+    # Gericht, das nur im Text vorkommt („wird an das Landgericht … abgegeben“), hat das Dokument nicht verfasst.
+    nummern = [a["nr"] for a in t.abschnitte]
+    kopf = set(nummern[:KOPF_ABSAETZE])
+    schluss = set(nummern[-SCHLUSS_ABSAETZE:])
+
+    def person(angabe: object, erlaubt: set[int] | None = None) -> tuple[str, dict] | None:
         nonlocal verworfen
         if (p := _person(angabe, akte_beteiligte)) is None or (fund := belegt(angabe)) is None:
+            return None
+        if erlaubt is not None and fund["abschnitt"] not in erlaubt:
+            verworfen += 1
             return None
         # Der Name muss zum Beleg passen; das Modell verwechselt sonst z. B. Amts- und Landgericht.
         if p[0].isdigit():
@@ -212,7 +223,7 @@ def auswerten(t: belege.Text, antwort: dict, akte_beteiligte: list[dict]) -> dic
         return p[0], fund
 
     absender = None
-    if (p := person(antwort.get("absender"))) is not None:
+    if (p := person(antwort.get("absender"), kopf | schluss)) is not None:
         schluessel, fund = p
         if schluessel == regeln.EIGENE:
             absender = {"wert": regeln.EIGENE, "name": "Wir (eigene Seite)", "rolle_text": "", "grund": grund,
@@ -224,7 +235,7 @@ def auswerten(t: belege.Text, antwort: dict, akte_beteiligte: list[dict]) -> dic
         else:
             # Nicht in der Akte, z. B. das Mahngericht: als freier Absender vorgeschlagen.
             absender = regeln.frei(schluessel[len(regeln.FREI):]) | {"grund": grund, "fundstelle": fund}
-    empfaenger = [p[0] for p in [person(antwort.get("empfaenger"))] if p]
+    empfaenger = [p[0] for p in [person(antwort.get("empfaenger"), kopf)] if p]
     parteien = [p[0] for a in (antwort.get("vertragsparteien") or [])[:4] if (p := person(a))]
 
     slot = "vertrag" if art and art["wert"] == "Vertrag" else "schriftsatz" if art and art["wert"] == "Schriftsatz" \

@@ -39,7 +39,7 @@ log = logging.getLogger("juracore.ki")
 
 # Fassung der Anweisungen je Aufgabe; eine Änderung macht gespeicherte Ergebnisse ungültig.
 FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 4, "widersprueche": 3,
-           "chronologie": 2, "metadaten": 1}
+           "chronologie": 2, "metadaten": 2}
 
 # Zeichen Angaben je Vergleichsanfrage. Mittelgroße Modelle (12–14 B) übersehen in langen Listen viel; kleinere
 # Blöcke, je zwei gemeinsam geprüft, kosten mehr Anfragen, finden aber mehr.
