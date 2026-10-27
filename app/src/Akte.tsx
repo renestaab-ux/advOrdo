@@ -1035,7 +1035,6 @@ export default function Akte({
                     akteId={akteId}
                     dokumentId={inhalt.dokument.id}
                     onGespeichert={() => void metadatenGespeichert(inhalt.dokument.id)}
-                    onFundstelle={(abschnitt) => void oeffneDokument(inhalt.dokument.id, abschnitt)}
                   />
                 )}
               </>,

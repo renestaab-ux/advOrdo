@@ -48,19 +48,17 @@ const DATUM_HERKUNFT: Record<string, string> = {
 /**
  * Ansicht „Details“ eines Dokuments: Titel, Art, Absender, Datum, Schlagworte, Beteiligte und Notizen, dazu der Verlauf.
  * Was der Kern im Text erkennt, steht als Vorschlag mit Fundstelle daneben und wird nur auf Klick übernommen.
+ * Die Fundstellen sind bewusst kein Link: Ein Sprung in den Text würde nicht gespeicherte Eingaben verwerfen.
  */
 export default function DokumentDetails({
   akteId,
   dokumentId,
   onGespeichert,
-  onFundstelle,
 }: {
   akteId: number;
   dokumentId: number;
   /** Nach dem Speichern: Dokumentliste und Kopf neu laden (Titel, Datum, Tags). */
   onGespeichert: () => void;
-  /** Öffnet den Text des Dokuments an der Fundstelle eines Vorschlags. */
-  onFundstelle: (abschnitt: number) => void;
 }) {
   const [meta, setMeta] = useState<DokumentMetadaten | null>(null);
   const [entwurf, setEntwurf] = useState<Entwurf | null>(null);
@@ -163,7 +161,6 @@ export default function DokumentDetails({
               wert={t.wert}
               grund={t.grund}
               fundstelle={t.fundstelle}
-              onFundstelle={onFundstelle}
               onUebernehmen={() => aendere({ titel: t.wert })}
             />
           ))}
@@ -190,8 +187,7 @@ export default function DokumentDetails({
                 wert={artVorschlag.wert}
                 grund={artVorschlag.grund}
                 fundstelle={artVorschlag.fundstelle}
-                onFundstelle={onFundstelle}
-                onUebernehmen={() => aendere({ art: artVorschlag.wert })}
+                  onUebernehmen={() => aendere({ art: artVorschlag.wert })}
               />
             )}
           </div>
@@ -211,8 +207,7 @@ export default function DokumentDetails({
                 wert={absenderVorschlag.rolle_text ? `${absenderVorschlag.name} (${absenderVorschlag.rolle_text})` : absenderVorschlag.name}
                 grund={absenderVorschlag.grund}
                 fundstelle={absenderVorschlag.fundstelle}
-                onFundstelle={onFundstelle}
-                onUebernehmen={() => aendere({ absender: String(absenderVorschlag.wert) })}
+                  onUebernehmen={() => aendere({ absender: String(absenderVorschlag.wert) })}
               />
             )}
           </div>
@@ -234,13 +229,7 @@ export default function DokumentDetails({
                 {meta.datum.quelle === "dokument" && meta.datum.text && (
                   <>
                     {": "}
-                    {meta.datum.abschnitt != null ? (
-                      <button type="button" className="link klein" onClick={() => onFundstelle(meta.datum.abschnitt!)}>
-                        „{meta.datum.text}“{meta.datum.seite != null && `, S. ${meta.datum.seite}`}
-                      </button>
-                    ) : (
-                      `„${meta.datum.text}“`
-                    )}
+                    „{meta.datum.text}“{meta.datum.seite != null && `, S. ${meta.datum.seite}`}
                   </>
                 )}
                 .
@@ -254,7 +243,6 @@ export default function DokumentDetails({
               wert={datumDe(datumVorschlag.wert)}
               grund={`erkannt: ${datumVorschlag.grund}`}
               fundstelle={datumVorschlag.fundstelle}
-              onFundstelle={onFundstelle}
               onUebernehmen={() => aendere({ datum: datumVorschlag.wert })}
               text="erkanntes Datum verwenden"
             />
@@ -311,7 +299,6 @@ export default function DokumentDetails({
               wert={t.wert}
               grund={t.grund}
               fundstelle={t.fundstelle}
-              onFundstelle={onFundstelle}
               onUebernehmen={() => wortHinzufuegen(t.wert)}
             />
           ))}
@@ -351,9 +338,9 @@ export default function DokumentDetails({
                       <span className="meta-vorschlag-kurz">
                         <span className="leise klein">Vorschlag: {vorschlag.grund}</span>
                         {vorschlag.fundstelle && (
-                          <button type="button" className="link klein" onClick={() => onFundstelle(vorschlag.fundstelle!.abschnitt)}>
+                          <span className="leise klein" title={vorschlag.fundstelle.text ?? undefined}>
                             {fundstelleText(vorschlag.fundstelle)}
-                          </button>
+                          </span>
                         )}
                         <button
                           type="button"
@@ -411,14 +398,12 @@ function Vorschlag({
   wert,
   grund,
   fundstelle,
-  onFundstelle,
   onUebernehmen,
   text = "übernehmen",
 }: {
   wert: string;
   grund: string;
   fundstelle: MetaFundstelle | null;
-  onFundstelle: (abschnitt: number) => void;
   onUebernehmen: () => void;
   text?: string;
 }) {
@@ -430,14 +415,7 @@ function Vorschlag({
         {fundstelle && (
           <>
             {", "}
-            <button
-              type="button"
-              className="link klein"
-              title={fundstelle.text ?? undefined}
-              onClick={() => onFundstelle(fundstelle.abschnitt)}
-            >
-              {fundstelleText(fundstelle)}
-            </button>
+            <span title={fundstelle.text ?? undefined}>{fundstelleText(fundstelle)}</span>
           </>
         )}
         )
