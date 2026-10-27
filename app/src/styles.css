@@ -1098,3 +1098,5 @@ details.kurz-hinweis summary { cursor: pointer; }
 .meta-verlauf { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; font-size: 13px; }
 .meta-zeile { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
 .dok-details-felder select { padding: 5px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.akte-filter h4 { font-size: 12px; font-weight: 600; color: var(--text-leise); margin: 8px 0 2px 8px; }
+.filter-eintrag.unter { padding-left: 18px; }

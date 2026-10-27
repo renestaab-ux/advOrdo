@@ -173,7 +173,7 @@ class Kern:
             "beteiligte.loeschen": lambda beteiligter_id: beteiligte.loeschen(self.akten, beteiligter_id),
             "beteiligte.beziehung_setzen": lambda von, zu, art, vorhanden=True, funktion=None: (
                 beteiligte.beziehung_setzen(self.akten, von, zu, art, vorhanden, funktion)),
-            "akten.dokumente": lambda akte_id: akte.dokumente(self.akten, akte_id),
+            "akten.dokumente": lambda akte_id: metadaten.mit_absender(self.akten, akte.dokumente(self.akten, akte_id)),
             "akten.loeschen": lambda akte_id: akte.akte_loeschen(self.akten, akte_id, self.ablage),
             "akten.importieren": lambda akte_id, pfad, tags=None, herkunft=None: akte.importiere(
                 self.akten, self.con, akte_id, pfad, self.ablage, tags=tags, herkunft=herkunft

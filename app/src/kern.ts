@@ -582,6 +582,8 @@ export interface AktenDokument {
   titel: string | null;
   /** Art des Dokuments: Schreiben, Schriftsatz, Verfügung, Urteil … (Ansicht „Details“). */
   art: string | null;
+  /** Wer das Dokument erstellt hat (Ansicht „Details“); fehlt bei älteren Abrufen. */
+  absender?: MetaAbsender | null;
 }
 
 /** Anzeigename eines Dokuments: der Titel, sonst der Dateiname. */

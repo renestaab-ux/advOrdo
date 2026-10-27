@@ -191,3 +191,24 @@ def test_absender_eigene_kanzlei_im_briefkopf(akten, con, tmp_path):
     assert m["vorschlaege"]["absender"]["fundstelle"]["abschnitt"] == 1
     # Ohne Eigene Daten kein Vorschlag „Wir“; der Gegner steht nur in der Anschrift, nicht als Absender.
     assert metadaten.lesen(akten, dok)["vorschlaege"]["absender"] is None
+
+
+def test_bezugszeile_ist_kein_titel(akten, con, tmp_path):
+    zeilen = ["Albrecht Tiedemann Rechtsanwälte", "Dr. Lena Brückner",
+              "UNSER ZEICHEN 3/26 RS | IHR ZEICHEN | AKTE Brückner ./. Autohaus Rehnfeld GmbH",
+              "Rückabwicklung eines Kaufvertrags Brückner ./. Autohaus Rehnfeld GmbH", "Sehr geehrte Frau Dr. Brückner,"]
+    _, dok = _dokument(akten, con, tmp_path, "brief.txt", zeilen)
+    titel = [t["wert"] for t in metadaten.lesen(akten, dok)["vorschlaege"]["titel"]]
+    assert titel == ["Rückabwicklung eines Kaufvertrags Brückner ./. Autohaus Rehnfeld GmbH"]
+
+
+def test_absender_in_der_dokumentliste(tmp_path):
+    kern = Kern(tmp_path / "wissensbasis.sqlite", tmp_path / "archiv")
+    a = kern.methoden["akten.anlegen"](name="Brückner ./. Weber")
+    datei = tmp_path / "verfuegung.txt"
+    datei.write_text("\n\n".join(VERFUEGUNG), encoding="utf-8")
+    dok = kern.methoden["akten.importieren"](akte_id=a["id"], pfad=str(datei))["dokument_id"]
+    assert kern.methoden["akten.dokumente"](akte_id=a["id"])[0]["absender"] is None
+    kern.methoden["akten.metadaten_speichern"](dokument_id=dok, absender="eigene", art="Schreiben")
+    d = kern.methoden["akten.dokumente"](akte_id=a["id"])[0]
+    assert d["absender"]["wert"] == "eigene" and d["art"] == "Schreiben"

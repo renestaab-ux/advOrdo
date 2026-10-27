@@ -50,6 +50,8 @@ _UEBERSCHRIFT = re.compile(
     r"^[A-ZÄÖÜ][\wäöüß-]*?(?:vertrag|vereinbarung|vollmacht|rechnung|gutachten|kündigung|mahnung|protokoll|bescheid|"
     r"beschluss|urteil|verfügung|klage|klageschrift|erwiderung|replik|duplik|antrag|stellungnahme|bestätigung|"
     r"angebot|abmahnung|widerspruch|einspruch|berufung|vermerk|aufstellung|quittung|kostennote)\b", re.IGNORECASE)
+# Bezugszeile im Briefkopf („Unser Zeichen … | Ihr Zeichen … | Akte …“): kein Titel.
+_ZEICHENZEILE = re.compile(r"\b(?:unser|ihr)\s+zeichen\b|\baz\.|\baktenzeichen\b|\|", re.IGNORECASE)
 _BETREFF = re.compile(r"^(?:Betreff|Betr\.|Re|AW|WG)\s*:\s*(?P<b>.+)$", re.IGNORECASE)
 
 
@@ -106,6 +108,16 @@ def _absender(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list[d
         return {"wert": EIGENE, "name": "Wir (eigene Seite)", "rolle_text": ""}
     b = next((b for b in akte_beteiligte if b["id"] == z["beteiligung_id"]), None)
     return {"wert": b["id"], "name": b["name"], "rolle_text": b["rolle_text"]} if b else None
+
+
+def mit_absender(con: sqlite3.Connection, dokumente: list[dict]) -> list[dict]:
+    """Ergänzt die Dokumentliste einer Akte um den Absender (Filter und Anzeige in der Liste)."""
+    if not dokumente:
+        return dokumente
+    akte_beteiligte = stammdaten.beteiligungen(con, dokumente[0]["akte_id"])
+    for d in dokumente:
+        d["absender"] = _absender(con, d["id"], akte_beteiligte)
+    return dokumente
 
 
 def _absender_text(a: dict | None) -> str:
@@ -176,7 +188,8 @@ def _titel_vorschlaege(d: sqlite3.Row, abschnitte: list[dict], r: dict, nach_nr:
         text = " ".join(a["text"].split())
         if m := _BETREFF.match(text):
             vorschlaege.append({"wert": _kurz(m.group("b")), "grund": "Betreffzeile", "fundstelle": _fund(a)})
-        elif " ./. " in text and len(text) <= 250 and not text.startswith(("In dem", "In Sachen")):
+        elif " ./. " in text and len(text) <= 250 and not text.startswith(("In dem", "In Sachen")) \
+                and not _ZEICHENZEILE.search(text):
             vorschlaege.append({"wert": _kurz(text), "grund": "Betreffzeile", "fundstelle": _fund(a)})
         elif (len(text) <= 90 and ":" not in text and not text.endswith((".", ",")) and _UEBERSCHRIFT.match(text)
               # „Mahnbescheid“ als Überschrift neben „Mahnbescheid AG Stuttgart“
