@@ -1069,3 +1069,6 @@ details.kurz-hinweis summary { cursor: pointer; }
 .schrift-liste li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 0; border-top: 1px solid var(--linie); }
 .schrift-liste li .aktionen { margin-top: 0; }
 @media (max-width: 700px) { .schrift-vorschau th, .schrift-katalog th { white-space: normal; width: 45%; } }
+.schrift-anleitung { margin: 0; padding-left: 22px; display: grid; gap: 10px; }
+.schrift-anleitung .aktionen { margin-top: 8px; }
+.schrift-hinweis p { margin: 0; }

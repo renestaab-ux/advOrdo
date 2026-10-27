@@ -104,6 +104,7 @@ class Kern:
             "marke.lesen": lambda: marke.lesen(self.umgebungen.ordner(), self.akten),
             "marke.logo_setzen": lambda pfad: marke.logo_setzen(self.umgebungen.ordner(), self.akten, pfad),
             "marke.logo_entfernen": lambda: marke.logo_entfernen(self.umgebungen.ordner(), self.akten),
+            "marke.druckbild_setzen": lambda png: marke.druckbild_setzen(self.umgebungen.ordner(), self.akten, png),
             "marke.kurz_setzen": lambda text: marke.kurz_setzen(self.umgebungen.ordner(), self.akten, text),
             "gesetze.liste": lambda: db.gesetze(self.con),
             "gesetze.verfuegbar": lambda: quelle.voreinstellung(self.eigene_liste),

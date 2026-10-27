@@ -292,20 +292,26 @@ def _dokument(art: str) -> str:
 
 
 def logo_lesen(ordner: Path) -> tuple[bytes, str, str] | None:
-    """Logo der Arbeitsumgebung (Einstellungen → Allgemeines) als (Daten, Endung, Dateiname), wenn Word es kann."""
+    """Logo der Arbeitsumgebung (Einstellungen → Allgemeines) als (Daten, Endung, Dateiname), wenn Word es kann.
+
+    Bei SVG und WebP gilt das PNG, das die Oberfläche daraus gerendert hat (logo-druck.png).
+    """
     for p in sorted(Path(ordner).glob("logo.*")):
         endung = {".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg"}.get(p.suffix.lower())
         if endung:
             return p.read_bytes(), endung, p.name
+    druck = Path(ordner) / "logo-druck.png"
+    if druck.is_file() and any(p.suffix.lower() in (".svg", ".webp") for p in Path(ordner).glob("logo.*")):
+        return druck.read_bytes(), "png", "logo.png"
     return None
 
 
 def logo_hinweis(ordner: Path) -> str | None:
-    """Hinweis, wenn ein Logo eingestellt ist, das Word nicht einbetten kann (SVG, WebP)."""
+    """Hinweis, wenn ein Logo eingestellt ist, das Word nicht einbetten kann und für das kein Druckbild vorliegt."""
     vorhanden = [p for p in Path(ordner).glob("logo.*") if p.suffix.lower() in (".svg", ".webp")]
     if vorhanden and logo_lesen(ordner) is None:
-        return ("Das Logo ist im Format SVG oder WebP gespeichert und erscheint deshalb nicht im Schriftstück. "
-                "Für den Briefkopf bitte in Einstellungen → Allgemeines ein PNG oder JPG wählen.")
+        return ("Das Logo (SVG oder WebP) erscheint noch nicht im Schriftstück. Bitte JuraBox einmal neu starten oder "
+                "das Logo in Einstellungen → Allgemeines erneut wählen; dann legt JuraBox eine Fassung für Word an.")
     return None
 
 

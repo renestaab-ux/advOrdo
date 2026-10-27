@@ -12,7 +12,7 @@ import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
 import { useErinnerungen } from "./erinnerungen";
-import { KiModus, Marke, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName } from "./kern";
+import { KiModus, Marke, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName, mitDruckbild } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
 type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "rechtsprechung" | "gesetze" | "einstellungen";
@@ -60,7 +60,7 @@ export default function App() {
   // damit ein in „Eigene Daten“ geänderter Name gleich auf der Startseite steht.
   const [marke, setMarke] = useState<Marke | null>(null);
   useEffect(() => {
-    if (istDesktop) void kern<Marke>("marke.lesen").then(setMarke, () => setMarke(null));
+    if (istDesktop) void kern<Marke>("marke.lesen").then(mitDruckbild).then(setMarke, () => setMarke(null));
   }, [stand, bereich]);
   // Mitteilungen des Systems bei Vorfrist, Ablauf und Terminen, solange die App läuft.
   useErinnerungen(umgebungen ? umgebungen.aktiv : undefined);
@@ -195,7 +195,7 @@ export default function App() {
             akteId={akteId}
             setAkteId={setAkteId}
             reiterWunsch={reiterWunsch}
-            onEinstellungen={() => zuEinstellungen("ki")}
+            onEinstellungen={(r) => zuEinstellungen(r ?? "ki")}
           />
         )}
         {bereich === "suche" && <Suche onAkte={oeffneAkte} />}
@@ -209,7 +209,7 @@ export default function App() {
             reiter={einstellungsReiter}
             onReiter={setEinstellungsReiter}
             marke={marke}
-            onMarke={setMarke}
+            onMarke={(m) => void mitDruckbild(m).then(setMarke)}
             onGeaendert={ladeModus}
             umgebungen={umgebungen}
             onUmgebungen={umgebungGeaendert}

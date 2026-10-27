@@ -2,6 +2,9 @@
 
 Das Logo liegt als Kopie der gewählten Datei im Ordner der Umgebung (logo.png usw.), die Kurzbezeichnung in
 marke.json daneben. Die Oberfläche bekommt das Logo als data-URL, weil sie selbst keine Dateien lesen darf.
+
+Word kann SVG und WebP nicht in den Briefkopf übernehmen. Für solche Logos rendert die Oberfläche ein PNG
+(``druckbild_setzen``), das als logo-druck.png neben dem Logo liegt und mit ihm ersetzt oder entfernt wird.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from . import daten as eigene
 FORMATE = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml",
            ".webp": "image/webp"}
 GROESSTE = 2 * 1024 * 1024
+DRUCKBILD = "logo-druck.png"
 KURZ_LAENGE = 40
 
 
@@ -38,7 +42,24 @@ def lesen(ordner: Path, con: sqlite3.Connection) -> dict:
     if logo:
         url = f"data:{FORMATE[logo.suffix.lower()]};base64,{base64.b64encode(logo.read_bytes()).decode('ascii')}"
     name = eigene.stand(con, mit_archiv=False)["organisation_name"]
-    return {"logo": url, "kurzbezeichnung": _kurz(ordner), "name": name}
+    druckbild = logo is not None and (logo.suffix.lower() in (".png", ".jpg", ".jpeg")
+                                      or (ordner / DRUCKBILD).is_file())
+    return {"logo": url, "kurzbezeichnung": _kurz(ordner), "name": name, "druckbild": druckbild}
+
+
+def druckbild_setzen(ordner: Path, con: sqlite3.Connection, png_base64: str) -> dict:
+    """PNG-Fassung eines SVG- oder WebP-Logos für Word (von der Oberfläche gerendert)."""
+    daten = base64.b64decode(png_base64.split(",", 1)[-1], validate=True)
+    if daten[:8] != b"\x89PNG\r\n\x1a\n" or len(daten) > GROESSTE:
+        raise ValueError("Das Druckbild des Logos ist kein PNG bis 2 MB.")
+    if _logo(ordner) is None:
+        raise ValueError("Es ist kein Logo eingestellt.")
+    (ordner / DRUCKBILD).write_bytes(daten)
+    return lesen(ordner, con)
+
+
+def _druckbild_entfernen(ordner: Path) -> None:
+    (ordner / DRUCKBILD).unlink(missing_ok=True)
 
 
 def logo_setzen(ordner: Path, con: sqlite3.Connection, pfad: str | Path) -> dict:
@@ -54,6 +75,7 @@ def logo_setzen(ordner: Path, con: sqlite3.Connection, pfad: str | Path) -> dict
     alt = _logo(ordner)
     if alt:
         alt.unlink()
+    _druckbild_entfernen(ordner)
     (ordner / "logo.neu").replace(ziel)
     return lesen(ordner, con)
 
@@ -62,6 +84,7 @@ def logo_entfernen(ordner: Path, con: sqlite3.Connection) -> dict:
     alt = _logo(ordner)
     if alt:
         alt.unlink()
+    _druckbild_entfernen(ordner)
     return lesen(ordner, con)
 
 

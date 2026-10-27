@@ -1880,6 +1880,41 @@ export interface Marke {
   logo: string | null;
   kurzbezeichnung: string;
   name: string;
+  /** Ob Word das Logo in den Briefkopf übernehmen kann (PNG/JPG oder ein schon gerendertes Druckbild). */
+  druckbild?: boolean;
+}
+
+/**
+ * Rendert ein Logo (data-URL, z. B. SVG) als PNG, 300 Pixel hoch, für den Briefkopf in Word.
+ * Word kann SVG und WebP nicht einbetten; die Oberfläche kann sie zeichnen, der Kern nicht.
+ */
+export function logoAlsPng(logo: string, hoehe = 300): Promise<string> {
+  return new Promise((fertig, fehler) => {
+    const bild = new Image();
+    bild.onload = () => {
+      const b = bild.naturalWidth || 900;
+      const h = bild.naturalHeight || 300;
+      const leinwand = document.createElement("canvas");
+      leinwand.height = hoehe;
+      leinwand.width = Math.max(1, Math.round((b / h) * hoehe));
+      const zeichnung = leinwand.getContext("2d");
+      if (!zeichnung) return fehler(new Error("Zeichnen nicht möglich"));
+      zeichnung.drawImage(bild, 0, 0, leinwand.width, leinwand.height);
+      fertig(leinwand.toDataURL("image/png"));
+    };
+    bild.onerror = () => fehler(new Error("Das Logo ließ sich nicht zeichnen."));
+    bild.src = logo;
+  });
+}
+
+/** Legt für ein SVG- oder WebP-Logo das PNG für Word an, falls es fehlt; sonst unverändert. */
+export async function mitDruckbild(marke: Marke): Promise<Marke> {
+  if (!marke.logo || marke.druckbild !== false) return marke;
+  try {
+    return await kern<Marke>("marke.druckbild_setzen", { png: await logoAlsPng(marke.logo) });
+  } catch {
+    return marke; // Dann erscheint im Reiter „Schriftstücke“ ein Hinweis.
+  }
 }
 
 export interface EigeneKurzstand {

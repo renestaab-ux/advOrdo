@@ -301,3 +301,30 @@ def test_rpc(kern, tmp_path):
     ziel = tmp_path / "Grundvorlage.docx"
     m["schriftstuecke.grundvorlage_speichern"](vorlage="grund:brief", pfad=str(ziel))
     assert "Empfänger.Anschrift" in fuellen.platzhalter_finden(ziel.read_bytes())
+
+
+def test_svg_logo_mit_druckbild(kern):
+    from juracore.eigene import marke
+
+    ordner = kern.umgebungen.ordner()
+    svg = ordner.parent / "logo-quelle.svg"
+    svg.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="10"/>')
+    m = marke.logo_setzen(ordner, kern.akten, svg)
+    assert m["druckbild"] is False and grundvorlagen.logo_lesen(ordner) is None
+    assert grundvorlagen.logo_hinweis(ordner)
+    with pytest.raises(ValueError):
+        marke.druckbild_setzen(ordner, kern.akten, "bm9jaCBrZWluIHBuZw==")
+    import base64
+
+    m = kern.methoden["marke.druckbild_setzen"](png="data:image/png;base64," + base64.b64encode(png(40, 10)).decode())
+    assert m["druckbild"] is True
+    assert grundvorlagen.logo_lesen(ordner)[1:] == ("png", "logo.png")
+    assert grundvorlagen.logo_hinweis(ordner) is None
+    daten = grundvorlagen.erzeugen("brief", grundvorlagen.logo_lesen(ordner))
+    with zipfile.ZipFile(io.BytesIO(daten)) as z:
+        assert "word/media/logo.png" in z.namelist()
+    # Ein neues Logo ersetzt auch das Druckbild.
+    marke.logo_setzen(ordner, kern.akten, svg)
+    assert not (ordner / marke.DRUCKBILD).exists()
+    marke.logo_entfernen(ordner, kern.akten)
+    assert marke.lesen(ordner, kern.akten)["druckbild"] is False
