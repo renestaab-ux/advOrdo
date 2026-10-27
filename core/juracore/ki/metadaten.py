@@ -145,7 +145,26 @@ def _person(angabe: object, akte_beteiligte: list[dict]) -> tuple[str, str] | No
         return None
     gericht = "gericht" in name.casefold()
     kurz = regeln.kurzname({"name": name, "rolle": "gericht" if gericht else "", "art": "organisation"})
-    return f"ki:{name}", kurz
+    return regeln.FREI + name, kurz
+
+
+_ALLGEMEIN = {"gmbh", "mbh", "kg", "ohg", "ug", "e.v.", "rechtsanwälte", "rechtsanwalt", "rechtsanwältin", "kanzlei",
+              "dr.", "prof.", "frau", "herr", "herrn", "und", "partner", "partg", "mbb", "im", "am", "an", "der", "die",
+              "das", "den", "zentrales", "mahngericht", "&"}
+
+
+def name_passt(name: str, text: str) -> bool:
+    """Steht der Name im belegten Absatz? Bei Gerichten muss auch die Gerichtsart stimmen (nicht „Landgericht
+    Stuttgart“, wenn dort „Amtsgericht Stuttgart“ steht); sonst genügt ein kennzeichnendes Wort (Nachname)."""
+    text = " ".join(text.split()).casefold()
+    woerter = [w.strip(",.()–-").casefold() for w in name.split()]
+    woerter = [w for w in woerter if len(w) >= 3 and w not in _ALLGEMEIN]
+    if not woerter:
+        return False
+    gerichtsart = [w for w in woerter if w.endswith("gericht") or w.endswith("gerichtshof")]
+    if gerichtsart:
+        return all(w in text for w in woerter)
+    return any(w in text for w in woerter)
 
 
 def auswerten(t: belege.Text, antwort: dict, akte_beteiligte: list[dict]) -> dict:
@@ -177,7 +196,16 @@ def auswerten(t: belege.Text, antwort: dict, akte_beteiligte: list[dict]) -> dic
     kurznamen: dict[str, str] = {}
 
     def person(angabe: object) -> tuple[str, dict] | None:
+        nonlocal verworfen
         if (p := _person(angabe, akte_beteiligte)) is None or (fund := belegt(angabe)) is None:
+            return None
+        # Der Name muss zum Beleg passen; das Modell verwechselt sonst z. B. Amts- und Landgericht.
+        if p[0].isdigit():
+            name = nach_id[int(p[0])]["name"]
+        else:
+            name = p[0].removeprefix(regeln.FREI) if p[0].startswith(regeln.FREI) else ""
+        if name and not name_passt(name, t.nach_nr.get(fund["abschnitt"], "")):
+            verworfen += 1
             return None
         if p[1]:
             kurznamen[p[0]] = p[1]
@@ -194,9 +222,8 @@ def auswerten(t: belege.Text, antwort: dict, akte_beteiligte: list[dict]) -> dic
             absender = {"wert": b["id"], "name": b["name"], "rolle_text": b["rolle_text"], "grund": grund,
                         "fundstelle": fund}
         else:
-            # Nicht in der Akte: kein Absender zum Übernehmen, aber der Name für den Titel.
-            absender = {"wert": None, "name": schluessel[3:], "rolle_text": "", "grund": grund, "fundstelle": fund,
-                        "schluessel": schluessel}
+            # Nicht in der Akte, z. B. das Mahngericht: als freier Absender vorgeschlagen.
+            absender = regeln.frei(schluessel[len(regeln.FREI):]) | {"grund": grund, "fundstelle": fund}
     empfaenger = [p[0] for p in [person(antwort.get("empfaenger"))] if p]
     parteien = [p[0] for a in (antwort.get("vertragsparteien") or [])[:4] if (p := person(a))]
 

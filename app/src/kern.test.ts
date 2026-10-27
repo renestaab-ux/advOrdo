@@ -730,8 +730,8 @@ describe("mitKi", () => {
       art: null,
       absender: null,
       benennung: {
-        kurznamen: { "ki:Amtsgericht Stuttgart": "AG Stuttgart" },
-        empfaenger: ["ki:Amtsgericht Stuttgart"],
+        kurznamen: { "frei:Amtsgericht Stuttgart": "AG Stuttgart" },
+        empfaenger: ["frei:Amtsgericht Stuttgart"],
         vertragsparteien: [],
         was: { schriftsatz: "Widerspruch" },
       },
@@ -739,7 +739,7 @@ describe("mitKi", () => {
       modell: "m",
     };
     const b = mitKi(regel, ki);
-    expect(b.empfaenger).toEqual(["ki:Amtsgericht Stuttgart", "eigene", "1"]);
+    expect(b.empfaenger).toEqual(["frei:Amtsgericht Stuttgart", "eigene", "1"]);
     expect(b.was.schriftsatz).toBe("Widerspruch");
     expect(b.kurznamen["1"]).toBe("Müller");
     expect(mitKi(regel, null)).toBe(regel);
@@ -764,5 +764,8 @@ describe("titelNachSchema mit Gericht außerhalb der Akte", () => {
       "RA Albrecht Tiedemann Widerspruch gegen Brückner an AG Stuttgart",
     );
     expect(titelNachSchema(benennung, "Mahnbescheid", "", akte)).toBe("AG Stuttgart Mahnbescheid");
+    // Absender von Hand außerhalb der Akte: abgekürzt wie ein Gericht der Akte.
+    expect(titelNachSchema(benennung, "Beschluss", "frei:Amtsgericht  Stuttgart", akte)).toBe("AG Stuttgart Beschluss");
+    expect(titelNachSchema(benennung, "Schreiben", "frei:Müller Bau KG", akte)).toBe("Müller Bau KG Schreiben an RA Albrecht Tiedemann");
   });
 });

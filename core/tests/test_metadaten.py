@@ -317,8 +317,8 @@ def test_ki_vorschlaege_mit_beleg(tmp_path):
     e = stand["ergebnis"]
     assert e["art"]["wert"] == "Schriftsatz" and e["art"]["fundstelle"]["abschnitt"] == 10
     assert e["absender"]["wert"] == "eigene"
-    assert e["benennung"]["empfaenger"] == ["ki:Amtsgericht Stuttgart"]
-    assert e["benennung"]["kurznamen"] == {"ki:Amtsgericht Stuttgart": "AG Stuttgart"}
+    assert e["benennung"]["empfaenger"] == ["frei:Amtsgericht Stuttgart"]
+    assert e["benennung"]["kurznamen"] == {"frei:Amtsgericht Stuttgart": "AG Stuttgart"}
     assert e["benennung"]["was"] == {"schriftsatz": "Widerspruch"}
     assert e["benennung"]["vertragsparteien"] == [] and e["verworfen"] == 1
     # Beim nächsten Öffnen aus dem Speicher, ohne neue Anfrage.
@@ -326,3 +326,44 @@ def test_ki_vorschlaege_mit_beleg(tmp_path):
     assert wieder["status"] == "fertig" and wieder["ergebnis"]["gespeichert"] is True
     assert Modell.anfragen == 1
     assert ki_metadaten.AUFGABE == "metadaten"
+
+
+MAHNBESCHEID = [
+    "Amtsgericht Stuttgart",
+    "– Zentrales Mahngericht Baden-Württemberg –",
+    "Postfach 10 60 08, 70049 Stuttgart",
+    "Geschäftsnummer: 26-4815162-0-3",
+    "Datum: 03.06.2026",
+    "Mahnbescheid",
+    "Antragsteller:",
+    "Frau Dr. Lena Brückner, Ahornstieg 7, 79100 Freiburg im Breisgau",
+    "Antragsgegner:",
+    "Weber Haustechnik GmbH, Elzstraße 21, 79312 Emmendingen",
+    "Im Falle des Widerspruchs wird die Sache an das Landgericht Freiburg im Breisgau abgegeben.",
+]
+
+
+def test_absender_ausserhalb_der_akte(akten, con, tmp_path):
+    akte_id, dok = _dokument(akten, con, tmp_path, "mahnbescheid.txt", MAHNBESCHEID)
+    _beteiligte(akten, akte_id)
+    m = metadaten.lesen(akten, dok)
+    # Das Mahngericht gehört nicht zur Akte: vorgeschlagen wird es mit Namen, nicht das Landgericht der Akte.
+    v = m["vorschlaege"]["absender"]
+    assert v["wert"] == "frei:Amtsgericht Stuttgart" and v["name"] == "Amtsgericht Stuttgart"
+    metadaten.speichern(akten, dok, absender="frei:Amtsgericht Stuttgart")
+    m = metadaten.lesen(akten, dok)
+    assert m["absender"] == {"wert": "frei:Amtsgericht Stuttgart", "name": "Amtsgericht Stuttgart", "rolle_text": ""}
+    assert m["vorschlaege"]["absender"] is None
+    assert m["verlauf"][0]["feld"] == "absender" and m["verlauf"][0]["neu"] == "Amtsgericht Stuttgart"
+    assert metadaten.mit_absender(akten, akte.dokumente(akten, akte_id))[0]["absender"]["name"] == "Amtsgericht Stuttgart"
+    metadaten.speichern(akten, dok, absender="eigene")
+    assert metadaten.lesen(akten, dok)["absender"]["wert"] == "eigene"
+
+
+def test_ki_name_muss_zum_beleg_passen():
+    from juracore.ki.metadaten import name_passt
+
+    assert name_passt("Amtsgericht Stuttgart", "Amtsgericht Stuttgart")
+    assert not name_passt("Landgericht Stuttgart", "Amtsgericht Stuttgart")
+    assert name_passt("Dr. Lena Brückner", "Frau Dr. Brückner, Ahornstieg 7")
+    assert not name_passt("Weber Haustechnik GmbH", "Albrecht Tiedemann Rechtsanwälte")

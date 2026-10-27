@@ -605,9 +605,12 @@ export interface MetaVorschlag {
   fundstelle: MetaFundstelle | null;
 }
 
-/** Absender eines Dokuments: "eigene" (wir selbst) oder die Nummer einer Beteiligung der Akte. */
+/**
+ * Absender eines Dokuments: "eigene" (wir selbst), die Nummer einer Beteiligung der Akte oder "frei:<Name>" für
+ * jemanden außerhalb der Akte (z. B. das Mahngericht).
+ */
 export interface MetaAbsender {
-  wert: "eigene" | number;
+  wert: "eigene" | number | `frei:${string}`;
   name: string;
   rolle_text: string;
 }
@@ -678,7 +681,7 @@ export interface MetaBenennung {
 export interface MetaKiErgebnis {
   art: MetaVorschlag | null;
   /** wert null: nicht in der Akte; dann zählt nur der Name (schluessel) für den Titel. */
-  absender: (Omit<MetaAbsenderVorschlag, "wert"> & { wert: "eigene" | number | null; schluessel?: string }) | null;
+  absender: MetaAbsenderVorschlag | null;
   benennung: {
     kurznamen: Record<string, string>;
     empfaenger: string[];
@@ -710,6 +713,31 @@ export function mitKi(b: MetaBenennung, ki: MetaKiErgebnis | null | undefined): 
   };
 }
 
+export const FREI = "frei:";
+
+const GERICHT_KURZ: [string, string][] = [
+  ["Bundesgerichtshof", "BGH"],
+  ["Oberlandesgericht", "OLG"],
+  ["Landesarbeitsgericht", "LAG"],
+  ["Landessozialgericht", "LSG"],
+  ["Oberverwaltungsgericht", "OVG"],
+  ["Verwaltungsgerichtshof", "VGH"],
+  ["Bundesarbeitsgericht", "BAG"],
+  ["Landgericht", "LG"],
+  ["Amtsgericht", "AG"],
+  ["Arbeitsgericht", "ArbG"],
+  ["Sozialgericht", "SG"],
+  ["Verwaltungsgericht", "VG"],
+  ["Finanzgericht", "FG"],
+];
+
+/** „Amtsgericht Stuttgart“ → „AG Stuttgart“ (wie im Kern); andere Namen bleiben, wie sie sind. */
+export function gerichtKurz(name: string): string {
+  const n = name.trim().replace(/\s+/g, " ");
+  const treffer = GERICHT_KURZ.find(([lang]) => n.startsWith(lang));
+  return treffer ? treffer[1] + n.slice(treffer[0].length) : n;
+}
+
 /** Arten, bei denen das Gericht „schreibt“: der Titel ist nur „LG Freiburg Urteil“. */
 const GERICHTSARTEN = ["urteil", "beschluss", "verfügung", "ladung", "protokoll", "mahnbescheid", "vollstreckungsbescheid"];
 
@@ -725,7 +753,8 @@ export function titelNachSchema(
   absender: string,
   akteBeteiligte: Beteiligung[],
 ): string | null {
-  const kurz = (schluessel: string | undefined) => (schluessel ? (b.kurznamen[schluessel] ?? "") : "");
+  const kurz = (schluessel: string | undefined) =>
+    !schluessel ? "" : (b.kurznamen[schluessel] ?? (schluessel.startsWith(FREI) ? gerichtKurz(schluessel.slice(FREI.length)) : ""));
   const ersteMit = (rolle: string) => akteBeteiligte.find((x) => x.rolle === rolle);
   const art_ = art.trim();
   const klein = art_.toLocaleLowerCase("de");
@@ -760,7 +789,7 @@ export function titelNachSchema(
           : undefined;
     const g = gegen ? kurz(String(gegen.id)) : "";
     // Ein Gericht außerhalb der Akte (z. B. das Mahngericht) wird als Empfänger genannt.
-    const an = kurz(b.empfaenger.find((e) => e === "gericht_an" || (e.startsWith("ki:") && /gericht/i.test(e))));
+    const an = kurz(b.empfaenger.find((e) => e === "gericht_an" || (e.startsWith(FREI) && /gericht/i.test(e))));
     return wer || g ? satz(wer, b.was.schriftsatz ?? "Schriftsatz", g ? `gegen ${g}` : "", an ? `an ${an}` : "") : null;
   }
 

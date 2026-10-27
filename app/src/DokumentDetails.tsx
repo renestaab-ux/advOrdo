@@ -8,6 +8,7 @@ import {
   MetaFundstelle,
   MetaVerlaufEintrag,
   datumDe,
+  FREI,
   kern,
   mitKi,
   sortiereTags,
@@ -56,7 +57,11 @@ function aenderungen(meta: DokumentMetadaten, entwurf: Entwurf): Record<string, 
   if (entwurf.titel.trim() !== bisher.titel) params.titel = entwurf.titel.trim();
   if (entwurf.art.trim() !== bisher.art) params.art = entwurf.art.trim();
   if (entwurf.absender !== bisher.absender)
-    params.absender = entwurf.absender === "" || entwurf.absender === "eigene" ? entwurf.absender : Number(entwurf.absender);
+    params.absender = /^\d+$/.test(entwurf.absender)
+      ? Number(entwurf.absender)
+      : entwurf.absender.trim() === FREI
+        ? ""
+        : entwurf.absender;
   // Wer das erkannte Datum wieder wählt, kehrt zur Erkennung zurück (auch nach einer neuen Fassung).
   const erkannt = meta.datum.erkannt?.datum;
   if (entwurf.datum !== bisher.datum) params.datum = erkannt && entwurf.datum === erkannt ? "" : entwurf.datum;
@@ -224,7 +229,7 @@ const DokumentDetails = forwardRef<
   // Art und Absender: zuerst die KI, dann die Texterkennung.
   const artVorschlaege = [kiErgebnis?.art, v.art].filter((a): a is NonNullable<typeof a> => !!a);
   const absenderVorschlaege = [
-    kiErgebnis?.absender?.wert != null ? (kiErgebnis.absender as typeof v.absender) : null,
+    kiErgebnis?.absender ?? null,
     v.absender,
   ].filter((a): a is NonNullable<typeof a> => !!a);
   // Solange Art oder Absender leer sind, rechnet das Schema mit dem jeweiligen Vorschlag (auch einem Absender,
@@ -233,7 +238,7 @@ const DokumentDetails = forwardRef<
     mitKi(meta.benennung, kiErgebnis),
     entwurf.art.trim() || (artVorschlaege[0]?.wert ?? ""),
     entwurf.absender ||
-      (kiErgebnis?.absender ? String(kiErgebnis.absender.wert ?? kiErgebnis.absender.schluessel ?? "") : "") ||
+      (kiErgebnis?.absender ? String(kiErgebnis.absender.wert) : "") ||
       (v.absender ? String(v.absender.wert) : ""),
     meta.akte_beteiligte,
   );
@@ -313,7 +318,11 @@ const DokumentDetails = forwardRef<
           </div>
           <div className="feld">
             <label htmlFor="meta-absender">Absender (wer hat es erstellt?)</label>
-            <select id="meta-absender" value={entwurf.absender} onChange={(e) => aendere({ absender: e.target.value })}>
+            <select
+              id="meta-absender"
+              value={entwurf.absender.startsWith(FREI) ? FREI : entwurf.absender}
+              onChange={(e) => aendere({ absender: e.target.value })}
+            >
               <option value="">(nicht angegeben)</option>
               <option value="eigene">Wir (eigene Seite)</option>
               {meta.akte_beteiligte.map((b) => (
@@ -321,7 +330,18 @@ const DokumentDetails = forwardRef<
                   {b.name} · {b.rolle_text}
                 </option>
               ))}
+              <option value={FREI}>Andere (nicht in der Akte) …</option>
             </select>
+            {entwurf.absender.startsWith(FREI) && (
+              <input
+                aria-label="Absender außerhalb der Akte"
+                value={entwurf.absender.slice(FREI.length)}
+                onChange={(e) => aendere({ absender: FREI + e.target.value })}
+                placeholder="z. B. Amtsgericht Stuttgart"
+                maxLength={120}
+                autoFocus
+              />
+            )}
             {absenderVorschlag.map((a) => (
               <Vorschlag
                 key={String(a.wert)}

@@ -29,6 +29,7 @@ ARTEN = ("Schreiben", "E-Mail", "Schriftsatz", "Verfügung", "Beschluss", "Urtei
          "Sonstiges")
 MAX_ART = 60
 EIGENE = "eigene"  # Absender: wir selbst (eigene Kanzlei bzw. Rechtsabteilung)
+FREI = "frei:"  # Absender außerhalb der Akte: "frei:Amtsgericht Stuttgart"
 # Erkannte Dokumentart (juracore.aktenverwaltung.rubrum) → Art.
 _ART_AUS_DOKUMENTART = {"Urteil": "Urteil", "Versäumnisurteil": "Urteil", "Beschluss": "Beschluss",
                         "Verfügung": "Verfügung", "Ladung": "Ladung", "Mahnbescheid": "Mahnbescheid",
@@ -99,7 +100,15 @@ def _namen(akte_beteiligte: list[dict], ids: list[int]) -> str:
 # --------------------------------------------------------------------------- Lesen
 
 
+def frei(name: str) -> dict:
+    """Absender ohne Beteiligung in der Akte; wert "frei:<Name>" (Auswahl, Filter, Speichern)."""
+    return {"wert": FREI + name, "name": name, "rolle_text": ""}
+
+
 def _absender(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list[dict]) -> dict | None:
+    name = con.execute("SELECT absender_frei FROM dokument WHERE id = ?", (dokument_id,)).fetchone()
+    if name and name[0]:
+        return frei(name[0])
     z = con.execute("SELECT beteiligung_id, eigene FROM dokument_absender WHERE dokument_id = ?",
                     (dokument_id,)).fetchone()
     if z is None:
@@ -404,8 +413,9 @@ def _absender_vorschlag(con: sqlite3.Connection, dokument_id: int, abschnitte: l
         b = next((b for b in gerichte if _gleich(b["name"], gericht["name"])), None)
         grund = f"vom {gericht['name']} erlassen" if vom_gericht else "Gericht im Briefkopf"
         fund = _fund(nach_nr[gericht["fundstelle"]["abschnitt"]])
-        vorschlag = ({"wert": b["id"], "name": b["name"], "rolle_text": b["rolle_text"], "grund": grund,
-                      "fundstelle": fund} if b else None)
+        # Ein Gericht außerhalb der Akte (z. B. das Mahngericht) wird mit seinem Namen vorgeschlagen.
+        vorschlag = ({"wert": b["id"], "name": b["name"], "rolle_text": b["rolle_text"]} if b
+                     else frei(gericht["name"])) | {"grund": grund, "fundstelle": fund}
     if vorschlag is None and not vom_gericht:
         # Briefkopf: die ersten Absätze; bei Schriftsätzen steht dort die Kanzlei, die ihn einreicht.
         for a in abschnitte[:2]:
@@ -571,10 +581,16 @@ def speichern(con: sqlite3.Connection, dokument_id: int, titel: str | None = Non
 
 def _absender_setzen(con: sqlite3.Connection, dokument_id: int, absender: str | int,
                      akte_beteiligte: list[dict]) -> None:
-    """``absender``: "eigene" (wir), die Nummer einer Beteiligung der Akte oder "" (keiner)."""
+    """``absender``: "eigene" (wir), die Nummer einer Beteiligung der Akte, "frei:<Name>" (jemand außerhalb der
+    Akte, z. B. das Mahngericht) oder "" (keiner)."""
     alt = _absender(con, dokument_id, akte_beteiligte)
     con.execute("DELETE FROM dokument_absender WHERE dokument_id = ?", (dokument_id,))
-    if absender == EIGENE:
+    con.execute("UPDATE dokument SET absender_frei = NULL WHERE id = ?", (dokument_id,))
+    if isinstance(absender, str) and absender.startswith(FREI):
+        name = " ".join(absender[len(FREI):].split())[:120]
+        if name:
+            con.execute("UPDATE dokument SET absender_frei = ? WHERE id = ?", (name, dokument_id))
+    elif absender == EIGENE:
         con.execute("INSERT INTO dokument_absender (dokument_id, eigene) VALUES (?, 1)", (dokument_id,))
     elif absender not in ("", None):
         beteiligung_id = int(absender)
