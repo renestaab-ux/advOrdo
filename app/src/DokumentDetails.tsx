@@ -15,6 +15,9 @@ import Notizen from "./Notizen";
 /** Bearbeitungsstand der Felder; gespeichert wird erst mit „Speichern“. */
 interface Entwurf {
   titel: string;
+  art: string;
+  /** "" = nicht angegeben, "eigene" oder die Nummer der Beteiligung als Text. */
+  absender: string;
   datum: string;
   schlagworte: string[];
   beteiligte: number[];
@@ -23,6 +26,8 @@ interface Entwurf {
 function ausMeta(m: DokumentMetadaten): Entwurf {
   return {
     titel: m.titel,
+    art: m.art,
+    absender: m.absender ? String(m.absender.wert) : "",
     datum: m.datum.wert ?? "",
     schlagworte: m.schlagworte.map((t) => t.name),
     beteiligte: m.beteiligte.map((b) => b.id),
@@ -41,7 +46,7 @@ const DATUM_HERKUNFT: Record<string, string> = {
 };
 
 /**
- * Ansicht „Details“ eines Dokuments: Titel, Datum, Schlagworte, Beteiligte und Notizen, dazu der Verlauf.
+ * Ansicht „Details“ eines Dokuments: Titel, Art, Absender, Datum, Schlagworte, Beteiligte und Notizen, dazu der Verlauf.
  * Was der Kern im Text erkennt, steht als Vorschlag mit Fundstelle daneben und wird nur auf Klick übernommen.
  */
 export default function DokumentDetails({
@@ -83,6 +88,8 @@ export default function DokumentDetails({
   const bisher = ausMeta(meta);
   const geaendert = {
     titel: entwurf.titel.trim() !== bisher.titel,
+    art: entwurf.art.trim() !== bisher.art,
+    absender: entwurf.absender !== bisher.absender,
     datum: entwurf.datum !== bisher.datum,
     schlagworte: !gleicheListe(entwurf.schlagworte, bisher.schlagworte),
     beteiligte: !gleicheListe(entwurf.beteiligte, bisher.beteiligte),
@@ -99,6 +106,9 @@ export default function DokumentDetails({
     const erkannt = meta.datum.erkannt?.datum;
     const params: Record<string, unknown> = { dokument_id: dokumentId };
     if (geaendert.titel) params.titel = entwurf.titel.trim();
+    if (geaendert.art) params.art = entwurf.art.trim();
+    if (geaendert.absender)
+      params.absender = entwurf.absender === "" || entwurf.absender === "eigene" ? entwurf.absender : Number(entwurf.absender);
     // Wer das erkannte Datum wieder wählt, kehrt zur Erkennung zurück (auch nach einer neuen Fassung).
     if (geaendert.datum) params.datum = erkannt && entwurf.datum === erkannt ? "" : entwurf.datum;
     if (geaendert.schlagworte) params.schlagworte = entwurf.schlagworte;
@@ -129,6 +139,8 @@ export default function DokumentDetails({
   const wortVorschlaege = v.schlagworte.filter((t) => !enthaelt(entwurf.schlagworte, t.wert));
   const vorgeschlagen = new Map(v.beteiligte.map((b) => [b.beteiligung_id, b]));
   const datumVorschlag = v.datum && v.datum.wert !== entwurf.datum ? v.datum : null;
+  const artVorschlag = v.art && v.art.wert !== entwurf.art.trim() ? v.art : null;
+  const absenderVorschlag = v.absender && String(v.absender.wert) !== entwurf.absender ? v.absender : null;
 
   return (
     <div className="dok-details">
@@ -155,6 +167,55 @@ export default function DokumentDetails({
               onUebernehmen={() => aendere({ titel: t.wert })}
             />
           ))}
+        </div>
+
+        <div className="meta-zeile">
+          <div className="feld">
+            <label htmlFor="meta-art">Art</label>
+            <input
+              id="meta-art"
+              list="meta-arten"
+              value={entwurf.art}
+              onChange={(e) => aendere({ art: e.target.value })}
+              placeholder="z. B. Schriftsatz"
+              maxLength={60}
+            />
+            <datalist id="meta-arten">
+              {meta.arten.map((a) => (
+                <option key={a} value={a} />
+              ))}
+            </datalist>
+            {artVorschlag && (
+              <Vorschlag
+                wert={artVorschlag.wert}
+                grund={artVorschlag.grund}
+                fundstelle={artVorschlag.fundstelle}
+                onFundstelle={onFundstelle}
+                onUebernehmen={() => aendere({ art: artVorschlag.wert })}
+              />
+            )}
+          </div>
+          <div className="feld">
+            <label htmlFor="meta-absender">Absender (wer hat es erstellt?)</label>
+            <select id="meta-absender" value={entwurf.absender} onChange={(e) => aendere({ absender: e.target.value })}>
+              <option value="">(nicht angegeben)</option>
+              <option value="eigene">Wir (eigene Seite)</option>
+              {meta.akte_beteiligte.map((b) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.name} · {b.rolle_text}
+                </option>
+              ))}
+            </select>
+            {absenderVorschlag && (
+              <Vorschlag
+                wert={absenderVorschlag.rolle_text ? `${absenderVorschlag.name} (${absenderVorschlag.rolle_text})` : absenderVorschlag.name}
+                grund={absenderVorschlag.grund}
+                fundstelle={absenderVorschlag.fundstelle}
+                onFundstelle={onFundstelle}
+                onUebernehmen={() => aendere({ absender: String(absenderVorschlag.wert) })}
+              />
+            )}
+          </div>
         </div>
 
         <div className="feld">
@@ -257,7 +318,8 @@ export default function DokumentDetails({
         </div>
 
         <div className="feld">
-          <span>Beteiligte</span>
+          <span>Weitere Beteiligte</span>
+          <span className="feld-hinweis">Wen das Dokument außerdem betrifft, z. B. Empfänger oder Parteien.</span>
           {meta.akte_beteiligte.length === 0 ? (
             <span className="feld-hinweis">
               In der Akte sind noch keine Beteiligten eingetragen. Das geht im Reiter „Beteiligte“.
@@ -266,7 +328,9 @@ export default function DokumentDetails({
             <ul className="meta-beteiligte">
               {meta.akte_beteiligte.map((b) => {
                 const gewaehlt = entwurf.beteiligte.includes(b.id);
-                const vorschlag = !gewaehlt ? vorgeschlagen.get(b.id) : undefined;
+                // Wer als Absender gewählt oder vorgeschlagen ist, wird hier nicht noch einmal vorgeschlagen.
+                const istAbsender = String(b.id) === entwurf.absender || b.id === absenderVorschlag?.wert;
+                const vorschlag = !gewaehlt && !istAbsender ? vorgeschlagen.get(b.id) : undefined;
                 return (
                   <li key={b.id} className={vorschlag ? "vorgeschlagen" : undefined}>
                     <label>

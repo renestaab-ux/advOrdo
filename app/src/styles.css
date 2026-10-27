@@ -1096,3 +1096,5 @@ details.kurz-hinweis summary { cursor: pointer; }
 .dok-details-abschnitt h3 { margin: 0 0 8px; font-size: 15px; }
 .dok-details-abschnitt .notiz-neu { margin-top: 0; }
 .meta-verlauf { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; font-size: 13px; }
+.meta-zeile { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.dok-details-felder select { padding: 5px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }

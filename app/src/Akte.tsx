@@ -901,6 +901,7 @@ export default function Akte({
                       {dokumentName(d)}
                     </button>
                     <div className="herkunft">
+                      {d.art && <>{d.art} · </>}
                       {d.titel && <>{d.dateiname} · </>}
                       {lesartText(d)}
                       {d.seiten != null && <> · {d.seiten} S.</>}

@@ -1,4 +1,4 @@
-"""Metadaten eines Dokuments: Titel, Datum, Schlagworte und Beteiligte, mit Vorschlägen und Änderungsverlauf.
+"""Metadaten eines Dokuments: Titel, Art, Absender, Datum, Schlagworte und Beteiligte, mit Vorschlägen und Verlauf.
 
 Die Ansicht „Details“ in der Akte bündelt, was es zu einem Dokument schon gibt (Datum aus
 ``juracore.dokumente.datum``, Tags, Fassungen, Notizen) und was von Hand dazukommt (Titel, Beteiligte).
@@ -21,7 +21,21 @@ from ..aktenverwaltung import beteiligte, rubrum, stammdaten
 from . import akte, fassungen
 
 MAX_TITEL = 200
-FELDER = {"titel": "Titel", "datum": "Datum", "schlagworte": "Schlagworte", "beteiligte": "Beteiligte"}
+FELDER = {"titel": "Titel", "art": "Art", "absender": "Absender", "datum": "Datum", "schlagworte": "Schlagworte",
+          "beteiligte": "Weitere Beteiligte"}
+# Art des Dokuments (Auswahl in „Details“); eigene Angaben sind ebenfalls möglich.
+ARTEN = ("Schreiben", "E-Mail", "Schriftsatz", "Verfügung", "Beschluss", "Urteil", "Ladung", "Protokoll",
+         "Mahnbescheid", "Vollstreckungsbescheid", "Gutachten", "Vertrag", "Rechnung", "Vollmacht", "Vermerk",
+         "Sonstiges")
+MAX_ART = 60
+EIGENE = "eigene"  # Absender: wir selbst (eigene Kanzlei bzw. Rechtsabteilung)
+# Erkannte Dokumentart (juracore.aktenverwaltung.rubrum) → Art.
+_ART_AUS_DOKUMENTART = {"Urteil": "Urteil", "Versäumnisurteil": "Urteil", "Beschluss": "Beschluss",
+                        "Verfügung": "Verfügung", "Ladung": "Ladung", "Mahnbescheid": "Mahnbescheid",
+                        "Vollstreckungsbescheid": "Vollstreckungsbescheid"}
+_ART_AUS_UEBERSCHRIFT = (("vertrag", "Vertrag"), ("vereinbarung", "Vertrag"), ("vollmacht", "Vollmacht"),
+                         ("rechnung", "Rechnung"), ("kostennote", "Rechnung"), ("gutachten", "Gutachten"),
+                         ("protokoll", "Protokoll"), ("vermerk", "Vermerk"))
 
 # Dokumentarten, die das Gericht erlässt: Der Titel nennt das Gericht mit, das Schlagwort „Gericht“ passt.
 _VOM_GERICHT = ("Urteil", "Versäumnisurteil", "Beschluss", "Verfügung", "Ladung", "Mahnbescheid",
@@ -83,8 +97,26 @@ def _namen(akte_beteiligte: list[dict], ids: list[int]) -> str:
 # --------------------------------------------------------------------------- Lesen
 
 
-def lesen(con: sqlite3.Connection, dokument_id: int) -> dict:
-    """Alles für die Ansicht „Details“: Werte, Beteiligte der Akte zur Auswahl, Vorschläge und Verlauf."""
+def _absender(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list[dict]) -> dict | None:
+    z = con.execute("SELECT beteiligung_id, eigene FROM dokument_absender WHERE dokument_id = ?",
+                    (dokument_id,)).fetchone()
+    if z is None:
+        return None
+    if z["eigene"]:
+        return {"wert": EIGENE, "name": "Wir (eigene Seite)", "rolle_text": ""}
+    b = next((b for b in akte_beteiligte if b["id"] == z["beteiligung_id"]), None)
+    return {"wert": b["id"], "name": b["name"], "rolle_text": b["rolle_text"]} if b else None
+
+
+def _absender_text(a: dict | None) -> str:
+    return "" if a is None else (a["name"] if not a["rolle_text"] else f"{a['name']} ({a['rolle_text']})")
+
+
+def lesen(con: sqlite3.Connection, dokument_id: int, eigene_namen: list[str] | None = None) -> dict:
+    """Alles für die Ansicht „Details“: Werte, Beteiligte der Akte zur Auswahl, Vorschläge und Verlauf.
+
+    ``eigene_namen``: Name der eigenen Kanzlei bzw. Organisation (Eigene Daten); steht er im Briefkopf, schlägt
+    die Ansicht „Wir“ als Absender vor."""
     d = _dokument(con, dokument_id)
     akte_beteiligte = stammdaten.beteiligungen(con, d["akte_id"])
     verknuepft = set(_verknuepft(con, dokument_id))
@@ -93,17 +125,21 @@ def lesen(con: sqlite3.Connection, dokument_id: int) -> dict:
         "dokument_id": dokument_id,
         "dateiname": d["dateiname"],
         "titel": d["titel"] or "",
+        "art": d["art"] or "",
+        "arten": list(ARTEN),
+        "absender": _absender(con, dokument_id, akte_beteiligte),
         "datum": {"wert": d["datum"], "quelle": d["datum_quelle"], "seite": d["datum_seite"],
                   "abschnitt": d["datum_abschnitt"], "text": d["datum_text"], "erkannt": erkannt},
         "schlagworte": akte._tags(con, dokument_id),
         "beteiligte": [b for b in akte_beteiligte if b["id"] in verknuepft],
         "akte_beteiligte": akte_beteiligte,
-        "vorschlaege": vorschlaege(con, dokument_id, akte_beteiligte),
+        "vorschlaege": vorschlaege(con, dokument_id, akte_beteiligte, eigene_namen),
         "verlauf": verlauf(con, dokument_id, akte_beteiligte),
     }
 
 
-def vorschlaege(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list[dict] | None = None) -> dict:
+def vorschlaege(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list[dict] | None = None,
+                eigene_namen: list[str] | None = None) -> dict:
     """Aus dem Text erkannte Werte, die noch nicht eingetragen sind; jeder mit Grund und Fundstelle."""
     d = _dokument(con, dokument_id)
     if akte_beteiligte is None:
@@ -115,8 +151,12 @@ def vorschlaege(con: sqlite3.Connection, dokument_id: int, akte_beteiligte: list
         # Urteile tragen oft nur „Im Namen des Volkes“; die Überschrift „Urteil“ fehlt im gelesenen Text.
         if a := next((a for a in abschnitte[:15] if a["text"].strip() == "Im Namen des Volkes"), None):
             r = r | {"dokumentart": {"wert": "Urteil", "fundstelle": {"abschnitt": a["nr"]}}}
+    art = _art_vorschlag(abschnitte, r, nach_nr)
     return {
         "titel": _titel_vorschlaege(d, abschnitte, r, nach_nr, akte_beteiligte),
+        "art": art if art and art["wert"] != (d["art"] or "") else None,
+        "absender": _absender_vorschlag(con, dokument_id, abschnitte, r, art, akte_beteiligte, eigene_namen or [],
+                                        nach_nr),
         "datum": _datum_vorschlag(d),
         "schlagworte": _schlagwort_vorschlaege(con, dokument_id, r, nach_nr),
         "beteiligte": _beteiligte_vorschlaege(con, dokument_id, abschnitte, r, akte_beteiligte, nach_nr),
@@ -163,6 +203,70 @@ def _titel_vorschlaege(d: sqlite3.Row, abschnitte: list[dict], r: dict, nach_nr:
     return ergebnis[:3]
 
 
+def _ist_schreiben(abschnitte: list[dict]) -> dict | None:
+    return next((a for a in abschnitte[:30] if a["text"].startswith(("Sehr geehrte", "Guten Tag", "Hallo"))), None)
+
+
+def _art_vorschlag(abschnitte: list[dict], r: dict, nach_nr: dict) -> dict | None:
+    """Art aus der erkannten Dokumentart, sonst aus Überschrift oder Anrede."""
+    if art := r.get("dokumentart"):
+        wert = _ART_AUS_DOKUMENTART.get(art["wert"], "Schriftsatz")
+        return {"wert": wert, "grund": f"„{art['wert']}“ im Kopf des Dokuments",
+                "fundstelle": _fund(nach_nr[art["fundstelle"]["abschnitt"]])}
+    for a in abschnitte[:15]:
+        text = " ".join(a["text"].split())
+        if len(text) <= 90 and ":" not in text and _UEBERSCHRIFT.match(text):
+            erstes = text.split()[0].casefold()
+            if wert := next((w for endung, w in _ART_AUS_UEBERSCHRIFT if erstes.endswith(endung)), None):
+                return {"wert": wert, "grund": "Überschrift", "fundstelle": _fund(a)}
+    # „An das Amtsgericht …“ ohne erkannte Dokumentart: ein Schriftsatz an das Gericht (z. B. Widerspruch).
+    if a := next((a for a in abschnitte[:10] if a["text"].startswith(("An das", "An den"))
+                  and "gericht" in a["text"].casefold()), None):
+        return {"wert": "Schriftsatz", "grund": "an das Gericht gerichtet", "fundstelle": _fund(a)}
+    if a := _ist_schreiben(abschnitte):
+        return {"wert": "Schreiben", "grund": "Briefform mit Anrede", "fundstelle": _fund(a)}
+    return None
+
+
+def _absender_vorschlag(con: sqlite3.Connection, dokument_id: int, abschnitte: list[dict], r: dict,
+                        art: dict | None, akte_beteiligte: list[dict], eigene_namen: list[str],
+                        nach_nr: dict) -> dict | None:
+    """Wer das Dokument erstellt hat: das Gericht bei gerichtlichen Dokumenten, sonst wer im Briefkopf steht."""
+    if not abschnitte:
+        return None
+    bisher = _absender(con, dokument_id, akte_beteiligte)
+    vorschlag = None
+    gericht = r.get("gericht")
+    vom_gericht = art and art["wert"] in _ART_AUS_DOKUMENTART.values()
+    if gericht and (vom_gericht or gericht["fundstelle"]["abschnitt"] <= 2 and _ist_schreiben(abschnitte)):
+        gerichte = [b for b in akte_beteiligte if b["rolle"] == "gericht"]
+        b = next((b for b in gerichte if _gleich(b["name"], gericht["name"])), None)
+        grund = f"vom {gericht['name']} erlassen" if vom_gericht else "Gericht im Briefkopf"
+        fund = _fund(nach_nr[gericht["fundstelle"]["abschnitt"]])
+        vorschlag = ({"wert": b["id"], "name": b["name"], "rolle_text": b["rolle_text"], "grund": grund,
+                      "fundstelle": fund} if b else None)
+    if vorschlag is None and not vom_gericht:
+        # Briefkopf: die ersten Absätze; bei Schriftsätzen steht dort die Kanzlei, die ihn einreicht.
+        for a in abschnitte[:2]:
+            kopf = " ".join(a["text"].split()).casefold()
+            if any(n and kopf.startswith(n.casefold()) for n in eigene_namen):
+                vorschlag = {"wert": EIGENE, "name": "Wir (eigene Seite)", "rolle_text": "",
+                             "grund": "eigene Kanzlei im Briefkopf", "fundstelle": _fund(a)}
+                break
+            b = next((b for b in akte_beteiligte if b["name"] and kopf.startswith(b["name"].casefold())), None)
+            if b:
+                vorschlag = {"wert": b["id"], "name": b["name"], "rolle_text": b["rolle_text"],
+                             "grund": "im Briefkopf", "fundstelle": _fund(a)}
+                break
+    if vorschlag and bisher and bisher["wert"] == vorschlag["wert"]:
+        return None
+    return vorschlag
+
+
+def _gleich(a: str, b: str) -> bool:
+    return beteiligte.aehnlichkeit(beteiligte.schluessel(a), beteiligte.schluessel(b)) is not None
+
+
 def _datum_vorschlag(d: sqlite3.Row) -> dict | None:
     """Bei einem Datum von Hand: das erkannte Datum, falls es abweicht."""
     if d["datum_quelle"] != "manuell" or not d["datum_erkannt"]:
@@ -181,8 +285,8 @@ def _schlagwort_vorschlaege(con: sqlite3.Connection, dokument_id: int, r: dict, 
     vorhanden = {t["name"].casefold() for t in akte._tags(con, dokument_id)}
     vorschlaege = []
     if art := r.get("dokumentart"):
+        # Die Dokumentart selbst steht im Feld „Art“; als Schlagwort bleibt das Gericht als Absender.
         fund = _fund(nach_nr[art["fundstelle"]["abschnitt"]])
-        vorschlaege.append({"wert": art["wert"], "grund": "Dokumentart", "fundstelle": fund})
         if art["wert"] in _VOM_GERICHT and r.get("gericht"):
             vorschlaege.append({"wert": "Gericht", "grund": f"erlassen vom {r['gericht']['name']}", "fundstelle": fund})
     return [v for v in vorschlaege if v["wert"].casefold() not in vorhanden]
@@ -268,7 +372,9 @@ def _datum_pruefen(wert: str) -> str:
 
 
 def speichern(con: sqlite3.Connection, dokument_id: int, titel: str | None = None, datum: str | None = None,
-              schlagworte: list[str] | None = None, beteiligte_ids: list[int] | None = None) -> dict:
+              schlagworte: list[str] | None = None, beteiligte_ids: list[int] | None = None,
+              art: str | None = None, absender: str | int | None = None,
+              eigene_namen: list[str] | None = None) -> dict:
     """Speichert die übergebenen Felder; nicht übergebene bleiben. ``datum=""`` kehrt zum erkannten Datum zurück,
     ``titel=""`` zum Dateinamen. Jede tatsächliche Änderung kommt in den Verlauf."""
     d = _dokument(con, dokument_id)
@@ -280,6 +386,12 @@ def speichern(con: sqlite3.Connection, dokument_id: int, titel: str | None = Non
             neu = " ".join(str(titel).split())[:MAX_TITEL]
             akte.aenderung_merken(con, dokument_id, "titel", d["titel"], neu)
             con.execute("UPDATE dokument SET titel = ? WHERE id = ?", (neu or None, dokument_id))
+        if art is not None:
+            neu = " ".join(str(art).split())[:MAX_ART]
+            akte.aenderung_merken(con, dokument_id, "art", d["art"], neu)
+            con.execute("UPDATE dokument SET art = ? WHERE id = ?", (neu or None, dokument_id))
+        if absender is not None:
+            _absender_setzen(con, dokument_id, absender, akte_beteiligte)
         if datum is not None:
             _datum_setzen(con, d, datum.strip())
         if beteiligte_ids is not None:
@@ -293,7 +405,24 @@ def speichern(con: sqlite3.Connection, dokument_id: int, titel: str | None = Non
             con.execute("DELETE FROM dokument_beteiligung WHERE dokument_id = ?", (dokument_id,))
             con.executemany("INSERT INTO dokument_beteiligung (dokument_id, beteiligung_id) VALUES (?, ?)",
                             [(dokument_id, i) for i in ids])
-    return lesen(con, dokument_id)
+    return lesen(con, dokument_id, eigene_namen)
+
+
+def _absender_setzen(con: sqlite3.Connection, dokument_id: int, absender: str | int,
+                     akte_beteiligte: list[dict]) -> None:
+    """``absender``: "eigene" (wir), die Nummer einer Beteiligung der Akte oder "" (keiner)."""
+    alt = _absender(con, dokument_id, akte_beteiligte)
+    con.execute("DELETE FROM dokument_absender WHERE dokument_id = ?", (dokument_id,))
+    if absender == EIGENE:
+        con.execute("INSERT INTO dokument_absender (dokument_id, eigene) VALUES (?, 1)", (dokument_id,))
+    elif absender not in ("", None):
+        beteiligung_id = int(absender)
+        if beteiligung_id not in {b["id"] for b in akte_beteiligte}:
+            raise ValueError("Der Absender gehört nicht zu den Beteiligten dieser Akte.")
+        con.execute("INSERT INTO dokument_absender (dokument_id, beteiligung_id) VALUES (?, ?)",
+                    (dokument_id, beteiligung_id))
+    akte.aenderung_merken(con, dokument_id, "absender", _absender_text(alt),
+                          _absender_text(_absender(con, dokument_id, akte_beteiligte)))
 
 
 def _datum_setzen(con: sqlite3.Connection, d: sqlite3.Row, wert: str) -> None:

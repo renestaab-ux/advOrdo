@@ -38,6 +38,14 @@ CREATE TABLE IF NOT EXISTS dokument_beteiligung (
     PRIMARY KEY (dokument_id, beteiligung_id)
 );
 
+-- Absender eines Dokuments (wer es erstellt hat): eine Beteiligung der Akte oder wir selbst (eigene = 1).
+CREATE TABLE IF NOT EXISTS dokument_absender (
+    dokument_id     INTEGER PRIMARY KEY REFERENCES dokument(id) ON DELETE CASCADE,
+    beteiligung_id  INTEGER REFERENCES akte_beteiligung(id) ON DELETE CASCADE,
+    eigene          INTEGER NOT NULL DEFAULT 0,
+    CHECK ((beteiligung_id IS NOT NULL) + eigene = 1)
+);
+
 -- Jedes je vergebene Aktenzeichen, auch das einer gelöschten Akte: es wird nie ein zweites Mal vergeben.
 CREATE TABLE IF NOT EXISTS aktenzeichen_vergeben (
     aktenzeichen TEXT PRIMARY KEY COLLATE NOCASE,

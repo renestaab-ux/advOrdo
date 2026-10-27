@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS dokument (
     gespeichert_quelle TEXT,                -- word oder datei
     -- Metadaten von Hand (juracore.dokumente.metadaten); jede Änderung steht in dokument_aenderung.
     titel           TEXT,                   -- z. B. "Klageschrift"; NULL = Dateiname
+    art             TEXT,                   -- Schreiben, Schriftsatz, Verfügung, Urteil … (metadaten.ARTEN)
     datum_erkannt   TEXT,                   -- nur bei datum_quelle "manuell": JSON des erkannten Datums
     UNIQUE (akte_id, sha256)
 );
@@ -282,7 +283,8 @@ def _migriere(con: sqlite3.Connection) -> None:
     for tabelle, spalte, typ in (("urteilszitat", "rn_zitiert", "INTEGER"), ("urteil", "doknr", "TEXT"),
                                  ("urteil", "kopf", "TEXT"), ("urteil_abschnitt", "teil", "TEXT"),
                                  ("seite", "woerter", "TEXT"),
-                                 ("dokument", "titel", "TEXT"), ("dokument", "datum_erkannt", "TEXT"),
+                                 ("dokument", "titel", "TEXT"), ("dokument", "art", "TEXT"),
+                                 ("dokument", "datum_erkannt", "TEXT"),
                                  *(("dokument", s, t) for s, t in _DATUM_SPALTEN.items())):
         if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
             con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")

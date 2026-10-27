@@ -580,6 +580,8 @@ export interface AktenDokument {
   arbeitskopie: boolean;
   /** Titel von Hand (Ansicht „Details“); null = es gilt der Dateiname. */
   titel: string | null;
+  /** Art des Dokuments: Schreiben, Schriftsatz, Verfügung, Urteil … (Ansicht „Details“). */
+  art: string | null;
 }
 
 /** Anzeigename eines Dokuments: der Titel, sonst der Dateiname. */
@@ -601,6 +603,18 @@ export interface MetaVorschlag {
   fundstelle: MetaFundstelle | null;
 }
 
+/** Absender eines Dokuments: "eigene" (wir selbst) oder die Nummer einer Beteiligung der Akte. */
+export interface MetaAbsender {
+  wert: "eigene" | number;
+  name: string;
+  rolle_text: string;
+}
+
+export interface MetaAbsenderVorschlag extends MetaAbsender {
+  grund: string;
+  fundstelle: MetaFundstelle | null;
+}
+
 export interface MetaBeteiligterVorschlag {
   beteiligung_id: number;
   name: string;
@@ -618,6 +632,10 @@ export interface DokumentMetadaten {
   dokument_id: number;
   dateiname: string;
   titel: string;
+  art: string;
+  /** Auswahlliste für die Art; eigene Angaben sind ebenfalls möglich. */
+  arten: string[];
+  absender: MetaAbsender | null;
   datum: {
     wert: string | null;
     quelle: DatumQuelle | null;
@@ -632,6 +650,8 @@ export interface DokumentMetadaten {
   akte_beteiligte: Beteiligung[];
   vorschlaege: {
     titel: MetaVorschlag[];
+    art: MetaVorschlag | null;
+    absender: MetaAbsenderVorschlag | null;
     datum: MetaVorschlag | null;
     schlagworte: MetaVorschlag[];
     beteiligte: MetaBeteiligterVorschlag[];

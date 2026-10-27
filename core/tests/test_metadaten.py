@@ -69,7 +69,7 @@ def test_vorschlaege_aus_verfuegung(akten, con, tmp_path):
     titel = m["vorschlaege"]["titel"][0]
     assert titel["wert"] == "Verfügung LG Freiburg im Breisgau"
     assert titel["fundstelle"]["abschnitt"] == 8
-    assert {v["wert"] for v in m["vorschlaege"]["schlagworte"]} == {"Verfügung", "Gericht"}
+    assert {v["wert"] for v in m["vorschlaege"]["schlagworte"]} == {"Gericht"}
     vorgeschlagen = {v["beteiligung_id"]: v for v in m["vorschlaege"]["beteiligte"]}
     assert set(vorgeschlagen) == set(ids.values())
     assert vorgeschlagen[ids["Landgericht Freiburg im Breisgau"]]["grund"] == "im Kopf des Dokuments als Gericht"
@@ -101,7 +101,7 @@ def test_speichern_und_verlauf(akten, con, tmp_path):
     assert {t["name"] for t in m["schlagworte"]} == {"Gericht", "Termin"}
     # Übernommene Vorschläge erscheinen nicht noch einmal.
     assert ids["Landgericht Freiburg im Breisgau"] not in {v["beteiligung_id"] for v in m["vorschlaege"]["beteiligte"]}
-    assert [v["wert"] for v in m["vorschlaege"]["schlagworte"]] == ["Verfügung"]
+    assert m["vorschlaege"]["schlagworte"] == []
     felder = [e["feld"] for e in m["verlauf"] if e["art"] == "aenderung"]
     assert sorted(felder) == ["beteiligte", "schlagworte", "titel"]
     titel = next(e for e in m["verlauf"] if e.get("feld") == "titel")
@@ -158,3 +158,36 @@ def test_metadaten_ueber_kern(tmp_path):
     m = kern.methoden["akten.metadaten_speichern"](dokument_id=dok, titel="Terminsverfügung", datum="2026-08-27")
     assert m["titel"] == "Terminsverfügung" and m["datum"]["quelle"] == "manuell"
     assert kern.methoden["akten.metadaten"](dokument_id=dok)["titel"] == "Terminsverfügung"
+
+
+def test_art_und_absender(akten, con, tmp_path):
+    akte_id, dok = _dokument(akten, con, tmp_path, "verfuegung.txt", VERFUEGUNG)
+    ids = _beteiligte(akten, akte_id)
+    m = metadaten.lesen(akten, dok)
+    assert m["art"] == "" and m["absender"] is None and "Schriftsatz" in m["arten"]
+    assert m["vorschlaege"]["art"]["wert"] == "Verfügung"
+    absender = m["vorschlaege"]["absender"]
+    assert absender["wert"] == ids["Landgericht Freiburg im Breisgau"]
+    assert absender["grund"] == "vom Landgericht Freiburg im Breisgau erlassen"
+
+    m = metadaten.speichern(akten, dok, art="Verfügung", absender=absender["wert"])
+    assert m["art"] == "Verfügung" and m["absender"]["name"] == "Landgericht Freiburg im Breisgau"
+    assert m["vorschlaege"]["art"] is None and m["vorschlaege"]["absender"] is None
+    m = metadaten.speichern(akten, dok, absender="eigene")
+    assert m["absender"]["wert"] == "eigene"
+    verlauf = [(e["alt"], e["neu"]) for e in m["verlauf"] if e.get("feld") == "absender"]
+    assert verlauf[0] == ("Landgericht Freiburg im Breisgau (Gericht)", "Wir (eigene Seite)")
+    with pytest.raises(ValueError):
+        metadaten.speichern(akten, dok, absender=9999)
+    assert metadaten.speichern(akten, dok, absender="")["absender"] is None
+
+
+def test_absender_eigene_kanzlei_im_briefkopf(akten, con, tmp_path):
+    akte_id, dok = _dokument(akten, con, tmp_path, "schreiben.txt", SCHREIBEN)
+    _beteiligte(akten, akte_id)
+    m = metadaten.lesen(akten, dok, ["Albrecht Tiedemann Rechtsanwälte"])
+    assert m["vorschlaege"]["art"]["wert"] == "Schreiben"
+    assert m["vorschlaege"]["absender"]["wert"] == "eigene"
+    assert m["vorschlaege"]["absender"]["fundstelle"]["abschnitt"] == 1
+    # Ohne Eigene Daten kein Vorschlag „Wir“; der Gegner steht nur in der Anschrift, nicht als Absender.
+    assert metadaten.lesen(akten, dok)["vorschlaege"]["absender"] is None
