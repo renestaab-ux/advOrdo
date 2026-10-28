@@ -1118,6 +1118,9 @@ details.kurz-hinweis summary { cursor: pointer; }
 .kostennote h3 { font-size: 14px; margin: 16px 0 6px; }
 .kostennote .schrift-wahl + .schrift-wahl { margin-top: 10px; }
 .schrift-wahl .feld.kurz { min-width: 110px; flex: 0 1 130px; }
+/* Eingaben bleiben in ihrer Spalte (lange Auswahltexte schoben sie sonst über das Nachbarfeld). */
+.kostennote .schrift-wahl .feld > input, .kostennote .schrift-wahl .feld > select { min-width: 0; width: 100%; box-sizing: border-box; }
+.kostennote .schrift-wahl .feld { min-width: 0; }
 .kosten-posten { display: grid; gap: 6px; }
 .kosten-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
 .kosten-zeile label { display: inline-flex; align-items: center; gap: 4px; }
@@ -1129,6 +1132,6 @@ details.kurz-hinweis summary { cursor: pointer; }
 .kosten-wahl { display: grid; gap: 6px; margin: 12px 0 0; border: none; padding: 0; font-size: 13px; }
 .kosten-wahl input.satz { width: 56px; margin-left: 6px; }
 .kosten-vorschau { margin-top: 12px; }
-.kosten-vorschau tr.abschnitt td { font-weight: 600; padding-top: 10px; }
+.kosten-vorschau tr.abschnitt td { font-weight: 600; padding-top: 10px; white-space: nowrap; }
 .kosten-vorschau tfoot tr:last-child td { border-top: 1px solid var(--linie); }
 .schrift-liste li.storniert strong { text-decoration: line-through; }

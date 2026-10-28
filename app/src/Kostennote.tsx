@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import {
   Beteiligung,
@@ -587,8 +587,9 @@ function KostenVorschau({ r }: { r: KostennoteErgebnis }) {
             <th className="zahl">Betrag</th>
           </tr>
         </thead>
+        <tbody>
         {r.abschnitte.map((a) => (
-          <tbody key={a.titel}>
+          <Fragment key={a.titel}>
             <tr className="abschnitt">
               <td colSpan={5}>{a.titel}</td>
             </tr>
@@ -601,8 +602,9 @@ function KostenVorschau({ r }: { r: KostennoteErgebnis }) {
                 <td className="zahl">{euro(z.betrag)}</td>
               </tr>
             ))}
-          </tbody>
+          </Fragment>
         ))}
+        </tbody>
         <tfoot>
           <tr>
             <td colSpan={4}>Summe netto</td>

@@ -168,7 +168,8 @@ def berechne(e: dict) -> dict:
     if fassung not in FASSUNGEN:
         raise ValueError(f"Unbekannte Fassung: {fassung}")
     if not auftrag and not e.get("fassung"):
-        hinweise.append("Ohne Auftragsdatum gilt die Gebührentabelle seit 01.06.2025 (§ 60 RVG).")
+        hinweise.append("Kein Auftragsdatum eingetragen: gerechnet mit der Gebührentabelle seit 01.06.2025 "
+                        "(§ 60 RVG). Bitte „Auftrag erteilt am“ ausfüllen oder in den Stammdaten „Mandat seit“.")
     f = FASSUNGEN[fassung]
     grund = (_betrag(e["gegenstandswert"], "Gegenstandswert") if e.get("gegenstandswert") not in (None, "")
              else None)
@@ -494,6 +495,8 @@ def _koerper(r: dict, e: dict, ich: bool) -> str:
         teile.append(_text(f"Bitte überweisen Sie den Betrag von {platzhalter.euro(str(zahlen))} "
                            f"innerhalb von {ziel} Tagen unter Angabe der Rechnungsnummer {e['nummer']} auf "
                            f"{unser} Konto: {{{{Absender.Bankverbindung}}}}."))
+    elif r["abzuege"] and zahlen == 0:
+        teile.append(_text("Der Betrag ist durch den gezahlten Vorschuss ausgeglichen."))
     elif zahlen < 0:
         teile.append(_text(f"Den Betrag von {platzhalter.euro(str(-zahlen))} erstatte{'' if ich else 'n'} {wir} "
                            "Ihnen in den nächsten Tagen."))
