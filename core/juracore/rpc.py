@@ -43,6 +43,7 @@ from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
 from .rechner import basiszins, fristen, prozesskosten, verzugszinsen
 from .rechtsprechung import online, recherche, verzeichnis
+from .schriftstuecke import kostennote
 from .schriftstuecke import platzhalter as schrift_platzhalter
 from .schriftstuecke import vorlagen as schrift_vorlagen
 from .umgebungen import Umgebungen
@@ -274,6 +275,14 @@ class Kern:
             "schriftstuecke.erzeugen": lambda akte_id, vorlage, empfaenger_id=None, verfahren_id=None, pfad=None,
                 in_akte=True: schrift_vorlagen.erzeugen(self.akten, self.con, self.umgebungen.ordner(), self.ablage,
                                                         akte_id, vorlage, empfaenger_id, verfahren_id, pfad, in_akte),
+            "kostennote.katalog": kostennote.katalog,
+            "kostennote.vorschlag": lambda akte_id: kostennote.vorschlag(self.akten, akte_id),
+            "kostennote.berechnen": lambda eingabe: kostennote.berechne(eingabe),
+            "kostennote.erzeugen": lambda akte_id, eingabe, pfad=None, in_akte=True: kostennote.erzeugen(
+                self.akten, self.con, self.umgebungen.ordner(), self.ablage, akte_id, eingabe, pfad, in_akte),
+            "kostennote.liste": lambda akte_id: kostennote.liste(self.akten, akte_id),
+            "kostennote.eingabe": lambda kostennote_id: kostennote.eingabe(self.akten, kostennote_id),
+            "kostennote.stornieren": lambda kostennote_id: kostennote.stornieren(self.akten, kostennote_id),
             "schriftstuecke.vorlage_hinzufuegen": lambda pfad: schrift_vorlagen.hinzufuegen(
                 self.umgebungen.ordner(), pfad),
             "schriftstuecke.vorlage_entfernen": lambda datei: schrift_vorlagen.entfernen(
@@ -322,6 +331,8 @@ class Kern:
         eigene.einrichten(self.akten)
         # Aktenverwaltung: Beteiligte, Aktenzeichen, Kollisionsprüfung (verweist auf Akten und Eigene Daten).
         aktenverwaltung_einrichten(self.akten)
+        # Kostennoten: vergebene Rechnungsnummern der Umgebung.
+        kostennote.einrichten(self.akten)
 
     def _programm(self, dokument_id: int) -> dict:
         fmt = akte.dokument(self.akten, dokument_id)["dokument"]["format"]

@@ -138,7 +138,18 @@ def plausibel(daten: dict, art: str) -> list[str]:
             hinweise.append(f"{f['titel']} sieht nicht wie eine E-Mail-Adresse aus.")
     if daten.get("plz") and _ist_deutschland(daten) and not re.fullmatch(r"\d{5}", daten["plz"]):
         hinweise.append("Eine deutsche Postleitzahl hat fünf Ziffern.")
+    if daten.get("iban") and not iban_gueltig(daten["iban"]):
+        hinweise.append("Die IBAN stimmt nicht: Länge oder Prüfziffer passen nicht.")
     return hinweise
+
+
+def iban_gueltig(iban: str) -> bool:
+    """Prüfziffer nach ISO 13616 (Rest 1 bei Division durch 97); eine deutsche IBAN hat 22 Stellen."""
+    t = re.sub(r"\s+", "", iban).upper()
+    if not re.fullmatch(r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", t) or (t.startswith("DE") and len(t) != 22):
+        return False
+    zahl = "".join(str(int(c, 36)) for c in t[4:] + t[:4])
+    return int(zahl) % 97 == 1
 
 
 # --------------------------------------------------------------------------- Lesen

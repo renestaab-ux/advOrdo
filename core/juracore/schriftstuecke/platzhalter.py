@@ -36,6 +36,11 @@ KATALOG: list[tuple[str, str]] = [
     ("Absender.Register", "Registergericht und Registernummer"),
     ("Absender.Berufsträger", "Berufsträger der Kanzlei mit Berufs- und Fachanwaltsbezeichnung (§ 10 BORA)"),
     ("Absender.Vertreter", "Gesetzliche Vertreter des Unternehmens"),
+    ("Absender.Steuernummer", "USt-IdNr., sonst Steuernummer (für Rechnungen)"),
+    ("Absender.Bank", "Name der Bank"),
+    ("Absender.IBAN", "IBAN"),
+    ("Absender.BIC", "BIC"),
+    ("Absender.Bankverbindung", "Bank, IBAN und BIC in einer Zeile"),
     ("Bearbeiter.Name", "Sachbearbeiter der Akte, sonst der Profilinhaber"),
     ("Bearbeiter.Berufsbezeichnung", "z. B. Rechtsanwältin"),
     ("Bearbeiter.Fachanwalt", "Fachanwaltsbezeichnungen"),
@@ -92,7 +97,8 @@ _WO = {
 # Gegenseite); leer bleiben sie ohne Hinweis.
 OPTIONAL = {
     "Absender.Abteilung", "Absender.Fax", "Absender.Website", "Absender.Register", "Absender.Vertreter",
-    "Absender.Berufsträger", "Bearbeiter.Fachanwalt", "Akte.Gegenstand", "Akte.Gegenstandswert", "Mandant.Vertreter",
+    "Absender.Berufsträger", "Absender.Steuernummer", "Absender.Bank", "Absender.IBAN", "Absender.BIC",
+    "Absender.Bankverbindung", "Bearbeiter.Fachanwalt", "Akte.Gegenstand", "Akte.Gegenstandswert", "Mandant.Vertreter",
     "Gegner.Vertreter", "Gegner.Zeichen", "Gegnervertreter.Zeichen", "Empfänger.Zeichen", "Gericht.Spruchkörper",
     "Verfahren.Instanz",
 }
@@ -310,6 +316,15 @@ def _absender(con: sqlite3.Connection) -> tuple[dict, dict | None]:
     w["Absender.Berufsträger"] = " · ".join(
         _z(_person_name(b["daten"]), _beruf(b["daten"]), _fachanwalt(b["daten"]), trenner=", ")
         for b in s["berufstraeger"] if not b["archiviert"] and not b["mitgliedschaft"].get("ausgeschieden_am"))
+    if d.get("ust_id"):
+        w["Absender.Steuernummer"] = f"USt-IdNr. {d['ust_id']}"
+    elif d.get("steuernummer"):
+        w["Absender.Steuernummer"] = f"Steuernummer {d['steuernummer']}"
+    w["Absender.Bank"] = d.get("bank", "")
+    w["Absender.IBAN"] = d.get("iban", "")
+    w["Absender.BIC"] = d.get("bic", "")
+    w["Absender.Bankverbindung"] = _z(d.get("bank"), f"IBAN {d['iban']}" if d.get("iban") else "",
+                                      f"BIC {d['bic']}" if d.get("bic") else "", trenner=" · ")
     return w, s["inhaber"]
 
 

@@ -9,6 +9,7 @@ import {
   empfaengerVorschlag,
   kern,
 } from "./kern";
+import Kostennote from "./Kostennote";
 
 /**
  * Reiter „Schriftstücke“: Brief oder Schriftsatz aus einer Vorlage erzeugen, gefüllt mit Briefkopf (Eigene Daten),
@@ -21,6 +22,7 @@ export default function Schriftstuecke({
   onGeaendert,
   onDokumente,
   onVorlagen,
+  onEigeneDaten,
 }: {
   akteId: number;
   /** Ein Dokument kam in die Akte; Zähler und Dokumentliste neu laden. */
@@ -28,6 +30,8 @@ export default function Schriftstuecke({
   onDokumente: () => void;
   /** Zu Einstellungen → Schriftstücke (eigene Vorlagen). */
   onVorlagen: () => void;
+  /** Zu Eigene Daten (Steuernummer, Bankverbindung, Rechnungsnummer). */
+  onEigeneDaten: () => void;
 }) {
   const [vorlagen, setVorlagen] = useState<SchriftVorlagen | null>(null);
   const [beteiligte, setBeteiligte] = useState<Beteiligung[]>([]);
@@ -261,6 +265,15 @@ export default function Schriftstuecke({
           </details>
         )}
       </section>
+
+      <Kostennote
+        akteId={akteId}
+        beteiligte={beteiligte}
+        hatVerfahren={verfahren.length > 0}
+        onGeaendert={onGeaendert}
+        onDokumente={onDokumente}
+        onEigeneDaten={onEigeneDaten}
+      />
 
       <section className="karte schrift-hinweis">
         <h2>Eigene Vorlagen</h2>

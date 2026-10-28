@@ -27,7 +27,13 @@
         "bea_kanzlei": "",
         "haftpflicht_versicherer": "Beispiel Versicherung AG",
         "haftpflicht_anschrift": "Musterplatz 1, 50667 Köln",
-        "haftpflicht_geltungsbereich": "Europa"
+        "haftpflicht_geltungsbereich": "Europa",
+        "steuernummer": "06142/12345",
+        "ust_id": "",
+        "bank": "Beispielbank Freiburg",
+        "iban": "DE89 3704 0044 0532 0130 00",
+        "bic": "COBADEFFXXX",
+        "rechnungsnummer_muster": "{JJJJ}-{NNNN}"
       }
     }
   ],
