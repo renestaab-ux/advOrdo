@@ -334,8 +334,9 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
 class _ZuViele(_FalscherOeffner):
     """Wie ein kostenloser Tarif: die ersten Anfragen mit 429, dann eine Antwort."""
 
-    def __init__(self, antworten, fehlschlaege, retry_after=None):
+    def __init__(self, antworten, fehlschlaege, retry_after=None, code=429):
         super().__init__(antworten)
+        self.code = code
         self.fehlschlaege = fehlschlaege
         self.retry_after = retry_after
 
@@ -344,7 +345,7 @@ class _ZuViele(_FalscherOeffner):
             self.fehlschlaege -= 1
             self.anfragen.append((req.full_url, {}, None))
             kopf = {"Retry-After": self.retry_after} if self.retry_after else {}
-            raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", kopf,
+            raise urllib.error.HTTPError(req.full_url, self.code, "Too Many Requests", kopf,
                                          io.BytesIO(b'{"message": "Rate limit exceeded"}'))
         return super().open(req, timeout)
 
@@ -366,3 +367,14 @@ def test_mistral_429_wartet_und_versucht_erneut(monkeypatch):
     with pytest.raises(anbieter.KiFehler, match="keine weiteren Anfragen zu .*Rate limit exceeded.*3-mal"):
         anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"})
     assert pausen == list(anbieter._Http.WARTEN_429)
+
+
+def test_ueberlastet_503_wartet_ebenfalls(monkeypatch):
+    pausen = []
+    monkeypatch.setattr(anbieter.time, "sleep", pausen.append)
+    e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="mistral", extern_modell="m")
+    netz = _ZuViele({}, fehlschlaege=9, code=503)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
+    with pytest.raises(anbieter.KiFehler, match="überlastet .*3-mal"):
+        anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"})
+    assert len(pausen) == 3

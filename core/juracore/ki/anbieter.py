@@ -328,7 +328,8 @@ def _warten_laut(fehler: urllib.error.HTTPError, vorgabe: float) -> float:
 
 
 class _Http:
-    # Wartezeiten (Sekunden), wenn ein externer Anbieter mit 429 „zu viele Anfragen“ antwortet; danach gilt der Fehler.
+    # Wartezeiten (Sekunden), wenn ein externer Anbieter mit 429 „zu viele Anfragen“ oder 503 „überlastet“ antwortet;
+    # danach gilt der Fehler.
     # Zusammen gut eine Minute, weil Limits wie „Token je Minute“ nach einer Minute wieder frei sind.
     WARTEN_429: tuple[float, ...] = (10.0, 25.0, 45.0)
 
@@ -358,7 +359,7 @@ class _Http:
                     return json.loads(antwort.read().decode("utf-8"))
             except urllib.error.HTTPError as fehler:
                 text = _fehlertext(fehler.read().decode("utf-8", "replace"))
-                if self.extern and fehler.code == 429 and gewartet < len(self.WARTEN_429):
+                if self.extern and fehler.code in (429, 503) and gewartet < len(self.WARTEN_429):
                     pause = _warten_laut(fehler, self.WARTEN_429[gewartet])
                     log.info("%s: zu viele Anfragen, warte %.0f s", self.titel, pause)
                     time.sleep(pause)
@@ -366,6 +367,11 @@ class _Http:
                     continue
                 if self.extern and fehler.code in (401, 403):
                     text += " (API-Schlüssel prüfen)"
+                if self.extern and fehler.code == 503:
+                    raise KiFehler(
+                        f"{self.titel} ist gerade überlastet (Fehler 503: {text}); JuraBox hat {gewartet}-mal gewartet "
+                        "und es erneut versucht. Das liegt beim Anbieter: später noch einmal starten oder ein anderes "
+                        "Modell wählen.") from fehler
                 if self.extern and fehler.code == 429:
                     raise KiFehler(
                         f"{self.titel} lässt gerade keine weiteren Anfragen zu (Fehler 429: {text}); JuraBox hat "
