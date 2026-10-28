@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
-import { NETZ_ORTE, NetzProtokoll as Protokoll, istDesktop, kern, netzErgebnis, netzZeit } from "./kern";
+import {
+  NETZ_ORTE,
+  NetzEinstellungen,
+  NetzProtokoll as Protokoll,
+  istDesktop,
+  kern,
+  netzErgebnis,
+  netzFrist,
+  netzZeit,
+} from "./kern";
 
 const ANZEIGE = 200;
 
@@ -13,6 +22,21 @@ export default function NetzProtokoll() {
   const [protokoll, setProtokoll] = useState<Protokoll | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [einst, setEinst] = useState<NetzEinstellungen | null>(null);
+
+  useEffect(() => {
+    if (!istDesktop) return;
+    void kern<NetzEinstellungen>("netz.einstellungen").then(setEinst, (e) => setFehler(String(e)));
+  }, []);
+
+  async function aufbewahren(tage: number, hoechstens: number) {
+    try {
+      setEinst(await kern<NetzEinstellungen>("netz.einstellungen_setzen", { tage, hoechstens }));
+      await laden();
+    } catch (e) {
+      setFehler(String(e));
+    }
+  }
 
   const laden = useCallback(async () => {
     if (!istDesktop) return;
@@ -54,8 +78,7 @@ export default function NetzProtokoll() {
       <p className="erklaerung">
         Jede Verbindung, die JuraBox aufbaut, mit Ziel, Zweck und dem, was dabei außer der Adresse gesendet wurde.
         API-Schlüssel und Texte an ein Sprachmodell stehen nicht darin; bei KI-Anfragen nur Anbieter, Modell, Aufgabe und
-        Umfang. Gespeichert werden die neuesten {protokoll?.hoechstens.toLocaleString("de-DE") ?? "5.000"} Einträge, nur
-        auf diesem Gerät. Was du im Browser öffnest, sieht JuraBox nicht.
+        Umfang. Das Protokoll liegt nur auf diesem Gerät. Was du im Browser öffnest, sieht JuraBox nicht.
       </p>
       <div className="aktionen">
         <label className="schalter-zeile">
@@ -69,6 +92,32 @@ export default function NetzProtokoll() {
           Exportieren …
         </button>
       </div>
+      {einst && (
+        <div className="aktionen netzprotokoll-aufbewahrung">
+          <label>
+            Aufbewahren{" "}
+            <select value={einst.tage} onChange={(e) => void aufbewahren(Number(e.target.value), einst.hoechstens)}>
+              {einst.tage_wahl.map((t) => (
+                <option key={t} value={t}>
+                  {netzFrist(t)}
+                  {t === einst.vorgabe.tage ? " (Vorgabe)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            höchstens{" "}
+            <select value={einst.hoechstens} onChange={(e) => void aufbewahren(einst.tage, Number(e.target.value))}>
+              {einst.hoechstens_wahl.map((h) => (
+                <option key={h} value={h}>
+                  {h.toLocaleString("de-DE")} Einträge{h === einst.vorgabe.hoechstens ? " (Vorgabe)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="leise klein">Ältere Einträge löscht JuraBox beim Start und einmal am Tag.</span>
+        </div>
+      )}
       {meldung && <p className="meldung">{meldung}</p>}
       {fehler && <p className="fehler">{fehler}</p>}
       {protokoll && protokoll.gesamt === 0 && <p className="leise">Noch keine Anfragen protokolliert.</p>}

@@ -83,7 +83,7 @@ sonst fehlt er im Protokoll. Jede Verbindung (auch eine gescheiterte, jede Weite
 `<Datenverzeichnis>/netzprotokoll.jsonl`: Zeit, Ziel, Ort (Internet, eigener Rechner, lokales Netzwerk), Zweck (aus
 `kennzeichnen`, dem `anlass` des Ablaufs und Ziel/Pfad), Adresse ohne geheime Parameter, Formularfelder ohne
 Prüfzeichen, Status, Dauer. Kopfzeilen (API-Schlüssel) und Texte an Sprachmodelle werden nie protokolliert, nur Modell
-und Umfang. Die neuesten 5.000 Einträge bleiben; Export als CSV (Semikolon, BOM) oder Text.
+und Umfang. Aufbewahrung wählbar (Vorgabe 90 Tage, höchstens 5.000 Einträge; `netzprotokoll.json`), Älteres wird beim Start und einmal am Tag entfernt; Export als CSV (Semikolon, BOM) oder Text.
 
 Online-Prüfung von Zitaten (`rechtsprechung.online.sperrgrund`): Aktenzeichen, die in einer Akte als Verfahren oder
 Zeichen eines Beteiligten stehen, und „Zitate“ ohne Datum und Entscheidungsart (meist ein Briefkopf) gehen nie an

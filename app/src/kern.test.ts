@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   netzErgebnis,
+  netzFrist,
   netzZeit,
   type NetzEintrag,
   dokumentName,
@@ -789,6 +790,9 @@ describe("Protokoll der Online-Anfragen", () => {
     expect(netzErgebnis({ ...e, status: null, fehler: "URLError: abgelehnt" })).toEqual({
       text: "Fehler: URLError: abgelehnt", ok: false,
     });
+  });
+  it("nennt die Frist", () => {
+    expect([30, 90, 365, 730].map(netzFrist)).toEqual(["30 Tage", "90 Tage", "1 Jahr", "2 Jahre"]);
   });
   it("zeigt die Zeit deutsch", () => {
     expect(netzZeit("kaputt")).toBe("kaputt");

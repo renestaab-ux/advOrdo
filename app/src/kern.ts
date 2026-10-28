@@ -2407,6 +2407,21 @@ export interface NetzProtokoll {
   gesamt: number;
   seit: string | null;
   hoechstens: number;
+  tage: number;
+}
+
+export interface NetzEinstellungen {
+  tage: number;
+  hoechstens: number;
+  tage_wahl: number[];
+  hoechstens_wahl: number[];
+  vorgabe: { tage: number; hoechstens: number };
+}
+
+/** „90 Tage“, „1 Jahr“, „2 Jahre“ für die Aufbewahrung des Protokolls. */
+export function netzFrist(tage: number): string {
+  if (tage % 365 === 0) return tage === 365 ? "1 Jahr" : `${tage / 365} Jahre`;
+  return `${tage} Tage`;
 }
 
 export const NETZ_ORTE: Record<NetzEintrag["ort"], string> = {

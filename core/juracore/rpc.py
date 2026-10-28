@@ -127,6 +127,9 @@ class Kern:
                 self.netzprotokoll_datei, bool(nur_internet), int(limit)),
             "netz.exportieren": lambda pfad, nur_internet=False: netzprotokoll.exportieren(
                 self.netzprotokoll_datei, pfad, bool(nur_internet)),
+            "netz.einstellungen": lambda: netzprotokoll.einstellungen(self.netzprotokoll_datei),
+            "netz.einstellungen_setzen": lambda tage, hoechstens: netzprotokoll.einstellungen_setzen(
+                self.netzprotokoll_datei, int(tage), int(hoechstens)),
             "akten.liste": self.akten_liste,
             "akten.anlegen": self.akte_anlegen,
             "akten.geoeffnet": lambda akte_id: stammdaten.geoeffnet(self.akten, akte_id),

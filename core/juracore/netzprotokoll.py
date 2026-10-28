@@ -8,7 +8,8 @@ einen Eintrag, auch eine, die scheitert, und eine Weiterleitung als zweiten Eint
 Ins Protokoll kommen Adresse und Formularfelder im Wortlaut, weil genau sie das Gerät verlassen. Nie hinein:
 API-Schlüssel (sie stehen im Kopf der Anfrage, der nicht protokolliert wird, und werden aus Adressen entfernt),
 Prüfzeichen von Formularen und der Text von Anfragen an ein Sprachmodell; dafür nur Anbieter, Modell, Aufgabe und
-Umfang. Das Protokoll liegt auf dem Gerät (neben ``ki.json``) und behält die neuesten ``HOECHSTENS`` Einträge.
+Umfang. Das Protokoll liegt auf dem Gerät (neben ``ki.json``). Es behält die Einträge der letzten 90 Tage, höchstens
+die neuesten 5.000; beides ist in Einstellungen → Diagnose wählbar (``netzprotokoll.json``).
 """
 
 from __future__ import annotations
@@ -24,12 +25,16 @@ import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 DATEINAME = "netzprotokoll.jsonl"
-HOECHSTENS = 5000
+HOECHSTENS = 5000  # Vorgaben, wählbar in Einstellungen → Diagnose
+AUFBEWAHRUNG_TAGE = 90
+TAGE_WAHL = (7, 30, 90, 180, 365, 730)
+HOECHSTENS_WAHL = (1000, 5000, 20000, 50000)
+EINSTELLUNGEN = "netzprotokoll.json"
 _KUERZEN_AB = 3 * 1024 * 1024  # Dateigröße, ab der auf die neuesten Einträge gekürzt wird
 
 INTERNET, GERAET, NETZWERK = "internet", "geraet", "netzwerk"
@@ -39,6 +44,9 @@ ORTE = {INTERNET: "Internet", GERAET: "Eigener Rechner", NETZWERK: "Lokales Netz
 _anlass: contextvars.ContextVar[str | None] = contextvars.ContextVar("netz_anlass", default=None)
 
 _datei: Path | None = None
+_gekuerzt_am: str | None = None  # Tag, an dem zuletzt Altes entfernt wurde
+_tage = AUFBEWAHRUNG_TAGE
+_hoechstens = HOECHSTENS
 _sperre = threading.Lock()
 
 # Namen von Adress- und Formularfeldern, deren Wert geheim ist oder nur der Sitzung dient.
@@ -48,9 +56,46 @@ _GEHEIM = re.compile(r"(?i)^(?:key|api[_-]?key|access[_-]?token|token|auth|passw
 
 def einrichten(datei: Path | None) -> None:
     """Schreibt ab jetzt in ``datei`` (``None``: nicht mehr) und leitet ``urlopen`` über die Protokoll-Handler."""
-    global _datei
+    global _datei, _tage, _hoechstens
     _datei = Path(datei) if datei is not None else None
+    _tage, _hoechstens = AUFBEWAHRUNG_TAGE, HOECHSTENS
+    if _datei is not None:
+        e = einstellungen(_datei)
+        _tage, _hoechstens = e["tage"], e["hoechstens"]
+    if _datei is not None and _datei.is_file():
+        with _sperre:
+            _kuerze_sicher(_datei)
     urllib.request.install_opener(oeffner())
+
+
+def einstellungen(datei: Path) -> dict:
+    """Aufbewahrung (Tage) und Höchstzahl der Einträge; fehlt die Datei oder ist sie unlesbar, die Vorgaben."""
+    try:
+        roh = json.loads(Path(datei).with_name(EINSTELLUNGEN).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        roh = {}
+    tage = roh.get("tage") if isinstance(roh, dict) else None
+    hoechstens = roh.get("hoechstens") if isinstance(roh, dict) else None
+    return {"tage": tage if tage in TAGE_WAHL else AUFBEWAHRUNG_TAGE,
+            "hoechstens": hoechstens if hoechstens in HOECHSTENS_WAHL else HOECHSTENS,
+            "tage_wahl": list(TAGE_WAHL), "hoechstens_wahl": list(HOECHSTENS_WAHL),
+            "vorgabe": {"tage": AUFBEWAHRUNG_TAGE, "hoechstens": HOECHSTENS}}
+
+
+def einstellungen_setzen(datei: Path, tage: int, hoechstens: int) -> dict:
+    """Speichert die Aufbewahrung und kürzt das Protokoll sofort darauf."""
+    global _tage, _hoechstens
+    if tage not in TAGE_WAHL or hoechstens not in HOECHSTENS_WAHL:
+        raise ValueError("Bitte eine der angebotenen Aufbewahrungsfristen und Höchstzahlen wählen.")
+    ziel = Path(datei).with_name(EINSTELLUNGEN)
+    ziel.parent.mkdir(parents=True, exist_ok=True)
+    ziel.write_text(json.dumps({"tage": tage, "hoechstens": hoechstens}), encoding="utf-8")
+    if _datei is not None and Path(datei) == _datei:
+        _tage, _hoechstens = tage, hoechstens
+        with _sperre:
+            if _datei.is_file():
+                _kuerze_sicher(_datei)
+    return einstellungen(datei)
 
 
 def oeffner(*handler: urllib.request.BaseHandler) -> urllib.request.OpenerDirector:
@@ -218,14 +263,44 @@ def _schreibe(anfrage: urllib.request.Request, status: int | None, fehler: str |
             datei.parent.mkdir(parents=True, exist_ok=True)
             with open(datei, "a", encoding="utf-8") as f:
                 f.write(zeile)
-            if datei.stat().st_size > _KUERZEN_AB:
+            if datei.stat().st_size > _KUERZEN_AB or _gekuerzt_am != datetime.now().date().isoformat():
                 _kuerze(datei)
         except OSError:
             pass  # ein volles oder gesperrtes Laufwerk darf keinen Abruf verhindern
 
 
+def _kuerze_sicher(datei: Path) -> None:
+    try:
+        _kuerze(datei)
+    except OSError:
+        pass
+
+
+def _grenze() -> datetime:
+    return datetime.now().astimezone() - timedelta(days=_tage)
+
+
+def _aktuell(e: dict, grenze: datetime) -> bool:
+    try:
+        return datetime.fromisoformat(e["zeit"]) >= grenze
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def _kuerze(datei: Path) -> None:
-    zeilen = datei.read_text(encoding="utf-8").splitlines(keepends=True)[-HOECHSTENS:]
+    """Entfernt Einträge, die älter als die gewählte Frist sind, und alles über die gewählte Höchstzahl."""
+    global _gekuerzt_am
+    grenze = _grenze()
+    zeilen = []
+    for zeile in datei.read_text(encoding="utf-8").splitlines(keepends=True):
+        try:
+            e = json.loads(zeile)
+        except ValueError:
+            continue
+        if isinstance(e, dict) and _aktuell(e, grenze):
+            zeilen.append(zeile if zeile.endswith("\n") else zeile + "\n")
+    zeilen = zeilen[-_hoechstens:]
+    _gekuerzt_am = datetime.now().date().isoformat()
     tmp = datei.with_suffix(".tmp")
     tmp.write_text("".join(zeilen), encoding="utf-8")
     tmp.replace(datei)
@@ -235,6 +310,7 @@ def _kuerze(datei: Path) -> None:
 
 
 def _alle(datei: Path) -> list[dict]:
+    grenze = _grenze()
     try:
         text = Path(datei).read_text(encoding="utf-8")
     except OSError:
@@ -245,9 +321,9 @@ def _alle(datei: Path) -> list[dict]:
             e = json.loads(zeile)
         except ValueError:
             continue  # eine halb geschriebene Zeile nach einem Absturz
-        if isinstance(e, dict) and e.get("zeit"):
+        if isinstance(e, dict) and _aktuell(e, grenze):
             eintraege.append(e)
-    return eintraege[-HOECHSTENS:]
+    return eintraege[-_hoechstens:]
 
 
 def liste(datei: Path, nur_internet: bool = False, limit: int | None = 500) -> dict:
@@ -256,7 +332,7 @@ def liste(datei: Path, nur_internet: bool = False, limit: int | None = 500) -> d
     eintraege.reverse()
     seit = eintraege[-1]["zeit"] if eintraege else None
     return {"eintraege": eintraege[:limit] if limit else eintraege, "gesamt": len(eintraege), "seit": seit,
-            "hoechstens": HOECHSTENS}
+            "hoechstens": _hoechstens, "tage": _tage}
 
 
 SPALTEN = (("zeit", "Zeit"), ("ort", "Ort"), ("ziel", "Ziel"), ("zweck", "Zweck"), ("methode", "Methode"),

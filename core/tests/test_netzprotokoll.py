@@ -4,6 +4,7 @@ import json
 import urllib.error
 import urllib.request
 import urllib.response
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -131,18 +132,54 @@ def test_export_csv_und_text(protokoll, tmp_path):
 
 def test_kuerzen_und_kaputte_zeilen(tmp_path, monkeypatch):
     datei = tmp_path / "p.jsonl"
-    monkeypatch.setattr(netzprotokoll, "HOECHSTENS", 3)
-    datei.write_text("".join(json.dumps({"zeit": f"2026-10-28T10:00:0{i}+01:00", "n": i}) + "\n" for i in range(5))
-                     + '{"zeit": "halb', encoding="utf-8")
+    monkeypatch.setattr(netzprotokoll, "_hoechstens", 3)
+    jetzt = datetime.now().astimezone()
+    datei.write_text("".join(json.dumps({"zeit": (jetzt - timedelta(minutes=5 - i)).isoformat(), "n": i}) + "\n"
+                             for i in range(5)) + '{"zeit": "halb', encoding="utf-8")
     assert [e["n"] for e in netzprotokoll.liste(datei)["eintraege"]] == [4, 3, 2]
     netzprotokoll._kuerze(datei)
     assert len(datei.read_text(encoding="utf-8").splitlines()) == 3
 
 
+def test_nach_90_tagen_geloescht(tmp_path):
+    datei = tmp_path / "p.jsonl"
+    jetzt = datetime.now().astimezone()
+    datei.write_text("".join(json.dumps({"zeit": (jetzt - timedelta(days=t)).isoformat(), "tage": t}) + "\n"
+                             for t in (120, 91, 89, 1)), encoding="utf-8")
+    assert [e["tage"] for e in netzprotokoll.liste(datei)["eintraege"]] == [1, 89]
+    netzprotokoll.einrichten(datei)  # beim Start wird Altes aus der Datei entfernt
+    try:
+        assert [json.loads(z)["tage"] for z in datei.read_text(encoding="utf-8").splitlines()] == [89, 1]
+    finally:
+        netzprotokoll.einrichten(None)
+
+
 def test_rpc_protokoll(tmp_path):
     kern = rpc.Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
     try:
-        assert kern.methoden["netz.protokoll"]() == {"eintraege": [], "gesamt": 0, "seit": None, "hoechstens": 5000}
+        assert kern.methoden["netz.protokoll"]() == {"eintraege": [], "gesamt": 0, "seit": None, "hoechstens": 5000,
+                                                   "tage": 90}
         assert kern.netzprotokoll_datei == tmp_path / "netzprotokoll.jsonl"
+    finally:
+        netzprotokoll.einrichten(None)
+
+
+def test_aufbewahrung_waehlbar(tmp_path):
+    kern = rpc.Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
+    try:
+        datei = kern.netzprotokoll_datei
+        jetzt = datetime.now().astimezone()
+        datei.write_text("".join(json.dumps({"zeit": (jetzt - timedelta(days=t)).isoformat(), "tage": t}) + "\n"
+                                 for t in (60, 20, 1)), encoding="utf-8")
+        e = kern.methoden["netz.einstellungen"]()
+        assert (e["tage"], e["hoechstens"]) == (90, 5000) and e["vorgabe"] == {"tage": 90, "hoechstens": 5000}
+        kern.methoden["netz.einstellungen_setzen"](tage=30, hoechstens=1000)
+        assert [json.loads(z)["tage"] for z in datei.read_text(encoding="utf-8").splitlines()] == [20, 1]
+        assert kern.methoden["netz.protokoll"]()["tage"] == 30
+        with pytest.raises(ValueError, match="angebotenen"):
+            kern.methoden["netz.einstellungen_setzen"](tage=3, hoechstens=1000)
+        # Nach einem Neustart gilt die gewählte Frist weiter.
+        netzprotokoll.einrichten(datei)
+        assert netzprotokoll.liste(datei)["tage"] == 30
     finally:
         netzprotokoll.einrichten(None)
