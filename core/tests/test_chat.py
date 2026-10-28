@@ -234,16 +234,16 @@ def test_openai_und_mistral_ueber_https(monkeypatch):
     netz = _FalscherOeffner({"/chat/completions": antwort,
                              "/models": {"data": [{"id": "gpt-x"}, {"id": "text-embedding-3"}]}})
     monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
-    for name, url, feld, temperatur in (
-        ("openai_cloud", "https://api.openai.com/v1", "max_completion_tokens", False),
-        ("mistral", "https://api.mistral.ai/v1", "max_tokens", True),
+    for name, url, feld, temperatur, laenge in (
+        ("openai_cloud", "https://api.openai.com/v1", "max_completion_tokens", False, anbieter.EXTERN_ANTWORT_TOKEN),
+        ("mistral", "https://api.mistral.ai/v1", "max_tokens", True, anbieter.ANTWORT_TOKEN),
     ):
         e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter=name,
                                      extern_modell="m")
         assert anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"}) == {"ok": True}
         adresse, kopf, daten = netz.anfragen[-1]
         assert adresse == url + "/chat/completions" and kopf["Authorization"] == "Bearer schluessel"
-        assert daten[feld] == anbieter.EXTERN_ANTWORT_TOKEN and ("temperature" in daten) is temperatur
+        assert daten[feld] == laenge and ("temperature" in daten) is temperatur
     # Modellnamen ohne „models/“, ohne Einbettungsmodelle.
     assert [m["name"] for m in anbieter.erzeuge_aktiv(e, "schluessel").modelle()] == ["gpt-x"]
 

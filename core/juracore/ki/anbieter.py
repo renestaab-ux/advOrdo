@@ -329,7 +329,8 @@ def _warten_laut(fehler: urllib.error.HTTPError, vorgabe: float) -> float:
 
 class _Http:
     # Wartezeiten (Sekunden), wenn ein externer Anbieter mit 429 „zu viele Anfragen“ antwortet; danach gilt der Fehler.
-    WARTEN_429: tuple[float, ...] = (5.0, 15.0, 30.0)
+    # Zusammen gut eine Minute, weil Limits wie „Token je Minute“ nach einer Minute wieder frei sind.
+    WARTEN_429: tuple[float, ...] = (10.0, 25.0, 45.0)
 
     def __init__(self, endpunkt: str, titel: str, kopf: dict[str, str] | None = None, extern: bool = False):
         self.endpunkt = pruefe_extern(endpunkt) if extern else pruefe_lokal(endpunkt)
@@ -566,8 +567,10 @@ class OpenAIExtern:
     """Externe Dienste mit OpenAI-Schnittstelle: OpenAI selbst, Google Gemini, Mistral und andere."""
 
     def __init__(self, adresse: str, titel: str, modell: str, schluessel: str, kontext: int = 32768,
-                 token_feld: str = "max_tokens", temperatur: float | None = 0):
+                 token_feld: str = "max_tokens", temperatur: float | None = 0,
+                 antwort_token: int = EXTERN_ANTWORT_TOKEN):
         self.http = _Http(adresse, titel, {"Authorization": f"Bearer {schluessel}"}, extern=True)
+        self.antwort_token = antwort_token
         self.titel = titel
         self.modell = modell
         self.kontext = kontext
@@ -590,7 +593,7 @@ class OpenAIExtern:
         daten: dict[str, Any] = {
             "model": self.modell,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
-            self.token_feld: EXTERN_ANTWORT_TOKEN,
+            self.token_feld: self.antwort_token,
             "response_format": {"type": "json_schema",
                                 "json_schema": {"name": "antwort", "schema": _streng(schema), "strict": False}},
         }
@@ -705,6 +708,11 @@ def erzeuge_extern(e: KiEinstellungen, schluessel: str | None) -> Anbieter:
         # Neuere OpenAI-Modelle verlangen max_completion_tokens und lassen keine eigene Temperatur zu.
         return OpenAIExtern(e.externe_adresse, titel, e.extern_modell, schluessel, e.extern_kontext,
                             "max_completion_tokens", None)
+    if e.extern_anbieter == "mistral" and not e.extern_modell.startswith("magistral"):
+        # Mistral rechnet die erlaubte Antwortlänge auf das Limit je Minute an (kostenloser Tarif: 20.000 Token).
+        # Modelle ohne Denkphase brauchen nicht mehr als lokal.
+        return OpenAIExtern(e.externe_adresse, titel, e.extern_modell, schluessel, e.extern_kontext,
+                            antwort_token=ANTWORT_TOKEN)
     return OpenAIExtern(e.externe_adresse, titel, e.extern_modell, schluessel, e.extern_kontext)
 
 
