@@ -23,7 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, db, diagnose, einstellungen, gerichte, nachrichten, programme
+from . import __version__, db, diagnose, einstellungen, gerichte, nachrichten, netzprotokoll, programme
 from .abgleich import abgleich
 from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, notizen, stammdaten, verfahren
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
@@ -74,6 +74,9 @@ class Kern:
             Path(db_pfad).parent / "nachrichten.json", Path(db_pfad).parent / "nachrichten-cache.json")
         # Abrufe der Diagnose und des Gerichtsverzeichnisses; in Tests ohne Netz austauschbar.
         self.diagnose_oeffnen = urllib.request.urlopen
+        # Jede Verbindung des Kerns wird protokolliert (Einstellungen → Diagnose); die Datei gilt für das Gerät.
+        self.netzprotokoll_datei = Path(db_pfad).parent / netzprotokoll.DATEINAME
+        netzprotokoll.einrichten(self.netzprotokoll_datei)
         self.methoden: dict[str, Callable[..., Any]] = {
             "ping": lambda: {"version": __version__},
             "umgebungen.liste": self.umgebungen.liste,
@@ -119,6 +122,11 @@ class Kern:
             "ocr.status": ocr.status,
             "diagnose.liste": diagnose.liste,
             "diagnose.pruefen": lambda pruef_id: diagnose.pruefe(self, pruef_id),
+            # Protokoll der Online-Anfragen (Einstellungen → Diagnose): gilt für das Gerät.
+            "netz.protokoll": lambda nur_internet=False, limit=500: netzprotokoll.liste(
+                self.netzprotokoll_datei, bool(nur_internet), int(limit)),
+            "netz.exportieren": lambda pfad, nur_internet=False: netzprotokoll.exportieren(
+                self.netzprotokoll_datei, pfad, bool(nur_internet)),
             "akten.liste": self.akten_liste,
             "akten.anlegen": self.akte_anlegen,
             "akten.geoeffnet": lambda akte_id: stammdaten.geoeffnet(self.akten, akte_id),
@@ -223,8 +231,7 @@ class Kern:
                                                  zitat, herkunft),
             "akten.urteile": lambda akte_id: urteile.liste(self.akten, akte_id),
             "akten.urteile_zugeordnet": lambda akte_id: urteile.zur_bearbeitung(self.akten, self.con, akte_id),
-            "akten.volltexte_laden": lambda akte_id, zitat=None: urteile.volltexte_laden(
-                self.akten, self.con, akte_id, self.archiv, zitat=zitat),
+            "akten.volltexte_laden": self.volltexte_laden,
             "rechtsprechung.eigene": lambda: urteile.uebersicht(self.akten),
             "rechtsprechung.sammlung": lambda: urteile.sammlung(self.akten),
             "rechtsprechung.suche": lambda suchtext: urteile.suche(self.akten, suchtext),
@@ -693,12 +700,13 @@ class Kern:
 
         return self.auftraege.starte(aufgabe, arbeit)
 
-    def metadaten_ki(self, dokument_id: int, neu: bool = False) -> dict:
+    def metadaten_ki(self, dokument_id: int, neu: bool = False, automatisch: bool = False) -> dict:
         """Art, Absender, Empfänger und Gegenstand eines Dokuments vom Sprachmodell, sofern eines eingerichtet ist.
 
         Status "aus" (KI ausgeschaltet oder kein Modell, die Texterkennung gilt), "fertig" mit Ergebnis (auch aus
         dem Speicher), "laeuft" mit Auftrag (Ergebnis über ``ki.auftrag``) oder "belegt" (das Modell arbeitet an
-        etwas anderem).
+        etwas anderem). ``automatisch`` (die Ansicht „Details“ wurde nur geöffnet): Bei einem externen Anbieter startet
+        nichts, Status "extern"; der Text geht erst auf Knopfdruck hinaus.
         """
         e = ki_anbieter.lade_einstellungen(self.ki_datei)
         if e.abgeschaltet or not e.aktives_modell:
@@ -712,6 +720,8 @@ class Kern:
         if not neu and (alt := ki_metadaten.gespeichert(Analyse(self.akten, modell, e.aktiver_kontext),
                                                         int(dokument_id), beteiligte, eigene)) is not None:
             return {"status": "fertig", "ergebnis": alt}
+        if automatisch and e.extern:
+            return {"status": "extern"}
 
         def arbeit(auftrag) -> dict:
             con = akte.oeffne(self.akten_pfad)
@@ -748,7 +758,8 @@ class Kern:
 
     def recherche_suche(self, quelle: str, felder: dict) -> dict:
         neuris_an = online.einstellungen(self.quellen_datei)["neuris"]
-        return self._recherche_ergebnis(lambda: self.recherche.suche(quelle, felder, neuris_an))
+        with netzprotokoll.anlass("Rechtsprechung online suchen"):
+            return self._recherche_ergebnis(lambda: self.recherche.suche(quelle, felder, neuris_an))
 
     def _recherche_ergebnis(self, f: Callable[[], Any]) -> Any:
         """Führt einen Abruf der Online-Recherche aus; Netzfehler werden zu einer verständlichen Meldung,
@@ -765,11 +776,16 @@ class Kern:
             ergebnis["treffer"] = urteile.gespeichert(self.akten, ergebnis["treffer"])
         return ergebnis
 
+    def volltexte_laden(self, akte_id: int, zitat: str | None = None) -> dict:
+        with netzprotokoll.anlass("Volltexte der Akte laden"):
+            return urteile.volltexte_laden(self.akten, self.con, akte_id, self.archiv, zitat=zitat)
+
     def online_pruefen(self, akte_id: int, neu: bool = False) -> dict:
         """Prüft offene Zitate einer Akte bei gesetze-bayern.de bzw. NeuRIS; gesendet wird nur das Aktenzeichen."""
         aktiv = self._online_quellen()
-        ergebnis = online.pruefe(self.con, akte.rechtsprechung(self.akten, self.con, akte_id, None, aktiv), aktiv,
-                                 bool(neu))
+        with netzprotokoll.anlass("Zitate der Akte online prüfen"):
+            ergebnis = online.pruefe(self.con, akte.rechtsprechung(self.akten, self.con, akte_id, None, aktiv),
+                                     aktiv, bool(neu), eigene=online.eigene_aktenzeichen(self.akten))
         akte.urteilszitate_neu_pruefen(self.akten, self.con, akte_id)
         return ergebnis
 

@@ -643,6 +643,7 @@ def rechtsprechung(
     from . import urteile  # urteile nutzt Hilfsfunktionen dieses Moduls
 
     vorliegend = urteile.liste(con, akte_id)
+    eigene = online.eigene_aktenzeichen(con)
     for g in gruppen.values():
         g["urteil"] = urteile.zu_zitat(vorliegend, g["zitat"], g["gericht"], g["aktenzeichen"])
         # Zitierte Randnummern gegen den vorliegenden Volltext prüfen.
@@ -652,7 +653,9 @@ def rechtsprechung(
         g["rn_hoechste"] = max(rns) if rns else None
         quelle = online.zustaendig(g["gericht"], g["aktenzeichen"], g["status"],
                                    {online.BAYERN} if online_quellen is None else online_quellen)
-        g["online_offen"] = quelle if quelle and any(
+        # Was das eigene Verfahren sein kann, wird nicht online gesucht; die Akte nennt den Grund.
+        g["online_gesperrt"] = online.sperrgrund(g, eigene) if quelle else None
+        g["online_offen"] = quelle if quelle and not g["online_gesperrt"] and any(
             quelle not in online.ergebnisse(wissen, z) for z in g["zitate"]) else None
     # Offene Fragen zuerst: innerhalb eines Status stehen Zitate ohne vorliegenden Volltext oben.
     return sorted(gruppen.values(), key=lambda g: (reihenfolge.get(g["status"], 9), g["urteil"] is not None,

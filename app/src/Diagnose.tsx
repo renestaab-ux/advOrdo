@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { isPermissionGranted } from "@tauri-apps/plugin-notification";
 import { DiagnosePruefung, DiagnoseStand, DiagnoseErgebnis, diagnoseBericht, istDesktop, kern } from "./kern";
+import NetzProtokoll from "./NetzProtokoll";
 
 const STAND_TEXT: Record<DiagnoseStand, string> = { ok: "in Ordnung", warnung: "Hinweis", fehler: "Fehler", aus: "aus" };
 
@@ -90,7 +91,7 @@ export default function Diagnose() {
         Prüft, ob alle Teile von JuraBox funktionieren: Datenordner, Datenbanken, das Archiv der Rechtsquellen,
         Texterkennung, Programme, die Sprachmodelle und die Rechtsquellen im Internet. Ins Netz gehen nur kurze Abrufe der
         öffentlichen Rechtsquellen und, wenn die externe KI eingebunden ist, die Modellliste des Anbieters. Dokumentinhalte
-        werden nicht übertragen.
+        werden nicht übertragen. Jede Anfrage steht unten im Protokoll der Online-Anfragen.
       </p>
       <div className="aktionen">
         <button onClick={() => void starten()} disabled={laeuft !== null || pruefungen.length === 0}>
@@ -147,6 +148,8 @@ export default function Diagnose() {
           </ul>
         </section>
       ))}
+
+      <NetzProtokoll />
     </div>
   );
 }

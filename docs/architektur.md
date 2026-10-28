@@ -76,6 +76,20 @@ oder Datum prüft die Analyse mit dem Sprachmodell.
 
 ## Analyse mit lokalem Sprachmodell
 
+`juracore.netzprotokoll` (Protokoll der Online-Anfragen, Einstellungen → Diagnose): `einrichten` stellt
+`urllib.request.urlopen` auf einen Öffner mit eigenem HTTP- und HTTPS-Handler um; wer einen eigenen Öffner braucht
+(Cookies, ohne Proxy), baut ihn mit `netzprotokoll.oeffner(...)`. Neuer Netzcode muss einen dieser beiden Wege nehmen,
+sonst fehlt er im Protokoll. Jede Verbindung (auch eine gescheiterte, jede Weiterleitung) schreibt eine Zeile nach
+`<Datenverzeichnis>/netzprotokoll.jsonl`: Zeit, Ziel, Ort (Internet, eigener Rechner, lokales Netzwerk), Zweck (aus
+`kennzeichnen`, dem `anlass` des Ablaufs und Ziel/Pfad), Adresse ohne geheime Parameter, Formularfelder ohne
+Prüfzeichen, Status, Dauer. Kopfzeilen (API-Schlüssel) und Texte an Sprachmodelle werden nie protokolliert, nur Modell
+und Umfang. Die neuesten 5.000 Einträge bleiben; Export als CSV (Semikolon, BOM) oder Text.
+
+Online-Prüfung von Zitaten (`rechtsprechung.online.sperrgrund`): Aktenzeichen, die in einer Akte als Verfahren oder
+Zeichen eines Beteiligten stehen, und „Zitate“ ohne Datum und Entscheidungsart (meist ein Briefkopf) gehen nie an
+gesetze-bayern.de oder NeuRIS. Bei einem externen Sprachmodell startet die Ansicht „Details“ die Erkennung erst auf
+Knopfdruck (`akten.metadaten_ki` mit `automatisch`).
+
 `juracore.ki`:
 
 - `anbieter`: Provider-Adapter für Ollama (`/api/chat`) und OpenAI-kompatible lokale Server wie

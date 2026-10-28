@@ -41,6 +41,8 @@ from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
+from .. import netzprotokoll
+
 log = logging.getLogger("juracore.ki")
 
 OLLAMA = "ollama"
@@ -286,12 +288,19 @@ class Anbieter(Protocol):
     def chat(self, system: str, nutzer: str, schema: dict) -> dict: ...
 
 
-# Ohne Proxy: Anfragen an das lokale Modell sollen nie über einen (Firmen-)Proxy laufen.
-_OEFFNER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+def _oeffner(extern: bool) -> urllib.request.OpenerDirector:
+    """Externe Anbieter über den Proxy des Systems, wie ein Browser (Kanzleinetze erlauben oft nur diesen Weg); das
+    lokale Modell nie über einen (Firmen-)Proxy. Beide mit Protokoll der Online-Anfragen."""
+    return netzprotokoll.oeffner() if extern else netzprotokoll.oeffner(urllib.request.ProxyHandler({}))
 
 
-# Externe Anbieter dagegen über den Proxy des Systems, wie ein Browser (Kanzleinetze erlauben oft nur diesen Weg).
-_OEFFNER_EXTERN = urllib.request.build_opener()
+def _beschreibung(pfad: str, daten: dict | None, koerper: bytes | None) -> str:
+    """Was das Protokoll über eine Anfrage an das Modell festhält: Modell und Umfang, nie den Text."""
+    if koerper is None:
+        return ""
+    modell = (daten or {}).get("model") or (m.group(1) if (m := re.search(r"/models/([^/:]+)", pfad)) else "")
+    zeichen = f"{len(koerper.decode('utf-8', 'replace')):,}".replace(",", ".")
+    return f"Anfrage an {modell or 'das Modell'}: {zeichen} Zeichen (Text nicht protokolliert)"
 
 
 def _fehlertext(roh: str) -> str:
@@ -324,7 +333,9 @@ class _Http:
             headers={"Content-Type": "application/json", **self.kopf},
             method="GET" if daten is None else "POST",
         )
-        oeffner = _OEFFNER_EXTERN if self.extern else _OEFFNER
+        zweck = f"Sprachmodell ({self.titel})" + (" – Modelle abfragen" if daten is None else "")
+        netzprotokoll.kennzeichnen(req, zweck, _beschreibung(pfad, daten, koerper))
+        oeffner = _oeffner(self.extern)
         if not self.extern:
             _pruefe_aufloesung(self.endpunkt)
         try:

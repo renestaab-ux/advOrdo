@@ -32,6 +32,7 @@ import zlib
 from dataclasses import dataclass
 from html.entities import name2codepoint
 
+from .. import netzprotokoll
 from .verzeichnis import USER_AGENT
 from .volltext import Absatz, Volltext
 
@@ -163,7 +164,7 @@ def suche(aktenzeichen: str = "", timeout: float = 30, *, volltext: str = "", vo
     Sitzung, weil die Filter je Sitzung gelten. Geliefert wird die erste Seite der Trefferliste."""
     if gerichtsbarkeit is not None and gerichtsbarkeit not in GERICHTSBARKEITEN:
         raise ValueError(f"Unbekannte Gerichtsbarkeit: {gerichtsbarkeit!r}")
-    oeffner = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    oeffner = netzprotokoll.oeffner(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     oeffner.addheaders = [("User-Agent", USER_AGENT)]
 
     def hole(pfad: str, daten: bytes | None = None) -> str:

@@ -3,7 +3,9 @@
 Das Verzeichnis von rechtsprechung-im-internet.de deckt nur die Bundesgerichte ab und wird als
 Ganzes geladen. Für die übrigen Quellen gibt es kein solches Verzeichnis; hier wird je Zitat live
 gesucht, und zwar nur, wenn man in der Akte „Online prüfen“ wählt. Gesendet wird nur das
-Aktenzeichen der zitierten Entscheidung.
+Aktenzeichen der zitierten Entscheidung, und auch das nicht, wenn es das eigene Verfahren sein kann
+(``sperrgrund``): ein Aktenzeichen, das in einer Akte als Verfahren oder Zeichen eines Beteiligten steht, oder
+ein „Zitat“ ohne Datum und Entscheidungsart, wie es ein Briefkopf („AG Augsburg, 15 C 1234/26“) ergibt.
 
 Die Ergebnisse sind öffentliche Angaben ohne Bezug zur Akte und liegen deshalb in der Wissensbasis
 (Tabelle ``rechtsprechung_online``). Beim Prüfen eines Zitats ergänzen sie das Ergebnis des
@@ -18,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import urllib.error
 from collections.abc import Callable
@@ -114,6 +117,35 @@ def zustaendig(gericht: str, aktenzeichen: str | None, status: str, aktiv: set[s
     return None
 
 
+GESPERRT_EIGEN = ("Nicht online geprüft: Das Aktenzeichen steht in einer Akte als eigenes Verfahren oder Zeichen "
+                  "eines Beteiligten und verlässt das Gerät deshalb nicht.")
+GESPERRT_OHNE_DATUM = ("Nicht online geprüft: Ohne Datum und Entscheidungsart ist das wohl kein Zitat, sondern ein "
+                       "Aktenzeichen etwa aus dem Briefkopf; es verlässt das Gerät deshalb nicht.")
+_ENTSCHEIDUNGSART = re.compile(r"\b(?:Urteil|Beschluss|Versäumnisurteil|Teilurteil|Endurteil|Hinweisbeschluss"
+                               r"|Gerichtsbescheid|Kammerbeschluss|Urt\.|Beschl\.|VU)(?!\w)")
+
+
+def eigene_aktenzeichen(akten: sqlite3.Connection) -> set[str]:
+    """Kern (``az_kern``) jedes Aktenzeichens, das in den Akten als Verfahren oder Zeichen eines Beteiligten steht."""
+    kerne: set[str] = set()
+    for sql in ("SELECT aktenzeichen FROM verfahren", "SELECT aktenzeichen FROM akte_beteiligung"):
+        try:
+            zeilen = akten.execute(sql).fetchall()
+        except sqlite3.OperationalError:  # Akten ohne Aktenverwaltung (ältere Datenbank, Tests)
+            continue
+        kerne |= {az_kern(z[0]) for z in zeilen if z[0] and z[0].strip()}
+    return kerne
+
+
+def sperrgrund(z: dict, eigene: set[str]) -> str | None:
+    """Warum ein Zitat der Akte nicht online geprüft wird, oder None. ``z`` wie in ``akte.rechtsprechung``."""
+    if z.get("aktenzeichen") and az_kern(z["aktenzeichen"]) in eigene:
+        return GESPERRT_EIGEN
+    if not z.get("datum") and not any(_ENTSCHEIDUNGSART.search(t) for t in (z.get("zitate") or [z["zitat"]])):
+        return GESPERRT_OHNE_DATUM
+    return None
+
+
 def ergaenze(con: sqlite3.Connection, zitat: str, beleg: dict) -> dict:
     """Ergänzt das Prüfergebnis des Verzeichnisses um gespeicherte Online-Ergebnisse."""
     if beleg["status"] == verzeichnis.BELEGT:
@@ -199,9 +231,11 @@ def pruefe(
     aktiv: set[str],
     neu: bool = False,
     suche: dict[str, Callable[[str], list[dict]]] | None = None,
+    eigene: set[str] | None = None,
 ) -> dict:
     """Prüft Zitate (``zitat``, ``gericht``, ``aktenzeichen``, ``datum``, ``status``) bei der zuständigen
-    Online-Quelle. Bereits geprüfte Zitate werden nur mit ``neu`` erneut abgefragt."""
+    Online-Quelle. Bereits geprüfte Zitate werden nur mit ``neu`` erneut abgefragt. ``eigene``: Aktenzeichen der
+    eigenen Verfahren (``eigene_aktenzeichen``); sie und Zitate ohne Datum und Art gehen nie hinaus."""
     einrichten(con)
     suche = SUCHE | (suche or {})
     geprueft, fehler = [], []
@@ -209,6 +243,8 @@ def pruefe(
         quelle = zustaendig(z["gericht"], z["aktenzeichen"], z["status"], aktiv)
         alle = z.get("zitate") or [z["zitat"]]
         if quelle is None or (not neu and all(quelle in ergebnisse(con, a) for a in alle)):
+            continue
+        if sperrgrund(z, eigene or set()):
             continue
         try:
             ergebnis = bewerte(quelle, z["gericht"], z["aktenzeichen"], z["datum"], suche[quelle](z["aktenzeichen"]))

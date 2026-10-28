@@ -207,7 +207,7 @@ def test_anthropic_ueber_https(monkeypatch):
         "/v1/messages": {"stop_reason": "end_turn", "content": [
             {"type": "thinking", "thinking": ""}, {"type": "text", "text": '{"aussagen": []}'}]},
     })
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
     e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="anthropic",
                                  extern_modell="claude-opus-5-5")
     stand = anbieter.status_extern(e, "sk-ant-xyz-123456789", verbindung=True)
@@ -233,7 +233,7 @@ def test_openai_und_mistral_ueber_https(monkeypatch):
     antwort = {"choices": [{"message": {"content": '{"ok": true}'}, "finish_reason": "stop"}]}
     netz = _FalscherOeffner({"/chat/completions": antwort,
                              "/models": {"data": [{"id": "gpt-x"}, {"id": "text-embedding-3"}]}})
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
     for name, url, feld, temperatur in (
         ("openai_cloud", "https://api.openai.com/v1", "max_completion_tokens", False),
         ("mistral", "https://api.mistral.ai/v1", "max_tokens", True),
@@ -279,7 +279,7 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
              "supportedGenerationMethods": ["generateContent"]},
             {"name": "models/text-embedding-004", "supportedGenerationMethods": ["embedContent"]}]},
     })
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
     e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="gemini",
                                  extern_modell="gemini-2.5-pro")
     modell = anbieter.erzeuge_aktiv(e, "schluessel")
@@ -295,7 +295,7 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
 
     # Serverfehler mit Schema: zweiter Versuch ohne Schema-Zwang, das Schema steht in der Anweisung.
     netz = _Fehler500(netz.antworten)
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
     assert modell.chat("System", "Frage", {"type": "object"}) == {"ok": True}
     assert len(netz.anfragen) == 2
     zweite = netz.anfragen[-1][2]
@@ -319,11 +319,11 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
                 b'{"error": {"code": 500, "message": "Internal error encountered."}}'))
 
     kaputt = _Immer500({})
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", kaputt)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: kaputt)
     with pytest.raises(anbieter.KiFehler, match="anderes Modell wählen"):
         gemma.chat("System", "Frage", {"type": "object"})
     assert len(kaputt.anfragen) == 2
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
 
     netz.antworten[":generateContent"] = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [
         {"text": '{"ok": tr'}]}}]}
