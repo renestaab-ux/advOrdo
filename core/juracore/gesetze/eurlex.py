@@ -22,10 +22,12 @@ from __future__ import annotations
 
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
+from .. import netzprotokoll
 from .gii import Absatz, GesetzDokument, Norm
 from .saetze import Liste, zerlege_in_saetze
 
@@ -70,6 +72,11 @@ def lade(celex: str, timeout: float = 60) -> tuple[bytes, str]:
     """Lädt die deutsche HTML-Fassung eines Rechtsakts; gesendet wird nur die CELEX-Nummer."""
     if not ist_celex(celex):
         raise ValueError(f"Ungültige CELEX-Nummer: {celex!r}")
+    with netzprotokoll.anlass(f"Unionsrecht laden (CELEX {celex})"):
+        return _lade(celex, timeout)
+
+
+def _lade(celex: str, timeout: float) -> tuple[bytes, str]:
     url = adresse(celex)
     anfrage = urllib.request.Request(
         url, headers={"User-Agent": USER_AGENT, "Accept": "text/html", "Accept-Language": "de"}
@@ -99,11 +106,35 @@ def _lade_cellar(celex: str, timeout: float) -> bytes | None:
         headers={"User-Agent": USER_AGENT, "Accept": "application/xhtml+xml, text/html", "Accept-Language": "deu"},
     )
     try:
-        with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
+        with _cellar_oeffnen(anfrage, timeout) as antwort:
             daten = antwort.read()
     except (urllib.error.URLError, TimeoutError):
         return None
     return daten if ist_eurlex(daten) else None
+
+
+def _cellar_oeffnen(anfrage: urllib.request.Request, timeout: float):  # noqa: ANN202 - Antwort von urllib
+    """Cellar leitet auf eine http-Adresse weiter; die Fassung kommt über dieselbe Adresse mit https. Nur wenn das
+    scheitert, bleibt es bei der Weiterleitung wie geliefert (öffentlicher Text, Prüfsumme im Archiv)."""
+    try:
+        return netzprotokoll.oeffner(_HttpsWeiterleitung()).open(anfrage, timeout=timeout)
+    except urllib.error.HTTPError:
+        raise
+    except (urllib.error.URLError, TimeoutError):
+        return urllib.request.urlopen(anfrage, timeout=timeout)
+
+
+def https(adresse: str) -> str:
+    """Eine http-Adresse der EU-Server (``…europa.eu``) als https; alle anderen bleiben, wie sie sind."""
+    teile = urllib.parse.urlsplit(adresse)
+    if teile.scheme == "http" and (teile.hostname or "").endswith("europa.eu"):
+        return urllib.parse.urlunsplit(teile._replace(scheme="https"))
+    return adresse
+
+
+class _HttpsWeiterleitung(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001, ANN201 - Signatur von urllib
+        return super().redirect_request(req, fp, code, msg, headers, https(newurl))
 
 
 # --- HTML in einfache Elemente zerlegen -------------------------------------------------------------

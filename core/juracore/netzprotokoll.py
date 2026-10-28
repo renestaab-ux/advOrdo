@@ -193,7 +193,7 @@ def eintrag(anfrage: urllib.request.Request, status: int | None, fehler: str | N
     host = (urllib.parse.urlsplit(anfrage.full_url).hostname or "").lower()
     z = zweck(anfrage)
     if (a := _anlass.get()) and a not in z:
-        z = f"{a}: {z}"
+        z = a if z in a else f"{a}: {z}"
     return {
         "zeit": datetime.now().astimezone().isoformat(timespec="seconds"),
         "ziel": host,
