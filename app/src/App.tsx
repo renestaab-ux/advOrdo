@@ -207,6 +207,7 @@ export default function App() {
               setAkteId={setAkteId}
               reiterWunsch={reiterWunsch}
               onEinstellungen={(r) => zuEinstellungen(r ?? "ki")}
+              onEigeneDaten={() => setBereich("eigene")}
             />
           )}
           {bereich === "suche" && <Suche onAkte={oeffneAkte} />}

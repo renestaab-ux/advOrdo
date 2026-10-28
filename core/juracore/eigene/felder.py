@@ -108,6 +108,18 @@ _KONTAKT_ORG = [
     feld("email", "E-Mail", "email"),
     feld("website", "Website", "url"),
 ]
+# Angaben für Kostennoten: § 14 Abs. 4 UStG (Steuernummer oder USt-IdNr., fortlaufende Rechnungsnummer).
+_RECHNUNG = [
+    feld("steuernummer", "Steuernummer",
+         hinweis="Auf jeder Rechnung steht die Steuernummer oder die USt-IdNr. (§ 14 Abs. 4 S. 1 Nr. 2 UStG)."),
+    feld("ust_id", "USt-IdNr.", hinweis="Wenn vorhanden, steht sie statt der Steuernummer auf der Rechnung."),
+    feld("bank", "Bank"),
+    feld("iban", "IBAN"),
+    feld("bic", "BIC"),
+    feld("rechnungsnummer_muster", "Muster der Rechnungsnummer", vorgabe="{JJJJ}-{NNNN}",
+         hinweis="{JJJJ} = Jahr, {NNNN} = laufende Nummer, jedes Jahr neu ab 1. Die Nummer muss einmalig sein "
+                 "(§ 14 Abs. 4 S. 1 Nr. 4 UStG)."),
+]
 _REGISTER = [
     feld("registergericht", "Registergericht"),
     feld("registernummer", "Registernummer", hinweis="z. B. HRB 12345 oder PR 678"),
@@ -142,6 +154,7 @@ FELDER: dict[str, list[dict]] = {
         feld("zweigstellen", "Zweigstellen", "mehrzeilig", hinweis="Eine Anschrift je Zeile."),
         *_KONTAKT_ORG,
         *_HAFTPFLICHT,
+        *_RECHNUNG,
     ],
     "kanzlei": [
         feld("name", "Name bzw. Kurzbezeichnung", pflicht=True),
@@ -153,6 +166,7 @@ FELDER: dict[str, list[dict]] = {
         feld("bea_kanzlei", "beA der Kanzlei (SAFE-ID)",
              hinweis="Postfach der Berufsausübungsgesellschaft (§ 31b BRAO)."),
         *_HAFTPFLICHT,
+        *_RECHNUNG,
     ],
     "unternehmen": [
         feld("name", "Firma", pflicht=True),

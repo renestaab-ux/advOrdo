@@ -281,9 +281,9 @@ def _kopf_bezuege(bild: str | None) -> str:
             + "</Relationships>")
 
 
-def _dokument(art: str) -> str:
+def _dokument(koerper: str) -> str:
     return (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document {_NS}><w:body>'
-            f"{_koerper(art)}"
+            f"{koerper}"
             '<w:sectPr><w:headerReference w:type="default" r:id="rIdKopf"/>'
             '<w:footerReference w:type="default" r:id="rIdFuss"/>'
             '<w:pgSz w:w="11906" w:h="16838"/>'
@@ -315,10 +315,13 @@ def logo_hinweis(ordner: Path) -> str | None:
     return None
 
 
-def erzeugen(art: str, logo: tuple[bytes, str, str] | None = None) -> bytes:
-    """Die Grundvorlage als .docx mit Platzhaltern."""
-    if art not in GRUNDVORLAGEN:
+def erzeugen(art: str, logo: tuple[bytes, str, str] | None = None, koerper: str | None = None,
+             titel: str | None = None, stile: str = "") -> bytes:
+    """Die Grundvorlage als .docx mit Platzhaltern; mit ``koerper`` (WordprocessingML des Textteils) und ``titel``
+    ein Schriftstück auf demselben Briefbogen, etwa die Kostennote; ``stile`` sind weitere Absatzvorlagen dafür."""
+    if koerper is None and art not in GRUNDVORLAGEN:
         raise ValueError(f"Unbekannte Grundvorlage: {art!r}")
+    titel = titel or GRUNDVORLAGEN[art]["titel"]
     bild = None
     lauf = ""
     if logo:
@@ -334,12 +337,12 @@ def erzeugen(art: str, logo: tuple[bytes, str, str] | None = None) -> bytes:
                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
                    '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-'
                    'properties" xmlns:dc="http://purl.org/dc/elements/1.1/">'
-                   f"<dc:title>{escape(GRUNDVORLAGEN[art]['titel'])}</dc:title><dc:creator>JuraBox</dc:creator>"
+                   f"<dc:title>{escape(titel)}</dc:title><dc:creator>JuraBox</dc:creator>"
                    "<dc:language>de-DE</dc:language></cp:coreProperties>")
         z.writestr("word/_rels/document.xml.rels", _DOKUMENT_BEZUEGE)
         z.writestr("word/_rels/header1.xml.rels", _kopf_bezuege(bild))
-        z.writestr("word/document.xml", _dokument(art))
-        z.writestr("word/styles.xml", STILE)
+        z.writestr("word/document.xml", _dokument(koerper if koerper is not None else _koerper(art)))
+        z.writestr("word/styles.xml", STILE.replace("</w:styles>", stile + "</w:styles>"))
         z.writestr("word/header1.xml", _kopfzeile(lauf))
         z.writestr("word/footer1.xml", _fusszeile())
         if bild and logo:

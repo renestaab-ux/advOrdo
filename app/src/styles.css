@@ -1113,3 +1113,22 @@ details.kurz-hinweis summary { cursor: pointer; }
 .netzprotokoll-tabelle td { padding: 6px 8px; border-bottom: 1px solid var(--linie); vertical-align: top; }
 .netzprotokoll-tabelle td.nowrap { white-space: nowrap; }
 .netzprotokoll-adresse { overflow-wrap: anywhere; font-family: var(--mono, ui-monospace, monospace); font-size: 11.5px; }
+
+/* Kostennote im Reiter Schriftstücke */
+.kostennote h3 { font-size: 14px; margin: 16px 0 6px; }
+.kostennote .schrift-wahl + .schrift-wahl { margin-top: 10px; }
+.schrift-wahl .feld.kurz { min-width: 110px; flex: 0 1 130px; }
+.kosten-posten { display: grid; gap: 6px; }
+.kosten-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+.kosten-zeile label { display: inline-flex; align-items: center; gap: 4px; }
+.kosten-zeile select { max-width: 100%; flex: 1 1 260px; }
+.kosten-zeile input.text { flex: 1 1 220px; min-width: 0; }
+.kosten-zeile input.satz { width: 56px; }
+.kosten-zeile input.betrag { width: 96px; }
+.kosten-posten > select { justify-self: start; max-width: 100%; }
+.kosten-wahl { display: grid; gap: 6px; margin: 12px 0 0; border: none; padding: 0; font-size: 13px; }
+.kosten-wahl input.satz { width: 56px; margin-left: 6px; }
+.kosten-vorschau { margin-top: 12px; }
+.kosten-vorschau tr.abschnitt td { font-weight: 600; padding-top: 10px; }
+.kosten-vorschau tfoot tr:last-child td { border-top: 1px solid var(--linie); }
+.schrift-liste li.storniert strong { text-decoration: line-through; }

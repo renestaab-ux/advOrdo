@@ -68,6 +68,7 @@ export default function Akten({
   anlegen,
   onAnlegen,
   onEinstellungen,
+  onEigeneDaten,
   reiterWunsch,
 }: {
   akteId: number | null;
@@ -79,6 +80,8 @@ export default function Akten({
   onAnlegen: (an: boolean) => void;
   /** Zu den Einstellungen, auf Wunsch gleich zu einem Thema (ohne Angabe: Sprachmodell). */
   onEinstellungen: (reiter?: EinstellungsReiter) => void;
+  /** Zu Eigene Daten (z. B. Steuernummer und Bankverbindung für die Kostennote). */
+  onEigeneDaten: () => void;
 }) {
   const [akten, setAkten] = useState<AkteTyp[] | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -138,6 +141,7 @@ export default function Akten({
           void laden();
         }}
         onEinstellungen={onEinstellungen}
+        onEigeneDaten={onEigeneDaten}
       />
     );
   }
@@ -566,6 +570,7 @@ function AkteRahmen({
   onGeaendert,
   onEntfernt,
   onEinstellungen,
+  onEigeneDaten,
 }: {
   akte: AkteTyp;
   reiter: Reiter;
@@ -575,6 +580,7 @@ function AkteRahmen({
   onEntfernt: () => void;
   /** Zu den Einstellungen, auf Wunsch gleich zu einem Thema (ohne Angabe: Sprachmodell). */
   onEinstellungen: (reiter?: EinstellungsReiter) => void;
+  onEigeneDaten: () => void;
 }) {
   const [loeschfrage, setLoeschfrage] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -711,6 +717,7 @@ function AkteRahmen({
             onGeaendert={onGeaendert}
             onDokumente={() => onReiter("dokumente")}
             onVorlagen={() => onEinstellungen("schriftstuecke")}
+            onEigeneDaten={onEigeneDaten}
           />
         )}
         {reiter === "beteiligte" && (
