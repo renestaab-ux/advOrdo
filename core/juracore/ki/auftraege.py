@@ -21,6 +21,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from .. import netzprotokoll
 from .analyse import Abgebrochen
 from .anbieter import KiFehler
 
@@ -30,6 +31,12 @@ LAEUFT = "laeuft"
 FERTIG = "fertig"
 FEHLER = "fehler"
 ABGEBROCHEN = "abgebrochen"
+
+# Anlass der Anfragen an das Modell im Protokoll der Online-Anfragen.
+AUFGABEN = {"chat": "KI-Chat", "widersprueche": "KI-Analyse Widersprüche", "chronologie": "KI-Analyse Chronologie",
+            "zusammenfassung_akte": "KI-Zusammenfassung der Akte",
+            "zusammenfassung_dokument": "KI-Zusammenfassung eines Dokuments",
+            "gegenueberstellung": "KI-Gegenüberstellung Schriftsatz und Urteil", "metadaten": "KI-Vorschläge Details"}
 
 _BEHALTEN = 20  # beendete Aufträge, deren Ergebnis noch abgeholt werden kann
 
@@ -106,7 +113,8 @@ class Auftraege:
     @staticmethod
     def _fuehre_aus(auftrag: Auftrag, arbeit: Callable[[Auftrag], Any]) -> None:
         try:
-            ergebnis = arbeit(auftrag)
+            with netzprotokoll.anlass(AUFGABEN.get(auftrag.aufgabe, auftrag.aufgabe)):
+                ergebnis = arbeit(auftrag)
             status, fehler, text = FERTIG, None, "Fertig"
         except Abgebrochen:
             ergebnis, status, fehler, text = None, ABGEBROCHEN, None, "Abgebrochen"

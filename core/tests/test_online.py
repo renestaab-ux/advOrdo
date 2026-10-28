@@ -240,3 +240,31 @@ def test_rpc_quellen(tmp_path):
     assert kern._online_quellen() == {"bayern", "neuris"}
     a = akte.akte_anlegen(kern.akten, "Leer")
     assert kern.online_pruefen(a["id"]) == {"geprueft": [], "fehler": []}
+
+
+def test_eigenes_aktenzeichen_geht_nicht_hinaus(akten, con, tmp_path):
+    """Ein Briefkopf („AG Augsburg, 15 C 1234/26“) sieht aus wie ein Zitat; das eigene Verfahren bleibt auf dem Gerät."""
+    from juracore.aktenverwaltung import verfahren
+
+    verfahren.einrichten(akten)
+    a = akte.akte_anlegen(akten, "Rost")
+    with akten:
+        akten.execute("INSERT INTO verfahren (akte_id, art, gericht, aktenzeichen, angelegt_am, geaendert_am) "
+                      "VALUES (?, 'klage', 'LG Traunstein', '3 O 777/26', '2026-10-28', '2026-10-28')", (a["id"],))
+    (tmp_path / "brief.md").write_text(
+        "(1) LG Traunstein, 3 O 777/26\n\n(2) AG Augsburg, 15 C 1234/26\n\n(3) " + OLG, encoding="utf-8")
+    akte.importiere(akten, con, a["id"], tmp_path / "brief.md", tmp_path / "ablage", ocr=False)
+    gruppen = {g["aktenzeichen"]: g for g in akte.rechtsprechung(akten, con, a["id"])}
+    assert gruppen["3 O 777/26"]["online_gesperrt"] == online.GESPERRT_EIGEN
+    assert gruppen["15 C 1234/26"]["online_gesperrt"] == online.GESPERRT_OHNE_DATUM
+    assert gruppen["7 U 1234/22"]["online_gesperrt"] is None
+    assert [g["online_offen"] for g in gruppen.values()].count("bayern") == 1
+
+    gesucht = []
+    online.pruefe(con, list(gruppen.values()), {"bayern"}, suche={"bayern": lambda az: gesucht.append(az) or []},
+                  eigene=online.eigene_aktenzeichen(akten))
+    assert gesucht == ["7 U 1234/22"]
+    # Auch ohne die Liste der eigenen Verfahren geht das „Zitat“ ohne Datum und Art nicht hinaus.
+    gesucht.clear()
+    online.pruefe(con, [gruppen["15 C 1234/26"]], {"bayern"}, neu=True, suche={"bayern": gesucht.append})
+    assert gesucht == []

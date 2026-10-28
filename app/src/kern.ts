@@ -697,6 +697,7 @@ export interface MetaKiErgebnis {
 export type MetaKiStand =
   | { status: "aus"; abgeschaltet?: boolean }
   | { status: "belegt" }
+  | { status: "extern" }
   | { status: "laeuft"; auftrag: KiAuftrag }
   | { status: "fertig"; ergebnis: MetaKiErgebnis }
   | { status: "fehler"; fehler: string };
@@ -1036,6 +1037,8 @@ export interface UrteilEintrag {
   rn_hoechste: number | null;
   /** Online-Quelle, bei der das noch nicht belegte Zitat geprüft werden kann. */
   online_offen: OnlineQuelle | null;
+  /** Grund, warum das Zitat nicht online geprüft wird (vermutlich das eigene Verfahren). */
+  online_gesperrt?: string | null;
 }
 
 export type OnlineQuelle = "bayern" | "neuris";
@@ -2383,4 +2386,61 @@ export function empfaengerVorschlag(beteiligte: Beteiligung[], art: SchriftVorla
     if (b) return b.id;
   }
   return beteiligte[0]?.id ?? null;
+}
+
+/** Ein Eintrag im Protokoll der Online-Anfragen (Einstellungen → Diagnose). */
+export interface NetzEintrag {
+  zeit: string;
+  ziel: string;
+  ort: "internet" | "geraet" | "netzwerk";
+  zweck: string;
+  methode: string;
+  adresse: string;
+  gesendet: string;
+  status: number | null;
+  fehler: string | null;
+  dauer_ms: number;
+}
+
+export interface NetzProtokoll {
+  eintraege: NetzEintrag[];
+  gesamt: number;
+  seit: string | null;
+  hoechstens: number;
+  tage: number;
+}
+
+export interface NetzEinstellungen {
+  tage: number;
+  hoechstens: number;
+  tage_wahl: number[];
+  hoechstens_wahl: number[];
+  vorgabe: { tage: number; hoechstens: number };
+}
+
+/** „90 Tage“, „1 Jahr“, „2 Jahre“ für die Aufbewahrung des Protokolls. */
+export function netzFrist(tage: number): string {
+  if (tage % 365 === 0) return tage === 365 ? "1 Jahr" : `${tage / 365} Jahre`;
+  return `${tage} Tage`;
+}
+
+export const NETZ_ORTE: Record<NetzEintrag["ort"], string> = {
+  internet: "Internet",
+  geraet: "Eigener Rechner",
+  netzwerk: "Lokales Netzwerk",
+};
+
+/** Ergebnis einer Anfrage für Menschen: „HTTP 200“, „Fehler: …“; 2xx/3xx gelten als erfolgreich. */
+export function netzErgebnis(e: NetzEintrag): { text: string; ok: boolean } {
+  if (e.fehler) return { text: `Fehler: ${e.fehler}`, ok: false };
+  if (e.status == null) return { text: "–", ok: false };
+  return { text: `HTTP ${e.status}`, ok: e.status < 400 };
+}
+
+/** „28.10.2026, 14:03:12“ aus der ISO-Zeit des Kerns. */
+export function netzZeit(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const z = (n: number) => String(n).padStart(2, "0");
+  return `${z(d.getDate())}.${z(d.getMonth() + 1)}.${d.getFullYear()}, ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
 }

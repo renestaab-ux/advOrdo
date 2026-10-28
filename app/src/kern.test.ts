@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  netzErgebnis,
+  netzFrist,
+  netzZeit,
+  type NetzEintrag,
   dokumentName,
   titelNachSchema,
   mitKi,
@@ -770,5 +774,28 @@ describe("titelNachSchema mit Gericht außerhalb der Akte", () => {
     // Absender von Hand außerhalb der Akte: abgekürzt wie ein Gericht der Akte.
     expect(titelNachSchema(benennung, "Beschluss", "frei:Amtsgericht  Stuttgart", akte)).toBe("AG Stuttgart Beschluss");
     expect(titelNachSchema(benennung, "Schreiben", "frei:Müller Bau KG", akte)).toBe("Müller Bau KG Schreiben an RA Albrecht Tiedemann");
+  });
+});
+
+describe("Protokoll der Online-Anfragen", () => {
+  const e: NetzEintrag = {
+    zeit: "2026-10-28T14:03:12+01:00", ziel: "www.gesetze-bayern.de", ort: "internet",
+    zweck: "Zitate der Akte online prüfen: Entscheidungen suchen (Bayern)", methode: "POST",
+    adresse: "https://www.gesetze-bayern.de/Search", gesendet: "Formular: SearchFields.Aktenzeichen=7 U 1234/22",
+    status: 200, fehler: null, dauer_ms: 812,
+  };
+  it("nennt das Ergebnis", () => {
+    expect(netzErgebnis(e)).toEqual({ text: "HTTP 200", ok: true });
+    expect(netzErgebnis({ ...e, status: 404 })).toEqual({ text: "HTTP 404", ok: false });
+    expect(netzErgebnis({ ...e, status: null, fehler: "URLError: abgelehnt" })).toEqual({
+      text: "Fehler: URLError: abgelehnt", ok: false,
+    });
+  });
+  it("nennt die Frist", () => {
+    expect([30, 90, 365, 730].map(netzFrist)).toEqual(["30 Tage", "90 Tage", "1 Jahr", "2 Jahre"]);
+  });
+  it("zeigt die Zeit deutsch", () => {
+    expect(netzZeit("kaputt")).toBe("kaputt");
+    expect(netzZeit(e.zeit)).toMatch(/^28\.10\.2026, \d\d:03:12$/);
   });
 });

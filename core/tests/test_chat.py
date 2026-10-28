@@ -207,7 +207,7 @@ def test_anthropic_ueber_https(monkeypatch):
         "/v1/messages": {"stop_reason": "end_turn", "content": [
             {"type": "thinking", "thinking": ""}, {"type": "text", "text": '{"aussagen": []}'}]},
     })
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
     e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="anthropic",
                                  extern_modell="claude-opus-5-5")
     stand = anbieter.status_extern(e, "sk-ant-xyz-123456789", verbindung=True)
@@ -233,17 +233,17 @@ def test_openai_und_mistral_ueber_https(monkeypatch):
     antwort = {"choices": [{"message": {"content": '{"ok": true}'}, "finish_reason": "stop"}]}
     netz = _FalscherOeffner({"/chat/completions": antwort,
                              "/models": {"data": [{"id": "gpt-x"}, {"id": "text-embedding-3"}]}})
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
-    for name, url, feld, temperatur in (
-        ("openai_cloud", "https://api.openai.com/v1", "max_completion_tokens", False),
-        ("mistral", "https://api.mistral.ai/v1", "max_tokens", True),
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
+    for name, url, feld, temperatur, laenge in (
+        ("openai_cloud", "https://api.openai.com/v1", "max_completion_tokens", False, anbieter.EXTERN_ANTWORT_TOKEN),
+        ("mistral", "https://api.mistral.ai/v1", "max_tokens", True, anbieter.ANTWORT_TOKEN),
     ):
         e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter=name,
                                      extern_modell="m")
         assert anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"}) == {"ok": True}
         adresse, kopf, daten = netz.anfragen[-1]
         assert adresse == url + "/chat/completions" and kopf["Authorization"] == "Bearer schluessel"
-        assert daten[feld] == anbieter.EXTERN_ANTWORT_TOKEN and ("temperature" in daten) is temperatur
+        assert daten[feld] == laenge and ("temperature" in daten) is temperatur
     # Modellnamen ohne „models/“, ohne Einbettungsmodelle.
     assert [m["name"] for m in anbieter.erzeuge_aktiv(e, "schluessel").modelle()] == ["gpt-x"]
 
@@ -279,7 +279,7 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
              "supportedGenerationMethods": ["generateContent"]},
             {"name": "models/text-embedding-004", "supportedGenerationMethods": ["embedContent"]}]},
     })
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
     e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="gemini",
                                  extern_modell="gemini-2.5-pro")
     modell = anbieter.erzeuge_aktiv(e, "schluessel")
@@ -295,7 +295,7 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
 
     # Serverfehler mit Schema: zweiter Versuch ohne Schema-Zwang, das Schema steht in der Anweisung.
     netz = _Fehler500(netz.antworten)
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
     assert modell.chat("System", "Frage", {"type": "object"}) == {"ok": True}
     assert len(netz.anfragen) == 2
     zweite = netz.anfragen[-1][2]
@@ -319,13 +319,62 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
                 b'{"error": {"code": 500, "message": "Internal error encountered."}}'))
 
     kaputt = _Immer500({})
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", kaputt)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: kaputt)
     with pytest.raises(anbieter.KiFehler, match="anderes Modell wählen"):
         gemma.chat("System", "Frage", {"type": "object"})
     assert len(kaputt.anfragen) == 2
-    monkeypatch.setattr(anbieter, "_OEFFNER_EXTERN", netz)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
 
     netz.antworten[":generateContent"] = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [
         {"text": '{"ok": tr'}]}}]}
     with pytest.raises(anbieter.KiFehler, match="abgeschnitten"):
         modell.chat("System", "Frage", {"type": "object"})
+
+
+class _ZuViele(_FalscherOeffner):
+    """Wie ein kostenloser Tarif: die ersten Anfragen mit 429, dann eine Antwort."""
+
+    def __init__(self, antworten, fehlschlaege, retry_after=None, code=429):
+        super().__init__(antworten)
+        self.code = code
+        self.fehlschlaege = fehlschlaege
+        self.retry_after = retry_after
+
+    def open(self, req, timeout=None):
+        if self.fehlschlaege > 0:
+            self.fehlschlaege -= 1
+            self.anfragen.append((req.full_url, {}, None))
+            kopf = {"Retry-After": self.retry_after} if self.retry_after else {}
+            raise urllib.error.HTTPError(req.full_url, self.code, "Too Many Requests", kopf,
+                                         io.BytesIO(b'{"message": "Rate limit exceeded"}'))
+        return super().open(req, timeout)
+
+
+def test_mistral_429_wartet_und_versucht_erneut(monkeypatch):
+    pausen = []
+    monkeypatch.setattr(anbieter.time, "sleep", pausen.append)
+    antwort = {"choices": [{"message": {"content": '{"ok": true}'}, "finish_reason": "stop"}]}
+    e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="mistral", extern_modell="m")
+
+    netz = _ZuViele({"/chat/completions": antwort}, fehlschlaege=2, retry_after="2")
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
+    assert anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"}) == {"ok": True}
+    assert pausen == [2.0, 2.0] and len(netz.anfragen) == 3
+
+    pausen.clear()
+    netz = _ZuViele({"/chat/completions": antwort}, fehlschlaege=9)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
+    with pytest.raises(anbieter.KiFehler, match="keine weiteren Anfragen zu .*Rate limit exceeded.*3-mal"):
+        anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"})
+    assert pausen == list(anbieter._Http.WARTEN_429)
+
+
+def test_ueberlastet_503_wartet_ebenfalls(monkeypatch):
+    pausen = []
+    monkeypatch.setattr(anbieter.time, "sleep", pausen.append)
+    e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="mistral", extern_modell="m")
+    netz = _ZuViele({}, fehlschlaege=9, code=503)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
+    with pytest.raises(anbieter.KiFehler, match="überlastet .*3-mal"):
+        anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"})
+    assert len(pausen) == 3

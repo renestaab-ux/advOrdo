@@ -328,6 +328,29 @@ def test_ki_vorschlaege_mit_beleg(tmp_path):
     assert ki_metadaten.AUFGABE == "metadaten"
 
 
+def test_externe_ki_liest_details_nur_auf_knopfdruck(tmp_path):
+    kern = Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
+    akte_id = akte.akte_anlegen(kern.akten, "Brückner ./. Weber")["id"]
+    datei = tmp_path / "widerspruch.txt"
+    datei.write_text("\n\n".join(WIDERSPRUCH), encoding="utf-8")
+    dok = kern.methoden["akten.importieren"](akte_id=akte_id, pfad=str(datei))["dokument_id"]
+    gefragt = []
+
+    class Extern:
+        modell = "claude-opus-5-5"
+
+        def chat(self, system, nutzer, schema):
+            gefragt.append(nutzer)
+            return {}
+
+    kern.ki_fabrik = lambda e, schluessel=None: Extern()
+    kern.methoden["ki.extern_setzen"](freigegeben=True, anbieter="anthropic", modell="claude-opus-5-5",
+                                      aktiv="extern", schluessel="sk-test")
+    assert kern.methoden["akten.metadaten_ki"](dokument_id=dok, automatisch=True) == {"status": "extern"}
+    assert gefragt == []
+    assert kern.methoden["akten.metadaten_ki"](dokument_id=dok)["status"] == "laeuft"
+
+
 MAHNBESCHEID = [
     "Amtsgericht Stuttgart",
     "– Zentrales Mahngericht Baden-Württemberg –",

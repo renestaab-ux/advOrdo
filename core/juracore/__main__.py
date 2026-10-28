@@ -8,7 +8,7 @@ import logging
 import sys
 from pathlib import Path
 
-from . import db, einstellungen, rpc, zertifikate
+from . import db, einstellungen, netzprotokoll, rpc, zertifikate
 from .dokumente import lesen, ocr
 from .gesetze import quelle, wissensbasis
 from .gesetze.zitate import finde_zitate
@@ -67,6 +67,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO if a.verbose else logging.WARNING, stream=sys.stderr)
     db_pfad = a.db or einstellungen.datenbank()
     archiv = a.archiv or einstellungen.roharchiv()
+    # Auch Abrufe über die Kommandozeile stehen im Protokoll der Online-Anfragen.
+    netzprotokoll.einrichten(Path(db_pfad).parent / netzprotokoll.DATEINAME)
 
     if a.befehl == "serve":
         rpc.serve(db_pfad, archiv)

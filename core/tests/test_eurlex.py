@@ -2,6 +2,7 @@
 
 import io
 import urllib.error
+import urllib.request
 
 import pytest
 
@@ -162,6 +163,7 @@ def test_bot_abwehr_weicht_auf_cellar_aus(monkeypatch, tmp_path):
         return _Antwort(b"")  # EUR-Lex: HTTP 202 ohne Inhalt
 
     monkeypatch.setattr(eurlex.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(eurlex, "_cellar_oeffnen", urlopen)
     roh = quelle.lade_gesetz("DSGVO", tmp_path)
     assert roh.quelle == "https://publications.europa.eu/resource/celex/32016R0679"
     assert [a[0] for a in aufrufe] == [eurlex.adresse("32016R0679"), eurlex.cellar_adresse("32016R0679")]
@@ -175,10 +177,23 @@ def test_unlesbare_antwort_nennt_ausweg(monkeypatch):
         return _Antwort(b"<html>Bitte warten</html>")
 
     monkeypatch.setattr(eurlex.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(eurlex, "_cellar_oeffnen", urlopen)
     with pytest.raises(ValueError, match="als Datei importieren"):
         eurlex.lade("32016R0679")
     with pytest.raises(ValueError, match="CELEX"):
         eurlex.lade("../etc")
+
+
+def test_cellar_weiterleitung_auf_https():
+    """Cellar antwortet mit 303 auf eine http-Adresse; abgerufen wird dieselbe Adresse verschlüsselt."""
+    assert eurlex.https("http://publications.europa.eu/resource/cellar/abc.0004.02/DOC_1") == (
+        "https://publications.europa.eu/resource/cellar/abc.0004.02/DOC_1")
+    assert eurlex.https("http://example.org/x") == "http://example.org/x"
+    assert eurlex.https("https://eur-lex.europa.eu/x") == "https://eur-lex.europa.eu/x"
+    alt = urllib.request.Request(eurlex.cellar_adresse("32016R0679"), headers={"Accept-Language": "deu"})
+    neu = eurlex._HttpsWeiterleitung().redirect_request(
+        alt, None, 303, "See Other", {}, "http://publications.europa.eu/resource/cellar/abc/DOC_1")
+    assert neu.full_url == "https://publications.europa.eu/resource/cellar/abc/DOC_1"
 
 
 def test_zitate_rom_verordnungen():

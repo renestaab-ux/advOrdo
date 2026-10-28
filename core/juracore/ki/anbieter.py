@@ -41,6 +41,8 @@ from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
+from .. import netzprotokoll
+
 log = logging.getLogger("juracore.ki")
 
 OLLAMA = "ollama"
@@ -286,12 +288,19 @@ class Anbieter(Protocol):
     def chat(self, system: str, nutzer: str, schema: dict) -> dict: ...
 
 
-# Ohne Proxy: Anfragen an das lokale Modell sollen nie über einen (Firmen-)Proxy laufen.
-_OEFFNER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+def _oeffner(extern: bool) -> urllib.request.OpenerDirector:
+    """Externe Anbieter über den Proxy des Systems, wie ein Browser (Kanzleinetze erlauben oft nur diesen Weg); das
+    lokale Modell nie über einen (Firmen-)Proxy. Beide mit Protokoll der Online-Anfragen."""
+    return netzprotokoll.oeffner() if extern else netzprotokoll.oeffner(urllib.request.ProxyHandler({}))
 
 
-# Externe Anbieter dagegen über den Proxy des Systems, wie ein Browser (Kanzleinetze erlauben oft nur diesen Weg).
-_OEFFNER_EXTERN = urllib.request.build_opener()
+def _beschreibung(pfad: str, daten: dict | None, koerper: bytes | None) -> str:
+    """Was das Protokoll über eine Anfrage an das Modell festhält: Modell und Umfang, nie den Text."""
+    if koerper is None:
+        return ""
+    modell = (daten or {}).get("model") or (m.group(1) if (m := re.search(r"/models/([^/:]+)", pfad)) else "")
+    zeichen = f"{len(koerper.decode('utf-8', 'replace')):,}".replace(",", ".")
+    return f"Anfrage an {modell or 'das Modell'}: {zeichen} Zeichen (Text nicht protokolliert)"
 
 
 def _fehlertext(roh: str) -> str:
@@ -309,7 +318,21 @@ def _fehlertext(roh: str) -> str:
     return str(wert)[:500]
 
 
+def _warten_laut(fehler: urllib.error.HTTPError, vorgabe: float) -> float:
+    """Wartezeit nach „zu viele Anfragen“: die Angabe ``Retry-After`` des Anbieters (höchstens 60 s), sonst die
+    Vorgabe."""
+    try:
+        return min(max(float(fehler.headers.get("Retry-After") or vorgabe), 0.0), 60.0)
+    except (TypeError, ValueError, AttributeError):
+        return vorgabe
+
+
 class _Http:
+    # Wartezeiten (Sekunden), wenn ein externer Anbieter mit 429 „zu viele Anfragen“ oder 503 „überlastet“ antwortet;
+    # danach gilt der Fehler.
+    # Zusammen gut eine Minute, weil Limits wie „Token je Minute“ nach einer Minute wieder frei sind.
+    WARTEN_429: tuple[float, ...] = (10.0, 25.0, 45.0)
+
     def __init__(self, endpunkt: str, titel: str, kopf: dict[str, str] | None = None, extern: bool = False):
         self.endpunkt = pruefe_extern(endpunkt) if extern else pruefe_lokal(endpunkt)
         self.titel = titel
@@ -324,27 +347,49 @@ class _Http:
             headers={"Content-Type": "application/json", **self.kopf},
             method="GET" if daten is None else "POST",
         )
-        oeffner = _OEFFNER_EXTERN if self.extern else _OEFFNER
+        zweck = f"Sprachmodell ({self.titel})" + (" – Modelle abfragen" if daten is None else "")
+        netzprotokoll.kennzeichnen(req, zweck, _beschreibung(pfad, daten, koerper))
+        oeffner = _oeffner(self.extern)
         if not self.extern:
             _pruefe_aufloesung(self.endpunkt)
-        try:
-            with oeffner.open(req, timeout=timeout) as antwort:
-                return json.loads(antwort.read().decode("utf-8"))
-        except urllib.error.HTTPError as fehler:
-            text = _fehlertext(fehler.read().decode("utf-8", "replace"))
-            if self.extern and fehler.code in (401, 403):
-                text += " (API-Schlüssel prüfen)"
-            raise KiFehler(f"{self.titel} meldet Fehler {fehler.code}: {text}") from fehler
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as fehler:
-            grund = getattr(fehler, "reason", fehler)
-            if isinstance(grund, TimeoutError) or "timed out" in str(grund):
-                raise KiFehler(f"{self.titel} hat nicht innerhalb von {int(timeout / 60)} Minuten geantwortet. Das "
-                               "Modell braucht für diese Anfrage zu lange; weniger Zusatzwissen (etwa ohne Gesetze) "
-                               "oder eine kürzere Frage hilft.") from fehler
-            frage = "Besteht eine Internetverbindung?" if self.extern else "Läuft das Programm?"
-            raise KiFehler(f"{self.titel} ist unter {self.endpunkt} nicht erreichbar ({grund}). {frage}") from fehler
-        except ValueError as fehler:
-            raise KiFehler(f"{self.titel} hat keine gültige JSON-Antwort geliefert.") from fehler
+        gewartet = 0
+        while True:
+            try:
+                with oeffner.open(req, timeout=timeout) as antwort:
+                    return json.loads(antwort.read().decode("utf-8"))
+            except urllib.error.HTTPError as fehler:
+                text = _fehlertext(fehler.read().decode("utf-8", "replace"))
+                if self.extern and fehler.code in (429, 503) and gewartet < len(self.WARTEN_429):
+                    pause = _warten_laut(fehler, self.WARTEN_429[gewartet])
+                    log.info("%s: zu viele Anfragen, warte %.0f s", self.titel, pause)
+                    time.sleep(pause)
+                    gewartet += 1
+                    continue
+                if self.extern and fehler.code in (401, 403):
+                    text += " (API-Schlüssel prüfen)"
+                if self.extern and fehler.code == 503:
+                    raise KiFehler(
+                        f"{self.titel} ist gerade überlastet (Fehler 503: {text}); JuraBox hat {gewartet}-mal gewartet "
+                        "und es erneut versucht. Das liegt beim Anbieter: später noch einmal starten oder ein anderes "
+                        "Modell wählen.") from fehler
+                if self.extern and fehler.code == 429:
+                    raise KiFehler(
+                        f"{self.titel} lässt gerade keine weiteren Anfragen zu (Fehler 429: {text}); JuraBox hat "
+                        f"{gewartet}-mal gewartet und es erneut versucht. Kostenlose Tarife erlauben nur wenige "
+                        "Anfragen je Minute: einige Minuten warten, eine kleinere Aufgabe wählen (etwa ein Dokument "
+                        "statt der ganzen Akte) oder beim Anbieter ein höheres Limit buchen.") from fehler
+                raise KiFehler(f"{self.titel} meldet Fehler {fehler.code}: {text}") from fehler
+            except (urllib.error.URLError, TimeoutError, ConnectionError) as fehler:
+                grund = getattr(fehler, "reason", fehler)
+                if isinstance(grund, TimeoutError) or "timed out" in str(grund):
+                    raise KiFehler(f"{self.titel} hat nicht innerhalb von {int(timeout / 60)} Minuten geantwortet. "
+                                   "Das Modell braucht für diese Anfrage zu lange; weniger Zusatzwissen (etwa ohne "
+                                   "Gesetze) oder eine kürzere Frage hilft.") from fehler
+                frage = "Besteht eine Internetverbindung?" if self.extern else "Läuft das Programm?"
+                raise KiFehler(
+                    f"{self.titel} ist unter {self.endpunkt} nicht erreichbar ({grund}). {frage}") from fehler
+            except ValueError as fehler:
+                raise KiFehler(f"{self.titel} hat keine gültige JSON-Antwort geliefert.") from fehler
 
 
 # Höchstlänge einer Antwort in Token. Reicht für jede Aufgabe der Analyse, auch wenn das Programm eine Denkphase
@@ -528,8 +573,10 @@ class OpenAIExtern:
     """Externe Dienste mit OpenAI-Schnittstelle: OpenAI selbst, Google Gemini, Mistral und andere."""
 
     def __init__(self, adresse: str, titel: str, modell: str, schluessel: str, kontext: int = 32768,
-                 token_feld: str = "max_tokens", temperatur: float | None = 0):
+                 token_feld: str = "max_tokens", temperatur: float | None = 0,
+                 antwort_token: int = EXTERN_ANTWORT_TOKEN):
         self.http = _Http(adresse, titel, {"Authorization": f"Bearer {schluessel}"}, extern=True)
+        self.antwort_token = antwort_token
         self.titel = titel
         self.modell = modell
         self.kontext = kontext
@@ -552,7 +599,7 @@ class OpenAIExtern:
         daten: dict[str, Any] = {
             "model": self.modell,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
-            self.token_feld: EXTERN_ANTWORT_TOKEN,
+            self.token_feld: self.antwort_token,
             "response_format": {"type": "json_schema",
                                 "json_schema": {"name": "antwort", "schema": _streng(schema), "strict": False}},
         }
@@ -667,6 +714,11 @@ def erzeuge_extern(e: KiEinstellungen, schluessel: str | None) -> Anbieter:
         # Neuere OpenAI-Modelle verlangen max_completion_tokens und lassen keine eigene Temperatur zu.
         return OpenAIExtern(e.externe_adresse, titel, e.extern_modell, schluessel, e.extern_kontext,
                             "max_completion_tokens", None)
+    if e.extern_anbieter == "mistral" and not e.extern_modell.startswith("magistral"):
+        # Mistral rechnet die erlaubte Antwortlänge auf das Limit je Minute an (kostenloser Tarif: 20.000 Token).
+        # Modelle ohne Denkphase brauchen nicht mehr als lokal.
+        return OpenAIExtern(e.externe_adresse, titel, e.extern_modell, schluessel, e.extern_kontext,
+                            antwort_token=ANTWORT_TOKEN)
     return OpenAIExtern(e.externe_adresse, titel, e.extern_modell, schluessel, e.extern_kontext)
 
 

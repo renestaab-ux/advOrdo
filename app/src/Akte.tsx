@@ -1596,6 +1596,7 @@ function RechtsprechungAnsicht({
               <strong>{u.zitat}</strong>
             </div>
             {u.hinweis && <div className={u.status === "belegt" ? "titel" : "hinweis"}>{u.hinweis}</div>}
+            {u.online_gesperrt && <div className="fundort">{u.online_gesperrt}</div>}
             {u.entscheidung?.link && (
               <div className="link-zeile">
                 <code>{u.entscheidung.link}</code>{" "}

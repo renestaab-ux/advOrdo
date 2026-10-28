@@ -27,6 +27,7 @@ import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
+from .. import netzprotokoll
 from .verzeichnis import USER_AGENT, dokument_link
 from .zitate import normalisiere_az
 
@@ -272,7 +273,7 @@ class Sitzung:
 
     def __init__(self, timeout: float = 30) -> None:
         self.timeout = timeout
-        self._oeffner = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self._oeffner = netzprotokoll.oeffner(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         # Eigene Kennung: Mit manchen Standardkennungen liefert die Seite eine Variante ohne Zustandskennung,
         # dann geht das Weiterblättern nicht (JuraBox Lite, Stolperfalle 1).
         self._oeffner.addheaders = [("User-Agent", USER_AGENT)]

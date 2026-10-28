@@ -31,6 +31,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+from . import netzprotokoll
+
 log = logging.getLogger("juracore.nachrichten")
 
 USER_AGENT = "JuraBox/0.1 (Nachrichten)"
@@ -230,10 +232,10 @@ def feed_links(seite: bytes, adresse: str) -> list[str]:
 def abrufen(adresse: str, oeffnen: Oeffner = urllib.request.urlopen, timeout: float = ZEITLIMIT) -> bytes:
     if _sichere_adresse(adresse) is None:
         raise ValueError("Bitte eine Adresse angeben, die mit http:// oder https:// beginnt.")
-    anfrage = urllib.request.Request(adresse, headers={
+    anfrage = netzprotokoll.kennzeichnen(urllib.request.Request(adresse, headers={
         "User-Agent": USER_AGENT,
         "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, */*;q=0.5",
-    })
+    }), "Nachrichten-Feed laden")
     with oeffnen(anfrage, timeout=timeout) as antwort:
         daten = antwort.read(HOECHSTENS_BYTES + 1)
     if len(daten) > HOECHSTENS_BYTES:

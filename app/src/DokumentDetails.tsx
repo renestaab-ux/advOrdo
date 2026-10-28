@@ -137,8 +137,9 @@ const DokumentDetails = forwardRef<
   // Sprachmodell: ist eines eingerichtet, gehen seine (belegten) Vorschläge vor; sonst gilt die Texterkennung.
   const [ki, setKi] = useState<MetaKiStand | null>(null);
   const kiStarten = useCallback(
-    (neu: boolean) => {
-      kern<MetaKiStand>("akten.metadaten_ki", { dokument_id: dokumentId, neu }).then(setKi, (e) =>
+    (neu: boolean, automatisch = false) => {
+      // automatisch: nur beim Öffnen; ein externer Anbieter bekommt den Text erst auf Knopfdruck.
+      kern<MetaKiStand>("akten.metadaten_ki", { dokument_id: dokumentId, neu, automatisch }).then(setKi, (e) =>
         setKi({ status: "fehler", fehler: String(e) }),
       );
     },
@@ -146,7 +147,7 @@ const DokumentDetails = forwardRef<
   );
   useEffect(() => {
     setKi(null);
-    kiStarten(false);
+    kiStarten(false, true);
   }, [kiStarten]);
   const kiAuftrag = ki?.status === "laeuft" ? ki.auftrag.auftrag_id : null;
   useEffect(() => {
@@ -543,6 +544,15 @@ function KiHinweis({ ki, onNeu }: { ki: MetaKiStand | null; onNeu: () => void })
     return (
       <span className="feld-hinweis">
         Vorschläge aus der Texterkennung ({ki?.status === "aus" && ki.abgeschaltet ? "KI ausgeschaltet" : "kein Sprachmodell eingerichtet"}).
+      </span>
+    );
+  if (ki.status === "extern")
+    return (
+      <span className="feld-hinweis">
+        Vorschläge aus der Texterkennung. Die KI ist ein externer Anbieter; der Text geht erst auf Knopfdruck hinaus.{" "}
+        <button type="button" className="link klein" onClick={onNeu}>
+          Vorschläge vom Sprachmodell holen
+        </button>
       </span>
     );
   if (ki.status === "laeuft")
