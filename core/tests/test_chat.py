@@ -329,3 +329,40 @@ def test_gemini_ueber_die_eigene_schnittstelle(monkeypatch):
         {"text": '{"ok": tr'}]}}]}
     with pytest.raises(anbieter.KiFehler, match="abgeschnitten"):
         modell.chat("System", "Frage", {"type": "object"})
+
+
+class _ZuViele(_FalscherOeffner):
+    """Wie ein kostenloser Tarif: die ersten Anfragen mit 429, dann eine Antwort."""
+
+    def __init__(self, antworten, fehlschlaege, retry_after=None):
+        super().__init__(antworten)
+        self.fehlschlaege = fehlschlaege
+        self.retry_after = retry_after
+
+    def open(self, req, timeout=None):
+        if self.fehlschlaege > 0:
+            self.fehlschlaege -= 1
+            self.anfragen.append((req.full_url, {}, None))
+            kopf = {"Retry-After": self.retry_after} if self.retry_after else {}
+            raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", kopf,
+                                         io.BytesIO(b'{"message": "Rate limit exceeded"}'))
+        return super().open(req, timeout)
+
+
+def test_mistral_429_wartet_und_versucht_erneut(monkeypatch):
+    pausen = []
+    monkeypatch.setattr(anbieter.time, "sleep", pausen.append)
+    antwort = {"choices": [{"message": {"content": '{"ok": true}'}, "finish_reason": "stop"}]}
+    e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="mistral", extern_modell="m")
+
+    netz = _ZuViele({"/chat/completions": antwort}, fehlschlaege=2, retry_after="2")
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
+    assert anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"}) == {"ok": True}
+    assert pausen == [2.0, 2.0] and len(netz.anfragen) == 3
+
+    pausen.clear()
+    netz = _ZuViele({"/chat/completions": antwort}, fehlschlaege=9)
+    monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
+    with pytest.raises(anbieter.KiFehler, match="keine weiteren Anfragen zu .*Rate limit exceeded.*3-mal"):
+        anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"})
+    assert pausen == list(anbieter._Http.WARTEN_429)
