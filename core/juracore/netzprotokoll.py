@@ -393,6 +393,10 @@ def exportieren(datei: Path, pfad: str, nur_internet: bool = False) -> dict:
     eintraege = liste(datei, nur_internet, limit=None)["eintraege"]
     ziel = Path(pfad)
     text = als_csv(eintraege) if ziel.suffix.lower() == ".csv" else als_text(eintraege)
-    # Mit BOM, damit Excel unter Windows die Umlaute richtig liest.
-    ziel.write_text(text, encoding="utf-8-sig" if ziel.suffix.lower() == ".csv" else "utf-8")
+    if ziel.suffix.lower() == ".csv":
+        # Mit BOM, damit Excel unter Windows die Umlaute richtig liest; newline="" lässt die CSV-Zeilenenden
+        # (\r\n) unverändert, sonst macht Windows daraus \r\r\n und jede zweite Zeile ist leer.
+        ziel.write_text(text, encoding="utf-8-sig", newline="")
+    else:
+        ziel.write_text(text, encoding="utf-8")
     return {"pfad": str(ziel), "anzahl": len(eintraege)}
