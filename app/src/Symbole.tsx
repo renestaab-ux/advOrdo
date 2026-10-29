@@ -124,6 +124,12 @@ const PFADE = {
       <path d="M12 12.5v3l2 1.2" />
     </>
   ),
+  zeiten: (
+    <>
+      <circle cx="12" cy="13" r="7.5" />
+      <path d="M12 9v4l2.5 1.5M10 3h4M12 3v2.5" />
+    </>
+  ),
   notizen: (
     <>
       <path d="M5 4h10l4 4v12H5z" />

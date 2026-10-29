@@ -9,6 +9,7 @@ import {
   KostennoteErzeugt,
   KostennoteKatalog,
   KostennoteVorschlag,
+  ZeitFuerKostennote,
   datumDe,
   euro,
   kern,
@@ -48,6 +49,7 @@ export default function Kostennote({
   const [erzeugt, setErzeugt] = useState<(KostennoteErzeugt & { geoeffnet: boolean }) | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [zeitHinweise, setZeitHinweise] = useState<string[]>([]);
 
   async function mit<T>(f: () => Promise<T>): Promise<T | undefined> {
     setFehler(null);
@@ -167,6 +169,21 @@ export default function Kostennote({
     setze({ posten: [...e.posten, p] });
   }
 
+  // Offene Zeiten der Zeiterfassung als Posten „Stunden × Satz“; frühere Übernahmen werden ersetzt.
+  async function zeitenUebernehmen() {
+    const z = await mit(() => kern<ZeitFuerKostennote>("zeit.fuer_kostennote", { akte_id: akteId }));
+    if (!z || !e) return;
+    const posten = z.posten.map((p) => ({ ...p, stunden: de(p.stunden), stundensatz: de(p.stundensatz) }));
+    setE({
+      ...e,
+      posten: [...e.posten.filter((p) => !(p.typ === "stunden" && p.quelle)), ...posten],
+      leistungszeitraum: e.leistungszeitraum || z.leistungszeitraum,
+    });
+    setZeitHinweise(
+      z.posten.length === 0 ? ["Keine offenen, abrechenbaren Zeiten in dieser Akte.", ...z.hinweise] : z.hinweise,
+    );
+  }
+
   function anrechnungAn(an: boolean) {
     if (!e) return;
     if (!an) return setze({ anrechnung: null });
@@ -201,7 +218,19 @@ export default function Kostennote({
     const v = await kern<KostennoteVorschlag>("kostennote.vorschlag", { akte_id: akteId });
     setVorschlag(v);
     setVorschuesse(v.offene_vorschuesse.map((o) => o.nummer));
-    setE((alt) => (alt ? { ...alt, nummer: v.nummer, abzuege: [] } : alt));
+    // Übernommene Zeiten sind jetzt abgerechnet (nur bei einer Kostennote); dieselben Einträge nicht noch einmal.
+    setE((alt) =>
+      alt
+        ? {
+            ...alt,
+            nummer: v.nummer,
+            abzuege: [],
+            posten: r.zeiten_abgerechnet
+              ? alt.posten.map((p) => (p.typ === "stunden" && p.quelle ? { ...p, quelle: undefined } : p))
+              : alt.posten,
+          }
+        : alt,
+    );
   }
 
   async function alsEntwurf() {
@@ -400,7 +429,12 @@ export default function Kostennote({
                 />
                 <label>
                   Std.
-                  <input className="satz" inputMode="decimal" value={p.stunden} onChange={(x) => posten(i, { stunden: x.target.value })} />
+                  <input
+                    className="satz"
+                    inputMode="decimal"
+                    value={p.stunden}
+                    onChange={(x) => posten(i, { stunden: x.target.value, minuten: undefined })}
+                  />
                 </label>
                 <label>
                   × €/Std.
@@ -411,6 +445,11 @@ export default function Kostennote({
                     onChange={(x) => posten(i, { stundensatz: x.target.value })}
                   />
                 </label>
+                {p.quelle && (
+                  <span className="status-marke" title={`${p.quelle.length} Einträge der Zeiterfassung`}>
+                    aus der Zeiterfassung
+                  </span>
+                )}
               </>
             )}
             <button className="link klein gefahr" onClick={() => entfernen(i)} aria-label="Posten entfernen">
@@ -434,6 +473,17 @@ export default function Kostennote({
             <option value="stunden">Zeitaufwand nach Vergütungsvereinbarung (§ 3a RVG)</option>
           </optgroup>
         </select>
+        <div>
+          <button className="zweitrangig" disabled={laeuft} onClick={() => void zeitenUebernehmen()}>
+            Zeiten übernehmen
+          </button>{" "}
+          <span className="leise klein">offene Zeiten aus dem Reiter „Zeiten“, je Bearbeiter und Stundensatz</span>
+        </div>
+        {zeitHinweise.map((h) => (
+          <p key={h} className="hinweis klein">
+            {h}
+          </p>
+        ))}
       </div>
 
       <fieldset className="wahl kosten-wahl">
@@ -532,6 +582,9 @@ export default function Kostennote({
             </>
           ) : (
             <>Entwurf gespeichert unter {erzeugt.pfad}.</>
+          )}
+          {!!erzeugt.zeiten_abgerechnet && (
+            <p>{erzeugt.zeiten_abgerechnet} Zeiteinträge sind jetzt als abgerechnet gekennzeichnet; ein Storno gibt sie wieder frei.</p>
           )}
           {erzeugt.leer.length > 0 && <p className="hinweis">Noch leer: {erzeugt.leer.join(", ")}.</p>}
         </div>

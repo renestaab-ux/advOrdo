@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  stundenText,
+  uhrText,
   netzErgebnis,
   netzFrist,
   netzZeit,
@@ -797,5 +799,14 @@ describe("Protokoll der Online-Anfragen", () => {
   it("zeigt die Zeit deutsch", () => {
     expect(netzZeit("kaputt")).toBe("kaputt");
     expect(netzZeit(e.zeit)).toMatch(/^28\.10\.2026, \d\d:03:12$/);
+  });
+});
+
+describe("Zeiterfassung", () => {
+  it("zeigt Minuten als Stunden:Minuten und den Timer mit Sekunden", () => {
+    expect(stundenText(0)).toBe("0:00");
+    expect(stundenText(67)).toBe("1:07");
+    expect(stundenText(600)).toBe("10:00");
+    expect(uhrText(3725)).toBe("1:02:05");
   });
 });

@@ -1135,3 +1135,37 @@ details.kurz-hinweis summary { cursor: pointer; }
 .kosten-vorschau tr.abschnitt td { font-weight: 600; padding-top: 10px; white-space: nowrap; }
 .kosten-vorschau tfoot tr:last-child td { border-top: 1px solid var(--linie); }
 .schrift-liste li.storniert strong { text-decoration: line-through; }
+
+/* Zeiterfassung */
+.zeiten { max-width: 1000px; }
+.zeiten .karte { max-width: none; }
+.zeit-timer-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.zeit-timer-zeile input.text { flex: 1 1 240px; min-width: 0; }
+.zeit-timer-zeile select { max-width: 100%; }
+.zeit-uhr { font-size: 22px; font-variant-numeric: tabular-nums; color: var(--text-leise); min-width: 92px; }
+.zeit-uhr.laeuft { color: var(--gut); font-weight: 600; }
+.zeit-formular h3, .zeit-liste h3, .zeit-einstellungen h3 { font-size: 14px; margin: 0 0 8px; }
+.zeit-liste h3 + table { margin-top: 0; }
+.zeit-liste table + h3 { margin-top: 16px; }
+.zeit-liste .status-marke { margin-left: 6px; }
+.zeit-liste tr.abgerechnet td { color: var(--text-leise); }
+.zeit-aktionen { white-space: nowrap; text-align: right; }
+.zeit-aktionen button + button { margin-left: 8px; }
+.zeit-stufen { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
+.zeit-stufen li.archiviert input { color: var(--text-leise); }
+.zeit-einstellungen .kosten-zeile input.betrag { width: 90px; }
+.zeit-leiste { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 6px; color: var(--gut);
+  background: color-mix(in srgb, var(--gut) 12%, transparent); font-size: 12px; }
+.zeit-leiste-akte { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: none; border: none; padding: 0;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.zeit-leiste-akte .nav-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zeit-leiste-akte strong { font-variant-numeric: tabular-nums; }
+.zeit-leiste-stopp { flex: none; background: none; border: 1px solid currentColor; border-radius: 4px; color: inherit; padding: 0 5px;
+  font-size: 10px; line-height: 16px; cursor: pointer; }
+.eingeklappt .zeit-leiste-stopp { display: none; }
+.zeit-formular .schrift-wahl .feld > input, .zeit-formular .schrift-wahl .feld > select { min-width: 0; width: 100%; box-sizing: border-box; }
+.zeit-formular .schrift-wahl .feld { min-width: 0; }
+.zeit-formular .schrift-wahl + .schrift-wahl { margin-top: 10px; }
+.zeit-formular .notiz-optionen { margin-top: 10px; }
+.zeit-liste .status-marke { white-space: nowrap; display: inline-block; }
+.zeit-einstellungen > .feld.kurz { max-width: 260px; margin-top: 12px; }

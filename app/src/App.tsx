@@ -12,8 +12,20 @@ import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
 import { useErinnerungen } from "./erinnerungen";
+import { useLaufenderTimer } from "./zeitTimer";
 import { KiAn } from "./kiSchalter";
-import { KiModus, Marke, UmgebungsListe, aktiveUmgebung, istDesktop, kern, kiModusName, mitDruckbild } from "./kern";
+import {
+  KiModus,
+  Marke,
+  UmgebungsListe,
+  aktiveUmgebung,
+  istDesktop,
+  kern,
+  kiModusName,
+  mitDruckbild,
+  uhrText,
+  zeitGeaendert,
+} from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
 type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "rechtsprechung" | "gesetze" | "einstellungen";
@@ -65,6 +77,8 @@ export default function App() {
   }, [stand, bereich]);
   // Mitteilungen des Systems bei Vorfrist, Ablauf und Terminen, solange die App läuft.
   useErinnerungen(umgebungen ? umgebungen.aktiv : undefined);
+  // Laufender Timer der Zeiterfassung: immer sichtbar in der Leiste, damit er nicht vergessen wird.
+  const timer = useLaufenderTimer(umgebungen?.aktiv);
   // „Akte anlegen“ (Startbildschirm oder „+ Neue Akte“): eigene Seite für den Anlegeprozess.
   const [anlegen, setAnlegen] = useState(false);
   const [reiterWunsch, setReiterWunsch] = useState<{ reiter: Reiter } | null>(null);
@@ -132,6 +146,28 @@ export default function App() {
           </button>
         ))}
         <div className="nav-fuss">
+          {timer.laufend && (
+            <div className="zeit-leiste">
+              <button
+                className="zeit-leiste-akte"
+                onClick={() => oeffneAkte(timer.laufend!.akte_id, "zeiten")}
+                title={`Timer läuft: ${timer.laufend.akte}${timer.laufend.taetigkeit ? ` · ${timer.laufend.taetigkeit}` : ""} (${timer.laufend.bearbeiter}). Zur Zeiterfassung der Akte.`}
+              >
+                <Zeichen name="zeiten" groesse={16} />
+                <span className="nav-text">
+                  <strong>{uhrText(timer.sekunden)}</strong> {timer.laufend.akte}
+                </span>
+              </button>
+              <button
+                className="zeit-leiste-stopp"
+                title="Timer anhalten"
+                aria-label="Timer anhalten"
+                onClick={() => void kern("zeit.stoppen").then(zeitGeaendert, () => undefined)}
+              >
+                ■
+              </button>
+            </div>
+          )}
           {modus?.aus ? (
             <button
               className="modus aus"

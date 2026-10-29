@@ -10,8 +10,9 @@ Posten einer Kostennote:
 - ``gebuehr``: Wertgebühr nach VV RVG (Nummer aus ``GEBUEHREN``, Satz, wahlweise eigener Gegenstandswert).
 - ``auslage``: Auslage mit Betrag, z. B. Nr. 7000 (Kopien) oder Nr. 7003 (Fahrtkosten); wahlweise ohne Umsatzsteuer
   (durchlaufender Posten, § 10 Abs. 1 S. 6 UStG).
-- ``stunden``: Zeitaufwand × Stundensatz aus einer Vergütungsvereinbarung (§ 3a RVG). Hier kann später die
-  Zeiterfassung ihre Einträge übergeben (``quelle``).
+- ``stunden``: Zeitaufwand × Stundensatz aus einer Vergütungsvereinbarung (§ 3a RVG). Aus der Zeiterfassung kommen
+  zusätzlich ``minuten`` (getaktet; der Betrag wird dann genau aus den Minuten gerechnet) und ``quelle`` (die
+  Zeiteinträge, die eine Kostennote als abgerechnet kennzeichnet und ein Storno wieder freigibt).
 
 Jede vergebene Rechnungsnummer bleibt in der Tabelle ``kostennote`` stehen, auch wenn die Akte gelöscht oder die
 Rechnung storniert wird; so wird keine Nummer zweimal vergeben.
@@ -27,6 +28,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from .. import zeiterfassung
 from ..aktenverwaltung import stammdaten
 from ..dokumente import akte as akten
 from ..eigene import daten as eigene
@@ -225,12 +227,18 @@ def berechne(e: dict) -> dict:
             z = _zeile("auslage", f"Nr. {nr}" if nr else "", text, _betrag(p.get("betrag") or 0, text))
             (weitere if p.get("ust", True) else steuerfrei).append(z)
         elif typ == "stunden":
-            stunden = _betrag(p.get("stunden") or 0, "Stunden")
             satz_euro = _betrag(p.get("stundensatz") or 0, "Stundensatz")
             text = (p.get("text") or "").strip() or "Tätigkeit"
-            z = _zeile("stunden", "", f"{text} ({_zahl(stunden)} Std. × {platzhalter.euro(str(satz_euro))})",
+            if p.get("minuten") not in (None, ""):
+                minuten = int(p["minuten"])
+                stunden = Decimal(minuten) / 60
+                dauer = zeiterfassung.stunden_text(minuten)
+            else:
+                stunden = _betrag(p.get("stunden") or 0, "Stunden")
+                dauer = _zahl(stunden)
+            z = _zeile("stunden", "", f"{text} ({dauer} Std. × {platzhalter.euro(str(satz_euro))})",
                        stunden * satz_euro)
-            z["stunden"], z["stundensatz"] = str(stunden), str(satz_euro)
+            z["stunden"], z["stundensatz"] = dauer, str(satz_euro)
             if p.get("quelle"):
                 z["quelle"] = p["quelle"]
             zeit.append(z)
@@ -539,6 +547,11 @@ def erzeugen(con: sqlite3.Connection, wissen: sqlite3.Connection, umgebung: Path
     tag = _datum(e.get("datum"), "Rechnungsdatum") or date.today()
     e["datum"] = tag.isoformat()
     r = berechne(e)
+    # Zeiten aus der Zeiterfassung gelten nur mit einer Kostennote als abgerechnet, nicht mit einem Vorschuss.
+    zeiten = [int(i) for p in e.get("posten") or [] if p.get("typ") == "stunden" for i in p.get("quelle") or []]
+    abrechnen = in_akte and r["art"] == "rechnung" and zeiten
+    if abrechnen:
+        zeiterfassung.pruefe_quellen(con, akte_id, zeiten)
     w = platzhalter.werte(con, akte_id, e.get("empfaenger_id"), None, tag)
     werte = w["werte"]
     leer: list[str] = []
@@ -572,6 +585,10 @@ def erzeugen(con: sqlite3.Connection, wissen: sqlite3.Connection, umgebung: Path
                     (akte_id, nummer, r["art"], e["datum"], json.dumps(e, ensure_ascii=False),
                      json.dumps(r, ensure_ascii=False), r["brutto"], r["zahlbetrag"], eingelesen["dokument_id"],
                      datetime.now().isoformat(timespec="seconds")))
+        if abrechnen:
+            kid = con.execute("SELECT id FROM kostennote WHERE nummer = ?", (nummer,)).fetchone()["id"]
+            zeiterfassung.abrechnen(con, akte_id, zeiten, kid)
+            antwort["zeiten_abgerechnet"] = len(zeiten)
         con.commit()
         antwort["kostennoten"] = liste(con, akte_id)
     return antwort
@@ -585,6 +602,7 @@ def stornieren(con: sqlite3.Connection, kostennote_id: int) -> dict:
     if z["storniert_am"] is None:
         con.execute("UPDATE kostennote SET storniert_am = ? WHERE id = ?",
                     (datetime.now().isoformat(timespec="seconds"), kostennote_id))
+        zeiterfassung.freigeben(con, kostennote_id)
         con.commit()
     return {"kostennoten": liste(con, z["akte_id"])}
 
@@ -594,4 +612,8 @@ def eingabe(con: sqlite3.Connection, kostennote_id: int) -> dict:
     z = con.execute("SELECT eingabe FROM kostennote WHERE id = ?", (kostennote_id,)).fetchone()
     if z is None:
         raise LookupError(f"Unbekannte Kostennote: {kostennote_id}")
-    return json.loads(z["eingabe"])
+    e = json.loads(z["eingabe"])
+    # Als Ausgangspunkt rechnet die neue Rechnung dieselben Zeiteinträge nicht noch einmal ab.
+    for p in e.get("posten") or []:
+        p.pop("quelle", None)
+    return e
