@@ -14,7 +14,7 @@ import {
 import { LeerHinweis } from "./Symbole";
 
 const ART_TEXT: Record<KalenderArt, string> = { frist: "Frist", termin: "Termin", wiedervorlage: "Wiedervorlage" };
-const EINHEITEN: Record<FristBerechnung["einheit"], string> = { tage: "Tage", wochen: "Wochen", monate: "Monate", jahre: "Jahre" };
+export const EINHEITEN: Record<FristBerechnung["einheit"], string> = { tage: "Tage", wochen: "Wochen", monate: "Monate", jahre: "Jahre" };
 const TITEL_VORSCHLAEGE: Record<KalenderArt, string[]> = {
   frist: [
     "Klageerwiderung",
@@ -31,7 +31,7 @@ const TITEL_VORSCHLAEGE: Record<KalenderArt, string[]> = {
 };
 
 /** Formularzustand; leer bzw. aus einem vorhandenen Eintrag oder einem Vorschlag. */
-interface Entwurf {
+export interface Entwurf {
   id: number | null;
   art: KalenderArt;
   titel: string;
@@ -54,7 +54,7 @@ interface Entwurf {
   vorschlag: KalenderVorschlag | null;
 }
 
-function leer(art: KalenderArt, verfahren: Verfahren[]): Entwurf {
+export function leer(art: KalenderArt, verfahren: Verfahren[]): Entwurf {
   return {
     id: null,
     art,
@@ -134,17 +134,17 @@ function minusTage(iso: string, tage: number): string {
 /** Schlüssel eines Vorschlags, damit ein verworfener beim Neuladen verworfen bleibt. */
 const vorschlagSchluessel = (v: KalenderVorschlag) => `${v.dokument_id}-${v.fundstelle.abschnitt}-${v.art}-${v.datum ?? ""}`;
 
-function fundText(f: { abschnitt: number; seite: number | null }): string {
+export function fundText(f: { abschnitt: number; seite: number | null }): string {
   return [f.seite ? `S. ${f.seite}` : null, `Abschnitt ${f.abschnitt}`].filter(Boolean).join(", ");
 }
 
 /** Uhrzeit eines Termins, mit Ende: „10:00–11:30 Uhr“. */
-function zeitText(e: { uhrzeit: string | null; bis_uhrzeit?: string | null }): string | null {
+export function zeitText(e: { uhrzeit: string | null; bis_uhrzeit?: string | null }): string | null {
   if (!e.uhrzeit) return null;
   return `${e.uhrzeit}${e.bis_uhrzeit ? `–${e.bis_uhrzeit}` : ""} Uhr`;
 }
 
-const ABSCHLUSS_TEXT: Record<NonNullable<KalenderEintrag["zustand"]>, string> = {
+export const ABSCHLUSS_TEXT: Record<NonNullable<KalenderEintrag["zustand"]>, string> = {
   erledigt: "Erledigt",
   stattgefunden: "Als stattgefunden vermerkt",
   aufgehoben: "Aufgehoben",
@@ -152,7 +152,7 @@ const ABSCHLUSS_TEXT: Record<NonNullable<KalenderEintrag["zustand"]>, string> = 
 };
 
 /** Eine Folgeaktion an einem Eintrag: Frist verlängern, Wiedervorlage verschieben, Termin verlegen oder aufheben. */
-interface Folge {
+export interface Folge {
   e: KalenderEintrag;
   aktion: "verlaengern" | "verlegen" | "aufheben";
   /** Aus einem Vorschlag: Beleg und Vorbelegung. */
@@ -620,7 +620,7 @@ function EintragZeile({
 }
 
 /** Frist verlängern, Wiedervorlage verschieben, Termin verlegen oder aufheben; mit Vermerk. */
-function FolgeFormular({
+export function FolgeFormular({
   folge,
   laeuft,
   onAbbrechen,
@@ -727,7 +727,7 @@ function FolgeFormular({
   );
 }
 
-function EintragFormular({
+export function EintragFormular({
   akteId,
   start,
   verfahren,

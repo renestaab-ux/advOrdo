@@ -280,6 +280,25 @@ def test_frist_mit_zwei_vorfristen_und_verlaengerung(con):
         kalender.verlaengern(con, f["id"], "2026-10-20")
 
 
+def test_kalender_zeitraum_ueber_alle_akten_mit_vorfristen(con):
+    a = neue_akte(con)
+    b = neue_akte(con, "Hallenbad")
+    v = verfahren.speichern(con, b, {"art": "klage", "gericht": "Landgericht Freiburg", "aktenzeichen": "2 O 1/26"})
+    vid = v[0]["id"]
+    kalender.speichern(con, a, {"art": "frist", "titel": "Replik", "datum": "2026-11-03", "vorfrist": "2026-10-27"})
+    kalender.speichern(con, b, {"art": "termin", "titel": "Haupttermin", "datum": "2026-10-29", "verfahren_id": vid})
+    kalender.speichern(con, b, {"art": "wiedervorlage", "titel": "Später", "datum": "2026-12-15"})
+    eintraege = kalender.zeitraum(con, "2026-10-26", "2026-11-01", HEUTE)
+    # Die Replik zählt wegen ihrer Vorfrist mit; die Wiedervorlage liegt außerhalb.
+    assert [(e["titel"], e["akte"]) for e in eintraege] == [("Haupttermin", "Hallenbad"), ("Replik", "Brückner ./. Weber")]
+    assert eintraege[0]["gericht"] == "Landgericht Freiburg" and eintraege[0]["gericht_aktenzeichen"] == "2 O 1/26"
+    with pytest.raises(ValueError, match="Zeitraum"):
+        kalender.zeitraum(con, "2026-11-01", "2026-10-01")
+    tage = kalender.feiertage("2026-10-01", "2026-11-30", "BW")
+    assert tage == [{"datum": "2026-10-03", "name": "Tag der Deutschen Einheit"},
+                    {"datum": "2026-11-01", "name": "Allerheiligen"}]
+
+
 def test_alte_erledigte_termine_bekommen_ihren_zustand(con):
     a = neue_akte(con)
     for titel, vermerk in (("A", "Termin aufgehoben (Verfügung.pdf)"), ("B", "Termin verlegt"), ("C", None)):

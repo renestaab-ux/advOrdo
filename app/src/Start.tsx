@@ -17,7 +17,7 @@ import {
   zuletztGeoeffnet,
 } from "./kern";
 
-export type StartZiel = "anlegen" | "akten" | "eigene" | "toolbox" | "einstellungen";
+export type StartZiel = "anlegen" | "akten" | "kalender" | "eigene" | "toolbox" | "einstellungen";
 
 const KACHELN: { ziel: StartZiel; titel: string; text: string; symbol: SymbolName }[] = [
   { ziel: "anlegen", titel: "Akte anlegen", text: "Neues Mandat anlegen, auch aus einem Dokument", symbol: "akteNeu" },
@@ -129,6 +129,9 @@ export default function Start({
               ) : (
                 <p className="leer">{fristen ? "Keine offenen Fristen in den nächsten 14 Tagen." : "Lade …"}</p>
               )}
+              <button className="link klein" onClick={() => onWahl("kalender")}>
+                Kalender öffnen
+              </button>
             </section>
 
             <StartNachrichten onVerwalten={onNachrichten} />

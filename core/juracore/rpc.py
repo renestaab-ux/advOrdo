@@ -169,6 +169,8 @@ class Kern:
                 kalender.verlaengern(self.akten, eintrag_id, datum, vermerk, dokument_id, fundstelle)),
             "akten.kalender_loeschen": lambda eintrag_id: kalender.loeschen(self.akten, eintrag_id),
             "akten.kalender_naechste": lambda tage=None, limit=50: kalender.naechste(self.akten, tage, limit),
+            "kalender.zeitraum": lambda von, bis: kalender.zeitraum(self.akten, von, bis),
+            "kalender.feiertage": lambda von, bis, land="BY": kalender.feiertage(von, bis, land),
             "akten.frist_berechnen": lambda bezugstag, anzahl, einheit, land="BY", beginn="ereignis": kalender.berechne(
                 bezugstag, anzahl, einheit, land, beginn),
             "akten.kalender_vorschlaege": self.kalender_vorschlaege,

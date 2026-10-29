@@ -20,6 +20,7 @@ import re
 import sqlite3
 from datetime import date, datetime, timedelta
 
+from ..rechner import feiertage as ft
 from ..rechner import fristen as fristenrechner
 
 _SCHEMA = """
@@ -368,6 +369,41 @@ def naechste_je_akte(con: sqlite3.Connection, heute: date | None = None) -> dict
             ergebnis[z["akte_id"]] = {k: e[k] for k in ("id", "art", "art_text", "titel", "datum", "uhrzeit",
                                                          "in_tagen", "lage")}
     return ergebnis
+
+
+# --------------------------------------------------------------------------- Kalender über alle Akten
+
+
+def zeitraum(con: sqlite3.Connection, von: str, bis: str, heute: date | None = None) -> list[dict]:
+    """Alle Einträge aller Akten, deren Tag oder eine Vorfrist in [von, bis] liegt, auch abgeschlossene.
+
+    Für den Kalender: mit Akte (Name, Aktenzeichen, Status) und Verfahren (Gericht, gerichtliches Aktenzeichen), damit
+    nach Akte und Gericht gefiltert werden kann. Vorfristen gibt der Kalender selbst als eigene Tage aus.
+    """
+    heute = heute or date.today()
+    von, bis = _datum(von, "Von"), _datum(bis, "Bis")
+    if bis < von:
+        raise ValueError("Der Zeitraum endet vor seinem Beginn.")
+    zeilen = con.execute(
+        """SELECT k.*, a.name AS akte, a.aktenzeichen, a.status AS akte_status,
+                  COALESCE(d.titel, d.dateiname) AS dokument, v.gericht, v.aktenzeichen AS gericht_aktenzeichen
+           FROM kalender k JOIN akte a ON a.id = k.akte_id
+           LEFT JOIN dokument d ON d.id = k.dokument_id
+           LEFT JOIN verfahren v ON v.id = k.verfahren_id
+           WHERE k.datum BETWEEN ?1 AND ?2 OR k.vorfrist BETWEEN ?1 AND ?2 OR k.vorfrist2 BETWEEN ?1 AND ?2
+           ORDER BY k.datum, k.uhrzeit, k.id""", (von, bis)).fetchall()
+    return _verknuepfen(con, [_zeile(z, heute) for z in zeilen])
+
+
+def feiertage(von: str, bis: str, land: str = "BY") -> list[dict]:
+    """Gesetzliche Feiertage im Zeitraum wie im Fristenrechner; ``land`` "BY-ohne" = Bayern ohne Mariä Himmelfahrt."""
+    anfang, ende = date.fromisoformat(_datum(von, "Von")), date.fromisoformat(_datum(bis, "Bis"))
+    tage: list[dict] = []
+    for jahr in range(anfang.year, ende.year + 1):
+        for tag, name in sorted(ft.feiertage(jahr, "BY" if land == "BY-ohne" else land, land != "BY-ohne").items()):
+            if anfang <= tag <= ende:
+                tage.append({"datum": tag.isoformat(), "name": name})
+    return tage
 
 
 # --------------------------------------------------------------------------- Vorschläge aus einem Dokument

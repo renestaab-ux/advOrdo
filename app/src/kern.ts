@@ -234,9 +234,13 @@ export interface KalenderEintrag {
   abgeschlossen: boolean;
   in_tagen: number;
   lage: KalenderLage;
-  /** Nur in „Nächste Fristen“ über alle Akten. */
+  /** Nur in „Nächste Fristen“ und im Kalender über alle Akten. */
   akte?: string;
   aktenzeichen?: string | null;
+  /** Nur im Kalender: Status der Akte und Gericht des Verfahrens. */
+  akte_status?: string;
+  gericht?: string | null;
+  gericht_aktenzeichen?: string | null;
 }
 
 /**
