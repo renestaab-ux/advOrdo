@@ -78,7 +78,7 @@ export default function ZeitSaetze({ onEigeneDaten }: { onEigeneDaten: () => voi
           <select value={e.taktung} onChange={(x) => void mit("zeit.taktung_setzen", { minuten: Number(x.target.value) })}>
             {e.taktungen.map((t) => (
               <option key={t} value={t}>
-                {t === 1 ? "minutengenau" : `${t} Minuten${t === 6 ? " (1/10 Std.)" : ""}${t >= 15 ? " – Vorsicht bei Verbrauchern" : ""}`}
+                {t === 1 ? "minutengenau" : `${t} Minuten${t === 6 ? " (1/10 Std.)" : ""}${t > 6 ? " – über der empfohlenen Grenze" : ""}`}
               </option>
             ))}
           </select>

@@ -192,3 +192,36 @@ def test_grenzen_der_taktung_und_konkrete_taetigkeit(kern):  # noqa: F811
     assert sorted(x["minuten"] for x in zeit.liste(kern.akten, aid)["eintraege"]) == [7, 20]
     zeit.taktung_setzen(kern.akten, 6)
     assert zeit.liste(kern.akten, aid)["hinweise"] == []
+
+
+def test_zehn_minuten_ueber_empfehlung(kern):  # noqa: F811
+    e = zeit.taktung_setzen(kern.akten, 10)
+    assert "5 bis 6 Minuten" in e["taktung_hinweis"] and "IX ZR" not in e["taktung_hinweis"]
+    assert "5 bis 6 Minuten" in zeit.liste(kern.akten, kern.test_akte)["hinweise"][0]
+
+
+def test_mischung_zeithonorar_und_rvg_gebuehren():
+    r = kostennote.berechne({"gegenstandswert": "5000", "posten": [
+        {"nr": "1000"}, {"typ": "stunden", "text": "RA", "stunden": "1", "stundensatz": "250"}]})
+    assert any("IX ZR 65/23" in h for h in r["hinweise"])
+    r = kostennote.berechne({"posten": [{"typ": "stunden", "text": "RA", "stunden": "1", "stundensatz": "250"},
+                                        {"typ": "auslage", "nr": "7000", "betrag": "5"}]})
+    assert not any("IX ZR 65/23" in h for h in r["hinweise"])
+
+
+def test_taetigkeitsnachweis_in_der_kostennote(kern, tmp_path):  # noqa: F811
+    import zipfile
+    aid = kern.test_akte
+    p = _bearbeiter(kern, "Dr. Sophie Albrecht", "Partner")
+    zeit.speichern(kern.akten, aid, {"datum": "2026-10-01", "dauer": "0:07", "bearbeiter_id": p,
+                                     "taetigkeit": "Telefonat mit Frau Brückner zur Vergleichsbereitschaft"})
+    k = zeit.fuer_kostennote(kern.akten, aid)
+    ziel = tmp_path / "k.docx"
+    kostennote.erzeugen(kern.akten, kern.con, kern.umgebungen.ordner(), kern.ablage, aid,
+                        {"nummer": "2026-0001", "datum": TAG.isoformat(), "posten": k["posten"]}, pfad=ziel,
+                        in_akte=False)
+    with zipfile.ZipFile(ziel) as z:
+        xml = z.read("word/document.xml").decode()
+    for text in ("Anlage: Tätigkeitsnachweis zu Rechnung Nr. 2026-0001", "01.10.2026",
+                 "Telefonat mit Frau Brückner zur Vergleichsbereitschaft", "0,2 (7 Min.)", "76,00 €"):
+        assert text in xml, text

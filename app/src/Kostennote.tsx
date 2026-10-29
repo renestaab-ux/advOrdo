@@ -477,7 +477,7 @@ export default function Kostennote({
           <button className="zweitrangig" disabled={laeuft} onClick={() => void zeitenUebernehmen()}>
             Zeiten übernehmen
           </button>{" "}
-          <span className="leise klein">offene Zeiten aus dem Reiter „Zeiten“, je Bearbeiter und Stundensatz</span>
+          <span className="leise klein">offene Zeiten aus dem Reiter „Zeiten“, je Bearbeiter und Stundensatz; die Kostennote bekommt einen Tätigkeitsnachweis als Anlage</span>
         </div>
         {zeitHinweise.map((h) => (
           <p key={h} className="hinweis klein">

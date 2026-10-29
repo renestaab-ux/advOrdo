@@ -280,6 +280,12 @@ def berechne(e: dict) -> dict:
         abschnitte.append({"titel": "Zeitaufwand nach Vergütungsvereinbarung (§ 3a RVG)", "zeilen": zeit})
     if weitere:
         abschnitte.append({"titel": "Auslagen", "zeilen": weitere})
+    if zeit and any(gruppen.values()):
+        hinweise.append("Zeithonorar und Gebühren nach dem RVG in einer Kostennote: Gegenüber Verbrauchern kann die "
+                        "Kombination eines Zeithonorars mit zusätzlichen gesetzlichen Gebühren (etwa Einigungsgebühr) "
+                        "die Vereinbarung unwirksam machen (BGH IX ZR 65/23 nach Krumscheid in: Heidel/Pauly, "
+                        "AnwaltFormulare, § 57; IWW Institut, FMP 2024, 189). Bitte prüfen, ob die "
+                        "Vergütungsvereinbarung das ausdrücklich vorsieht.")
     if not abschnitte and not steuerfrei:
         raise ValueError("Die Kostennote hat noch keine Posten.")
 
@@ -472,7 +478,42 @@ def _tabelle(r: dict) -> str:
             f'<w:tblLook w:val="0000"/></w:tblPr><w:tblGrid>{raster}</w:tblGrid>{"".join(reihen)}</w:tbl>')
 
 
-def _koerper(r: dict, e: dict, ich: bool) -> str:
+_NACHWEIS = (1250, 2300, 3900, 850, 1053)  # Datum | Bearbeiter | Tätigkeit | Dauer | Betrag: 165 mm
+
+
+def _nachweis(eintraege: list[dict], nummer: str) -> str:
+    """Anlage auf eigener Seite: jede abgerechnete Zeiteinheit mit Datum, Bearbeiter, Tätigkeit und Dauer."""
+    def zelle(i: int, text: str, rechts: bool = False, fett: bool = False) -> str:
+        return _zelle(_NACHWEIS[i], text, rechts=rechts, fett=fett)
+
+    reihen = [_reihe(*(zelle(i, t, rechts=i >= 3, fett=True) for i, t in enumerate(
+        ("Datum", "Bearbeiter", "Tätigkeit", "Std.", "Betrag"))))]
+    summe, minuten = Decimal(0), 0
+    for z in eintraege:
+        tag = date.fromisoformat(z["datum"]).strftime("%d.%m.%Y")
+        wer = f"{z['bearbeiter']} ({z['stufe']})" if z["stufe"] else z["bearbeiter"]
+        dauer = zeiterfassung.stunden_text(z["getaktet"])
+        if z["getaktet"] != z["minuten"]:
+            dauer += f" ({z['minuten']} Min.)"
+        reihen.append(_reihe(zelle(0, tag), zelle(1, wer), zelle(2, z["taetigkeit"] or "–"), zelle(3, dauer, True),
+                             zelle(4, platzhalter.euro(z["betrag"]) if z["betrag"] else "", True)))
+        minuten += z["getaktet"]
+        summe += Decimal(z["betrag"] or 0)
+    reihen.append(_reihe(_zelle(sum(_NACHWEIS[:3]), "Summe", fett=True, spanne=3, linie=True),
+                         _zelle(_NACHWEIS[3], zeiterfassung.stunden_text(minuten), rechts=True, fett=True, linie=True),
+                         _zelle(_NACHWEIS[4], platzhalter.euro(str(summe)), rechts=True, fett=True, linie=True)))
+    raster = "".join(f'<w:gridCol w:w="{b}"/>' for b in _NACHWEIS)
+    tabelle = ('<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/>'
+               '<w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="85" w:type="dxa"/></w:tblCellMar>'
+               f'<w:tblLook w:val="0000"/></w:tblPr><w:tblGrid>{raster}</w:tblGrid>{"".join(reihen)}</w:tbl>')
+    seite = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+    return (seite + _text(f"Anlage: Tätigkeitsnachweis zu Rechnung Nr. {nummer}", "Betreff", fett=True)
+            + _text("{{Akte.Bezeichnung}}", "Betreff") + _text("") + tabelle + _text("")
+            + _text("Dauer nach der vereinbarten Taktung je Eintrag; in Klammern die tatsächlich erfasste Zeit.",
+                    "Klein"))
+
+
+def _koerper(r: dict, e: dict, ich: bool, nachweis: list[dict] | None = None) -> str:
     vorschuss = r["art"] == "vorschuss"
     titel = f"{ARTEN[r['art']]} Nr. {e['nummer']}"
     info = [("Rechnung Nr.", e["nummer"]), ("Unser Zeichen", "{{Akte.Aktenzeichen}}"),
@@ -509,7 +550,11 @@ def _koerper(r: dict, e: dict, ich: bool) -> str:
         teile.append(_text(f"Den Betrag von {platzhalter.euro(str(-zahlen))} erstatte{'' if ich else 'n'} {wir} "
                            "Ihnen in den nächsten Tagen."))
     teile.append(_text("{{Absender.Steuernummer}}", "Klein"))
+    if nachweis:
+        teile.append(_text("Den Zeitaufwand im Einzelnen weist die Anlage aus.", "Klein"))
     teile += [_text(""), _unterschrift(gruss=True)]
+    if nachweis:
+        teile.append(_nachweis(nachweis, e["nummer"]))
     return "".join(teile)
 
 
@@ -520,8 +565,9 @@ _STIL_TABELLE = ('<w:style w:type="paragraph" w:customStyle="1" w:styleId="Tabel
                  '<w:basedOn w:val="Standard"/><w:rPr><w:sz w:val="18"/></w:rPr></w:style>')
 
 
-def _docx(umgebung: Path, r: dict, e: dict, ich: bool) -> bytes:
-    return grundvorlagen.erzeugen("kostennote", grundvorlagen.logo_lesen(umgebung), koerper=_koerper(r, e, ich),
+def _docx(umgebung: Path, r: dict, e: dict, ich: bool, nachweis: list[dict] | None = None) -> bytes:
+    return grundvorlagen.erzeugen("kostennote", grundvorlagen.logo_lesen(umgebung),
+                                  koerper=_koerper(r, e, ich, nachweis),
                                   titel=f"{ARTEN[r['art']]} {e['nummer']}", stile=_STIL_TABELLE)
 
 
@@ -565,7 +611,7 @@ def erzeugen(con: sqlite3.Connection, wissen: sqlite3.Connection, umgebung: Path
         return werte.get(name, "")
 
     ich = eigene.stand(con, mit_archiv=False)["profil"]["form"] == "einzelanwalt"
-    daten = fuellen.fuellen(_docx(umgebung, r, e, ich), ersatz)
+    daten = fuellen.fuellen(_docx(umgebung, r, e, ich, zeiterfassung.nachweis(con, zeiten)), ersatz)
     name = dateiname(r["art"], nummer, tag)
     antwort: dict = {"dateiname": name, "ergebnis": r, "leer": list(dict.fromkeys(leer)),
                      "hinweise": w["hinweise"] + r["hinweise"]}

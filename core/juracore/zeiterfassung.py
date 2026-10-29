@@ -64,7 +64,13 @@ CREATE INDEX IF NOT EXISTS zeit_eintrag_akte ON zeit_eintrag(akte_id);
 
 TAKTUNGEN = (1, 5, 6, 10, 15, 30, 60)
 TAKTUNG_VORGABE = 6
-# Ab hier Hinweis auf BGH IX ZR 140/19 (dort: 15 Minuten, vorformuliert, Verbraucher).
+# Über 6 Minuten: Literatur und Rechtsprechung sehen 5- oder 6-Minuten-Takte als Höchstgrenze einer zulässigen
+# Pauschalierung (Schneider in: Lützenkirchen, Anwalts-Handbuch Mietrecht, 7. Aufl. 2025, N.; Deckenbrock, NJW 2020,
+# 1776; IWW Institut, FMP 2021, 171, dort auch LG Karlsruhe: 5-Minuten-Takt formularmäßig wirksam).
+TAKTUNG_EMPFOHLEN = 6
+QUELLE_EMPFOHLEN = ("Schneider in: Lützenkirchen, Anwalts-Handbuch Mietrecht, 7. Aufl. 2025, N.; "
+                    "Deckenbrock, NJW 2020, 1776")
+# Ab 15 Minuten: BGH IX ZR 140/19 (vorformuliert, Verbraucher).
 TAKTUNG_GRENZE = 15
 BGH_ZEITTAKT = "BGH, Urt. v. 13.02.2020 – IX ZR 140/19"
 # Weniger Wörter gelten als pauschale Angabe („Aktenbearbeitung“, „Telefonat“).
@@ -205,11 +211,16 @@ def _bearbeiter(con: sqlite3.Connection, mit_archiv: bool = True) -> list[dict]:
 
 
 def taktung_hinweis(takt: int) -> str | None:
-    if takt < TAKTUNG_GRENZE:
+    if takt <= TAKTUNG_EMPFOHLEN:
         return None
+    if takt < TAKTUNG_GRENZE:
+        return (f"{takt} Minuten liegen über der Höchstgrenze von 5 bis 6 Minuten, die Literatur und Rechtsprechung "
+                f"für eine zulässige Pauschalierung sehen ({QUELLE_EMPFOHLEN}); das wird auch für Unternehmer als "
+                "Mandanten empfohlen. Erfasst wird weiter minutengenau.")
     return (f"Vorsicht bei {takt}-Minuten-Taktung: Vorformuliert gegenüber einem Verbraucher ist schon eine "
             f"15-Minuten-Zeittaktklausel unwirksam ({BGH_ZEITTAKT}); dann ist nur die tatsächliche Zeit abrechenbar. "
-            "Die Entscheidung betrifft Verbraucher als Mandanten. Die minutengenauen Zeiten bleiben erhalten.")
+            f"Empfohlen sind höchstens 5 bis 6 Minuten, auch bei Unternehmern ({QUELLE_EMPFOHLEN}). Die minutengenauen "
+            "Zeiten bleiben erhalten.")
 
 
 def _mandant_natuerliche_person(con: sqlite3.Connection, akte_id: int) -> bool:
@@ -221,11 +232,14 @@ def _mandant_natuerliche_person(con: sqlite3.Connection, akte_id: int) -> bool:
 
 def akte_hinweise(con: sqlite3.Connection, akte_id: int, takt: int) -> list[str]:
     """Hinweise zur Taktung in dieser Akte: Mandant ist eine natürliche Person (womöglich Verbraucher)."""
-    if takt >= TAKTUNG_GRENZE and _mandant_natuerliche_person(con, akte_id):
+    if takt <= TAKTUNG_EMPFOHLEN or not _mandant_natuerliche_person(con, akte_id):
+        return []
+    if takt >= TAKTUNG_GRENZE:
         return [f"Der Mandant ist eine natürliche Person und womöglich Verbraucher. Eine vorformulierte Taktung von "
                 f"{takt} Minuten wäre ihm gegenüber unwirksam ({BGH_ZEITTAKT}); dann gilt nur die tatsächliche "
-                "Zeit (Spalte „Dauer“). Für diese Akte besser minutengenau oder mit kleinem Takt abrechnen."]
-    return []
+                "Zeit (Spalte „Dauer“). Für diese Akte besser minutengenau oder mit höchstens 6 Minuten abrechnen."]
+    return [f"Der Mandant ist eine natürliche Person und womöglich Verbraucher. {takt} Minuten liegen über den 5 bis "
+            f"6 Minuten, die als zulässige Höchstgrenze gelten ({QUELLE_EMPFOHLEN})."]
 
 
 def einstellungen(con: sqlite3.Connection) -> dict:
@@ -572,6 +586,19 @@ def fuer_kostennote(con: sqlite3.Connection, akte_id: int) -> dict:
         zeitraum = (von.strftime("%d.%m.%Y") if von == bis
                     else f"{von.strftime('%d.%m.%Y')} bis {bis.strftime('%d.%m.%Y')}")
     return {"posten": posten, "leistungszeitraum": zeitraum, "taktung": takt, "hinweise": list(dict.fromkeys(hinweise))}
+
+
+def nachweis(con: sqlite3.Connection, ids: list[int]) -> list[dict]:
+    """Tätigkeitsnachweis zu übernommenen Zeiten: jede Einheit mit Datum, Bearbeiter, Tätigkeit und Dauer, wie es
+    die Rechtsprechung zur Darlegung von Stundenhonoraren verlangt (IWW Institut, FMP 2022, 89; Krumscheid in:
+    Heidel/Pauly, AnwaltFormulare, § 57)."""
+    if not ids:
+        return []
+    takt = taktung(con)
+    marken = ",".join("?" * len(ids))
+    zeilen = con.execute(f"SELECT *, NULL AS kostennote FROM zeit_eintrag WHERE id IN ({marken}) "
+                         "ORDER BY datum, id", [int(i) for i in ids]).fetchall()
+    return [_eintrag(z, takt) for z in zeilen]
 
 
 def abrechnen(con: sqlite3.Connection, akte_id: int, ids: list[int], kostennote_id: int) -> None:
