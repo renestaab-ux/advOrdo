@@ -343,7 +343,8 @@ def test_vorlage_verguetungsvereinbarung(kern, tmp_path):  # noqa: F811
     assert r["leer"] == [] and r["unbekannt"] == []
     text = zipfile.ZipFile(ziel).read("word/document.xml").decode()
     assert "Vergütungsvereinbarung" in text and "regelmäßig nicht mehr als die gesetzliche Vergütung" in text
-    assert "Anerkenntnis" in text and "4.500,00 €" in text
+    assert "Anerkenntnis" in text and "4.500,00 €" in text and "Vorzeitige Beendigung" in text
+    assert "Nicht umfasst sind" in text
     # ohne Mindestvergütung bleibt der Absatz leer, ohne Hinweis auf eine Lücke
     zeit.vereinbarung_speichern(kern.akten, aid, {"mindestverguetung": False})
     r = vorlagen.erzeugen(kern.akten, kern.con, kern.umgebungen.ordner(), kern.ablage, aid, "grund:verguetung",

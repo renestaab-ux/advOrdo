@@ -136,8 +136,10 @@ def _koerper(art: str) -> str:
 
 def _verguetung() -> str:
     """Vergütungsvereinbarung über ein Zeithonorar: als solche bezeichnet, von der Vollmacht getrennt, mit dem
-    Hinweis zur Kostenerstattung (§ 3a Abs. 1 S. 1 bis 3 RVG). Ohne Anerkenntnisklausel, mit Tätigkeitsnachweis und
-    Kostenschätzung, wie es die Sammlung zu Vergütungsvereinbarungen empfiehlt."""
+    Hinweis zur Kostenerstattung (§ 3a Abs. 1 S. 1 bis 3 RVG). Dazu, was die Praxisliteratur empfiehlt (Dralle,
+    AnwBl BE 2025, 137; Schons, AnwBl 2020, 348; Schneider, AnwBl 2009, 208): Leistungsumfang, Abrechnung,
+    Auslagen, Umsatzsteuer, Vorschüsse, vorzeitige Beendigung; ohne Anerkenntnisklausel, mit Tätigkeitsnachweis und
+    Kostenschätzung."""
     def abschnitt(titel: str) -> str:
         return _text(titel, "Zwischen", fett=True)
 
@@ -161,6 +163,9 @@ def _verguetung() -> str:
             + _text("Diese Vereinbarung regelt die Vergütung für die Tätigkeit in der Angelegenheit "
                     "„{{Akte.Bezeichnung}}“ (unser Zeichen {{Akte.Aktenzeichen}}). Sie ist von der Vollmacht und "
                     "anderen Vereinbarungen getrennt.")
+            + lueckentext("Die Tätigkeit umfasst ", "[z. B. die außergerichtliche Vertretung und die Vertretung im "
+                          "Verfahren erster Instanz]", ". Nicht umfasst sind ", "[z. B. Rechtsmittelverfahren und die "
+                          "Zwangsvollstreckung]", "; dafür bedarf es eines gesonderten Auftrags.")
             + abschnitt("2. Vergütung nach Zeitaufwand")
             + _text("Anstelle der gesetzlichen Gebühren erhält der Auftragnehmer ein Honorar nach Zeitaufwand. Es "
                     "gelten folgende Stundensätze, jeweils zuzüglich der gesetzlichen Umsatzsteuer:")
@@ -186,7 +191,10 @@ def _verguetung() -> str:
             + _text("Die gegnerische Partei, ein Verfahrensbeteiligter oder die Staatskasse muss im Falle der "
                     "Kostenerstattung regelmäßig nicht mehr als die gesetzliche Vergütung erstatten. Die vereinbarte "
                     "Vergütung kann die gesetzliche übersteigen; den Unterschied trägt der Auftraggeber selbst.")
-            + abschnitt("7. Schlussbestimmungen")
+            + abschnitt("7. Vorzeitige Beendigung")
+            + _text("Endet das Mandat vorzeitig, gleich aus welchem Grund, wird der bis dahin angefallene "
+                    "Zeitaufwand nach dieser Vereinbarung abgerechnet.")
+            + abschnitt("8. Schlussbestimmungen")
             + _text("Änderungen und Ergänzungen dieser Vereinbarung bedürfen der Textform.")
             + _text("") + _text("{{Datum.Ort}}") + _text("") + _text("") + _text("")
             + unterschriften("________________________________\t________________________________")
