@@ -1,3 +1,4 @@
+import ZeitSaetze from "./ZeitSaetze";
 import { FormEvent, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import AktenEinstellungen from "./AktenEinstellungen";
@@ -28,6 +29,7 @@ export type EinstellungsReiter =
   | "eigene"
   | "akten"
   | "schriftstuecke"
+  | "zeiterfassung"
   | "rechtsquellen"
   | "nachrichten"
   | "ki"
@@ -42,6 +44,7 @@ const REITER: { id: EinstellungsReiter; titel: string }[] = [
   { id: "eigene", titel: "Eigene Daten" },
   { id: "akten", titel: "Akten" },
   { id: "schriftstuecke", titel: "Schriftstücke" },
+  { id: "zeiterfassung", titel: "Zeiterfassung" },
   { id: "rechtsquellen", titel: "Rechtsquellen" },
   { id: "nachrichten", titel: "Nachrichten" },
   { id: "ki", titel: "Lokales Sprachmodell" },
@@ -198,6 +201,8 @@ export default function Einstellungen({
     );
   } else if (reiter === "schriftstuecke") {
     inhalt = <SchriftVorlagenEinstellungen />;
+  } else if (reiter === "zeiterfassung") {
+    inhalt = <ZeitSaetze onEigeneDaten={onEigeneDaten} />;
   } else if (reiter === "rechtsquellen") {
     inhalt = <Rechtsquellen onAkte={onAkten} />;
   } else if (reiter === "nachrichten") {

@@ -10,8 +10,9 @@ Posten einer Kostennote:
 - ``gebuehr``: Wertgebühr nach VV RVG (Nummer aus ``GEBUEHREN``, Satz, wahlweise eigener Gegenstandswert).
 - ``auslage``: Auslage mit Betrag, z. B. Nr. 7000 (Kopien) oder Nr. 7003 (Fahrtkosten); wahlweise ohne Umsatzsteuer
   (durchlaufender Posten, § 10 Abs. 1 S. 6 UStG).
-- ``stunden``: Zeitaufwand × Stundensatz aus einer Vergütungsvereinbarung (§ 3a RVG). Hier kann später die
-  Zeiterfassung ihre Einträge übergeben (``quelle``).
+- ``stunden``: Zeitaufwand × Stundensatz aus einer Vergütungsvereinbarung (§ 3a RVG). Aus der Zeiterfassung kommen
+  zusätzlich ``minuten`` (getaktet; der Betrag wird dann genau aus den Minuten gerechnet) und ``quelle`` (die
+  Zeiteinträge, die eine Kostennote als abgerechnet kennzeichnet und ein Storno wieder freigibt).
 
 Jede vergebene Rechnungsnummer bleibt in der Tabelle ``kostennote`` stehen, auch wenn die Akte gelöscht oder die
 Rechnung storniert wird; so wird keine Nummer zweimal vergeben.
@@ -27,6 +28,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from .. import zeiterfassung
 from ..aktenverwaltung import stammdaten
 from ..dokumente import akte as akten
 from ..eigene import daten as eigene
@@ -225,12 +227,18 @@ def berechne(e: dict) -> dict:
             z = _zeile("auslage", f"Nr. {nr}" if nr else "", text, _betrag(p.get("betrag") or 0, text))
             (weitere if p.get("ust", True) else steuerfrei).append(z)
         elif typ == "stunden":
-            stunden = _betrag(p.get("stunden") or 0, "Stunden")
             satz_euro = _betrag(p.get("stundensatz") or 0, "Stundensatz")
             text = (p.get("text") or "").strip() or "Tätigkeit"
-            z = _zeile("stunden", "", f"{text} ({_zahl(stunden)} Std. × {platzhalter.euro(str(satz_euro))})",
+            if p.get("minuten") not in (None, ""):
+                minuten = int(p["minuten"])
+                stunden = Decimal(minuten) / 60
+                dauer = zeiterfassung.stunden_text(minuten)
+            else:
+                stunden = _betrag(p.get("stunden") or 0, "Stunden")
+                dauer = _zahl(stunden)
+            z = _zeile("stunden", "", f"{text} ({dauer} Std. × {platzhalter.euro(str(satz_euro))})",
                        stunden * satz_euro)
-            z["stunden"], z["stundensatz"] = str(stunden), str(satz_euro)
+            z["stunden"], z["stundensatz"] = dauer, str(satz_euro)
             if p.get("quelle"):
                 z["quelle"] = p["quelle"]
             zeit.append(z)
@@ -258,7 +266,7 @@ def berechne(e: dict) -> dict:
             liste = next(g for g in gruppen.values() if verfahren in g)
             liste.insert(liste.index(verfahren) + 1, z)
 
-    abschnitte = []
+    rvg = []
     for schluessel, titel in ANGELEGENHEITEN.items():
         zeilen = gruppen[schluessel]
         if not zeilen:
@@ -267,9 +275,30 @@ def berechne(e: dict) -> dict:
         if e.get("pauschale", True):
             pauschale = min(cent(max(summe, Decimal(0)) * PAUSCHALE_SATZ), PAUSCHALE_HOECHST)
             zeilen.append(_zeile("pauschale", "Nr. 7002", "Post- und Telekommunikationspauschale", pauschale))
-        abschnitte.append({"titel": titel, "zeilen": zeilen})
-    if zeit:
-        abschnitte.append({"titel": "Zeitaufwand nach Vergütungsvereinbarung (§ 3a RVG)", "zeilen": zeit})
+        rvg.append({"titel": titel, "zeilen": zeilen})
+    zeit_abschnitt = [{"titel": "Zeitaufwand nach Vergütungsvereinbarung (§ 3a RVG)", "zeilen": zeit}] if zeit else []
+
+    # RVG-Mindestvergütung: Zeithonorar, mindestens aber die gesetzlichen Gebühren; berechnet wird nur das Höhere
+    # (Klausel nach BGH IX ZR 90/23 wirksam, nach BB 2025, 2893; § 4 Abs. 1 S. 1 RVG, § 49b Abs. 1 S. 1 BRAO).
+    vergleich = None
+    if zeit and rvg and not e.get("mindestverguetung"):
+        hinweise.append("Zeithonorar und gesetzliche Gebühren werden hier addiert. Sieht die Vereinbarung nur "
+                        "mindestens die gesetzlichen Gebühren vor, bitte „Mindestvergütung“ anhaken.")
+    if e.get("mindestverguetung") and zeit:
+        if not rvg:
+            hinweise.append("Mindestvergütung: Für die Vergleichsrechnung bitte die gesetzlichen Gebühren als Posten "
+                            "angeben (z. B. Nr. 3100 und 3104 mit dem Gegenstandswert).")
+        else:
+            netto_zeit = sum((Decimal(z["betrag"]) for z in zeit), Decimal(0))
+            netto_rvg = sum((Decimal(z["betrag"]) for a_ in rvg for z in a_["zeilen"]), Decimal(0))
+            gesetzlich = netto_rvg > netto_zeit
+            vergleich = {"zeithonorar": str(cent(netto_zeit)), "gesetzlich": str(cent(netto_rvg)),
+                         "gewaehlt": "gesetzlich" if gesetzlich else "zeithonorar"}
+            if gesetzlich:
+                zeit_abschnitt = []
+            else:
+                rvg = []
+    abschnitte = rvg + zeit_abschnitt
     if weitere:
         abschnitte.append({"titel": "Auslagen", "zeilen": weitere})
     if not abschnitte and not steuerfrei:
@@ -299,6 +328,7 @@ def berechne(e: dict) -> dict:
         "fassung_titel": f["titel"],
         "grundlage": f"§§ 2, 13 RVG {f['fundstelle']} mit Vergütungsverzeichnis (Anlage 1 RVG)",
         "abschnitte": abschnitte,
+        "vergleich": vergleich,
         "steuerfrei": steuerfrei,
         "netto": str(cent(netto)),
         "umsatzsteuer_satz": str(ust),
@@ -464,7 +494,42 @@ def _tabelle(r: dict) -> str:
             f'<w:tblLook w:val="0000"/></w:tblPr><w:tblGrid>{raster}</w:tblGrid>{"".join(reihen)}</w:tbl>')
 
 
-def _koerper(r: dict, e: dict, ich: bool) -> str:
+_NACHWEIS = (1250, 2300, 3900, 850, 1053)  # Datum | Bearbeiter | Tätigkeit | Dauer | Betrag: 165 mm
+
+
+def _nachweis(eintraege: list[dict], nummer: str) -> str:
+    """Anlage auf eigener Seite: jede abgerechnete Zeiteinheit mit Datum, Bearbeiter, Tätigkeit und Dauer."""
+    def zelle(i: int, text: str, rechts: bool = False, fett: bool = False) -> str:
+        return _zelle(_NACHWEIS[i], text, rechts=rechts, fett=fett)
+
+    reihen = [_reihe(*(zelle(i, t, rechts=i >= 3, fett=True) for i, t in enumerate(
+        ("Datum", "Bearbeiter", "Tätigkeit", "Std.", "Betrag"))))]
+    summe, minuten = Decimal(0), 0
+    for z in eintraege:
+        tag = date.fromisoformat(z["datum"]).strftime("%d.%m.%Y")
+        wer = f"{z['bearbeiter']} ({z['stufe']})" if z["stufe"] else z["bearbeiter"]
+        dauer = zeiterfassung.stunden_text(z["getaktet"])
+        if z["getaktet"] != z["minuten"]:
+            dauer += f" ({z['minuten']} Min.)"
+        reihen.append(_reihe(zelle(0, tag), zelle(1, wer), zelle(2, z["taetigkeit"] or "–"), zelle(3, dauer, True),
+                             zelle(4, platzhalter.euro(z["betrag"]) if z["betrag"] else "", True)))
+        minuten += z["getaktet"]
+        summe += Decimal(z["betrag"] or 0)
+    reihen.append(_reihe(_zelle(sum(_NACHWEIS[:3]), "Summe", fett=True, spanne=3, linie=True),
+                         _zelle(_NACHWEIS[3], zeiterfassung.stunden_text(minuten), rechts=True, fett=True, linie=True),
+                         _zelle(_NACHWEIS[4], platzhalter.euro(str(summe)), rechts=True, fett=True, linie=True)))
+    raster = "".join(f'<w:gridCol w:w="{b}"/>' for b in _NACHWEIS)
+    tabelle = ('<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/>'
+               '<w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="85" w:type="dxa"/></w:tblCellMar>'
+               f'<w:tblLook w:val="0000"/></w:tblPr><w:tblGrid>{raster}</w:tblGrid>{"".join(reihen)}</w:tbl>')
+    seite = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+    return (seite + _text(f"Anlage: Tätigkeitsnachweis zu Rechnung Nr. {nummer}", "Betreff", fett=True)
+            + _text("{{Akte.Bezeichnung}}", "Betreff") + _text("") + tabelle + _text("")
+            + _text("Dauer nach der vereinbarten Taktung je Eintrag; in Klammern die tatsächlich erfasste Zeit.",
+                    "Klein"))
+
+
+def _koerper(r: dict, e: dict, ich: bool, nachweis: list[dict] | None = None) -> str:
     vorschuss = r["art"] == "vorschuss"
     titel = f"{ARTEN[r['art']]} Nr. {e['nummer']}"
     info = [("Rechnung Nr.", e["nummer"]), ("Unser Zeichen", "{{Akte.Aktenzeichen}}"),
@@ -490,6 +555,13 @@ def _koerper(r: dict, e: dict, ich: bool) -> str:
     if e.get("leistungszeitraum"):
         teile.append(_text(f"Leistungszeitraum: {e['leistungszeitraum']}", "Betreff"))
     teile += [_text(""), _text("{{Empfänger.Anrede}}"), _text(einleitung), _tabelle(r), _text("")]
+    v = r.get("vergleich")
+    if v:
+        hoeher = "die gesetzliche Vergütung" if v["gewaehlt"] == "gesetzlich" else "das Zeithonorar"
+        teile.append(_text(
+            f"Nach der Vergütungsvereinbarung schulden Sie das Zeithonorar, mindestens aber die gesetzlichen Gebühren. "
+            f"Vergleich (netto): Zeithonorar {platzhalter.euro(v['zeithonorar'])}, gesetzliche Vergütung "
+            f"{platzhalter.euro(v['gesetzlich'])}; berechnet ist {hoeher}."))
     teile.append(_text(f"Berechnung nach {r['grundlage']}.", "Klein"))
     if zahlen > 0:
         teile.append(_text(f"Bitte überweisen Sie den Betrag von {platzhalter.euro(str(zahlen))} "
@@ -501,7 +573,11 @@ def _koerper(r: dict, e: dict, ich: bool) -> str:
         teile.append(_text(f"Den Betrag von {platzhalter.euro(str(-zahlen))} erstatte{'' if ich else 'n'} {wir} "
                            "Ihnen in den nächsten Tagen."))
     teile.append(_text("{{Absender.Steuernummer}}", "Klein"))
+    if nachweis:
+        teile.append(_text("Den Zeitaufwand im Einzelnen weist die Anlage aus.", "Klein"))
     teile += [_text(""), _unterschrift(gruss=True)]
+    if nachweis:
+        teile.append(_nachweis(nachweis, e["nummer"]))
     return "".join(teile)
 
 
@@ -512,8 +588,9 @@ _STIL_TABELLE = ('<w:style w:type="paragraph" w:customStyle="1" w:styleId="Tabel
                  '<w:basedOn w:val="Standard"/><w:rPr><w:sz w:val="18"/></w:rPr></w:style>')
 
 
-def _docx(umgebung: Path, r: dict, e: dict, ich: bool) -> bytes:
-    return grundvorlagen.erzeugen("kostennote", grundvorlagen.logo_lesen(umgebung), koerper=_koerper(r, e, ich),
+def _docx(umgebung: Path, r: dict, e: dict, ich: bool, nachweis: list[dict] | None = None) -> bytes:
+    return grundvorlagen.erzeugen("kostennote", grundvorlagen.logo_lesen(umgebung),
+                                  koerper=_koerper(r, e, ich, nachweis),
                                   titel=f"{ARTEN[r['art']]} {e['nummer']}", stile=_STIL_TABELLE)
 
 
@@ -539,6 +616,11 @@ def erzeugen(con: sqlite3.Connection, wissen: sqlite3.Connection, umgebung: Path
     tag = _datum(e.get("datum"), "Rechnungsdatum") or date.today()
     e["datum"] = tag.isoformat()
     r = berechne(e)
+    # Zeiten aus der Zeiterfassung gelten nur mit einer Kostennote als abgerechnet, nicht mit einem Vorschuss.
+    zeiten = [int(i) for p in e.get("posten") or [] if p.get("typ") == "stunden" for i in p.get("quelle") or []]
+    abrechnen = in_akte and r["art"] == "rechnung" and zeiten
+    if abrechnen:
+        zeiterfassung.pruefe_quellen(con, akte_id, zeiten)
     w = platzhalter.werte(con, akte_id, e.get("empfaenger_id"), None, tag)
     werte = w["werte"]
     leer: list[str] = []
@@ -552,7 +634,7 @@ def erzeugen(con: sqlite3.Connection, wissen: sqlite3.Connection, umgebung: Path
         return werte.get(name, "")
 
     ich = eigene.stand(con, mit_archiv=False)["profil"]["form"] == "einzelanwalt"
-    daten = fuellen.fuellen(_docx(umgebung, r, e, ich), ersatz)
+    daten = fuellen.fuellen(_docx(umgebung, r, e, ich, zeiterfassung.nachweis(con, zeiten)), ersatz)
     name = dateiname(r["art"], nummer, tag)
     antwort: dict = {"dateiname": name, "ergebnis": r, "leer": list(dict.fromkeys(leer)),
                      "hinweise": w["hinweise"] + r["hinweise"]}
@@ -572,6 +654,10 @@ def erzeugen(con: sqlite3.Connection, wissen: sqlite3.Connection, umgebung: Path
                     (akte_id, nummer, r["art"], e["datum"], json.dumps(e, ensure_ascii=False),
                      json.dumps(r, ensure_ascii=False), r["brutto"], r["zahlbetrag"], eingelesen["dokument_id"],
                      datetime.now().isoformat(timespec="seconds")))
+        if abrechnen:
+            kid = con.execute("SELECT id FROM kostennote WHERE nummer = ?", (nummer,)).fetchone()["id"]
+            zeiterfassung.abrechnen(con, akte_id, zeiten, kid)
+            antwort["zeiten_abgerechnet"] = len(zeiten)
         con.commit()
         antwort["kostennoten"] = liste(con, akte_id)
     return antwort
@@ -585,6 +671,7 @@ def stornieren(con: sqlite3.Connection, kostennote_id: int) -> dict:
     if z["storniert_am"] is None:
         con.execute("UPDATE kostennote SET storniert_am = ? WHERE id = ?",
                     (datetime.now().isoformat(timespec="seconds"), kostennote_id))
+        zeiterfassung.freigeben(con, kostennote_id)
         con.commit()
     return {"kostennoten": liste(con, z["akte_id"])}
 
@@ -594,4 +681,8 @@ def eingabe(con: sqlite3.Connection, kostennote_id: int) -> dict:
     z = con.execute("SELECT eingabe FROM kostennote WHERE id = ?", (kostennote_id,)).fetchone()
     if z is None:
         raise LookupError(f"Unbekannte Kostennote: {kostennote_id}")
-    return json.loads(z["eingabe"])
+    e = json.loads(z["eingabe"])
+    # Als Ausgangspunkt rechnet die neue Rechnung dieselben Zeiteinträge nicht noch einmal ab.
+    for p in e.get("posten") or []:
+        p.pop("quelle", None)
+    return e

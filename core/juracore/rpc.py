@@ -23,7 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, db, diagnose, einstellungen, gerichte, nachrichten, netzprotokoll, programme
+from . import __version__, db, diagnose, einstellungen, gerichte, nachrichten, netzprotokoll, programme, zeiterfassung
 from .abgleich import abgleich
 from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, notizen, stammdaten, verfahren
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
@@ -283,6 +283,29 @@ class Kern:
             "kostennote.liste": lambda akte_id: kostennote.liste(self.akten, akte_id),
             "kostennote.eingabe": lambda kostennote_id: kostennote.eingabe(self.akten, kostennote_id),
             "kostennote.stornieren": lambda kostennote_id: kostennote.stornieren(self.akten, kostennote_id),
+            # Zeiterfassung je Akte: Stufen, Bearbeiter und Taktung gelten für die Umgebung.
+            "zeit.einstellungen": lambda: zeiterfassung.einstellungen(self.akten),
+            "zeit.taktung_setzen": lambda minuten: zeiterfassung.taktung_setzen(self.akten, minuten),
+            "zeit.stufe_speichern": lambda name, satz, stufe_id=None: zeiterfassung.stufe_speichern(
+                self.akten, name, satz, stufe_id),
+            "zeit.stufe_loeschen": lambda stufe_id: zeiterfassung.stufe_loeschen(self.akten, stufe_id),
+            "zeit.stufe_verschieben": lambda stufe_id, richtung: zeiterfassung.stufe_verschieben(
+                self.akten, stufe_id, richtung),
+            "zeit.bearbeiter_speichern": lambda name, stufe_id=None, bearbeiter_id=None, archiviert=None: (
+                zeiterfassung.bearbeiter_speichern(self.akten, name, stufe_id, bearbeiter_id, archiviert)),
+            "zeit.bearbeiter_loeschen": lambda bearbeiter_id: zeiterfassung.bearbeiter_loeschen(
+                self.akten, bearbeiter_id),
+            "zeit.standard_setzen": lambda bearbeiter_id=None: zeiterfassung.standard_setzen(self.akten, bearbeiter_id),
+            "zeit.aus_eigenen_daten": lambda: zeiterfassung.aus_eigenen_daten(self.akten),
+            "zeit.liste": lambda akte_id: zeiterfassung.liste(self.akten, akte_id),
+            "zeit.speichern": lambda akte_id, daten, eintrag_id=None: zeiterfassung.speichern(
+                self.akten, akte_id, daten, eintrag_id),
+            "zeit.loeschen": lambda eintrag_id: zeiterfassung.loeschen(self.akten, eintrag_id),
+            "zeit.starten": lambda akte_id=None, bearbeiter_id=None, taetigkeit="", eintrag_id=None, stufe_id=None: (
+                zeiterfassung.starten(self.akten, akte_id, bearbeiter_id, taetigkeit, eintrag_id, stufe_id=stufe_id)),
+            "zeit.stoppen": lambda: zeiterfassung.stoppen(self.akten),
+            "zeit.laufend": lambda: zeiterfassung.laufend(self.akten),
+            "zeit.fuer_kostennote": lambda akte_id: zeiterfassung.fuer_kostennote(self.akten, akte_id),
             "schriftstuecke.vorlage_hinzufuegen": lambda pfad: schrift_vorlagen.hinzufuegen(
                 self.umgebungen.ordner(), pfad),
             "schriftstuecke.vorlage_entfernen": lambda datei: schrift_vorlagen.entfernen(
@@ -333,6 +356,8 @@ class Kern:
         aktenverwaltung_einrichten(self.akten)
         # Kostennoten: vergebene Rechnungsnummern der Umgebung.
         kostennote.einrichten(self.akten)
+        # Zeiterfassung: Zeiten je Akte, Stundensätze und Bearbeiter der Umgebung.
+        zeiterfassung.einrichten(self.akten)
 
     def _programm(self, dokument_id: int) -> dict:
         fmt = akte.dokument(self.akten, dokument_id)["dokument"]["format"]

@@ -2469,7 +2469,7 @@ export interface KostennoteKatalog {
 export type KostenEingabePosten =
   | { typ: "gebuehr"; nr: string; satz: string; wert?: string }
   | { typ: "auslage"; nr: string; text: string; betrag: string; ust: boolean }
-  | { typ: "stunden"; text: string; stunden: string; stundensatz: string; quelle?: string };
+  | { typ: "stunden"; text: string; stunden: string; stundensatz: string; minuten?: number; quelle?: number[] };
 
 export interface KostennoteEingabe {
   art: "rechnung" | "vorschuss";
@@ -2486,6 +2486,8 @@ export interface KostennoteEingabe {
   umsatzsteuer: number;
   abzuege: { text?: string; nummer?: string; betrag: string }[];
   zahlungsziel: number;
+  /** Zeithonorar, mindestens aber die gesetzlichen Gebühren (die Gebührenposten dienen dann dem Vergleich). */
+  mindestverguetung?: boolean;
 }
 
 export interface KostennoteZeile {
@@ -2503,6 +2505,8 @@ export interface KostennoteErgebnis {
   fassung_titel: string;
   grundlage: string;
   abschnitte: { titel: string; zeilen: KostennoteZeile[] }[];
+  /** RVG-Mindestvergütung: beide Beträge netto und welcher berechnet ist. */
+  vergleich: { zeithonorar: string; gesetzlich: string; gewaehlt: "zeithonorar" | "gesetzlich" } | null;
   steuerfrei: KostennoteZeile[];
   netto: string;
   umsatzsteuer_satz: string;
@@ -2547,4 +2551,99 @@ export interface KostennoteErzeugt {
   pfad?: string;
   dokument_id?: number;
   kostennoten?: KostennoteEintrag[];
+  /** Wie viele Zeiteinträge diese Kostennote als abgerechnet gekennzeichnet hat. */
+  zeiten_abgerechnet?: number;
+}
+
+// --------------------------------------------------------------------------- Zeiterfassung
+
+export interface ZeitStufe {
+  id: number;
+  name: string;
+  /** Euro je Stunde, netto, mit Punkt. */
+  satz: string;
+  reihenfolge: number;
+}
+
+export interface ZeitBearbeiter {
+  id: number;
+  name: string;
+  stufe_id: number | null;
+  stufe: string;
+  satz: string | null;
+  person_id: number | null;
+  archiviert: boolean;
+}
+
+export interface ZeitEinstellungen {
+  taktung: number;
+  taktungen: number[];
+  /** Hinweis auf die Grenzen der Taktung (BGH IX ZR 140/19), ab 15 Minuten. */
+  taktung_hinweis: string | null;
+  stufen: ZeitStufe[];
+  bearbeiter: ZeitBearbeiter[];
+  standard_bearbeiter_id: number | null;
+  neu?: number;
+}
+
+export interface ZeitEintrag {
+  id: number;
+  akte_id: number;
+  bearbeiter_id: number | null;
+  bearbeiter: string;
+  stufe: string;
+  satz: string | null;
+  datum: string;
+  /** Erfasste Minuten (bei laufendem Timer inklusive der laufenden Zeit). */
+  minuten: number;
+  /** Nach der Taktung abzurechnende Minuten; 0 bei nicht abrechenbaren Einträgen. */
+  getaktet: number;
+  betrag: string | null;
+  laeuft_seit: string | null;
+  taetigkeit: string;
+  abrechenbar: boolean;
+  kostennote_id: number | null;
+  kostennote: string | null;
+}
+
+export interface ZeitLaufend extends ZeitEintrag {
+  akte: string;
+  aktenzeichen: string | null;
+  sekunden: number;
+}
+
+export interface ZeitListe {
+  eintraege: ZeitEintrag[];
+  summen: { bearbeiter: string; stufe: string; minuten: number; getaktet: number; betrag: string }[];
+  gesamt: { minuten: number; getaktet: number; betrag: string; offen: string; offen_minuten: number };
+  taktung: number;
+  laufend: ZeitLaufend | null;
+  hinweise: string[];
+}
+
+export interface ZeitFuerKostennote {
+  posten: Extract<KostenEingabePosten, { typ: "stunden" }>[];
+  leistungszeitraum: string;
+  taktung: number;
+  hinweise: string[];
+}
+
+/** 67 → „1:07“ (Stunden:Minuten). */
+export function stundenText(minuten: number): string {
+  return `${Math.floor(minuten / 60)}:${String(minuten % 60).padStart(2, "0")}`;
+}
+
+/** Sekunden als „1:07:05“ für den laufenden Timer. */
+export function uhrText(sekunden: number): string {
+  const h = Math.floor(sekunden / 3600);
+  const m = Math.floor((sekunden % 3600) / 60);
+  const s = sekunden % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/** Meldet anderen Teilen der Oberfläche (Seitenleiste, Reiter „Zeiten“), dass ein Timer gestartet oder angehalten
+ *  wurde. */
+export const ZEIT_EREIGNIS = "jurabox-zeit";
+export function zeitGeaendert(): void {
+  window.dispatchEvent(new Event(ZEIT_EREIGNIS));
 }

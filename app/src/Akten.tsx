@@ -5,6 +5,7 @@ import Analyse from "./Analyse";
 import AusDokument from "./AusDokument";
 import Fristen from "./Fristen";
 import Notizen from "./Notizen";
+import Zeiten from "./Zeiten";
 import Schriftstuecke from "./Schriftstuecke";
 import type { EinstellungsReiter } from "./Einstellungen";
 import Zeichen, { SymbolName } from "./Symbole";
@@ -36,6 +37,7 @@ export type Reiter =
   | "beteiligte"
   | "fristen"
   | "notizen"
+  | "zeiten"
   | "schriftstuecke"
   | "vergleich"
   | "analyse"
@@ -47,6 +49,7 @@ const REITER: { id: Reiter; titel: string; symbol: SymbolName }[] = [
   { id: "beteiligte", titel: "Beteiligte", symbol: "beteiligte" },
   { id: "fristen", titel: "Fristen", symbol: "fristen" },
   { id: "notizen", titel: "Notizen", symbol: "notizen" },
+  { id: "zeiten", titel: "Zeiten", symbol: "zeiten" },
   { id: "vergleich", titel: "Vergleich", symbol: "vergleich" },
   { id: "analyse", titel: "Analyse", symbol: "analyse" },
   { id: "normen", titel: "Normen", symbol: "gesetze" },
@@ -710,6 +713,14 @@ function AkteRahmen({
         {reiter === "stammdaten" && <VerfahrenKarte key={`v${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
         {reiter === "fristen" && <Fristen key={`f${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
         {reiter === "notizen" && <Notizen key={`n${akte.id}`} akteId={akte.id} />}
+        {reiter === "zeiten" && (
+          <Zeiten
+            key={`z${akte.id}`}
+            akteId={akte.id}
+            onEinstellungen={() => onEinstellungen("zeiterfassung")}
+            onKostennote={() => onReiter("schriftstuecke")}
+          />
+        )}
         {reiter === "schriftstuecke" && (
           <Schriftstuecke
             key={`sch${akte.id}`}

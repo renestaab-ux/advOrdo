@@ -9,6 +9,7 @@ import {
   KostennoteErzeugt,
   KostennoteKatalog,
   KostennoteVorschlag,
+  ZeitFuerKostennote,
   datumDe,
   euro,
   kern,
@@ -48,6 +49,7 @@ export default function Kostennote({
   const [erzeugt, setErzeugt] = useState<(KostennoteErzeugt & { geoeffnet: boolean }) | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [zeitHinweise, setZeitHinweise] = useState<string[]>([]);
 
   async function mit<T>(f: () => Promise<T>): Promise<T | undefined> {
     setFehler(null);
@@ -167,6 +169,31 @@ export default function Kostennote({
     setze({ posten: [...e.posten, p] });
   }
 
+  // Offene Zeiten der Zeiterfassung als Posten „Stunden × Satz“; frühere Übernahmen werden ersetzt.
+  async function zeitenUebernehmen() {
+    const z = await mit(() => kern<ZeitFuerKostennote>("zeit.fuer_kostennote", { akte_id: akteId }));
+    if (!z || !e) return;
+    const posten = z.posten.map((p) => ({ ...p, stunden: de(p.stunden), stundensatz: de(p.stundensatz) }));
+    // Mit Verfahren bleiben die Gebühren als Vergleich für die RVG-Mindestvergütung stehen; außergerichtlich
+    // ersetzt das Zeithonorar die vorgeschlagenen Gebühren (keine Gebühren neben dem Zeithonorar).
+    const gebuehren = e.posten.filter((p) => p.typ === "gebuehr");
+    const mindest = posten.length > 0 && gebuehren.length > 0 && hatVerfahren;
+    setE({
+      ...e,
+      posten: [
+        ...e.posten.filter(
+          (p) => !(p.typ === "stunden" && p.quelle) && !(posten.length > 0 && !mindest && p.typ === "gebuehr"),
+        ),
+        ...posten,
+      ],
+      leistungszeitraum: e.leistungszeitraum || z.leistungszeitraum,
+      mindestverguetung: mindest || e.mindestverguetung,
+    });
+    setZeitHinweise(
+      z.posten.length === 0 ? ["Keine offenen, abrechenbaren Zeiten in dieser Akte.", ...z.hinweise] : z.hinweise,
+    );
+  }
+
   function anrechnungAn(an: boolean) {
     if (!e) return;
     if (!an) return setze({ anrechnung: null });
@@ -201,7 +228,19 @@ export default function Kostennote({
     const v = await kern<KostennoteVorschlag>("kostennote.vorschlag", { akte_id: akteId });
     setVorschlag(v);
     setVorschuesse(v.offene_vorschuesse.map((o) => o.nummer));
-    setE((alt) => (alt ? { ...alt, nummer: v.nummer, abzuege: [] } : alt));
+    // Übernommene Zeiten sind jetzt abgerechnet (nur bei einer Kostennote); dieselben Einträge nicht noch einmal.
+    setE((alt) =>
+      alt
+        ? {
+            ...alt,
+            nummer: v.nummer,
+            abzuege: [],
+            posten: r.zeiten_abgerechnet
+              ? alt.posten.map((p) => (p.typ === "stunden" && p.quelle ? { ...p, quelle: undefined } : p))
+              : alt.posten,
+          }
+        : alt,
+    );
   }
 
   async function alsEntwurf() {
@@ -400,7 +439,12 @@ export default function Kostennote({
                 />
                 <label>
                   Std.
-                  <input className="satz" inputMode="decimal" value={p.stunden} onChange={(x) => posten(i, { stunden: x.target.value })} />
+                  <input
+                    className="satz"
+                    inputMode="decimal"
+                    value={p.stunden}
+                    onChange={(x) => posten(i, { stunden: x.target.value, minuten: undefined })}
+                  />
                 </label>
                 <label>
                   × €/Std.
@@ -411,6 +455,11 @@ export default function Kostennote({
                     onChange={(x) => posten(i, { stundensatz: x.target.value })}
                   />
                 </label>
+                {p.quelle && (
+                  <span className="status-marke" title={`${p.quelle.length} Einträge der Zeiterfassung`}>
+                    aus der Zeiterfassung
+                  </span>
+                )}
               </>
             )}
             <button className="link klein gefahr" onClick={() => entfernen(i)} aria-label="Posten entfernen">
@@ -434,6 +483,17 @@ export default function Kostennote({
             <option value="stunden">Zeitaufwand nach Vergütungsvereinbarung (§ 3a RVG)</option>
           </optgroup>
         </select>
+        <div>
+          <button className="zweitrangig" disabled={laeuft} onClick={() => void zeitenUebernehmen()}>
+            Zeiten übernehmen
+          </button>{" "}
+          <span className="leise klein">offene Zeiten aus dem Reiter „Zeiten“, je Bearbeiter und Stundensatz; die Kostennote bekommt einen Tätigkeitsnachweis als Anlage</span>
+        </div>
+        {zeitHinweise.map((h) => (
+          <p key={h} className="hinweis klein">
+            {h}
+          </p>
+        ))}
       </div>
 
       <fieldset className="wahl kosten-wahl">
@@ -456,6 +516,17 @@ export default function Kostennote({
           <input type="checkbox" checked={e.pauschale} onChange={(x) => setze({ pauschale: x.target.checked })} /> Post- und
           Telekommunikationspauschale je Angelegenheit (Nr. 7002 VV RVG)
         </label>
+        {e.posten.some((p) => p.typ === "stunden") && (
+          <label title="Klausel „mindestens die gesetzlichen Gebühren“ in der Vergütungsvereinbarung (BGH IX ZR 90/23)">
+            <input
+              type="checkbox"
+              checked={!!e.mindestverguetung}
+              onChange={(x) => setze({ mindestverguetung: x.target.checked })}
+            />{" "}
+            Mindestvergütung: Zeithonorar, mindestens aber die gesetzlichen Gebühren (die Gebührenposten dienen dem
+            Vergleich; berechnet wird nur der höhere Betrag)
+          </label>
+        )}
         <label>
           <input
             type="checkbox"
@@ -533,6 +604,9 @@ export default function Kostennote({
           ) : (
             <>Entwurf gespeichert unter {erzeugt.pfad}.</>
           )}
+          {!!erzeugt.zeiten_abgerechnet && (
+            <p>{erzeugt.zeiten_abgerechnet} Zeiteinträge sind jetzt als abgerechnet gekennzeichnet; ein Storno gibt sie wieder frei.</p>
+          )}
           {erzeugt.leer.length > 0 && <p className="hinweis">Noch leer: {erzeugt.leer.join(", ")}.</p>}
         </div>
       )}
@@ -577,6 +651,13 @@ function KostenVorschau({ r }: { r: KostennoteErgebnis }) {
           {h}
         </p>
       ))}
+      {r.vergleich && (
+        <p className="status">
+          Mindestvergütung, Vergleich netto: Zeithonorar {euro(r.vergleich.zeithonorar)}, gesetzliche Vergütung{" "}
+          {euro(r.vergleich.gesetzlich)}. Berechnet ist{" "}
+          <strong>{r.vergleich.gewaehlt === "gesetzlich" ? "die gesetzliche Vergütung" : "das Zeithonorar"}</strong>.
+        </p>
+      )}
       <table className="staffel kosten">
         <thead>
           <tr>
