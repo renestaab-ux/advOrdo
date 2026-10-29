@@ -171,3 +171,24 @@ def test_akte_loeschen_entfernt_zeiten(kern):  # noqa: F811
     akte.akte_loeschen(kern.akten, aid, kern.ablage)
     assert zeit.laufend(kern.akten) is None
     assert kern.akten.execute("SELECT COUNT(*) FROM zeit_eintrag").fetchone()[0] == 0
+
+
+def test_grenzen_der_taktung_und_konkrete_taetigkeit(kern):  # noqa: F811
+    """BGH, Urt. v. 13.02.2020 – IX ZR 140/19: 15-Minuten-Takt gegenüber Verbrauchern, pauschale Angaben."""
+    aid = kern.test_akte  # Mandantin Dr. Lena Brückner ist eine natürliche Person
+    p = _bearbeiter(kern, "Dr. Sophie Albrecht", "Partner")
+    assert zeit.einstellungen(kern.akten)["taktung_hinweis"] is None
+    assert zeit.liste(kern.akten, aid)["hinweise"] == []
+    e = zeit.taktung_setzen(kern.akten, 15)
+    assert "IX ZR 140/19" in e["taktung_hinweis"]
+    assert "Verbraucher" in zeit.liste(kern.akten, aid)["hinweise"][0]
+    zeit.speichern(kern.akten, aid, {"dauer": "0:07", "bearbeiter_id": p, "taetigkeit": "Telefonat"})
+    zeit.speichern(kern.akten, aid, {"dauer": "0:20", "bearbeiter_id": p,
+                                     "taetigkeit": "Telefonat mit Frau Brückner zur Vergleichsbereitschaft"})
+    k = zeit.fuer_kostennote(kern.akten, aid)
+    assert any(h.startswith("1 Eintrag/Einträge ohne konkrete Tätigkeit") for h in k["hinweise"])
+    assert any("Verbraucher" in h for h in k["hinweise"])
+    # minutengenau erfasst bleibt erhalten
+    assert sorted(x["minuten"] for x in zeit.liste(kern.akten, aid)["eintraege"]) == [7, 20]
+    zeit.taktung_setzen(kern.akten, 6)
+    assert zeit.liste(kern.akten, aid)["hinweise"] == []

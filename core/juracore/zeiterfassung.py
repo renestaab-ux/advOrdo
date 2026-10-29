@@ -5,6 +5,12 @@ weist den Zeitaufwand dann als eigenen Abschnitt aus. Getaktet wird je Eintrag a
 aufgerundet (z. B. 6 Minuten = 0,1 Std.). Ob und wie getaktet werden darf, regelt die Vereinbarung; die
 Taktung ist deshalb einstellbar.
 
+Grenzen der Taktung: Eine vorformulierte 15-Minuten-Zeittaktklausel benachteiligt einen Verbraucher als Mandanten
+unangemessen und ist unwirksam (BGH, Urt. v. 13.02.2020 – IX ZR 140/19); abrechenbar ist dann nur die tatsächlich
+aufgewandte Zeit, die konkret darzulegen ist (welcher Schriftsatz, welche Recherche, welches Gespräch mit wem).
+Die App erfasst deshalb immer minutengenau und taktet erst bei der Anzeige und Abrechnung; ab 15 Minuten Taktung
+und bei Einträgen ohne konkrete Tätigkeit weist sie darauf hin.
+
 Jeder Eintrag merkt sich Bearbeiter, Stufe und Stundensatz zum Zeitpunkt der Erfassung; eine spätere Änderung der
 Sätze wirkt nur auf neue Einträge. Eine Kostennote (nicht ein Vorschuss) kennzeichnet die übernommenen Einträge als
 abgerechnet; ein Storno gibt sie wieder frei. Es läuft höchstens ein Timer je Arbeitsumgebung; er steht in der
@@ -58,6 +64,11 @@ CREATE INDEX IF NOT EXISTS zeit_eintrag_akte ON zeit_eintrag(akte_id);
 
 TAKTUNGEN = (1, 5, 6, 10, 15, 30, 60)
 TAKTUNG_VORGABE = 6
+# Ab hier Hinweis auf BGH IX ZR 140/19 (dort: 15 Minuten, vorformuliert, Verbraucher).
+TAKTUNG_GRENZE = 15
+BGH_ZEITTAKT = "BGH, Urt. v. 13.02.2020 – IX ZR 140/19"
+# Weniger Wörter gelten als pauschale Angabe („Aktenbearbeitung“, „Telefonat“).
+TAETIGKEIT_MIN_WOERTER = 3
 
 # Beispielstufen für den Anfang; Namen und Sätze sind frei änderbar (Einstellungen → Zeiterfassung).
 STUFEN_VORGABE = (
@@ -193,10 +204,36 @@ def _bearbeiter(con: sqlite3.Connection, mit_archiv: bool = True) -> list[dict]:
     return aus
 
 
+def taktung_hinweis(takt: int) -> str | None:
+    if takt < TAKTUNG_GRENZE:
+        return None
+    return (f"Vorsicht bei {takt}-Minuten-Taktung: Vorformuliert gegenüber einem Verbraucher ist schon eine "
+            f"15-Minuten-Zeittaktklausel unwirksam ({BGH_ZEITTAKT}); dann ist nur die tatsächliche Zeit abrechenbar. "
+            "Die Entscheidung betrifft Verbraucher als Mandanten. Die minutengenauen Zeiten bleiben erhalten.")
+
+
+def _mandant_natuerliche_person(con: sqlite3.Connection, akte_id: int) -> bool:
+    z = con.execute("""SELECT 1 FROM akte_beteiligung b JOIN beteiligter t ON t.id = b.beteiligter_id
+                       WHERE b.akte_id = ? AND b.rolle = 'mandant' AND t.art = 'person' LIMIT 1""",
+                    (akte_id,)).fetchone()
+    return z is not None
+
+
+def akte_hinweise(con: sqlite3.Connection, akte_id: int, takt: int) -> list[str]:
+    """Hinweise zur Taktung in dieser Akte: Mandant ist eine natürliche Person (womöglich Verbraucher)."""
+    if takt >= TAKTUNG_GRENZE and _mandant_natuerliche_person(con, akte_id):
+        return [f"Der Mandant ist eine natürliche Person und womöglich Verbraucher. Eine vorformulierte Taktung von "
+                f"{takt} Minuten wäre ihm gegenüber unwirksam ({BGH_ZEITTAKT}); dann gilt nur die tatsächliche "
+                "Zeit (Spalte „Dauer“). Für diese Akte besser minutengenau oder mit kleinem Takt abrechnen."]
+    return []
+
+
 def einstellungen(con: sqlite3.Connection) -> dict:
     standard = _wert(con, "standard_bearbeiter")
-    return {"taktung": taktung(con), "taktungen": list(TAKTUNGEN), "stufen": _stufen(con),
-            "bearbeiter": _bearbeiter(con), "standard_bearbeiter_id": int(standard) if standard else None}
+    takt = taktung(con)
+    return {"taktung": takt, "taktungen": list(TAKTUNGEN), "taktung_hinweis": taktung_hinweis(takt),
+            "stufen": _stufen(con), "bearbeiter": _bearbeiter(con),
+            "standard_bearbeiter_id": int(standard) if standard else None}
 
 
 def taktung_setzen(con: sqlite3.Connection, minuten: int) -> dict:
@@ -372,7 +409,7 @@ def liste(con: sqlite3.Connection, akte_id: int) -> dict:
     for k in ("betrag", "offen"):
         gesamt[k] = str(gesamt[k])
     return {"eintraege": eintraege, "summen": list(summen.values()), "gesamt": gesamt, "taktung": takt,
-            "laufend": laufend(con)}
+            "laufend": laufend(con), "hinweise": akte_hinweise(con, akte_id, takt)}
 
 
 def _pruefe_offen(con: sqlite3.Connection, eintrag_id: int) -> sqlite3.Row:
@@ -513,6 +550,13 @@ def fuer_kostennote(con: sqlite3.Connection, akte_id: int) -> dict:
         g["minuten"] += getaktet(z["minuten"], takt)
         g["ids"].append(z["id"])
         tage.append(z["datum"])
+    knapp = sum(1 for z in zeilen if not z["laeuft_seit"] and z["satz"]
+                and len(z["taetigkeit"].split()) < TAETIGKEIT_MIN_WOERTER)
+    if knapp:
+        hinweise.append(f"{knapp} Eintrag/Einträge ohne konkrete Tätigkeit. Pauschale Angaben wie „Aktenbearbeitung“ "
+                        f"oder „Telefonat“ reichen als Nachweis nicht; zu nennen ist, welcher Schriftsatz, welche "
+                        f"Recherche, welches Gespräch mit wem ({BGH_ZEITTAKT}). Bitte im Reiter „Zeiten“ ergänzen.")
+    hinweise += akte_hinweise(con, akte_id, takt)
     if ohne_satz:
         hinweise.append(f"{ohne_satz} Eintrag/Einträge ohne Stundensatz bleiben offen; bitte dem Bearbeiter eine Stufe "
                         "zuordnen oder den Satz im Eintrag ergänzen.")

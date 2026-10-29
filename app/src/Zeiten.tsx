@@ -167,6 +167,12 @@ export default function Zeiten({
         </p>
       )}
 
+      {liste.hinweise.map((h) => (
+        <p key={h} className="hinweis">
+          {h}
+        </p>
+      ))}
+
       <section className="karte zeit-timer" aria-label="Timer">
         {hierLaeuft ? (
           <div className="zeit-timer-zeile">
@@ -199,7 +205,7 @@ export default function Zeiten({
               </select>
               <input
                 className="text"
-                placeholder="Tätigkeit, z. B. Klageerwiderung durcharbeiten"
+                placeholder="Tätigkeit, z. B. Klageerwiderung vom 01.12. auf Einwände zum Mangel prüfen"
                 value={taetigkeit}
                 onChange={(x) => setTaetigkeit(x.target.value)}
               />
@@ -254,7 +260,7 @@ export default function Zeiten({
           <label className="feld">
             Tätigkeit
             <input
-              placeholder="z. B. Besprechung mit der Mandantin"
+              placeholder="konkret, z. B. Telefonat mit Frau Brückner zur Vergleichsbereitschaft"
               value={f.taetigkeit}
               onChange={(x) => setF({ ...f, taetigkeit: x.target.value })}
             />

@@ -78,12 +78,16 @@ export default function ZeitSaetze({ onEigeneDaten }: { onEigeneDaten: () => voi
           <select value={e.taktung} onChange={(x) => void mit("zeit.taktung_setzen", { minuten: Number(x.target.value) })}>
             {e.taktungen.map((t) => (
               <option key={t} value={t}>
-                {t === 1 ? "minutengenau" : `${t} Minuten${t === 6 ? " (1/10 Std.)" : t === 15 ? " (1/4 Std.)" : ""}`}
+                {t === 1 ? "minutengenau" : `${t} Minuten${t === 6 ? " (1/10 Std.)" : ""}${t >= 15 ? " – Vorsicht bei Verbrauchern" : ""}`}
               </option>
             ))}
           </select>
         </label>
-        <p className="leise klein">Jeder Eintrag wird auf den nächsten vollen Takt aufgerundet, z. B. 7 Minuten bei 6er-Taktung auf 0,2 Std.</p>
+        <p className="leise klein">
+          Jeder Eintrag wird auf den nächsten vollen Takt aufgerundet, z. B. 7 Minuten bei 6er-Taktung auf 0,2 Std. Erfasst
+          wird immer minutengenau; die Taktung wirkt erst bei Anzeige und Abrechnung.
+        </p>
+        {e.taktung_hinweis && <p className="hinweis">{e.taktung_hinweis}</p>}
       </section>
 
       <section className="karte zeit-einstellungen">

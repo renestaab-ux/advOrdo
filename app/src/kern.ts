@@ -2574,6 +2574,8 @@ export interface ZeitBearbeiter {
 export interface ZeitEinstellungen {
   taktung: number;
   taktungen: number[];
+  /** Hinweis auf die Grenzen der Taktung (BGH IX ZR 140/19), ab 15 Minuten. */
+  taktung_hinweis: string | null;
   stufen: ZeitStufe[];
   bearbeiter: ZeitBearbeiter[];
   standard_bearbeiter_id: number | null;
@@ -2612,6 +2614,7 @@ export interface ZeitListe {
   gesamt: { minuten: number; getaktet: number; betrag: string; offen: string; offen_minuten: number };
   taktung: number;
   laufend: ZeitLaufend | null;
+  hinweise: string[];
 }
 
 export interface ZeitFuerKostennote {
