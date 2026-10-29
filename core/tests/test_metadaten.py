@@ -411,3 +411,37 @@ def test_ki_absender_nur_aus_kopf_oder_unterschrift():
     antwort["absender"] = {"kennung": "", "name": "Amtsgericht Stuttgart", "absatz": 1,
                            "zitat": "Amtsgericht Stuttgart"}
     assert auswerten(t, antwort, [lg])["absender"]["wert"] == "frei:Amtsgericht Stuttgart"
+
+
+def test_ki_zweiter_aufruf_bekommt_denselben_auftrag(tmp_path):
+    import threading
+
+    kern = Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
+    akte_id = akte.akte_anlegen(kern.akten, "Brückner ./. Weber")["id"]
+    doks = []
+    for name, zeilen in (("widerspruch.txt", WIDERSPRUCH), ("mahnbescheid.txt", MAHNBESCHEID)):
+        datei = tmp_path / name
+        datei.write_text("\n\n".join(zeilen), encoding="utf-8")
+        doks.append(kern.methoden["akten.importieren"](akte_id=akte_id, pfad=str(datei))["dokument_id"])
+    weiter = threading.Event()
+
+    class Modell:
+        modell = "attrappe:1b"
+
+        def chat(self, system, nutzer, schema):
+            weiter.wait(5)
+            leer = {"kennung": "", "name": "", "absatz": 0, "zitat": ""}
+            return {"art": {"wert": "", "absatz": 0, "zitat": ""}, "was": {"wert": "", "absatz": 0, "zitat": ""},
+                    "absender": leer, "empfaenger": leer, "vertragsparteien": []}
+
+    kern.ki_fabrik = lambda e, schluessel=None: Modell()
+    kern.methoden["ki.einstellungen_setzen"](anbieter="ollama", endpunkt="http://127.0.0.1:9", modell="attrappe:1b")
+    try:
+        erst = kern.methoden["akten.metadaten_ki"](dokument_id=doks[0], automatisch=True)
+        nochmal = kern.methoden["akten.metadaten_ki"](dokument_id=doks[0], automatisch=True)
+        assert erst["status"] == nochmal["status"] == "laeuft"
+        assert nochmal["auftrag"]["auftrag_id"] == erst["auftrag"]["auftrag_id"]
+        anderes = kern.methoden["akten.metadaten_ki"](dokument_id=doks[1], automatisch=True)
+        assert anderes == {"status": "belegt", "aufgabe": "metadaten"}
+    finally:
+        weiter.set()
