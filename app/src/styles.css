@@ -444,9 +444,18 @@ span.quelle.norm, span.quelle.urteil { display: inline-block; font-size: 12px; p
 }
 
 /* Startbildschirm */
-.start { margin: -24px -32px 0; }
-.start-inhalt { max-width: 1040px; padding: 20px 32px 32px; }
-.start-inhalt > .erklaerung { margin: 0 0 18px; }
+.start { margin: -22px -28px 0; }
+/* Kacheln links, „Ihr Arbeitsbereich“ als schmale Spalte rechts; auf kleineren Bildschirmen darunter. */
+.start-inhalt { display: grid; grid-template-columns: minmax(0, 1040px) 260px; gap: 24px; align-items: start; padding: 20px 28px 32px; }
+.start-haupt > .erklaerung { margin: 0 0 18px; }
+.start-inhalt > .kachel-info { margin-top: 37px; }
+@media (max-width: 1300px) {
+  .start-inhalt { grid-template-columns: minmax(0, 1040px); }
+  .start-inhalt > .kachel-info { margin-top: 0; }
+}
+.start-kopf { gap: 20px; }
+.start-kopf > div { flex: 1; min-width: 0; }
+.start-logo { flex: none; height: 52px; max-width: 160px; object-fit: contain; background: #ffffff; border-radius: 8px; padding: 5px; }
 .kacheln { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 @media (max-width: 760px) { .kacheln { grid-template-columns: 1fr; } }
 .kachel { display: grid; grid-template-columns: 72px 1fr; grid-template-rows: auto auto; column-gap: 18px; align-items: center; text-align: left;
@@ -636,8 +645,9 @@ table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
 .kachel-liste .link { text-align: left; }
 .kachel-liste > .link.klein, .kachel-info > .link.klein { margin-top: auto; }
 .kachel-info { background: color-mix(in srgb, var(--akzent) 6%, var(--flaeche)); }
-.kachel-info dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; }
-.kachel-info dt { color: var(--text-leise); }
+.kachel-info dl { margin: 0; display: grid; grid-template-columns: 1fr; gap: 2px; font-size: 13px; }
+.kachel-info dd + dt { margin-top: 8px; }
+.kachel-info dt { color: var(--text-leise); font-size: 12px; font-weight: 600; }
 .kachel-info dd { margin: 0; }
 .gut { color: var(--gut); }
 
@@ -940,7 +950,6 @@ details.kurz-hinweis summary { cursor: pointer; }
 .kachel-fristen .start-frist .link { font-weight: 600; }
 .kachel-fristen .start-frist.abgelaufen .leise, .kachel-fristen .start-frist.heute .leise { color: var(--fehler); }
 .kachel-fristen .start-frist.bald .leise, .kachel-fristen .start-frist.vorfrist .leise { color: var(--warnung); }
-.kacheln .kachel-info { grid-column: 1 / -1; }
 
 /* Nachrichten auf der Startseite und ihre Einstellungen */
 .kacheln .kachel-nachrichten { grid-column: 1 / -1; }
@@ -1051,9 +1060,6 @@ details.kurz-hinweis summary { cursor: pointer; }
 /* Feste Größe statt max-%: so bleibt auch ein SVG mit eigener Breite und Höhe im Rahmen. */
 .logo-vorschau img { width: 100%; height: 100%; object-fit: contain; }
 /* Startseite: Logo groß, daneben der Name aus „Eigene Daten“. */
-.start-marke { display: flex; align-items: center; gap: 24px; margin: 4px 0 22px; }
-.start-marke img { max-height: 110px; max-width: 280px; object-fit: contain; }
-.start-marke span { font-size: 28px; font-weight: 600; line-height: 1.2; }
 
 /* Bereich „Rechtsprechung“: Sammlung links, Volltext rechts. */
 .sammlung { display: flex; gap: 12px; align-items: flex-start; }
