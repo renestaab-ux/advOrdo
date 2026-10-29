@@ -174,10 +174,20 @@ export default function Kostennote({
     const z = await mit(() => kern<ZeitFuerKostennote>("zeit.fuer_kostennote", { akte_id: akteId }));
     if (!z || !e) return;
     const posten = z.posten.map((p) => ({ ...p, stunden: de(p.stunden), stundensatz: de(p.stundensatz) }));
+    // Mit Verfahren bleiben die Gebühren als Vergleich für die RVG-Mindestvergütung stehen; außergerichtlich
+    // ersetzt das Zeithonorar die vorgeschlagenen Gebühren (keine Gebühren neben dem Zeithonorar).
+    const gebuehren = e.posten.filter((p) => p.typ === "gebuehr");
+    const mindest = posten.length > 0 && gebuehren.length > 0 && hatVerfahren;
     setE({
       ...e,
-      posten: [...e.posten.filter((p) => !(p.typ === "stunden" && p.quelle)), ...posten],
+      posten: [
+        ...e.posten.filter(
+          (p) => !(p.typ === "stunden" && p.quelle) && !(posten.length > 0 && !mindest && p.typ === "gebuehr"),
+        ),
+        ...posten,
+      ],
       leistungszeitraum: e.leistungszeitraum || z.leistungszeitraum,
+      mindestverguetung: mindest || e.mindestverguetung,
     });
     setZeitHinweise(
       z.posten.length === 0 ? ["Keine offenen, abrechenbaren Zeiten in dieser Akte.", ...z.hinweise] : z.hinweise,
@@ -506,6 +516,17 @@ export default function Kostennote({
           <input type="checkbox" checked={e.pauschale} onChange={(x) => setze({ pauschale: x.target.checked })} /> Post- und
           Telekommunikationspauschale je Angelegenheit (Nr. 7002 VV RVG)
         </label>
+        {e.posten.some((p) => p.typ === "stunden") && (
+          <label title="Klausel „mindestens die gesetzlichen Gebühren“ in der Vergütungsvereinbarung (BGH IX ZR 90/23)">
+            <input
+              type="checkbox"
+              checked={!!e.mindestverguetung}
+              onChange={(x) => setze({ mindestverguetung: x.target.checked })}
+            />{" "}
+            Mindestvergütung: Zeithonorar, mindestens aber die gesetzlichen Gebühren (die Gebührenposten dienen dem
+            Vergleich; berechnet wird nur der höhere Betrag)
+          </label>
+        )}
         <label>
           <input
             type="checkbox"
@@ -630,6 +651,13 @@ function KostenVorschau({ r }: { r: KostennoteErgebnis }) {
           {h}
         </p>
       ))}
+      {r.vergleich && (
+        <p className="status">
+          Mindestvergütung, Vergleich netto: Zeithonorar {euro(r.vergleich.zeithonorar)}, gesetzliche Vergütung{" "}
+          {euro(r.vergleich.gesetzlich)}. Berechnet ist{" "}
+          <strong>{r.vergleich.gewaehlt === "gesetzlich" ? "die gesetzliche Vergütung" : "das Zeithonorar"}</strong>.
+        </p>
+      )}
       <table className="staffel kosten">
         <thead>
           <tr>

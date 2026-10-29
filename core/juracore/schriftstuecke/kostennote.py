@@ -266,7 +266,7 @@ def berechne(e: dict) -> dict:
             liste = next(g for g in gruppen.values() if verfahren in g)
             liste.insert(liste.index(verfahren) + 1, z)
 
-    abschnitte = []
+    rvg = []
     for schluessel, titel in ANGELEGENHEITEN.items():
         zeilen = gruppen[schluessel]
         if not zeilen:
@@ -275,19 +275,32 @@ def berechne(e: dict) -> dict:
         if e.get("pauschale", True):
             pauschale = min(cent(max(summe, Decimal(0)) * PAUSCHALE_SATZ), PAUSCHALE_HOECHST)
             zeilen.append(_zeile("pauschale", "Nr. 7002", "Post- und Telekommunikationspauschale", pauschale))
-        abschnitte.append({"titel": titel, "zeilen": zeilen})
-    if zeit:
-        abschnitte.append({"titel": "Zeitaufwand nach Vergütungsvereinbarung (§ 3a RVG)", "zeilen": zeit})
+        rvg.append({"titel": titel, "zeilen": zeilen})
+    zeit_abschnitt = [{"titel": "Zeitaufwand nach Vergütungsvereinbarung (§ 3a RVG)", "zeilen": zeit}] if zeit else []
+
+    # RVG-Mindestvergütung: Zeithonorar, mindestens aber die gesetzlichen Gebühren; berechnet wird nur das Höhere
+    # (Klausel nach BGH IX ZR 90/23 wirksam, nach BB 2025, 2893; § 4 Abs. 1 S. 1 RVG, § 49b Abs. 1 S. 1 BRAO).
+    vergleich = None
+    if zeit and rvg and not e.get("mindestverguetung"):
+        hinweise.append("Zeithonorar und gesetzliche Gebühren werden hier addiert. Sieht die Vereinbarung nur "
+                        "mindestens die gesetzlichen Gebühren vor, bitte „Mindestvergütung“ anhaken.")
+    if e.get("mindestverguetung") and zeit:
+        if not rvg:
+            hinweise.append("Mindestvergütung: Für die Vergleichsrechnung bitte die gesetzlichen Gebühren als Posten "
+                            "angeben (z. B. Nr. 3100 und 3104 mit dem Gegenstandswert).")
+        else:
+            netto_zeit = sum((Decimal(z["betrag"]) for z in zeit), Decimal(0))
+            netto_rvg = sum((Decimal(z["betrag"]) for a_ in rvg for z in a_["zeilen"]), Decimal(0))
+            gesetzlich = netto_rvg > netto_zeit
+            vergleich = {"zeithonorar": str(cent(netto_zeit)), "gesetzlich": str(cent(netto_rvg)),
+                         "gewaehlt": "gesetzlich" if gesetzlich else "zeithonorar"}
+            if gesetzlich:
+                zeit_abschnitt = []
+            else:
+                rvg = []
+    abschnitte = rvg + zeit_abschnitt
     if weitere:
         abschnitte.append({"titel": "Auslagen", "zeilen": weitere})
-    if zeit and any(gruppen.values()):
-        hinweise.append("Zeithonorar und Gebühren nach dem RVG zusammen in einer Kostennote: Zusätzliche gesetzliche "
-                        "Gebühren (etwa Einigungsgebühr) neben dem Zeithonorar können gegenüber Verbrauchern die "
-                        "Vereinbarung unwirksam machen (BGH IX ZR 65/23 nach Krumscheid in: Heidel/Pauly, "
-                        "AnwaltFormulare, § 57; IWW Institut, FMP 2024, 189). Zulässig ist dagegen eine Klausel, "
-                        "nach der im gerichtlichen Verfahren mindestens die gesetzlichen Gebühren geschuldet sind (BGH "
-                        "IX ZR 90/23 nach BB 2025, 2893); dann wird entweder das Zeithonorar oder, wenn höher, die "
-                        "gesetzliche Vergütung berechnet, nicht beides.")
     if not abschnitte and not steuerfrei:
         raise ValueError("Die Kostennote hat noch keine Posten.")
 
@@ -315,6 +328,7 @@ def berechne(e: dict) -> dict:
         "fassung_titel": f["titel"],
         "grundlage": f"§§ 2, 13 RVG {f['fundstelle']} mit Vergütungsverzeichnis (Anlage 1 RVG)",
         "abschnitte": abschnitte,
+        "vergleich": vergleich,
         "steuerfrei": steuerfrei,
         "netto": str(cent(netto)),
         "umsatzsteuer_satz": str(ust),
@@ -541,6 +555,13 @@ def _koerper(r: dict, e: dict, ich: bool, nachweis: list[dict] | None = None) ->
     if e.get("leistungszeitraum"):
         teile.append(_text(f"Leistungszeitraum: {e['leistungszeitraum']}", "Betreff"))
     teile += [_text(""), _text("{{Empfänger.Anrede}}"), _text(einleitung), _tabelle(r), _text("")]
+    v = r.get("vergleich")
+    if v:
+        hoeher = "die gesetzliche Vergütung" if v["gewaehlt"] == "gesetzlich" else "das Zeithonorar"
+        teile.append(_text(
+            f"Nach der Vergütungsvereinbarung schulden Sie das Zeithonorar, mindestens aber die gesetzlichen Gebühren. "
+            f"Vergleich (netto): Zeithonorar {platzhalter.euro(v['zeithonorar'])}, gesetzliche Vergütung "
+            f"{platzhalter.euro(v['gesetzlich'])}; berechnet ist {hoeher}."))
     teile.append(_text(f"Berechnung nach {r['grundlage']}.", "Klein"))
     if zahlen > 0:
         teile.append(_text(f"Bitte überweisen Sie den Betrag von {platzhalter.euro(str(zahlen))} "

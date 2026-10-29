@@ -2486,6 +2486,8 @@ export interface KostennoteEingabe {
   umsatzsteuer: number;
   abzuege: { text?: string; nummer?: string; betrag: string }[];
   zahlungsziel: number;
+  /** Zeithonorar, mindestens aber die gesetzlichen Gebühren (die Gebührenposten dienen dann dem Vergleich). */
+  mindestverguetung?: boolean;
 }
 
 export interface KostennoteZeile {
@@ -2503,6 +2505,8 @@ export interface KostennoteErgebnis {
   fassung_titel: string;
   grundlage: string;
   abschnitte: { titel: string; zeilen: KostennoteZeile[] }[];
+  /** RVG-Mindestvergütung: beide Beträge netto und welcher berechnet ist. */
+  vergleich: { zeithonorar: string; gesetzlich: string; gewaehlt: "zeithonorar" | "gesetzlich" } | null;
   steuerfrei: KostennoteZeile[];
   netto: string;
   umsatzsteuer_satz: string;

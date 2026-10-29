@@ -200,13 +200,23 @@ def test_zehn_minuten_ueber_empfehlung(kern):  # noqa: F811
     assert "5 bis 6 Minuten" in zeit.liste(kern.akten, kern.test_akte)["hinweise"][0]
 
 
-def test_mischung_zeithonorar_und_rvg_gebuehren():
-    r = kostennote.berechne({"gegenstandswert": "5000", "posten": [
-        {"nr": "1000"}, {"typ": "stunden", "text": "RA", "stunden": "1", "stundensatz": "250"}]})
-    assert any("IX ZR 65/23" in h for h in r["hinweise"])
-    r = kostennote.berechne({"posten": [{"typ": "stunden", "text": "RA", "stunden": "1", "stundensatz": "250"},
-                                        {"typ": "auslage", "nr": "7000", "betrag": "5"}]})
-    assert not any("IX ZR 65/23" in h for h in r["hinweise"])
+def test_rvg_mindestverguetung_berechnet_das_hoehere():
+    """Zeithonorar, mindestens die gesetzlichen Gebühren (BGH IX ZR 90/23): nie beides."""
+    gebuehren = [{"nr": "3100"}, {"nr": "3104"}]  # 10.000 €: 847,60 + 782,40 + 20,00 = 1.650,00 €
+    wenig = {"typ": "stunden", "text": "RA", "minuten": 240, "stundensatz": "250"}  # 1.000 €
+    viel = {"typ": "stunden", "text": "RA", "minuten": 600, "stundensatz": "250"}  # 2.500 €
+    r = kostennote.berechne({"gegenstandswert": "10000", "mindestverguetung": True, "posten": gebuehren + [wenig]})
+    assert r["vergleich"] == {"zeithonorar": "1000.00", "gesetzlich": "1650.00", "gewaehlt": "gesetzlich"}
+    assert r["netto"] == "1650.00" and not any(a["titel"].startswith("Zeitaufwand") for a in r["abschnitte"])
+    r = kostennote.berechne({"gegenstandswert": "10000", "mindestverguetung": True, "posten": gebuehren + [viel]})
+    assert r["vergleich"]["gewaehlt"] == "zeithonorar" and r["netto"] == "2500.00"
+    # ohne Haken: addiert, mit Hinweis
+    r = kostennote.berechne({"gegenstandswert": "10000", "posten": gebuehren + [wenig]})
+    assert r["netto"] == "2650.00" and any("Mindestvergütung" in h for h in r["hinweise"])
+    # Haken ohne Gebühren: Hinweis, nur Zeithonorar
+    r = kostennote.berechne({"mindestverguetung": True, "posten": [wenig]})
+    assert r["vergleich"] is None and r["netto"] == "1000.00"
+    assert any("Vergleichsrechnung" in h for h in r["hinweise"])
 
 
 def test_taetigkeitsnachweis_in_der_kostennote(kern, tmp_path):  # noqa: F811
