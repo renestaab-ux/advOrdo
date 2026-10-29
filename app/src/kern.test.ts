@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   stundenText,
   uhrText,
+  timerSeitText,
   netzErgebnis,
   netzFrist,
   netzZeit,
@@ -808,5 +809,10 @@ describe("Zeiterfassung", () => {
     expect(stundenText(67)).toBe("1:07");
     expect(stundenText(600)).toBe("10:00");
     expect(uhrText(3725)).toBe("1:02:05");
+  });
+
+  it("nennt den Beginn des laufenden Timers mit „heute“ oder Datum", () => {
+    expect(timerSeitText("2026-10-29T12:03:00", "2026-10-29")).toBe("heute, 12:03 Uhr");
+    expect(timerSeitText("2026-10-28T17:40:00", "2026-10-29")).toBe("28.10.2026, 17:40 Uhr");
   });
 });

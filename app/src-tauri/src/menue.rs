@@ -5,7 +5,7 @@
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 use tauri::menu::{
-    AboutMetadata, Menu, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID,
+    AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID,
 };
 use tauri::{AppHandle, Runtime};
 
@@ -37,7 +37,8 @@ pub fn hauptmenue<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::hide_others(app, Some("Andere ausblenden"))?,
             &PredefinedMenuItem::show_all(app, Some("Alle einblenden"))?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, Some(&beenden))?,
+            // Eigener Eintrag statt des vordefinierten, damit ein laufender Timer vorher abgefragt wird (beenden.rs).
+            &MenuItem::with_id(app, crate::beenden::MENUE_ID, &beenden, true, Some("CmdOrCtrl+Q"))?,
         ],
     )?;
     let ablage = Submenu::with_items(

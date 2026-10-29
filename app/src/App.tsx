@@ -13,6 +13,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
 import { useErinnerungen } from "./erinnerungen";
 import { useLaufenderTimer } from "./zeitTimer";
+import TimerHinweise from "./TimerHinweise";
 import { KiAn } from "./kiSchalter";
 import {
   KiModus,
@@ -224,6 +225,7 @@ export default function App() {
           </button>
         </div>
       </nav>
+      <TimerHinweise onAkte={(id) => oeffneAkte(id, "zeiten")} />
       <KiAn.Provider value={!modus?.aus}>
         <main className={bereich === "akten" && (akteId != null || anlegen) ? "inhalt ohne-rand" : "inhalt"} key={stand}>
           {bereich === "start" && (

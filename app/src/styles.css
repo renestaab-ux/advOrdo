@@ -257,6 +257,9 @@ button.gefahr-voll { background: #b3261e; border-color: #b3261e; color: #fff; }
 .rueckfrage { margin: 12px 0; padding: 12px 16px; border: 1px solid var(--linie); border-left: 4px solid var(--akzent); border-radius: 8px; background: var(--flaeche); }
 .rueckfrage p { margin: 6px 0 10px; }
 .rueckfrage .dokumente { margin: 8px 0; }
+.timer-hinweis-hintergrund { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgb(0 0 0 / 35%); }
+.timer-hinweis { max-width: 560px; box-shadow: 0 8px 32px rgb(0 0 0 / 25%); }
+.timer-hinweis .aktionen { flex-wrap: wrap; }
 .meldung { color: var(--text-leise); }
 .unsichtbar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .dokumente button.link { text-align: left; }
