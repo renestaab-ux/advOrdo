@@ -389,53 +389,77 @@ function AktenUebersicht({
         aria-label="Akten durchsuchen"
       />
 
-      <div className="filterleiste" role="group" aria-label="Filter">
-        {optionen &&
-          Object.entries(optionen.status).map(([k, t]) => (
-            <button
-              key={k}
-              className={status === k ? "chip aktiv" : "chip"}
-              aria-pressed={status === k}
-              onClick={() => setStatus(status === k ? null : k)}
-            >
-              {t[0].toLocaleUpperCase("de") + t.slice(1)} ({zaehlung(k)})
-            </button>
-          ))}
-        <button className={status == null ? "chip aktiv" : "chip"} aria-pressed={status == null} onClick={() => setStatus(null)}>
-          Alle ({vorStatus.length})
-        </button>
+      <div className="filterleiste">
+        <div className="segment" role="group" aria-label="Status">
+          {optionen &&
+            Object.entries(optionen.status).map(([k, t]) => (
+              <button
+                key={k}
+                className={status === k ? "segment-knopf aktiv" : "segment-knopf"}
+                aria-pressed={status === k}
+                onClick={() => setStatus(status === k ? null : k)}
+              >
+                {t[0].toLocaleUpperCase("de") + t.slice(1)}
+                <span className="segment-zahl">{zaehlung(k)}</span>
+              </button>
+            ))}
+          <button
+            className={status == null ? "segment-knopf aktiv" : "segment-knopf"}
+            aria-pressed={status == null}
+            onClick={() => setStatus(null)}
+          >
+            Alle
+            <span className="segment-zahl">{vorStatus.length}</span>
+          </button>
+        </div>
         <button
           className={bald ? "chip aktiv frist-chip" : "chip frist-chip"}
           aria-pressed={bald}
           onClick={() => setBald(!bald)}
           title="Akten mit einer offenen Frist, einem Termin oder einer Wiedervorlage in den nächsten 7 Tagen (auch abgelaufene)"
         >
-          Frist in 7 Tagen ({baldAnzahl})
+          <Zeichen name="fristen" groesse={14} /> Frist in 7 Tagen ({baldAnzahl})
         </button>
-        <select value={sachgebiet} onChange={(e) => setSachgebiet(e.target.value)} aria-label="Sachgebiet">
-          <option value="">Sachgebiet: alle</option>
-          {sachgebiete.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
-        {optionen && optionen.sachbearbeiter.length > 0 && (
-          <select value={sachbearbeiter} onChange={(e) => setSachbearbeiter(e.target.value)} aria-label="Sachbearbeiter">
-            <option value="">Sachbearbeiter: alle</option>
-            {optionen.sachbearbeiter.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
+        <div className="filtergruppe" role="group" aria-label="Filter">
+          <Zeichen name="filter" groesse={16} />
+          <select value={sachgebiet} onChange={(e) => setSachgebiet(e.target.value)} aria-label="Sachgebiet">
+            <option value="">Sachgebiet: alle</option>
+            {sachgebiete.map((s) => (
+              <option key={s}>{s}</option>
             ))}
           </select>
-        )}
-        {gerichte.length > 0 && (
-          <select value={gericht} onChange={(e) => setGericht(e.target.value)} aria-label="Gericht">
-            <option value="">Gericht: alle</option>
-            {gerichte.map((g) => (
-              <option key={g}>{g}</option>
-            ))}
-          </select>
-        )}
+          {optionen && optionen.sachbearbeiter.length > 0 && (
+            <select value={sachbearbeiter} onChange={(e) => setSachbearbeiter(e.target.value)} aria-label="Sachbearbeiter">
+              <option value="">Sachbearbeiter: alle</option>
+              {optionen.sachbearbeiter.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {gerichte.length > 0 && (
+            <select value={gericht} onChange={(e) => setGericht(e.target.value)} aria-label="Gericht">
+              <option value="">Gericht: alle</option>
+              {gerichte.map((g) => (
+                <option key={g}>{g}</option>
+              ))}
+            </select>
+          )}
+          {(sachgebiet || sachbearbeiter || gericht || bald) && (
+            <button
+              className="link klein"
+              onClick={() => {
+                setSachgebiet("");
+                setSachbearbeiter("");
+                setGericht("");
+                setBald(false);
+              }}
+            >
+              Filter zurücksetzen
+            </button>
+          )}
+        </div>
       </div>
 
       {zuletzt.length > 0 && !suche.trim() && (
@@ -444,7 +468,9 @@ function AktenUebersicht({
           <div className="zuletzt">
             {zuletzt.map((a) => (
               <button key={a.id} className="zuletzt-karte" onClick={() => onOeffnen(a.id)}>
-                <strong>{akteTitel(a)}</strong>
+                <strong>
+                  <Zeichen name="akten" groesse={16} /> {akteTitel(a)}
+                </strong>
                 <span className="leise">
                   {[a.gerichte[0] && `${a.gerichte[0].name} ${a.gerichte[0].aktenzeichen}`.trim(), bearbeitetText(a.geoeffnet_am)]
                     .filter(Boolean)

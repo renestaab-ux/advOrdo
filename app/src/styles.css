@@ -649,14 +649,28 @@ table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
 .rechts { margin-left: auto; }
 button.chip { background: none; color: var(--text); border: 1px solid var(--linie); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
 button.chip.aktiv { background: var(--knopf); border-color: var(--knopf); color: var(--knopf-text); }
+button.chip.frist-chip { display: inline-flex; align-items: center; gap: 5px; }
+/* Status als zusammenhängende Reiter mit Zahl; die übrigen Filter rechts in einer Gruppe. */
+.segment { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--linie); border-radius: 8px; background: var(--flaeche); }
+button.segment-knopf { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; color: var(--text); padding: 4px 12px;
+  border-radius: 6px; font-size: 13px; font-weight: 500; }
+button.segment-knopf:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+button.segment-knopf.aktiv { background: var(--knopf); color: var(--knopf-text); }
+.segment-zahl { min-width: 20px; padding: 0 6px; border-radius: 999px; font-size: 11px; text-align: center;
+  background: color-mix(in srgb, var(--text-leise) 16%, transparent); }
+.segment-knopf.aktiv .segment-zahl { background: rgb(255 255 255 / 22%); }
+.filtergruppe { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; color: var(--text-leise); }
 .abschnitt-titel { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-leise); margin: 6px 0 8px; }
 .zuletzt { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .zuletzt-karte { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; min-width: 220px; max-width: 340px;
   background: var(--flaeche); color: var(--text); border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; }
 .zuletzt-karte:hover { border-color: var(--akzent); }
+.zuletzt-karte strong { display: inline-flex; align-items: flex-start; gap: 6px; }
+.zuletzt-karte strong .symbol { flex: none; color: var(--akzent); margin-top: 2px; }
 .akten-tabelle { font-size: 14px; }
 .akten-tabelle th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
-.akten-tabelle td { padding: 9px 10px; }
+.akten-tabelle td { padding: 10px 12px; }
+.akten-tabelle th { padding: 8px 12px; background: color-mix(in srgb, var(--text-leise) 6%, transparent); }
 .akten-tabelle .az { font-weight: 600; white-space: nowrap; }
 tr.klickbar { cursor: pointer; }
 tr.klickbar:hover { background: color-mix(in srgb, var(--akzent) 7%, transparent); }
