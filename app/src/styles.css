@@ -197,8 +197,15 @@ code { font-family: ui-monospace, monospace; }
 .reiter-aktiv { cursor: default; }
 .dok-modi { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--linie); }
 /* Dateiname in eigener Zeile, die Ansichtsknöpfe stehen darunter in einer Reihe. */
-.dok-modi-name { flex: 0 0 100%; font-weight: 600; overflow-wrap: anywhere; margin-bottom: 2px; }
-.dok-modi button { padding: 4px 10px; font-size: 13px; }
+.dok-modi-kopf { flex: 0 0 100%; display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.dok-modi-name { font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
+.dok-modi-angaben { font-size: 12px; color: var(--text-leise); overflow-wrap: anywhere; }
+/* Ansichten des Dokuments als Reiter mit Unterstrich, wie die Reiter der Akte. */
+.dok-modi { gap: 2px 4px; padding-bottom: 0; }
+.dok-modi button.dok-modus { background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-leise);
+  padding: 5px 10px 7px; margin-bottom: -1px; font-size: 13px; font-weight: 500; }
+.dok-modi button.dok-modus:hover:not(:disabled) { color: var(--text); }
+.dok-modi button.dok-modus.aktiv { color: var(--akzent); border-bottom-color: var(--akzent); font-weight: 650; cursor: default; }
 .original { display: flex; flex-direction: column; gap: 14px; }
 .original-seite { margin: 0; }
 .original-seite img { display: block; width: 100%; height: auto; border: 1px solid var(--linie); background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 12%); }
@@ -670,6 +677,7 @@ button.marke-fehlt:hover { border-color: var(--warnung); }
 .akte-kopf .kopfband-ueber { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .akte-kopf-angabe { flex: 0 1 auto; min-width: 0; }
 .akte-kopf-angabe strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akte-kopf-angabe { max-width: 240px; }
 .akte-kopf button { flex: none; }
 .kopfband button.zurueck, .kopfband button.kopf-knopf { display: inline-flex; align-items: center; gap: 6px; background: rgb(255 255 255 / 10%);
   border: 1px solid rgb(255 255 255 / 35%); color: var(--band-text); padding: 5px 12px; position: relative; }
@@ -709,7 +717,17 @@ button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, 
 .akte-liste { border-right: 1px solid var(--linie); }
 .akte-liste .leiste { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
 .akte-liste .leiste button { padding: 5px 12px; }
-.dokumente.kompakt { margin-top: 4px; }
+.dokumente.kompakt { margin-top: 4px; table-layout: fixed; }
+.dokumente.kompakt .spalte-datum { width: 96px; }
+.dokumente.kompakt .spalte-zitate { width: 60px; }
+.dokumente.kompakt .link { overflow-wrap: anywhere; }
+.dok-name-zeile { display: flex; align-items: flex-start; gap: 6px; }
+.dok-symbol { flex: none; display: flex; color: var(--text-leise); margin-top: 1px; }
+.dokumente.kompakt .dok-name { font-weight: 600; }
+.dokumente.kompakt .dok-name-zeile + .herkunft { margin-left: 22px; }
+.dokumente.kompakt .tags { margin-left: 22px; }
+.art-chip { display: inline-block; padding: 0 7px; margin-right: 4px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  color: var(--akzent); background: color-mix(in srgb, var(--akzent) 10%, transparent); }
 .dokumente.kompakt tbody tr { cursor: pointer; }
 .dokumente.kompakt tbody tr:hover { background: color-mix(in srgb, var(--akzent) 5%, transparent); }
 .dokumente.kompakt tr.aktiv { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
@@ -901,7 +919,7 @@ details.kurz-hinweis summary { cursor: pointer; }
 .naechste-frist.vorfrist, .naechste-frist.bald { color: var(--warnung); font-weight: 600; }
 .kopf-frist { background: none; border: none; padding: 0; text-align: left; color: inherit; cursor: pointer; }
 .akte-kopf button.kopf-frist { flex: none; }
-.akte-kopf .akte-kopf-titel { min-width: 140px; }
+.akte-kopf .akte-kopf-titel { min-width: 260px; }
 .kopf-frist.abgelaufen strong, .kopf-frist.heute strong, .kopf-frist.vorfrist strong, .kopf-frist.bald strong { color: #ffd7a8; }
 .akte-reiter-knopf .anzahl.frist { color: var(--warnung); font-weight: 700; }
 .akte-reiter-knopf .anzahl.frist.abgelaufen, .akte-reiter-knopf .anzahl.frist.heute { color: var(--fehler); }

@@ -23,6 +23,7 @@ import {
   aktePasst,
   datumLang,
   bearbeitetText,
+  betragAnzeige,
   istDesktop,
   kern,
   sortiert,
@@ -616,12 +617,19 @@ function AkteRahmen({
           <Zeichen name="zurueck" groesse={16} /> Akten
         </button>
         <div className="akte-kopf-titel">
-          <p className="kopfband-ueber">
+          <p className="kopfband-ueber" title={akte.gegenstand ?? undefined}>
             {akte.aktenzeichen ? `Akte ${akte.aktenzeichen}` : "Akte ohne Aktenzeichen"}
             {akte.gegenstand && ` · ${akte.gegenstand}`}
+            {akte.gegenstandswert && ` · Wert ${betragAnzeige(akte.gegenstandswert)} €`}
           </p>
           <h1>{akte.name}</h1>
         </div>
+        {akte.mandanten.length > 0 && (
+          <div className="akte-kopf-angabe">
+            <p className="kopfband-ueber">Wir vertreten</p>
+            <strong title={akte.eigene_rolle ?? undefined}>{akte.mandanten.join(", ")}</strong>
+          </div>
+        )}
         {akte.verfahren ? (
           <div className="akte-kopf-angabe">
             <p className="kopfband-ueber">Verfahren</p>
@@ -651,12 +659,6 @@ function AkteRahmen({
               {akte.naechste.in_tagen < 0 ? " · abgelaufen" : akte.naechste.in_tagen <= 7 ? ` · ${abstandText({ ...akte.naechste, erledigt_am: null })}` : ""}
             </strong>
           </button>
-        )}
-        {akte.mandanten.length > 0 && (
-          <div className="akte-kopf-angabe">
-            <p className="kopfband-ueber">Wir vertreten</p>
-            <strong title={akte.eigene_rolle ?? undefined}>{akte.mandanten.join(", ")}</strong>
-          </div>
         )}
         <button
           className={reiter === "stammdaten" ? "kopf-knopf aktiv" : "kopf-knopf"}
