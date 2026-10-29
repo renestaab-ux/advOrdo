@@ -284,9 +284,9 @@ def berechne(e: dict) -> dict:
         hinweise.append("Zeithonorar und Gebühren nach dem RVG zusammen in einer Kostennote: Zusätzliche gesetzliche "
                         "Gebühren (etwa Einigungsgebühr) neben dem Zeithonorar können gegenüber Verbrauchern die "
                         "Vereinbarung unwirksam machen (BGH IX ZR 65/23 nach Krumscheid in: Heidel/Pauly, "
-                        "AnwaltFormulare, § 57; IWW Institut, FMP 2024, 189). Zulässig ist dagegen eine Klausel, nach "
-                        "der im gerichtlichen Verfahren mindestens die gesetzlichen Gebühren geschuldet sind (BGH IX ZR "
-                        "90/23 nach BB 2025, 2893); dann wird entweder das Zeithonorar oder, wenn höher, die "
+                        "AnwaltFormulare, § 57; IWW Institut, FMP 2024, 189). Zulässig ist dagegen eine Klausel, "
+                        "nach der im gerichtlichen Verfahren mindestens die gesetzlichen Gebühren geschuldet sind (BGH "
+                        "IX ZR 90/23 nach BB 2025, 2893); dann wird entweder das Zeithonorar oder, wenn höher, die "
                         "gesetzliche Vergütung berechnet, nicht beides.")
     if not abschnitte and not steuerfrei:
         raise ValueError("Die Kostennote hat noch keine Posten.")
