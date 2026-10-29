@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AktenWahl from "./AktenWahl";
+import Fristenbuch from "./Fristenbuch";
 import {
   ABSCHLUSS_TEXT,
   EINHEITEN,
@@ -75,6 +76,7 @@ export default function Kalender({ onAkte }: { onAkte: (id: number) => void }) {
   const [gewaehlt, setGewaehlt] = useState<KalenderPosten | null>(null);
   const [neu, setNeu] = useState<{ tag: string } | null>(null);
   const [folge, setFolge] = useState<Folge | null>(null);
+  const [buch, setBuch] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -176,6 +178,9 @@ export default function Kalender({ onAkte }: { onAkte: (id: number) => void }) {
             </button>
           </span>
           <strong className="kalender-zeitraum">{zeitraumTitel(ansicht, bezug)}</strong>
+          <button className="zweitrangig" onClick={() => setBuch(!buch)} aria-expanded={buch}>
+            Fristenbuch …
+          </button>
           <button
             onClick={() => (setNeu({ tag: heute >= von && heute <= bis ? heute : von }), setGewaehlt(null), setMeldung(null))}
           >
@@ -245,6 +250,17 @@ export default function Kalender({ onAkte }: { onAkte: (id: number) => void }) {
 
       {fehler && <p className="fehler">{fehler}</p>}
       {meldung && <p className="meldung">{meldung}</p>}
+
+      {buch && (
+        // Im Monat gilt der Kalendermonat, nicht das ganze Raster mit den Tagen der Nachbarmonate.
+        <Fristenbuch
+          key={`${von}-${bis}`}
+          von={ansicht === "monat" ? `${bezug.slice(0, 7)}-01` : von}
+          bis={ansicht === "monat" ? plusTage(blaettern("monat", bezug, 1).slice(0, 7) + "-01", -1) : bis}
+          filter={filter}
+          onSchliessen={() => setBuch(false)}
+        />
+      )}
 
       {neu && (
         <NeuerEintrag

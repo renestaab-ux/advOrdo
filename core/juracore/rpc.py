@@ -25,7 +25,16 @@ from typing import Any
 
 from . import __version__, db, diagnose, einstellungen, gerichte, nachrichten, netzprotokoll, programme, zeiterfassung
 from .abgleich import abgleich
-from .aktenverwaltung import aus_dokument, beteiligte, kalender, kollision, notizen, stammdaten, verfahren
+from .aktenverwaltung import (
+    aus_dokument,
+    beteiligte,
+    fristenbuch,
+    kalender,
+    kollision,
+    notizen,
+    stammdaten,
+    verfahren,
+)
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
 from .dokumente import akte, ansicht, fassungen, lesen, metadaten, ocr, suche, urteile
 from .eigene import daten as eigene
@@ -171,6 +180,11 @@ class Kern:
             "akten.kalender_naechste": lambda tage=None, limit=50: kalender.naechste(self.akten, tage, limit),
             "kalender.zeitraum": lambda von, bis: kalender.zeitraum(self.akten, von, bis),
             "kalender.feiertage": lambda von, bis, land="BY": kalender.feiertage(von, bis, land),
+            "kalender.fristenbuch_name": lambda von, bis: {"name": fristenbuch.dateiname(von, bis)},
+            "kalender.fristenbuch": lambda pfad, von, bis, filter=None: fristenbuch.schreiben(
+                self.akten, pfad, von, bis, filter, self.umgebungen.aktiv()),
+            "kalender.fristenbuch_druck": lambda von, bis, filter=None: fristenbuch.druckansicht(
+                self.akten, von, bis, filter),
             "akten.frist_berechnen": lambda bezugstag, anzahl, einheit, land="BY", beginn="ereignis": kalender.berechne(
                 bezugstag, anzahl, einheit, land, beginn),
             "akten.kalender_vorschlaege": self.kalender_vorschlaege,

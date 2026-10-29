@@ -3,7 +3,8 @@
 Alle Texte stammen aus der fiktiven Testakte „Brückner ./. Weber Haustechnik GmbH“.
 """
 
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +12,7 @@ from juracore.aktenverwaltung import (
     aus_dokument,
     beteiligte,
     einrichten,
+    fristenbuch,
     kalender,
     notizen,
     rubrum,
@@ -297,6 +299,51 @@ def test_kalender_zeitraum_ueber_alle_akten_mit_vorfristen(con):
     tage = kalender.feiertage("2026-10-01", "2026-11-30", "BW")
     assert tage == [{"datum": "2026-10-03", "name": "Tag der Deutschen Einheit"},
                     {"datum": "2026-11-01", "name": "Allerheiligen"}]
+
+
+def _fristenbuch_akte(con):
+    a = neue_akte(con)
+    kalender.speichern(con, a, {"art": "frist", "titel": "Replik", "datum": "2026-09-10"})  # abgelaufen
+    kalender.speichern(con, a, {"art": "frist", "titel": "Klageerwiderung, Teil 2", "datum": "2026-10-06",
+                                "vorfrist": "2026-09-29", "vorfrist2": "2026-10-02"})
+    liste = kalender.speichern(con, a, {"art": "termin", "titel": "Güteverhandlung", "datum": "2026-10-01",
+                                        "uhrzeit": "10:30", "ort": "Saal 104; 1. OG"})
+    t = next(e for e in liste if e["art"] == "termin")
+    kalender.termin_zustand(con, t["id"], "verlegt", neu={"datum": "2026-10-08", "uhrzeit": "11:00"})
+    return a
+
+
+def test_fristenbuch_mit_ueberfaelligen_und_vorfristen(con, tmp_path):
+    a = _fristenbuch_akte(con)
+    b = fristenbuch.bericht(con, "2026-09-28", "2026-10-11", heute=HEUTE, jetzt=datetime(2026, 9, 25, 9, 0))
+    titel = [x.text if hasattr(x, "text") else getattr(x, "titel", None) for x in b.bausteine]
+    assert titel[1] == "Abgelaufen und nicht erledigt (vor dem Zeitraum)" and titel[2] == "Frist: Replik"
+    assert "Vorfrist: Klageerwiderung, Teil 2" in titel and "2. Vorfrist: Klageerwiderung, Teil 2" in titel
+    assert "Termin: Güteverhandlung" in titel and "Do, 01.10.2026" in titel
+    verlegt = next(x for x in b.bausteine if getattr(x, "nummer", "") == "10:30 Uhr")
+    assert verlegt.marken == ["verlegt"] and "Stand: verlegt auf Do, 08.10.2026" in verlegt.zeilen
+    assert len(b.tabellen[0].zeilen) == 1 + 5
+    nur_termine = fristenbuch.bericht(con, "2026-09-28", "2026-10-11", {"arten": ["termin"], "akteId": a},
+                                      heute=HEUTE)
+    assert len(nur_termine.tabellen[0].zeilen) == 2  # die abgelaufene Frist ist keine Art „Termin“
+    for endung in ("docx", "pdf", "xlsx", "md", "txt"):
+        r = fristenbuch.schreiben(con, tmp_path / f"fb.{endung}", "2026-09-28", "2026-10-11")
+        assert Path(r["pfad"]).stat().st_size > 100
+    with pytest.raises(ValueError, match="nicht unterstützt"):
+        fristenbuch.schreiben(con, tmp_path / "fb.odt", "2026-09-28", "2026-10-11")
+
+
+def test_kalenderdatei_ics(con, tmp_path):
+    _fristenbuch_akte(con)
+    text = fristenbuch.ics(con, "2026-09-28", "2026-10-11", heute=HEUTE, jetzt=datetime(2026, 9, 25, 9, 0))
+    assert text.startswith("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n") and text.endswith("END:VCALENDAR\r\n")
+    assert text.count("BEGIN:VEVENT") == 5
+    assert "DTSTART:20261001T103000\r\nDTEND:20261001T113000" in text and "STATUS:CANCELLED" in text
+    assert "DTSTART;VALUE=DATE:20260929" in text and "SUMMARY:Vorfrist: Klageerwiderung\\, Teil 2" in text
+    assert "LOCATION:Saal 104\\; 1. OG" in text
+    assert all(len(z.encode()) <= 75 for z in text.split("\r\n"))
+    r = fristenbuch.schreiben(con, tmp_path / "kalender.ics", "2026-09-28", "2026-10-11")
+    assert r["anzahl"] == 5
 
 
 def test_alte_erledigte_termine_bekommen_ihren_zustand(con):

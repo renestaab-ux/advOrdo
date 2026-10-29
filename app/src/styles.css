@@ -1358,3 +1358,7 @@ button.listen-posten .posten-titel { white-space: normal; }
   .wochen-spalten .kalender-tag { min-height: 0; }
   button.listen-posten { grid-template-columns: 1fr; gap: 2px; }
 }
+.fristenbuch { display: grid; gap: 10px; max-width: 900px; }
+.fristenbuch .aktionen { display: flex; flex-wrap: wrap; gap: 8px; }
+.fristenbuch-zeitraum { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; }
+.fristenbuch-zeitraum p { flex-basis: 100%; margin: 0; }
