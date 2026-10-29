@@ -772,6 +772,12 @@ class Kern:
             return {"status": "fertig", "ergebnis": alt}
         if automatisch and e.extern:
             return {"status": "extern"}
+        # Liest das Modell dieses Dokument schon (zweites Öffnen, Doppelaufruf der Oberfläche), denselben Auftrag
+        # zurückgeben statt „belegt“.
+        if (laufend := self.auftraege.laufend()) is not None:
+            if laufend.aufgabe == ki_metadaten.AUFGABE and laufend.bezug == int(dokument_id) and not neu:
+                return {"status": "laeuft", "auftrag": laufend.als_dict()}
+            return {"status": "belegt", "aufgabe": laufend.aufgabe}
 
         def arbeit(auftrag) -> dict:
             con = akte.oeffne(self.akten_pfad)
@@ -782,9 +788,11 @@ class Kern:
                 con.close()
 
         try:
-            return {"status": "laeuft", "auftrag": self.auftraege.starte(ki_metadaten.AUFGABE, arbeit)}
-        except RuntimeError:
-            return {"status": "belegt"}
+            return {"status": "laeuft",
+                    "auftrag": self.auftraege.starte(ki_metadaten.AUFGABE, arbeit, bezug=int(dokument_id))}
+        except RuntimeError:  # gerade eben ein anderer Auftrag gestartet
+            laufend = self.auftraege.laufend()
+            return {"status": "belegt", "aufgabe": laufend.aufgabe if laufend else None}
 
     def ki_gegenueberstellung(self, akte_id: int, dokument_id: int | None = None) -> dict:
         """Gespeicherte Gegenüberstellungen (Schriftsatz und zitierte Entscheidung), ohne das Modell zu fragen."""

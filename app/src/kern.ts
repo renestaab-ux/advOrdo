@@ -698,7 +698,7 @@ export interface MetaKiErgebnis {
 
 export type MetaKiStand =
   | { status: "aus"; abgeschaltet?: boolean }
-  | { status: "belegt" }
+  | { status: "belegt"; aufgabe?: string | null }
   | { status: "extern" }
   | { status: "laeuft"; auftrag: KiAuftrag }
   | { status: "fertig"; ergebnis: MetaKiErgebnis }

@@ -136,11 +136,15 @@ const DokumentDetails = forwardRef<
 
   // Sprachmodell: ist eines eingerichtet, gehen seine (belegten) Vorschläge vor; sonst gilt die Texterkennung.
   const [ki, setKi] = useState<MetaKiStand | null>(null);
+  // Nur die Antwort auf die jüngste Anfrage zählt (Dokumentwechsel, doppelter Aufruf im Entwicklungsmodus).
+  const kiAnfrage = useRef(0);
   const kiStarten = useCallback(
     (neu: boolean, automatisch = false) => {
+      const nr = ++kiAnfrage.current;
       // automatisch: nur beim Öffnen; ein externer Anbieter bekommt den Text erst auf Knopfdruck.
-      kern<MetaKiStand>("akten.metadaten_ki", { dokument_id: dokumentId, neu, automatisch }).then(setKi, (e) =>
-        setKi({ status: "fehler", fehler: String(e) }),
+      kern<MetaKiStand>("akten.metadaten_ki", { dokument_id: dokumentId, neu, automatisch }).then(
+        (stand) => nr === kiAnfrage.current && setKi(stand),
+        (e) => nr === kiAnfrage.current && setKi({ status: "fehler", fehler: String(e) }),
       );
     },
     [dokumentId],
@@ -149,6 +153,13 @@ const DokumentDetails = forwardRef<
     setKi(null);
     kiStarten(false, true);
   }, [kiStarten]);
+  // Arbeitet die KI noch an etwas anderem (z. B. am zuvor geöffneten Dokument), später erneut versuchen.
+  const kiBelegt = ki?.status === "belegt";
+  useEffect(() => {
+    if (!kiBelegt) return;
+    const spaeter = window.setTimeout(() => kiStarten(false, true), 3000);
+    return () => window.clearTimeout(spaeter);
+  }, [kiBelegt, kiStarten]);
   const kiAuftrag = ki?.status === "laeuft" ? ki.auftrag.auftrag_id : null;
   useEffect(() => {
     if (kiAuftrag == null) return;
@@ -576,7 +587,7 @@ function KiHinweis({ ki, onNeu }: { ki: MetaKiStand | null; onNeu: () => void })
   return (
     <span className="feld-hinweis">
       {ki.status === "belegt"
-        ? "Die KI arbeitet gerade an einem anderen Auftrag; Vorschläge aus der Texterkennung."
+        ? `Die KI ${ki.aufgabe === "metadaten" ? "liest gerade ein anderes Dokument" : "arbeitet gerade an einem anderen Auftrag (Analyse oder Chat)"}; danach ist dieses dran. Bis dahin Vorschläge aus der Texterkennung.`
         : `KI nicht verfügbar (${ki.fehler}); Vorschläge aus der Texterkennung.`}{" "}
       <button type="button" className="link klein" onClick={onNeu}>
         erneut versuchen

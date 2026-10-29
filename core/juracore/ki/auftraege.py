@@ -42,9 +42,10 @@ _BEHALTEN = 20  # beendete Aufträge, deren Ergebnis noch abgeholt werden kann
 
 
 class Auftrag:
-    def __init__(self, nr: int, aufgabe: str):
+    def __init__(self, nr: int, aufgabe: str, bezug: object = None):
         self.nr = nr
         self.aufgabe = aufgabe
+        self.bezug = bezug  # woran der Auftrag arbeitet, z. B. die Dokumentnummer
         self.status = LAEUFT
         self.text = "Starte …"
         self.schritt: int | None = None
@@ -92,13 +93,14 @@ class Auftraege:
         with self._sperre:
             return next((a for a in self._auftraege.values() if a.status == LAEUFT), None)
 
-    def starte(self, aufgabe: str, arbeit: Callable[[Auftrag], Any], warten: bool = False) -> dict:
+    def starte(self, aufgabe: str, arbeit: Callable[[Auftrag], Any], warten: bool = False,
+               bezug: object = None) -> dict:
         """Startet ``arbeit(auftrag)`` im Hintergrund. ``warten`` führt sie sofort aus (Kommandozeile, Tests)."""
         with self._sperre:
             if any(a.status == LAEUFT for a in self._auftraege.values()):
                 raise RuntimeError("Das Sprachmodell arbeitet gerade an einem anderen Auftrag (Analyse oder "
                                    "Chat). Bitte warten oder ihn abbrechen.")
-            auftrag = Auftrag(next(self._nummern), aufgabe)
+            auftrag = Auftrag(next(self._nummern), aufgabe, bezug)
             self._auftraege[auftrag.nr] = auftrag
             for alt in sorted(self._auftraege)[:-_BEHALTEN]:
                 if self._auftraege[alt].status != LAEUFT:
