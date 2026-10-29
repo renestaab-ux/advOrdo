@@ -2704,6 +2704,12 @@ export function uhrText(sekunden: number): string {
   return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+/** Beginn des laufenden Timers („2026-10-29T12:03:00“) als „heute, 12:03 Uhr“ bzw. „28.10.2026, 17:40 Uhr“. */
+export function timerSeitText(laeuftSeit: string, heute: string): string {
+  const tag = laeuftSeit.slice(0, 10);
+  return `${tag === heute ? "heute" : datumDe(tag)}, ${laeuftSeit.slice(11, 16)} Uhr`;
+}
+
 /** Meldet anderen Teilen der Oberfläche (Seitenleiste, Reiter „Zeiten“), dass ein Timer gestartet oder angehalten
  *  wurde. */
 export const ZEIT_EREIGNIS = "jurabox-zeit";
