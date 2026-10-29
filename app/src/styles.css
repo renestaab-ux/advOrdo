@@ -629,11 +629,6 @@ table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
 .kopfband h1 { font-size: 22px; margin: 0; color: var(--band-text); }
 .kopfband-ueber { margin: 0 0 2px; font-size: 12px; color: var(--band-leise); letter-spacing: 0.02em; }
 .kopfband > div:first-child { flex: 1; min-width: 0; }
-.modus-pille { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 13px;
-  background: rgb(255 255 255 / 12%); color: var(--band-text); white-space: nowrap; }
-.modus-pille .modus-punkt { background: #7cd38e; }
-.modus-pille.extern .modus-punkt { background: #f0c060; }
-.modus-pille.aus .modus-punkt { background: var(--band-leise); }
 
 /* Startseite */
 .kachel { grid-template-rows: auto auto auto; }

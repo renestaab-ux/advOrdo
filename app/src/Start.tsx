@@ -7,7 +7,6 @@ import {
   KiModus,
   Marke,
   NachrichtenListe,
-  kiModusName,
   abstandText,
   akteTitel,
   datumLang,
@@ -66,10 +65,6 @@ export default function Start({
           <p className="kopfband-ueber">{marke?.name ? "Willkommen bei JuraBox" : "Startseite"}</p>
           <h1>{marke?.name || "Willkommen bei JuraBox"}</h1>
         </div>
-        <span className={aus ? "modus-pille aus" : extern ? "modus-pille extern" : "modus-pille"}>
-          <span className="modus-punkt" aria-hidden />
-          KI: {kiModusName(modus)}
-        </span>
       </header>
       <div className="start-inhalt">
         <div className="start-haupt">
