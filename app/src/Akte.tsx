@@ -15,7 +15,7 @@ import { GegenueberstellungBereich } from "./Gegenueberstellung";
 import { useKiAn } from "./kiSchalter";
 import { BelegAnsicht } from "./Gesetze";
 import { gemerkt, merke } from "./merken";
-import Zeichen from "./Symbole";
+import Zeichen, { LeerHinweis } from "./Symbole";
 import {
   Abschnitt,
   Akte as AkteTyp,
@@ -929,7 +929,19 @@ export default function Akte({
         </div>
         {meldungen}
         {dokumente.length === 0 && !laeuft && (
-          <p className="leer">Noch keine Dokumente in dieser Akte. Füge PDF-, Word- oder Textdateien hinzu.</p>
+          <LeerHinweis
+            symbol="dokumente"
+            aktion={
+              <>
+                <button onClick={hinzufuegen}>+ Dokumente</button>
+                <button className="zweitrangig" onClick={ordnerHinzufuegen}>
+                  + Ordner
+                </button>
+              </>
+            }
+          >
+            Noch keine Dokumente in dieser Akte. Füge PDF-, Word- oder Textdateien hinzu.
+          </LeerHinweis>
         )}
         {dokumente.length > 0 && (
           <table className="dokumente kompakt">
@@ -1121,7 +1133,7 @@ export default function Akte({
             )}
           </>
         ) : (
-          <p className="leer">{dokumente.length > 0 ? "Wähle links ein Dokument, um Text und Normzitate zu sehen." : ""}</p>
+          dokumente.length > 0 && <LeerHinweis symbol="dokumentLesen">Wähle links ein Dokument, um Text und Normzitate zu sehen.</LeerHinweis>
         )}
       </section>
     </div>

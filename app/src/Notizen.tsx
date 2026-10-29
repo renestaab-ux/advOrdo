@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AktenDokument, Notiz, dokumentName, kern, zeitpunkt } from "./kern";
+import { LeerHinweis } from "./Symbole";
 
 /** Reiter „Notizen“: kurze Vermerke zur Akte oder zu einem Dokument; wichtige werden oben angeheftet.
  *  Mit ``dokumentId`` (Ansicht „Details“) nur die Notizen zu diesem Dokument, neue gehören zu ihm. */
@@ -84,7 +85,9 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
 
       {fehler && <p className="fehler">{fehler}</p>}
       {notizen && notizen.length === 0 && (
-        <p className="leer">{festesDokument == null ? "Noch keine Notizen." : "Noch keine Notiz zu diesem Dokument."}</p>
+        <LeerHinweis symbol="notizen">
+          {festesDokument == null ? "Noch keine Notizen." : "Noch keine Notiz zu diesem Dokument."}
+        </LeerHinweis>
       )}
       {loeschfrage && (
         <div className="rueckfrage" role="alertdialog" aria-label="Notiz löschen?">
