@@ -1150,7 +1150,29 @@ details.kurz-hinweis summary { cursor: pointer; }
 .zeit-liste .status-marke { margin-left: 6px; }
 .zeit-liste tr.abgerechnet td { color: var(--text-leise); }
 .zeit-aktionen { white-space: nowrap; text-align: right; }
+.zeit-vereinbarung h3 { font-size: 14px; margin: 0; }
+.zeit-vereinbarung form, .zeit-vereinbarung-form { display: grid; gap: 8px; margin-top: 8px; }
+.zeit-vereinbarung .haken, .zeit-vereinbarung-form .haken { display: flex; gap: 6px; align-items: baseline; }
+.zeit-vereinbarung-stand { margin: 6px 0 4px; }
+.zeit-vereinbarung-form .feld.kurz { max-width: 240px; }
+.zeit-vereinbarung-form .schrift-wahl .feld:not(.kurz) { max-width: 360px; }
+.zeit-vereinbarung-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mandant-vereinbarungen .rahmen-vereinbarung p { margin: 4px 0; }
+.mandant-vereinbarungen .rahmen-vereinbarung.hervorgehoben { border-left: 3px solid var(--akzent); background: var(--hintergrund); padding: 6px 10px; border-radius: 4px; margin-bottom: 8px; }
+.zeit-budget { height: 6px; border-radius: 3px; background: var(--linie); overflow: hidden; margin: 4px 0 8px; max-width: 420px; }
+.zeit-budget span { display: block; height: 100%; background: var(--gut); }
+.zeit-budget.knapp span { background: var(--warnung); }
+.zeit-budget.ueber span { background: var(--fehler); }
 .zeit-aktionen button + button { margin-left: 8px; }
+.zeit-liste tr.zeit-details td { background: var(--hintergrund); }
+.zeit-details-inhalt ul { margin: 0 0 4px; padding-left: 18px; }
+.zeit-details-inhalt p { margin: 2px 0; }
+.zeit-notiz { margin: 6px 0; display: grid; gap: 6px; max-width: 720px; justify-items: start; }
+.zeit-notiz textarea { width: 100%; }
+.zeit-notiz .notiz-text { white-space: pre-wrap; margin: 0; }
+.zeit-notiz-wahl { max-width: 520px; margin: 6px 0; }
+.zeit-notiz-wahl button { justify-self: start; align-self: flex-start; }
+.zeit-liste button.status-marke { border: none; cursor: pointer; }
 .zeit-stufen { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
 .zeit-stufen li.archiviert input { color: var(--text-leise); }
 .zeit-einstellungen .kosten-zeile input.betrag { width: 90px; }

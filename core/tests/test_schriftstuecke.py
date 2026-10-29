@@ -275,7 +275,7 @@ def test_eigene_vorlagen_verwalten_und_fuellen(kern, tmp_path):
     assert vorlagen.hinzufuegen(umgebung, quelle)["neu"] == "Mandantenbrief (2).docx"
     liste = vorlagen.liste(umgebung)
     assert [e["titel"] for e in liste["eigene"]] == ["Mandantenbrief", "Mandantenbrief (2)"]
-    assert len(liste["grund"]) == 3
+    assert len(liste["grund"]) == 4
     ergebnis = vorlagen.erzeugen(kern.akten, kern.con, umgebung, kern.ablage, kern.test_akte,
                                  "eigen:Mandantenbrief.docx", in_akte=False, pfad=tmp_path / "x.docx", heute=HEUTE)
     assert ergebnis["unbekannt"] == ["Unbekannt"]
@@ -294,7 +294,7 @@ def test_rpc(kern, tmp_path):
     m = kern.methoden
     assert any(e["platzhalter"] == "Rubrum" for e in m["schriftstuecke.katalog"]())
     assert [v["id"] for v in m["schriftstuecke.vorlagen"]()["grund"]] == [
-        "grund:brief", "grund:schriftsatz", "grund:kurzrubrum"]
+        "grund:brief", "grund:schriftsatz", "grund:kurzrubrum", "grund:verguetung"]
     ergebnis = m["schriftstuecke.erzeugen"](akte_id=kern.test_akte, vorlage="grund:kurzrubrum",
                                              empfaenger_id=kern.test_bet["gericht"])
     assert ergebnis["dokument_id"]

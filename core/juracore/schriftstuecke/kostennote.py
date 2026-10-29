@@ -162,6 +162,30 @@ def _zeile(art: str, nr: str, text: str, betrag_: Decimal, wert: Decimal | None 
             "satz": None if satz is None else str(satz), "betrag": str(cent(betrag_))}
 
 
+FUENFFACH = Decimal(5)
+
+
+def _fuenffach(zeit: list[dict], rvg: list[dict]) -> dict | None:
+    """Zeithonorar über dem Fünffachen der gesetzlichen Vergütung: tatsächliche Vermutung der Unangemessenheit,
+    Herabsetzung nach § 3a Abs. 3 S. 1 RVG möglich (BB 2025, 2893; Schneider, NJW 2019, 1960)."""
+    if not zeit or not rvg:
+        return None
+    netto_zeit = sum((Decimal(z["betrag"]) for z in zeit), Decimal(0))
+    netto_rvg = sum((Decimal(z["betrag"]) for a_ in rvg for z in a_["zeilen"]), Decimal(0))
+    if netto_rvg <= 0 or netto_zeit <= netto_rvg * FUENFFACH:
+        return None
+    faktor = (netto_zeit / netto_rvg).quantize(Decimal("0.1"))
+    return {"faktor": str(faktor), "hinweis": (
+        f"Das Zeithonorar ({platzhalter.euro(str(cent(netto_zeit)))}) beträgt das "
+        f"{str(faktor).replace('.', ',')}-Fache der gesetzlichen Vergütung "
+        f"({platzhalter.euro(str(cent(netto_rvg)))}). Ab mehr als dem Fünffachen spricht "
+        "eine tatsächliche Vermutung für eine unangemessen hohe Vergütung, die im Rechtsstreit bis auf die "
+        "gesetzliche herabgesetzt werden kann (§ 3a Abs. 3 S. 1 RVG; BB 2025, 2893; Schneider, NJW 2019, 1960). "
+        "Die Vermutung lässt sich mit Umfang, Schwierigkeit oder Haftungsrisiko widerlegen (Lührig, AnwBl 2010, "
+        "347); darlegen und beweisen muss das der Anwalt (BB 2025, 2893). Den Tätigkeitsnachweis deshalb vollständig "
+        "beifügen.")}
+
+
 def berechne(e: dict) -> dict:
     """Rechnet eine Kostennote aus den Eingaben (ohne Datenbank); Beträge als Text mit Punkt."""
     hinweise: list[str] = []
@@ -281,6 +305,7 @@ def berechne(e: dict) -> dict:
     # RVG-Mindestvergütung: Zeithonorar, mindestens aber die gesetzlichen Gebühren; berechnet wird nur das Höhere
     # (Klausel nach BGH IX ZR 90/23 wirksam, nach BB 2025, 2893; § 4 Abs. 1 S. 1 RVG, § 49b Abs. 1 S. 1 BRAO).
     vergleich = None
+    fuenffach = _fuenffach(zeit, rvg)
     if zeit and rvg and not e.get("mindestverguetung"):
         hinweise.append("Zeithonorar und gesetzliche Gebühren werden hier addiert. Sieht die Vereinbarung nur "
                         "mindestens die gesetzlichen Gebühren vor, bitte „Mindestvergütung“ anhaken.")
@@ -298,6 +323,10 @@ def berechne(e: dict) -> dict:
                 zeit_abschnitt = []
             else:
                 rvg = []
+    if fuenffach is not None:
+        if vergleich is not None:
+            vergleich["faktor"] = fuenffach["faktor"]
+        hinweise.append(fuenffach["hinweis"])
     abschnitte = rvg + zeit_abschnitt
     if weitere:
         abschnitte.append({"titel": "Auslagen", "zeilen": weitere})

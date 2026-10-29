@@ -175,9 +175,10 @@ export default function Kostennote({
     if (!z || !e) return;
     const posten = z.posten.map((p) => ({ ...p, stunden: de(p.stunden), stundensatz: de(p.stundensatz) }));
     // Mit Verfahren bleiben die Gebühren als Vergleich für die RVG-Mindestvergütung stehen; außergerichtlich
-    // ersetzt das Zeithonorar die vorgeschlagenen Gebühren (keine Gebühren neben dem Zeithonorar).
+    // ersetzt das Zeithonorar die vorgeschlagenen Gebühren (keine Gebühren neben dem Zeithonorar). Ist mit dem
+    // Mandanten keine Mindestvergütung vereinbart (Reiter „Zeiten“), ersetzt es sie immer.
     const gebuehren = e.posten.filter((p) => p.typ === "gebuehr");
-    const mindest = posten.length > 0 && gebuehren.length > 0 && hatVerfahren;
+    const mindest = posten.length > 0 && gebuehren.length > 0 && hatVerfahren && z.mindestverguetung !== false;
     setE({
       ...e,
       posten: [
@@ -187,7 +188,7 @@ export default function Kostennote({
         ...posten,
       ],
       leistungszeitraum: e.leistungszeitraum || z.leistungszeitraum,
-      mindestverguetung: mindest || e.mindestverguetung,
+      mindestverguetung: z.mindestverguetung === false ? false : mindest || e.mindestverguetung,
     });
     setZeitHinweise(
       z.posten.length === 0 ? ["Keine offenen, abrechenbaren Zeiten in dieser Akte.", ...z.hinweise] : z.hinweise,

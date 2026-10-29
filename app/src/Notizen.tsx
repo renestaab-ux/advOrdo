@@ -139,6 +139,8 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
                     {n.angeheftet && "📌 angeheftet · "}
                     {zeitpunkt(n.geaendert_am)}
                     {n.dokument && festesDokument == null && ` · zu ${n.dokument}`}
+                    {n.zeiteintrag &&
+                      ` · zur Zeiterfassung ${n.zeiteintrag.slice(8, 10)}.${n.zeiteintrag.slice(5, 7)}.${n.zeiteintrag.slice(0, 4)}${n.zeiteintrag.slice(10)}`}
                   </span>
                   <span className="aktionen">
                     <button

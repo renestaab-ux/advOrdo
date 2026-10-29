@@ -26,6 +26,10 @@ GRUNDVORLAGEN = {
     "kurzrubrum": {"titel": "Schriftsatz mit Kurzrubrum",
                    "beschreibung": "An das Gericht im laufenden Verfahren: Parteien kurz und Aktenzeichen",
                    "art": "schriftsatz"},
+    "verguetung": {"titel": "Vergütungsvereinbarung",
+                   "beschreibung": "Zeithonorar mit Stundensätzen, Taktung und Kostenschätzung aus der Zeiterfassung, "
+                                   "Hinweis zur Kostenerstattung (§ 3a Abs. 1 S. 3 RVG)",
+                   "art": "vereinbarung"},
 }
 
 # Maße in twips (1/20 pt; 1 mm ≈ 56,7 twips) bzw. EMU für Bilder (1 mm = 36 000 EMU).
@@ -125,7 +129,77 @@ def _koerper(art: str) -> str:
                 + _text("")
                 + _ausfuellen("[Text des Schriftsatzes]")
                 + _text("") + _unterschrift(gruss=False))
+    if art == "verguetung":
+        return _verguetung()
     raise ValueError(f"Unbekannte Grundvorlage: {art!r}")
+
+
+def _verguetung() -> str:
+    """Vergütungsvereinbarung über ein Zeithonorar: als solche bezeichnet, von der Vollmacht getrennt, mit dem
+    Hinweis zur Kostenerstattung (§ 3a Abs. 1 S. 1 bis 3 RVG). Dazu, was die Praxisliteratur empfiehlt (Dralle,
+    AnwBl BE 2025, 137; Schons, AnwBl 2020, 348; Schneider, AnwBl 2009, 208): Leistungsumfang, Abrechnung,
+    Auslagen, Umsatzsteuer, Vorschüsse, vorzeitige Beendigung; ohne Anerkenntnisklausel, mit Tätigkeitsnachweis und
+    Kostenschätzung."""
+    def abschnitt(titel: str) -> str:
+        return _text(titel, "Zwischen", fett=True)
+
+    def unterschriften(text: str) -> str:
+        # Zwei Spalten: Tabstopp in der Mitte des Satzspiegels
+        return (f'<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="{_SATZBREITE // 2}"/></w:tabs>'
+                f'<w:spacing w:after="0"/></w:pPr>{_lauf(text)}</w:p>')
+
+    def lueckentext(*teile: str) -> str:
+        # Teile in [eckigen Klammern] sind gelb markiert: hier ist etwas zu entscheiden.
+        return _p(*(_lauf(t, markiert=t.startswith("[")) for t in teile if t))
+
+    return (_text("Vergütungsvereinbarung", "Titelzeile", zentriert=True)
+            + _text("zwischen")
+            + _text("{{Mandant.Anschrift}}", "Anschrift")
+            + _text("– Auftraggeber –", rechts=True)
+            + _text("und")
+            + _text("{{Absender.Anschrift}}", "Anschrift")
+            + _text("– Auftragnehmer –", rechts=True)
+            + abschnitt("1. Gegenstand")
+            + _text("Diese Vereinbarung regelt die Vergütung für die Tätigkeit in der Angelegenheit "
+                    "„{{Akte.Bezeichnung}}“ (unser Zeichen {{Akte.Aktenzeichen}}). Sie ist von der Vollmacht und "
+                    "anderen Vereinbarungen getrennt.")
+            + lueckentext("Die Tätigkeit umfasst ", "[z. B. die außergerichtliche Vertretung und die Vertretung im "
+                          "Verfahren erster Instanz]", ". Nicht umfasst sind ", "[z. B. Rechtsmittelverfahren und die "
+                          "Zwangsvollstreckung]", "; dafür bedarf es eines gesonderten Auftrags.")
+            + abschnitt("2. Vergütung nach Zeitaufwand")
+            + _text("Anstelle der gesetzlichen Gebühren erhält der Auftragnehmer ein Honorar nach Zeitaufwand. Es "
+                    "gelten folgende Stundensätze, jeweils zuzüglich der gesetzlichen Umsatzsteuer:")
+            + _text("{{Vergütung.Stundensätze}}")
+            + _text("{{Vergütung.Taktung}}")
+            + _text("{{Vergütung.Mindestvergütung}}")
+            + abschnitt("3. Auslagen")
+            + lueckentext("Auslagen wie Reisekosten, Abwesenheitsgeld, Dokumentenpauschale und die Post- und "
+                          "Telekommunikationsentgelte werden ", "[gesondert nach Teil 7 VV RVG]",
+                          " berechnet.")
+            + abschnitt("4. Tätigkeitsnachweis und Abrechnung")
+            + lueckentext("Der Auftragnehmer erfasst jede Tätigkeit mit Datum, bearbeitender Person, konkreter "
+                          "Beschreibung und Dauer und fügt den Nachweis jeder Abrechnung bei. Abgerechnet wird ",
+                          "[monatlich]", ". Angemessene Vorschüsse können angefordert werden (§ 9 RVG). Einwendungen "
+                          "gegen eine Abrechnung bleiben dem Auftraggeber erhalten; Schweigen auf eine Abrechnung gilt "
+                          "nicht als Anerkenntnis.")
+            + abschnitt("5. Kostenschätzung")
+            + _text("Nach derzeitigem Stand schätzt der Auftragnehmer die Vergütung für diese Angelegenheit auf rund "
+                    "{{Vergütung.Kostenschätzung}} zuzüglich Umsatzsteuer. Die Schätzung ist unverbindlich. Zeichnet "
+                    "sich eine wesentliche Überschreitung ab, unterrichtet der Auftragnehmer den Auftraggeber "
+                    "unverzüglich.")
+            + abschnitt("6. Hinweis zur Kostenerstattung")
+            + _text("Die gegnerische Partei, ein Verfahrensbeteiligter oder die Staatskasse muss im Falle der "
+                    "Kostenerstattung regelmäßig nicht mehr als die gesetzliche Vergütung erstatten. Die vereinbarte "
+                    "Vergütung kann die gesetzliche übersteigen; den Unterschied trägt der Auftraggeber selbst.")
+            + abschnitt("7. Vorzeitige Beendigung")
+            + _text("Endet das Mandat vorzeitig, gleich aus welchem Grund, wird der bis dahin angefallene "
+                    "Zeitaufwand nach dieser Vereinbarung abgerechnet.")
+            + abschnitt("8. Schlussbestimmungen")
+            + _text("Änderungen und Ergänzungen dieser Vereinbarung bedürfen der Textform.")
+            + _text("") + _text("{{Datum.Ort}}") + _text("") + _text("") + _text("")
+            + unterschriften("________________________________\t________________________________")
+            + unterschriften("Auftraggeber\tAuftragnehmer")
+            + unterschriften("{{Mandant.Name}}\t{{Bearbeiter.Name}}"))
 
 
 # --------------------------------------------------------------------------- Logo

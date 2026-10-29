@@ -301,11 +301,22 @@ class Kern:
             "zeit.speichern": lambda akte_id, daten, eintrag_id=None: zeiterfassung.speichern(
                 self.akten, akte_id, daten, eintrag_id),
             "zeit.loeschen": lambda eintrag_id: zeiterfassung.loeschen(self.akten, eintrag_id),
+            "zeit.notiz_speichern": lambda eintrag_id, text: zeiterfassung.notiz_speichern(
+                self.akten, eintrag_id, text),
+            "zeit.notiz_verknuepfen": lambda eintrag_id, notiz_id=None: zeiterfassung.notiz_verknuepfen(
+                self.akten, eintrag_id, notiz_id),
             "zeit.starten": lambda akte_id=None, bearbeiter_id=None, taetigkeit="", eintrag_id=None, stufe_id=None: (
                 zeiterfassung.starten(self.akten, akte_id, bearbeiter_id, taetigkeit, eintrag_id, stufe_id=stufe_id)),
             "zeit.stoppen": lambda: zeiterfassung.stoppen(self.akten),
             "zeit.laufend": lambda: zeiterfassung.laufend(self.akten),
             "zeit.fuer_kostennote": lambda akte_id: zeiterfassung.fuer_kostennote(self.akten, akte_id),
+            "zeit.vereinbarung_speichern": lambda akte_id, daten: zeiterfassung.vereinbarung_speichern(
+                self.akten, akte_id, daten),
+            "zeit.mandant_vereinbarungen": lambda mandant: zeiterfassung.mandant_vereinbarungen(self.akten, mandant),
+            "zeit.rahmen_speichern": lambda mandant, daten: zeiterfassung.rahmen_speichern(self.akten, mandant, daten),
+            "zeit.rahmen_loeschen": lambda mandant: zeiterfassung.rahmen_loeschen(self.akten, mandant),
+            "zeit.exportieren": lambda akte_id, pfad, nur_offen=False: zeiterfassung.exportieren(
+                self.akten, akte_id, pfad, nur_offen),
             "schriftstuecke.vorlage_hinzufuegen": lambda pfad: schrift_vorlagen.hinzufuegen(
                 self.umgebungen.ordner(), pfad),
             "schriftstuecke.vorlage_entfernen": lambda datei: schrift_vorlagen.entfernen(

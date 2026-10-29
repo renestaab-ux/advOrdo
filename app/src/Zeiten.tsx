@@ -1,5 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
+import { save } from "@tauri-apps/plugin-dialog";
 import {
+  Notiz,
   ZeitEinstellungen,
   ZeitEintrag,
   ZeitListe,
@@ -10,6 +12,7 @@ import {
   uhrText,
   zeitGeaendert,
 } from "./kern";
+import ZeitVereinbarung from "./ZeitVereinbarung";
 import { useLaufenderTimer } from "./zeitTimer";
 
 const heute = () => new Date().toLocaleDateString("sv-SE"); // JJJJ-MM-TT in Ortszeit
@@ -57,7 +60,9 @@ export default function Zeiten({
   const [f, setF] = useState<Formular | null>(null);
   const [bearbeitet, setBearbeitet] = useState<number | null>(null);
   const [loeschfrage, setLoeschfrage] = useState<ZeitEintrag | null>(null);
+  const [details, setDetails] = useState<number | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [meldung, setMeldung] = useState<string | null>(null);
   const { laufend, sekunden } = useLaufenderTimer();
 
   async function laden() {
@@ -169,6 +174,28 @@ export default function Zeiten({
     });
   }
 
+  async function exportieren() {
+    setFehler(null);
+    setMeldung(null);
+    const ziel = await save({
+      title: "Zeiten exportieren",
+      defaultPath: `Zeiten ${new Date().toLocaleDateString("sv-SE")}.xlsx`,
+      filters: [
+        { name: "Excel", extensions: ["xlsx"] },
+        { name: "Tabelle (CSV)", extensions: ["csv"] },
+        { name: "PDF (Tätigkeitsnachweis)", extensions: ["pdf"] },
+        { name: "Word", extensions: ["docx"] },
+      ],
+    });
+    if (!ziel) return;
+    try {
+      const r = await kern<{ pfad: string; anzahl: number }>("zeit.exportieren", { akte_id: akteId, pfad: ziel });
+      setMeldung(`${r.anzahl} Einträge exportiert nach ${r.pfad}.`);
+    } catch (x) {
+      setFehler(String(x));
+    }
+  }
+
   if (!liste || !einst || !f) {
     return (
       <div className="zeiten">{fehler ? <p className="fehler">{fehler}</p> : <p className="status">Lade …</p>}</div>
@@ -195,6 +222,15 @@ export default function Zeiten({
           {h}
         </p>
       ))}
+
+      <ZeitVereinbarung
+        akteId={akteId}
+        v={liste.vereinbarung}
+        anteil={g.budget_anteil}
+        taktungen={einst.taktungen}
+        onGespeichert={setListe}
+        onSchriftstuecke={onKostennote}
+      />
 
       <section className="karte zeit-timer" aria-label="Timer">
         {hierLaeuft ? (
@@ -339,6 +375,7 @@ export default function Zeiten({
       </form>
 
       {fehler && <p className="fehler">{fehler}</p>}
+      {meldung && <p className="meldung">{meldung}</p>}
       {loeschfrage && (
         <div className="rueckfrage" role="alertdialog" aria-label="Zeiteintrag löschen?">
           <strong>Diesen Zeiteintrag löschen?</strong>
@@ -370,7 +407,12 @@ export default function Zeiten({
         <section className="karte zeit-liste">
           <div className="kopf">
             <h3>Erfasste Zeiten</h3>
-            <span className="leise klein">Taktung {liste.taktung} Min. je Eintrag</span>
+            <span className="leise klein">
+              Taktung {liste.taktung === 1 ? "minutengenau" : `${liste.taktung} Min. je Eintrag`}
+            </span>
+            <button className="zweitrangig klein" onClick={() => void exportieren()}>
+              Exportieren …
+            </button>
           </div>
           <table className="staffel">
             <thead>
@@ -390,55 +432,84 @@ export default function Zeiten({
             </thead>
             <tbody>
               {liste.eintraege.map((z) => (
-                <tr key={z.id} className={z.kostennote_id ? "abgerechnet" : undefined}>
-                  <td>{datumDe(z.datum)}</td>
-                  <td>
-                    {z.bearbeiter}
-                    {z.stufe && <span className="leise klein"> · {z.stufe}</span>}
-                  </td>
-                  <td>
-                    {z.taetigkeit || <span className="leise">–</span>}
-                    {z.laeuft_seit && <span className="status-marke laufend">läuft</span>}
-                    {!z.abrechenbar && <span className="status-marke">nicht abrechenbar</span>}
-                    {z.kostennote && <span className="status-marke">abgerechnet mit {z.kostennote}</span>}
-                    {z.abrechenbar && !z.satz && <span className="status-marke hinweis">ohne Stundensatz</span>}
-                  </td>
-                  <td className="zahl">{stundenText(z.minuten)}</td>
-                  <td className="zahl">{z.abrechenbar ? stundenText(z.getaktet) : ""}</td>
-                  <td className="zahl" title={z.satz ? `${euro(z.satz)} je Stunde` : undefined}>
-                    {z.betrag ? euro(z.betrag) : ""}
-                  </td>
-                  <td className="zeit-aktionen">
-                    {!z.kostennote_id && (
-                      <>
-                        {!z.laeuft_seit && (
-                          <button
-                            className="link klein"
-                            title="Timer für diesen Eintrag weiterlaufen lassen"
-                            onClick={() =>
-                              void mit(
-                                () =>
-                                  kern<ZeitListe>("zeit.starten", {
-                                    akte_id: akteId,
-                                    eintrag_id: z.id,
-                                  }),
-                                true,
-                              )
-                            }
-                          >
-                            Fortsetzen
+                <Fragment key={z.id}>
+                  <tr className={z.kostennote_id ? "abgerechnet" : undefined}>
+                    <td>{datumDe(z.datum)}</td>
+                    <td>
+                      {z.bearbeiter}
+                      {z.stufe && <span className="leise klein"> · {z.stufe}</span>}
+                    </td>
+                    <td>
+                      {z.taetigkeit || <span className="leise">–</span>}
+                      {z.laeuft_seit && <span className="status-marke laufend">läuft</span>}
+                      {!z.abrechenbar && <span className="status-marke">nicht abrechenbar</span>}
+                      {z.kostennote && <span className="status-marke">abgerechnet mit {z.kostennote}</span>}
+                      {z.notiz && (
+                        <button className="status-marke link" title={z.notiz} onClick={() => setDetails(z.id)}>
+                          Notiz
+                        </button>
+                      )}
+                      {z.abrechenbar && !z.satz && <span className="status-marke hinweis">ohne Stundensatz</span>}
+                    </td>
+                    <td className="zahl">{stundenText(z.minuten)}</td>
+                    <td className="zahl">{z.abrechenbar ? stundenText(z.getaktet) : ""}</td>
+                    <td className="zahl" title={z.satz ? `${euro(z.satz)} je Stunde` : undefined}>
+                      {z.betrag ? euro(z.betrag) : ""}
+                    </td>
+                    <td className="zeit-aktionen">
+                      <button
+                        className="link klein"
+                        aria-expanded={details === z.id}
+                        onClick={() => setDetails(details === z.id ? null : z.id)}
+                      >
+                        Details
+                      </button>
+                      {!z.kostennote_id && (
+                        <>
+                          {!z.laeuft_seit && z.datum === heute() && (
+                            <button
+                              className="link klein"
+                              title="Timer für diesen Eintrag weiterlaufen lassen"
+                              onClick={() =>
+                                void mit(
+                                  () =>
+                                    kern<ZeitListe>("zeit.starten", {
+                                      akte_id: akteId,
+                                      eintrag_id: z.id,
+                                    }),
+                                  true,
+                                )
+                              }
+                            >
+                              Fortsetzen
+                            </button>
+                          )}
+                          <button className="link klein" onClick={() => bearbeiten(z)}>
+                            Bearbeiten
                           </button>
-                        )}
-                        <button className="link klein" onClick={() => bearbeiten(z)}>
-                          Bearbeiten
-                        </button>
-                        <button className="link klein gefahr" onClick={() => setLoeschfrage(z)}>
-                          Löschen
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
+                          <button className="link klein gefahr" onClick={() => setLoeschfrage(z)}>
+                            Löschen
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                  {details === z.id && (
+                    <tr className="zeit-details">
+                      <td colSpan={7}>
+                        <ZeitDetails
+                          z={z}
+                          onNotiz={(text) =>
+                            mit(() => kern<ZeitListe>("zeit.notiz_speichern", { eintrag_id: z.id, text }))
+                          }
+                          onVerknuepfen={(notiz_id) =>
+                            mit(() => kern<ZeitListe>("zeit.notiz_verknuepfen", { eintrag_id: z.id, notiz_id }))
+                          }
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -492,10 +563,137 @@ export default function Zeiten({
       )}
       <p className="leise klein">
         Ein Stundenhonorar setzt eine Vergütungsvereinbarung in Textform voraus (§ 3a Abs. 1 S. 1 RVG). Stundensätze,
-        Bearbeiter und Taktung:{" "}
+        Bearbeiter und die allgemeine Taktung:{" "}
         <button className="link klein" onClick={onEinstellungen}>
           Einstellungen → Zeiterfassung
         </button>
+      </p>
+    </div>
+  );
+}
+
+const uhr = (iso: string) => iso.slice(11, 16);
+const zeitpunkt = (iso: string) => `${datumDe(iso.slice(0, 10))}, ${uhr(iso)} Uhr`;
+
+/** Wann erfasst wurde: Timer-Läufe und von–bis von Hand, dazu Anlage und letzte Änderung. */
+function ZeitDetails({
+  z,
+  onNotiz,
+  onVerknuepfen,
+}: {
+  z: ZeitEintrag;
+  onNotiz: (text: string) => Promise<boolean>;
+  onVerknuepfen: (notizId: number | null) => Promise<boolean>;
+}) {
+  const [notiz, setNotiz] = useState<string | null>(null);
+  // Vorhandene Notizen der Akte zur Auswahl; erst geladen, wenn man verknüpfen will.
+  const [auswahl, setAuswahl] = useState<Notiz[] | null>(null);
+  const zeiten = z.abschnitte.map((a) => `${uhr(a.von)}–${uhr(a.bis)}`).join(", ");
+  const vorlage = `${z.taetigkeit || "Zeiterfassung"}, ${datumDe(z.datum)}${zeiten ? `, ${zeiten} Uhr` : ""} (${z.bearbeiter})\n`;
+  const summe = z.abschnitte.reduce(
+    (m, a) => m + Math.max(1, Math.round((Date.parse(a.bis) - Date.parse(a.von)) / 60000)),
+    0,
+  );
+  return (
+    <div className="zeit-details-inhalt">
+      {z.abschnitte.length === 0 && !z.laeuft_seit ? (
+        <p className="leise">
+          Keine Uhrzeiten: Es wurde nur eine Dauer angegeben (oder der Eintrag stammt aus einer älteren Version).
+        </p>
+      ) : (
+        <ul>
+          {z.abschnitte.map((a) => (
+            <li key={a.von}>
+              {uhr(a.von)}–{uhr(a.bis)} Uhr{" "}
+              <span className="leise">({a.quelle === "timer" ? "Timer" : "von Hand"})</span>
+            </li>
+          ))}
+          {z.laeuft_seit && (
+            <li>
+              seit {uhr(z.laeuft_seit)} Uhr <span className="leise">(Timer läuft)</span>
+            </li>
+          )}
+        </ul>
+      )}
+      {z.abschnitte.length > 0 &&
+        !z.laeuft_seit &&
+        summe !== z.minuten &&
+        Math.abs(summe - z.minuten) > z.abschnitte.length && (
+          <p className="leise">
+            Die Dauer wurde von Hand auf {stundenText(z.minuten)} geändert (Zeitspannen ergeben {stundenText(summe)}).
+          </p>
+        )}
+      {notiz !== null ? (
+        <form
+          className="zeit-notiz"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (await onNotiz(notiz)) setNotiz(null);
+          }}
+        >
+          <textarea rows={4} value={notiz} onChange={(e) => setNotiz(e.target.value)} autoFocus />
+          <span className="aktionen">
+            <button type="submit" disabled={!notiz.trim()}>
+              Notiz speichern
+            </button>
+            <button type="button" className="zweitrangig" onClick={() => setNotiz(null)}>
+              Abbrechen
+            </button>
+          </span>
+        </form>
+      ) : z.notiz ? (
+        <div className="zeit-notiz">
+          <p className="notiz-text">{z.notiz}</p>
+          <span>
+            <button className="link klein" onClick={() => setNotiz(z.notiz ?? "")}>
+              Notiz bearbeiten
+            </button>
+            {" · "}
+            <button className="link klein" onClick={() => void onVerknuepfen(null)}>
+              Verknüpfung lösen
+            </button>
+            <span className="leise klein"> · steht auch im Reiter „Notizen“</span>
+          </span>
+        </div>
+      ) : auswahl !== null ? (
+        <label className="feld zeit-notiz-wahl">
+          Vorhandene Notiz der Akte
+          <select
+            autoFocus
+            defaultValue=""
+            onChange={async (e) => {
+              if (e.target.value && (await onVerknuepfen(Number(e.target.value)))) setAuswahl(null);
+            }}
+          >
+            <option value="">{auswahl.length ? "– Notiz wählen –" : "Keine Notizen in dieser Akte"}</option>
+            {auswahl.map((n) => (
+              <option key={n.id} value={n.id}>
+                {datumDe(n.angelegt_am.slice(0, 10))} · {n.text.split("\n")[0].slice(0, 80)}
+                {n.zeiteintrag ? " (schon mit einer Zeit verknüpft)" : ""}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="link klein" onClick={() => setAuswahl(null)}>
+            Abbrechen
+          </button>
+        </label>
+      ) : (
+        <span>
+          <button className="link klein" onClick={() => setNotiz(vorlage)}>
+            Notiz dazu
+          </button>
+          {" · "}
+          <button
+            className="link klein"
+            onClick={() => void kern<Notiz[]>("akten.notizen", { akte_id: z.akte_id }).then(setAuswahl)}
+          >
+            Vorhandene Notiz verknüpfen
+          </button>
+        </span>
+      )}
+      <p className="leise klein">
+        Angelegt am {zeitpunkt(z.angelegt_am)}
+        {z.geaendert_am !== z.angelegt_am && ` · zuletzt geändert am ${zeitpunkt(z.geaendert_am)}`}
       </p>
     </div>
   );

@@ -131,6 +131,8 @@ def dateiname(titel: str, w: dict, heute: date) -> str:
     """„2026-10-27 Brief an Autohaus Rehnfeld GmbH.docx“; Zeichen, die Windows nicht erlaubt, fallen weg."""
     if w.get("Empfänger.Name") and titel == "Brief":
         titel = f"Brief an {w['Empfänger.Name']}"
+    elif w.get("Mandant.Name") and titel == "Vergütungsvereinbarung":
+        titel = f"Vergütungsvereinbarung {w['Mandant.Name']}"
     elif w.get("Gericht.Aktenzeichen") and titel.startswith("Schriftsatz"):
         titel = f"Schriftsatz {w['Gericht.Aktenzeichen']}"
     name = _UNZULAESSIG.sub(" ", f"{heute.isoformat()} {titel}").replace("./.", "gg.")

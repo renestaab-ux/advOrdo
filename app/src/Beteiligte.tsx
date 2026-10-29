@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BeteiligterFormular } from "./AkteStammdaten";
 import { AktenOptionen, Beteiligter, akteTitel, istDesktop, kern, sortiert } from "./kern";
 import { SortKopf, useSortierung } from "./Sortierung";
+import { MandantVereinbarungen } from "./ZeitVereinbarung";
 
 type Art = "" | "person" | "organisation";
 type Seite = "" | "eigene" | "gegen" | "gericht" | "neutral" | "ohne";
@@ -184,6 +185,9 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
                 ))}
               </ul>
             </div>
+          )}
+          {offen && (offen.akten ?? []).some((a) => a.rolle === "mandant") && (
+            <MandantVereinbarungen mandant={`b:${offen.id}`} onAkte={onAkte} />
           )}
         </section>
       )}

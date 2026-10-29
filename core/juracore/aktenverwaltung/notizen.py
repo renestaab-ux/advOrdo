@@ -30,8 +30,12 @@ def _jetzt() -> str:
 
 def liste(con: sqlite3.Connection, akte_id: int, dokument_id: int | None = None) -> list[dict]:
     """Notizen der Akte (angeheftete zuerst, sonst neueste zuerst); mit ``dokument_id`` nur die zu diesem Dokument."""
+    # Zeiteintrag, zu dem die Notiz gehört (Zeiterfassung), falls es die Tabelle schon gibt.
+    zeit = con.execute("SELECT 1 FROM sqlite_master WHERE name = 'zeit_eintrag'").fetchone() is not None
+    zeit_spalten = (", (SELECT z.datum || ' · ' || z.bearbeiter FROM zeit_eintrag z WHERE z.notiz_id = n.id "
+                    "LIMIT 1) AS zeiteintrag" if zeit else ", NULL AS zeiteintrag")
     zeilen = con.execute(
-        """SELECT n.*, COALESCE(d.titel, d.dateiname) AS dokument FROM aktennotiz n
+        f"""SELECT n.*, COALESCE(d.titel, d.dateiname) AS dokument{zeit_spalten} FROM aktennotiz n
            LEFT JOIN dokument d ON d.id = n.dokument_id
            WHERE n.akte_id = ? AND (? IS NULL OR n.dokument_id = ?)
            ORDER BY n.angeheftet DESC, n.geaendert_am DESC, n.id DESC""", (akte_id, dokument_id, dokument_id))
