@@ -444,8 +444,9 @@ describe("Fristen-Anzeige", () => {
     expect(abstandText({ ...e, in_tagen: 1 })).toBe("morgen");
     expect(abstandText({ ...e, in_tagen: 4 })).toBe("in 4 Tagen");
     expect(abstandText({ ...e, in_tagen: -1 })).toBe("seit gestern abgelaufen");
-    expect(abstandText({ ...e, art: "termin", in_tagen: -3 })).toBe("seit 3 Tagen vorbei");
+    expect(abstandText({ ...e, art: "termin", in_tagen: -3 })).toBe("stattgefunden");
     expect(abstandText({ ...e, in_tagen: 5, erledigt_am: "2026-09-20T10:00:00" })).toBe("erledigt");
+    expect(abstandText({ ...e, art: "termin", in_tagen: 5, erledigt_am: "2026-09-20", zustand: "verlegt" })).toBe("verlegt");
   });
 });
 
@@ -459,8 +460,11 @@ describe("faelligeErinnerungen", () => {
     titel: "Klageerwiderung",
     datum: "2026-11-26",
     uhrzeit: null,
+    bis_uhrzeit: null,
     ort: null,
     vorfrist: null,
+    vorfrist2: null,
+    vorfrist_erreicht: null,
     berechnung: null,
     dokument_id: null,
     dokument: null,
@@ -468,6 +472,12 @@ describe("faelligeErinnerungen", () => {
     notiz: null,
     erledigt_am: null,
     erledigt_vermerk: null,
+    zustand: null,
+    verlauf: [],
+    verlegt_von: null,
+    verlegt_von_termin: null,
+    verlegt_auf: null,
+    abgeschlossen: false,
     in_tagen: 10,
     lage: "offen" as const,
     akte: "Weber ./. Brückner",
@@ -477,9 +487,18 @@ describe("faelligeErinnerungen", () => {
 
   it("erinnert bei Fristen an Vorfrist, Vortag, Ablauf und Überschreitung", () => {
     expect(faelligeErinnerungen([basis], leer)).toEqual([]);
-    const vorfrist = faelligeErinnerungen([{ ...basis, in_tagen: 5, vorfrist: "2026-11-19", lage: "vorfrist" }], leer);
+    const vorfrist = faelligeErinnerungen(
+      [{ ...basis, in_tagen: 5, vorfrist: "2026-11-19", vorfrist_erreicht: 1, lage: "vorfrist" }],
+      leer,
+    );
     expect(vorfrist[0].titel).toBe("Vorfrist erreicht: Klageerwiderung");
     expect(vorfrist[0].text).toBe("12/26 Weber ./. Brückner · Frist Do, 26.11.2026");
+    // Die zweite Vorfrist erinnert noch einmal, mit eigenem Schlüssel.
+    const zweite = faelligeErinnerungen(
+      [{ ...basis, in_tagen: 2, vorfrist: "2026-11-19", vorfrist2: "2026-11-24", vorfrist_erreicht: 2, lage: "vorfrist" }],
+      new Set([vorfrist[0].schluessel]),
+    );
+    expect(zweite[0].titel).toBe("Zweite Vorfrist erreicht: Klageerwiderung");
     expect(faelligeErinnerungen([{ ...basis, in_tagen: 1, lage: "bald" }], leer)[0].schluessel).toBe("7:morgen:2026-11-26");
     expect(faelligeErinnerungen([{ ...basis, in_tagen: 0, lage: "heute" }], leer)[0].titel).toBe(
       "Frist läuft heute ab: Klageerwiderung",

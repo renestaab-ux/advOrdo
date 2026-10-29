@@ -4,6 +4,7 @@ import {
   KalenderArt,
   KalenderEintrag,
   KalenderVorschlag,
+  TerminZustand,
   Verfahren,
   abstandText,
   datumLang,
@@ -40,8 +41,10 @@ interface Entwurf {
   anzahl: string;
   einheit: FristBerechnung["einheit"];
   uhrzeit: string;
+  bis_uhrzeit: string;
   ort: string;
   vorfrist: string;
+  vorfrist2: string;
   verfahren_id: string;
   notiz: string;
   dokument_id: number | null;
@@ -62,8 +65,10 @@ function leer(art: KalenderArt, verfahren: Verfahren[]): Entwurf {
     anzahl: "2",
     einheit: "wochen",
     uhrzeit: "",
+    bis_uhrzeit: "",
     ort: "",
     vorfrist: "",
+    vorfrist2: "",
     verfahren_id: String(verfahren.find((v) => v.aktuell)?.id ?? ""),
     notiz: "",
     dokument_id: null,
@@ -84,8 +89,10 @@ function ausEintrag(e: KalenderEintrag): Entwurf {
     anzahl: String(e.berechnung?.anzahl ?? 2),
     einheit: e.berechnung?.einheit ?? "wochen",
     uhrzeit: e.uhrzeit ?? "",
+    bis_uhrzeit: e.bis_uhrzeit ?? "",
     ort: e.ort ?? "",
     vorfrist: e.vorfrist ?? "",
+    vorfrist2: e.vorfrist2 ?? "",
     verfahren_id: String(e.verfahren_id ?? ""),
     notiz: e.notiz ?? "",
     dokument_id: e.dokument_id,
@@ -96,7 +103,7 @@ function ausEintrag(e: KalenderEintrag): Entwurf {
 }
 
 function ausVorschlag(v: KalenderVorschlag, verfahren: Verfahren[]): Entwurf {
-  const art = v.art === "erledigen" ? "termin" : v.art;
+  const art = v.art === "zustand" ? "termin" : v.art;
   const e = leer(art, verfahren);
   const dauer = v.berechnung ?? v.dauer;
   return {
@@ -117,7 +124,7 @@ function ausVorschlag(v: KalenderVorschlag, verfahren: Verfahren[]): Entwurf {
   };
 }
 
-/** Wochentag-Vorfrist: eine Woche vor dem Fristende. */
+/** Vorfristen: Tage vor dem Fristende. */
 function minusTage(iso: string, tage: number): string {
   const [j, m, t] = iso.split("-").map(Number);
   const d = new Date(j, m - 1, t - tage);
@@ -131,6 +138,27 @@ function fundText(f: { abschnitt: number; seite: number | null }): string {
   return [f.seite ? `S. ${f.seite}` : null, `Abschnitt ${f.abschnitt}`].filter(Boolean).join(", ");
 }
 
+/** Uhrzeit eines Termins, mit Ende: „10:00–11:30 Uhr“. */
+function zeitText(e: { uhrzeit: string | null; bis_uhrzeit?: string | null }): string | null {
+  if (!e.uhrzeit) return null;
+  return `${e.uhrzeit}${e.bis_uhrzeit ? `–${e.bis_uhrzeit}` : ""} Uhr`;
+}
+
+const ABSCHLUSS_TEXT: Record<NonNullable<KalenderEintrag["zustand"]>, string> = {
+  erledigt: "Erledigt",
+  stattgefunden: "Als stattgefunden vermerkt",
+  aufgehoben: "Aufgehoben",
+  verlegt: "Verlegt",
+};
+
+/** Eine Folgeaktion an einem Eintrag: Frist verlängern, Wiedervorlage verschieben, Termin verlegen oder aufheben. */
+interface Folge {
+  e: KalenderEintrag;
+  aktion: "verlaengern" | "verlegen" | "aufheben";
+  /** Aus einem Vorschlag: Beleg und Vorbelegung. */
+  vorschlag?: KalenderVorschlag;
+}
+
 /**
  * Reiter „Fristen“ einer Akte: Fristen (mit Fristenrechner), Termine und Wiedervorlagen. Vorschläge aus den
  * Dokumenten werden erst nach Prüfung eingetragen.
@@ -142,6 +170,7 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
   const [vorschlaege, setVorschlaege] = useState<KalenderVorschlag[] | null>(null);
   const [verworfen, setVerworfen] = useState<Set<string>>(new Set());
   const [loeschfrage, setLoeschfrage] = useState<KalenderEintrag | null>(null);
+  const [folge, setFolge] = useState<Folge | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -207,25 +236,43 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
     setVerworfen((alt) => new Set(alt).add(vorschlagSchluessel(v)));
   }
 
-  async function vorschlagErledigen(v: KalenderVorschlag) {
+  async function terminZustand(e: KalenderEintrag, zustand: TerminZustand, vermerk = "", neu?: Record<string, unknown>) {
+    const liste = await ausfuehren(() =>
+      kern<KalenderEintrag[]>("akten.kalender_termin_zustand", { eintrag_id: e.id, zustand, vermerk, neu: neu ?? null }),
+    );
+    const text =
+      zustand === "geplant"
+        ? `„${e.titel}“ wieder als geplant geführt.`
+        : zustand === "verlegt"
+          ? `„${e.titel}“ verlegt auf ${datumLang(String(neu?.datum))}; der neue Termin ist eingetragen.`
+          : `„${e.titel}“ am ${datumLang(e.datum)} als aufgehoben vermerkt.`;
+    aktualisiert(liste, text);
+    return liste;
+  }
+
+  /** Vorschlag „Termin aufgehoben/verlegt“: mit neuem Termin aus dem Dokument gleich übernehmen. */
+  async function vorschlagZustand(v: KalenderVorschlag) {
     const e = eintraege?.find((x) => x.id === v.eintrag_id);
     if (!e) return;
-    const liste = await ausfuehren(() =>
-      kern<KalenderEintrag[]>("akten.kalender_erledigen", {
-        eintrag_id: e.id,
-        erledigt: true,
-        vermerk: `${v.vermerk ?? "erledigt"} (${v.dateiname})`,
-      }),
-    );
-    if (liste) {
-      vorschlagWeg(v);
-      aktualisiert(liste, `„${e.titel}“ am ${datumLang(e.datum)} als aufgehoben abgehakt.`);
+    if (v.zustand === "verlegt" && !v.neu) {
+      setFolge({ e, aktion: "verlegen", vorschlag: v });
+      return;
     }
+    const vermerk = `${v.vermerk ?? v.zustand} (${v.dateiname})`;
+    const neu = v.neu && {
+      datum: v.neu.datum,
+      uhrzeit: v.neu.uhrzeit,
+      ort: v.neu.ort,
+      dokument_id: v.dokument_id,
+      fundstelle: v.neu.fundstelle,
+    };
+    const liste = await terminZustand(e, v.neu ? "verlegt" : "aufgehoben", vermerk, neu);
+    if (liste) vorschlagWeg(v);
   }
 
   const sichtbareVorschlaege = vorschlaege?.filter((v) => !verworfen.has(vorschlagSchluessel(v))) ?? null;
-  const offen = (eintraege ?? []).filter((e) => !e.erledigt_am);
-  const erledigt = (eintraege ?? []).filter((e) => e.erledigt_am);
+  const offen = (eintraege ?? []).filter((e) => !e.abgeschlossen);
+  const erledigt = (eintraege ?? []).filter((e) => e.abgeschlossen);
   const verfahrenName = (id: number | null) => verfahren.find((v) => v.id === id)?.bezeichnung;
 
   return (
@@ -288,12 +335,22 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
             {sichtbareVorschlaege.map((v, i) => (
               <li key={`${v.dokument_id}-${v.fundstelle.abschnitt}-${v.art}-${i}`} className="vorschlag">
                 <div className="vorschlag-zeile">
-                  <span className={`art-marke ${v.art}`}>{v.art === "erledigen" ? "Aufhebung" : ART_TEXT[v.art]}</span>
+                  <span className={`art-marke ${v.art === "zustand" ? "termin" : v.art}`}>
+                    {v.art === "zustand" ? (v.zustand === "verlegt" ? "Verlegung" : "Aufhebung") : ART_TEXT[v.art]}
+                  </span>
                   <strong>{v.titel}</strong>
                   <span>
                     {v.datum ? datumLang(v.datum) : <em className="hinweis-text">Bezugstag fehlt</em>}
                     {v.uhrzeit && `, ${v.uhrzeit} Uhr`}
                     {v.ort && `, ${v.ort}`}
+                    {v.neu && (
+                      <>
+                        {" → "}
+                        {datumLang(v.neu.datum)}
+                        {v.neu.uhrzeit && `, ${v.neu.uhrzeit} Uhr`}
+                        {v.neu.ort && `, ${v.neu.ort}`}
+                      </>
+                    )}
                   </span>
                 </div>
                 <blockquote className="beleg">
@@ -311,11 +368,23 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
                     {v.berechnung.verschoben && ` · verschoben wegen ${v.berechnung.grund}`}
                   </p>
                 )}
+                {v.neu && v.neu.fundstelle.abschnitt !== v.fundstelle.abschnitt && (
+                  <blockquote className="beleg">
+                    „{v.neu.fundstelle.text}“
+                    <cite>
+                      {v.dateiname}, {fundText(v.neu.fundstelle)}
+                    </cite>
+                  </blockquote>
+                )}
                 {v.hinweis && <p className="hinweis-text klein">{v.hinweis}</p>}
                 <span className="aktionen">
-                  {v.art === "erledigen" ? (
-                    <button onClick={() => vorschlagErledigen(v)} disabled={laeuft}>
-                      Termin als aufgehoben abhaken
+                  {v.art === "zustand" ? (
+                    <button onClick={() => vorschlagZustand(v)} disabled={laeuft}>
+                      {v.zustand === "verlegt"
+                        ? v.neu
+                          ? "Als verlegt übernehmen und neuen Termin eintragen"
+                          : "Als verlegt übernehmen …"
+                        : "Termin als aufgehoben übernehmen"}
                     </button>
                   ) : (
                     <button onClick={() => setEntwurf(ausVorschlag(v, verfahren))} disabled={laeuft}>
@@ -335,7 +404,11 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
       {loeschfrage && (
         <div className="rueckfrage" role="alertdialog" aria-label="Eintrag löschen?">
           <strong>„{loeschfrage.titel}“ am {datumLang(loeschfrage.datum)} löschen?</strong>
-          <p>Statt zu löschen lässt sich ein Eintrag auch als erledigt markieren; dann bleibt er nachvollziehbar.</p>
+          <p>
+            {loeschfrage.art === "termin"
+              ? "Statt zu löschen lässt sich ein Termin auch als aufgehoben oder verlegt führen; dann bleibt er nachvollziehbar."
+              : "Statt zu löschen lässt sich ein Eintrag auch als erledigt markieren; dann bleibt er nachvollziehbar."}
+          </p>
           <div className="aktionen">
             <button className="gefahr-voll" onClick={() => loeschen(loeschfrage)}>
               Löschen
@@ -345,6 +418,34 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
             </button>
           </div>
         </div>
+      )}
+
+      {folge && (
+        <FolgeFormular
+          key={`${folge.e.id}-${folge.aktion}`}
+          folge={folge}
+          laeuft={laeuft}
+          onAbbrechen={() => setFolge(null)}
+          onVerlaengern={async (datum, vermerk) => {
+            const liste = await ausfuehren(() =>
+              kern<KalenderEintrag[]>("akten.kalender_verlaengern", { eintrag_id: folge.e.id, datum, vermerk }),
+            );
+            if (liste) {
+              setFolge(null);
+              const wort = folge.e.art === "wiedervorlage" ? "verschoben" : datum > folge.e.datum ? "verlängert" : "verkürzt";
+              aktualisiert(liste, `„${folge.e.titel}“ ${wort} auf ${datumLang(datum)}.`);
+            }
+          }}
+          onTermin={async (zustand, vermerk, neu) => {
+            const v = folge.vorschlag;
+            if (v && neu) Object.assign(neu, { dokument_id: v.dokument_id, fundstelle: v.fundstelle });
+            const liste = await terminZustand(folge.e, zustand, v ? `${vermerk || v.vermerk} (${v.dateiname})` : vermerk, neu);
+            if (liste) {
+              setFolge(null);
+              if (v) vorschlagWeg(v);
+            }
+          }}
+        />
       )}
 
       {eintraege == null && !fehler && <p className="status">Lade …</p>}
@@ -360,6 +461,8 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
               verfahren={verfahrenName(e.verfahren_id)}
               laeuft={laeuft}
               onErledigen={() => erledigen(e, true)}
+              onFolge={(aktion) => setFolge({ e, aktion })}
+              onTermin={(zustand) => terminZustand(e, zustand)}
               onBearbeiten={() => setEntwurf(ausEintrag(e))}
               onLoeschen={() => setLoeschfrage(e)}
             />
@@ -368,7 +471,7 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
       )}
       {erledigt.length > 0 && (
         <details className="erledigt-liste">
-          <summary>Erledigt ({erledigt.length})</summary>
+          <summary>Erledigt und vergangen ({erledigt.length})</summary>
           <ul className="kalender-liste">
             {erledigt.map((e) => (
               <EintragZeile
@@ -377,6 +480,8 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
                 verfahren={verfahrenName(e.verfahren_id)}
                 laeuft={laeuft}
                 onErledigen={() => erledigen(e, false)}
+                onFolge={(aktion) => setFolge({ e, aktion })}
+                onTermin={(zustand) => terminZustand(e, zustand)}
                 onBearbeiten={() => setEntwurf(ausEintrag(e))}
                 onLoeschen={() => setLoeschfrage(e)}
               />
@@ -393,6 +498,8 @@ function EintragZeile({
   verfahren,
   laeuft,
   onErledigen,
+  onFolge,
+  onTermin,
   onBearbeiten,
   onLoeschen,
 }: {
@@ -400,20 +507,26 @@ function EintragZeile({
   verfahren: string | undefined;
   laeuft: boolean;
   onErledigen: () => void;
+  onFolge: (aktion: Folge["aktion"]) => void;
+  onTermin: (zustand: TerminZustand) => void;
   onBearbeiten: () => void;
   onLoeschen: () => void;
 }) {
   const b = e.berechnung;
+  const termin = e.art === "termin";
+  const vorfristen = [e.vorfrist, e.vorfrist2].filter((v): v is string => !!v);
+  const marke =
+    e.lage === "vorfrist" ? (e.vorfrist_erreicht === 2 ? "2. Vorfrist erreicht" : "Vorfrist erreicht") : abstandText(e);
   return (
     <li className={`kalender-eintrag ${e.lage}`}>
       <div className="kalender-datum">
         <strong>{datumLang(e.datum)}</strong>
-        {e.uhrzeit && <span>{e.uhrzeit} Uhr</span>}
-        <span className={`lage-marke ${e.lage}`}>{e.lage === "vorfrist" ? "Vorfrist erreicht" : abstandText(e)}</span>
+        {zeitText(e) && <span>{zeitText(e)}</span>}
+        <span className={`lage-marke ${e.lage}`}>{marke}</span>
       </div>
       <div className="kalender-inhalt">
         <div>
-          <span className={`art-marke ${e.art}`}>{e.art_text}</span> <strong>{e.titel}</strong>
+          <span className={`art-marke ${e.art}`}>{e.art_text}</span> <strong className="kalender-titel">{e.titel}</strong>
           {e.ort && <span className="leise"> · {e.ort}</span>}
         </div>
         {b && (
@@ -422,7 +535,24 @@ function EintragZeile({
             {b.verschoben && `; verschoben wegen ${b.grund}`}; Feiertage {b.land})
           </p>
         )}
-        {e.vorfrist && !e.erledigt_am && <p className="leise klein">Vorfrist: {datumLang(e.vorfrist)}</p>}
+        {vorfristen.length > 0 && !e.abgeschlossen && (
+          <p className="leise klein">
+            {vorfristen.length === 1 ? "Vorfrist" : "Vorfristen"}: {vorfristen.map((v) => datumLang(v)).join(" und ")}
+          </p>
+        )}
+        {e.verlauf.map((v) => (
+          <p key={v.am} className="leise klein" title={v.fundstelle?.text}>
+            {v.was === "verschoben" ? "Verschoben" : v.was === "verlängert" ? "Verlängert" : "Verkürzt"} am{" "}
+            {datumLang(v.am.slice(0, 10))}: vom {datumLang(v.alt)} auf {datumLang(v.neu)}
+            {v.vermerk && ` (${v.vermerk})`}
+          </p>
+        ))}
+        {e.verlegt_von_termin && (
+          <p className="leise klein">
+            Verlegt vom {datumLang(e.verlegt_von_termin.datum)}
+            {e.verlegt_von_termin.uhrzeit && `, ${e.verlegt_von_termin.uhrzeit} Uhr`}
+          </p>
+        )}
         {verfahren && <p className="leise klein">{verfahren}</p>}
         {e.dokument && (
           <p className="leise klein" title={e.fundstelle?.text}>
@@ -433,15 +563,51 @@ function EintragZeile({
         {e.notiz && <p className="klein">{e.notiz}</p>}
         {e.erledigt_am && (
           <p className="leise klein">
-            Erledigt {datumLang(e.erledigt_am)}
+            {e.verlegt_auf ? (
+              <>
+                Verlegt auf {datumLang(e.verlegt_auf.datum)}
+                {e.verlegt_auf.uhrzeit && `, ${e.verlegt_auf.uhrzeit} Uhr`} (vermerkt am {datumLang(e.erledigt_am.slice(0, 10))})
+              </>
+            ) : (
+              <>
+                {ABSCHLUSS_TEXT[e.zustand ?? "erledigt"]} am {datumLang(e.erledigt_am.slice(0, 10))}
+              </>
+            )}
             {e.erledigt_vermerk && `: ${e.erledigt_vermerk}`}
           </p>
         )}
       </div>
       <span className="kalender-aktionen">
-        <button className="zweitrangig" onClick={onErledigen} disabled={laeuft}>
-          {e.erledigt_am ? "Wieder öffnen" : "Erledigt"}
-        </button>
+        {!termin && (
+          <button className="zweitrangig" onClick={onErledigen} disabled={laeuft}>
+            {e.erledigt_am ? "Wieder öffnen" : "Erledigt"}
+          </button>
+        )}
+        {!termin && !e.erledigt_am && (
+          <button className="link klein" onClick={() => onFolge("verlaengern")} disabled={laeuft}>
+            {e.art === "frist" ? "Verlängern …" : "Verschieben …"}
+          </button>
+        )}
+        {termin && !e.abgeschlossen && (
+          <>
+            <button className="zweitrangig" onClick={() => onFolge("verlegen")} disabled={laeuft}>
+              Verlegen …
+            </button>
+            <button className="link klein" onClick={() => onFolge("aufheben")} disabled={laeuft}>
+              Aufgehoben …
+            </button>
+          </>
+        )}
+        {termin && (e.zustand === "aufgehoben" || e.zustand === "verlegt") && (
+          <button
+            className="zweitrangig"
+            onClick={() => onTermin("geplant")}
+            disabled={laeuft}
+            title={e.verlegt_auf ? "Der neue Termin bleibt eingetragen; bei Bedarf dort löschen." : undefined}
+          >
+            Wieder geplant
+          </button>
+        )}
         <button className="link klein" onClick={onBearbeiten} disabled={laeuft}>
           Bearbeiten
         </button>
@@ -450,6 +616,114 @@ function EintragZeile({
         </button>
       </span>
     </li>
+  );
+}
+
+/** Frist verlängern, Wiedervorlage verschieben, Termin verlegen oder aufheben; mit Vermerk. */
+function FolgeFormular({
+  folge,
+  laeuft,
+  onAbbrechen,
+  onVerlaengern,
+  onTermin,
+}: {
+  folge: Folge;
+  laeuft: boolean;
+  onAbbrechen: () => void;
+  onVerlaengern: (datum: string, vermerk: string) => void;
+  onTermin: (zustand: TerminZustand, vermerk: string, neu?: Record<string, unknown>) => void;
+}) {
+  const { e, aktion, vorschlag } = folge;
+  const [datum, setDatum] = useState(aktion === "verlegen" ? "" : e.datum);
+  const [uhrzeit, setUhrzeit] = useState(e.uhrzeit ?? "");
+  const [bis, setBis] = useState(e.bis_uhrzeit ?? "");
+  const [ort, setOrt] = useState(e.ort ?? "");
+  const [vermerk, setVermerk] = useState("");
+  const ueberschrift =
+    aktion === "verlegen"
+      ? "Termin verlegen"
+      : aktion === "aufheben"
+        ? "Termin aufgehoben"
+        : e.art === "frist"
+          ? "Frist verlängern"
+          : "Wiedervorlage verschieben";
+
+  function absenden(ev: FormEvent) {
+    ev.preventDefault();
+    if (aktion === "verlaengern") onVerlaengern(datum, vermerk);
+    else if (aktion === "aufheben") onTermin("aufgehoben", vermerk);
+    else onTermin("verlegt", vermerk, { datum, uhrzeit, bis_uhrzeit: bis, ort });
+  }
+
+  return (
+    <form className="karte kalender-formular" onSubmit={absenden}>
+      <h3>
+        {ueberschrift}: {e.titel} <span className="leise">({datumLang(e.datum)}{e.uhrzeit && `, ${e.uhrzeit} Uhr`})</span>
+      </h3>
+      {vorschlag && (
+        <blockquote className="beleg">
+          „{vorschlag.fundstelle.text}“
+          <cite>
+            {vorschlag.dateiname}, {fundText(vorschlag.fundstelle)}
+          </cite>
+        </blockquote>
+      )}
+      {aktion === "verlaengern" && e.art === "frist" && (
+        <p className="erklaerung">
+          Das bisherige Fristende bleibt im Verlauf sichtbar. Die Vorfristen rücken um denselben Abstand mit.
+        </p>
+      )}
+      {aktion === "verlegen" && (
+        <p className="erklaerung">Der alte Termin bleibt als „verlegt“ stehen; der neue wird mit Verweis darauf eingetragen.</p>
+      )}
+      <div className="formular-raster">
+        {aktion !== "aufheben" && (
+          <label className="feld">
+            {aktion === "verlegen" ? "Neuer Termin am" : e.art === "frist" ? "Neues Fristende" : "Neuer Tag"}
+            <input type="date" autoFocus value={datum} onChange={(x) => setDatum(x.target.value)} />
+          </label>
+        )}
+        {aktion === "verlegen" && (
+          <>
+            <label className="feld">
+              Uhrzeit
+              <span className="dauer">
+                <input type="time" value={uhrzeit} onChange={(x) => setUhrzeit(x.target.value)} aria-label="Beginn" />
+                bis
+                <input type="time" value={bis} onChange={(x) => setBis(x.target.value)} aria-label="Ende (optional)" />
+              </span>
+            </label>
+            <label className="feld">
+              Ort
+              <input value={ort} onChange={(x) => setOrt(x.target.value)} placeholder="z. B. Saal 104" />
+            </label>
+          </>
+        )}
+        <label className="feld feld-breit">
+          Vermerk (optional)
+          <input
+            autoFocus={aktion === "aufheben"}
+            value={vermerk}
+            onChange={(x) => setVermerk(x.target.value)}
+            placeholder={
+              aktion === "verlaengern"
+                ? "z. B. Verlängerung gewährt mit Verfügung vom …"
+                : aktion === "aufheben"
+                  ? "z. B. Vergleich geschlossen"
+                  : "z. B. auf Antrag des Beklagten"
+            }
+          />
+        </label>
+      </div>
+      <span className="aktionen">
+        <button type="submit" disabled={laeuft || (aktion !== "aufheben" && (!datum || (aktion === "verlaengern" && datum === e.datum)))}>
+          {aktion === "verlegen" ? "Verlegen" : aktion === "aufheben" ? "Als aufgehoben vermerken" : "Übernehmen"}
+        </button>
+        <button type="button" className="zweitrangig" onClick={onAbbrechen}>
+          Abbrechen
+        </button>
+      </span>
+    </form>
   );
 }
 
@@ -509,8 +783,10 @@ function EintragFormular({
       art: e.art,
       titel: e.titel,
       uhrzeit: e.art === "termin" ? e.uhrzeit : "",
+      bis_uhrzeit: e.art === "termin" ? e.bis_uhrzeit : "",
       ort: e.art === "termin" ? e.ort : "",
       vorfrist: e.art === "frist" ? e.vorfrist : "",
+      vorfrist2: e.art === "frist" ? e.vorfrist2 : "",
       verfahren_id: e.verfahren_id || null,
       notiz: e.notiz,
       dokument_id: e.dokument_id,
@@ -654,7 +930,22 @@ function EintragFormular({
           <>
             <label className="feld">
               Uhrzeit
-              <input type="time" value={e.uhrzeit} onChange={(ev) => setze({ uhrzeit: ev.target.value })} />
+              <span className="dauer">
+                <input
+                  type="time"
+                  value={e.uhrzeit}
+                  onChange={(ev) => setze({ uhrzeit: ev.target.value })}
+                  aria-label="Beginn"
+                />
+                bis
+                <input
+                  type="time"
+                  value={e.bis_uhrzeit}
+                  onChange={(ev) => setze({ bis_uhrzeit: ev.target.value })}
+                  aria-label="Ende (optional)"
+                  title="Ende (optional)"
+                />
+              </span>
             </label>
             <label className="feld">
               Ort
@@ -663,17 +954,32 @@ function EintragFormular({
           </>
         )}
         {e.art === "frist" && (
-          <label className="feld">
-            Vorfrist (optional)
+          <div className="feld feld-breit">
+            Vorfristen (optional)
             <span className="dauer">
-              <input type="date" value={e.vorfrist} onChange={(ev) => setze({ vorfrist: ev.target.value })} />
+              <input
+                type="date"
+                value={e.vorfrist}
+                onChange={(ev) => setze({ vorfrist: ev.target.value })}
+                aria-label="Erste Vorfrist"
+              />
+              <input
+                type="date"
+                value={e.vorfrist2}
+                onChange={(ev) => setze({ vorfrist2: ev.target.value })}
+                aria-label="Zweite Vorfrist"
+              />
               {ende && (
-                <button type="button" className="link klein" onClick={() => setze({ vorfrist: minusTage(ende, 7) })}>
-                  1 Woche vorher
+                <button
+                  type="button"
+                  className="link klein"
+                  onClick={() => setze({ vorfrist: minusTage(ende, 7), vorfrist2: minusTage(ende, 2) })}
+                >
+                  1 Woche und 2 Tage vorher
                 </button>
               )}
             </span>
-          </label>
+          </div>
         )}
         {verfahren.length > 0 && (
           <label className="feld feld-breit">

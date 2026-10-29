@@ -174,7 +174,32 @@ export interface FristBerechnung {
 }
 
 export type KalenderArt = "frist" | "termin" | "wiedervorlage";
-export type KalenderLage = "erledigt" | "abgelaufen" | "heute" | "vorfrist" | "bald" | "offen";
+export type KalenderLage =
+  | "erledigt"
+  | "stattgefunden"
+  | "aufgehoben"
+  | "verlegt"
+  | "abgelaufen"
+  | "heute"
+  | "vorfrist"
+  | "bald"
+  | "offen";
+
+/** Abschluss eines Termins; „geplant“ setzt ihn zurück. */
+export type TerminZustand = "geplant" | "aufgehoben" | "verlegt";
+
+/** Ein Schritt im Verlauf einer Frist bzw. Wiedervorlage (Verlängerung, Verkürzung, Verschiebung). */
+export interface KalenderVerlauf {
+  am: string;
+  was: "verlängert" | "verkürzt" | "verschoben";
+  alt: string;
+  neu: string;
+  alt_vorfristen: string[];
+  alt_berechnung: FristBerechnung | null;
+  vermerk: string | null;
+  dokument_id: number | null;
+  fundstelle: (Fundstelle & { text?: string }) | null;
+}
 
 export interface KalenderEintrag {
   id: number;
@@ -185,15 +210,28 @@ export interface KalenderEintrag {
   titel: string;
   datum: string;
   uhrzeit: string | null;
+  /** Ende eines Termins, optional. */
+  bis_uhrzeit: string | null;
   ort: string | null;
+  /** Erste (frühere) und zweite Vorfrist einer Frist. */
   vorfrist: string | null;
+  vorfrist2: string | null;
+  vorfrist_erreicht: 1 | 2 | null;
   berechnung: FristBerechnung | null;
   dokument_id: number | null;
   dokument: string | null;
   fundstelle: Fundstelle | null;
   notiz: string | null;
+  /** Abgeschlossen am (erledigt, aufgehoben oder verlegt), mit Vermerk. */
   erledigt_am: string | null;
   erledigt_vermerk: string | null;
+  zustand: "erledigt" | "stattgefunden" | "aufgehoben" | "verlegt" | null;
+  verlauf: KalenderVerlauf[];
+  verlegt_von: number | null;
+  verlegt_von_termin: { id: number; datum: string; uhrzeit: string | null } | null;
+  verlegt_auf: { id: number; datum: string; uhrzeit: string | null } | null;
+  /** Erledigt, aufgehoben, verlegt oder ein Termin, dessen Tag vorbei ist. */
+  abgeschlossen: boolean;
   in_tagen: number;
   lage: KalenderLage;
   /** Nur in „Nächste Fristen“ über alle Akten. */
@@ -201,9 +239,14 @@ export interface KalenderEintrag {
   aktenzeichen?: string | null;
 }
 
-/** Vorschlag aus einem Dokument; "erledigen" schlägt vor, einen eingetragenen Termin als aufgehoben abzuhaken. */
+/**
+ * Vorschlag aus einem Dokument; "zustand" schlägt vor, einen eingetragenen Termin aufzuheben oder (mit ``neu``) zu
+ * verlegen.
+ */
 export interface KalenderVorschlag {
-  art: KalenderArt | "erledigen";
+  art: KalenderArt | "zustand";
+  zustand?: "aufgehoben" | "verlegt";
+  neu?: { titel: string; datum: string; uhrzeit: string; ort: string; fundstelle: Fundstelle & { text: string } };
   titel: string;
   datum: string | null;
   uhrzeit?: string;
@@ -304,14 +347,16 @@ export function datumLang(iso: string | null | undefined): string {
 }
 
 /** Wie weit ein Eintrag entfernt ist: "heute", "morgen", "in 4 Tagen", "seit 2 Tagen abgelaufen". */
-export function abstandText(e: Pick<KalenderEintrag, "in_tagen" | "art" | "erledigt_am">): string {
-  if (e.erledigt_am) return "erledigt";
+export function abstandText(
+  e: Pick<KalenderEintrag, "in_tagen" | "art" | "erledigt_am"> & { zustand?: KalenderEintrag["zustand"] },
+): string {
+  if (e.erledigt_am) return e.zustand ?? "erledigt";
   const n = e.in_tagen;
   if (n === 0) return "heute";
   if (n === 1) return "morgen";
   if (n > 1) return `in ${n} Tagen`;
-  const wort = e.art === "termin" ? "vorbei" : "abgelaufen";
-  return n === -1 ? `seit gestern ${wort}` : `seit ${-n} Tagen ${wort}`;
+  if (e.art === "termin") return "stattgefunden";
+  return n === -1 ? "seit gestern abgelaufen" : `seit ${-n} Tagen abgelaufen`;
 }
 
 /** Eine Erinnerung des Systems an eine Frist, einen Termin oder eine Wiedervorlage. */
@@ -339,7 +384,11 @@ export function faelligeErinnerungen(eintraege: KalenderEintrag[], gezeigt: Read
       if (n < 0) [stufe, titel] = ["abgelaufen", `Frist abgelaufen: ${e.titel}`];
       else if (n === 0) [stufe, titel] = ["heute", `Frist läuft heute ab: ${e.titel}`];
       else if (n === 1) [stufe, titel] = ["morgen", `Frist läuft morgen ab: ${e.titel}`];
-      else if (e.lage === "vorfrist") [stufe, titel] = ["vorfrist", `Vorfrist erreicht: ${e.titel}`];
+      else if (e.lage === "vorfrist")
+        [stufe, titel] = [
+          e.vorfrist_erreicht === 2 ? "vorfrist2" : "vorfrist",
+          `${e.vorfrist_erreicht === 2 ? "Zweite Vorfrist" : "Vorfrist"} erreicht: ${e.titel}`,
+        ];
     } else if (e.art === "termin") {
       const zeit = e.uhrzeit ? `, ${e.uhrzeit} Uhr` : "";
       if (n === 0) [stufe, titel] = ["heute", `Termin heute${zeit}: ${e.titel}`];

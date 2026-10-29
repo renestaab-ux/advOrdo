@@ -91,7 +91,7 @@ body { margin: 0; background: var(--hintergrund); }
 .marke .nav-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .eingeklappt .nav-eintrag { justify-content: center; padding: 8px 0; }
 .eingeklappt .modus, .eingeklappt .umgebung-anzeige { justify-content: center; padding-left: 0; padding-right: 0; }
-.bald { font-size: 11px; margin-left: 6px; color: var(--text-leise); }
+.reiter .bald { font-size: 11px; margin-left: 6px; color: var(--text-leise); }
 .modus { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--gut); padding: 4px 6px; white-space: nowrap; }
 .modus-punkt { flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .modus.aus { color: var(--text-leise); background: none; border: none; border-radius: 6px; font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
@@ -862,6 +862,8 @@ details.kurz-hinweis p { margin: 4px 0; }
 .kalender-eintrag.vorfrist, .kalender-eintrag.bald { border-left-color: var(--warnung); }
 .kalender-eintrag.offen { border-left-color: var(--akzent); }
 .kalender-eintrag.erledigt { opacity: .75; }
+.kalender-eintrag.stattgefunden, .kalender-eintrag.aufgehoben, .kalender-eintrag.verlegt { opacity: .75; }
+.kalender-eintrag.aufgehoben .kalender-titel, .kalender-eintrag.verlegt .kalender-titel { text-decoration: line-through; }
 .kalender-eintrag p { margin: 3px 0 0; }
 .kalender-datum { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .kalender-datum strong { font-size: 14px; }

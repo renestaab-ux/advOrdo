@@ -163,6 +163,10 @@ class Kern:
                 self.akten, akte_id, daten, eintrag_id),
             "akten.kalender_erledigen": lambda eintrag_id, erledigt=True, vermerk="": kalender.erledigen(
                 self.akten, eintrag_id, erledigt, vermerk),
+            "akten.kalender_termin_zustand": lambda eintrag_id, zustand, vermerk="", neu=None: kalender.termin_zustand(
+                self.akten, eintrag_id, zustand, vermerk, neu),
+            "akten.kalender_verlaengern": lambda eintrag_id, datum, vermerk="", dokument_id=None, fundstelle=None: (
+                kalender.verlaengern(self.akten, eintrag_id, datum, vermerk, dokument_id, fundstelle)),
             "akten.kalender_loeschen": lambda eintrag_id: kalender.loeschen(self.akten, eintrag_id),
             "akten.kalender_naechste": lambda tage=None, limit=50: kalender.naechste(self.akten, tage, limit),
             "akten.frist_berechnen": lambda bezugstag, anzahl, einheit, land="BY", beginn="ereignis": kalender.berechne(

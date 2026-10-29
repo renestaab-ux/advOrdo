@@ -204,10 +204,93 @@ def test_vorschlaege_terminsverlegung(con):
     kalender.speichern(con, a, {"art": "termin", "titel": "Güteverhandlung", "datum": "2026-11-19"})
     vorhandene = [dict(z) for z in con.execute("SELECT * FROM kalender")]
     v = kalender.vorschlaege(TERMINSVERLEGUNG, "2026-10-05", "BW", vorhandene)
-    assert [(x["art"], x["datum"]) for x in v] == [("erledigen", "2026-11-19"), ("termin", "2026-11-26")]
+    # Aufhebung und neuer Termin im selben Dokument: ein Vorschlag „verlegt“ mit dem neuen Termin.
+    assert [(x["art"], x["datum"], x["zustand"]) for x in v] == [("zustand", "2026-11-19", "verlegt")]
     assert v[0]["eintrag_id"] == vorhandene[0]["id"] and v[0]["vermerk"] == "Termin aufgehoben"
+    assert (v[0]["neu"]["datum"], v[0]["neu"]["uhrzeit"], v[0]["neu"]["ort"]) == ("2026-11-26", "11:00", "Saal 104")
+    nur_aufgehoben = kalender.vorschlaege(TERMINSVERLEGUNG[:2], "2026-10-05", "BW", vorhandene)
+    assert [(x["art"], x["zustand"]) for x in nur_aufgehoben] == [("zustand", "aufgehoben")]
     # Schon eingetragene Termine werden nicht noch einmal vorgeschlagen.
     assert kalender.vorschlaege(VERFUEGUNG, None, "BW", vorhandene)[1:] == []
+
+
+def test_termine_werden_nicht_erledigt_sondern_finden_statt(con):
+    a = neue_akte(con)
+    kalender.speichern(con, a, {"art": "termin", "titel": "Güteverhandlung", "datum": "2026-09-20",
+                                "uhrzeit": "10:00", "bis_uhrzeit": "11:30"}, heute=HEUTE)
+    liste = kalender.speichern(con, a, {"art": "termin", "titel": "Haupttermin", "datum": "2026-11-19",
+                                        "uhrzeit": "10:30", "ort": "Saal 104"}, heute=HEUTE)
+    vorbei, kommend = sorted(liste, key=lambda e: e["datum"])
+    assert (vorbei["lage"], vorbei["abgeschlossen"], vorbei["bis_uhrzeit"]) == ("stattgefunden", True, "11:30")
+    assert kommend["lage"] == "offen" and not kommend["abgeschlossen"]
+    assert [e["titel"] for e in kalender.naechste(con, heute=HEUTE)] == ["Haupttermin"]
+    assert kalender.naechste_je_akte(con, HEUTE)[a]["titel"] == "Haupttermin"
+    with pytest.raises(ValueError, match="nicht erledigt"):
+        kalender.erledigen(con, kommend["id"])
+    with pytest.raises(ValueError, match="Ende des Termins"):
+        kalender.speichern(con, a, {"art": "termin", "titel": "X", "datum": "2026-11-20", "uhrzeit": "10:00",
+                                    "bis_uhrzeit": "09:00"})
+
+    # Verlegen: Folgetermin mit Verweis, alter Termin „verlegt“.
+    liste = kalender.termin_zustand(con, kommend["id"], "verlegt", neu={"datum": "2026-12-03"}, heute=HEUTE)
+    alt = next(e for e in liste if e["id"] == kommend["id"])
+    neu = next(e for e in liste if e["verlegt_von"] == kommend["id"])
+    assert (alt["lage"], alt["erledigt_vermerk"]) == ("verlegt", None)
+    assert alt["verlegt_auf"]["datum"] == "2026-12-03" and neu["verlegt_von_termin"]["datum"] == "2026-11-19"
+    assert (neu["titel"], neu["uhrzeit"], neu["ort"], neu["lage"]) == ("Haupttermin", "10:30", "Saal 104", "offen")
+    assert [e["datum"] for e in kalender.naechste(con, heute=HEUTE)] == ["2026-12-03"]
+
+    liste = kalender.termin_zustand(con, neu["id"], "aufgehoben", "Vergleich geschlossen", heute=HEUTE)
+    assert next(e for e in liste if e["id"] == neu["id"])["lage"] == "aufgehoben"
+    liste = kalender.termin_zustand(con, neu["id"], "geplant", heute=HEUTE)
+    assert next(e for e in liste if e["id"] == neu["id"])["lage"] == "offen"
+    with pytest.raises(ValueError, match="neue Datum"):
+        kalender.termin_zustand(con, neu["id"], "verlegt")
+    frist = kalender.speichern(con, a, {"art": "frist", "titel": "Replik", "datum": "2026-10-10"}, heute=HEUTE)
+    with pytest.raises(ValueError, match="Nur Termine"):
+        kalender.termin_zustand(con, next(e for e in frist if e["art"] == "frist")["id"], "aufgehoben")
+
+
+def test_frist_mit_zwei_vorfristen_und_verlaengerung(con):
+    a = neue_akte(con)
+    with pytest.raises(ValueError, match="Vorfrist"):
+        kalender.speichern(con, a, {"art": "frist", "titel": "X", "datum": "2026-10-01", "vorfrist2": "2026-10-01"})
+    liste = kalender.speichern(con, a, {
+        "art": "frist", "titel": "Klageerwiderung", "vorfrist": "2026-09-27", "vorfrist2": "2026-09-22",
+        "berechnung": {"bezugstag": "2026-09-01", "anzahl": 4, "einheit": "wochen", "land": "BW"}}, heute=HEUTE)
+    f = liste[0]
+    # Die frühere Vorfrist steht immer vorn; erreicht ist hier die erste.
+    assert (f["vorfrist"], f["vorfrist2"], f["vorfrist_erreicht"], f["lage"]) == ("2026-09-22", "2026-09-27", 1,
+                                                                                  "vorfrist")
+    assert kalender.liste(con, a, date(2026, 9, 27))[0]["vorfrist_erreicht"] == 2
+
+    liste = kalender.verlaengern(con, f["id"], "2026-10-13", "Verlängerung gewährt", heute=HEUTE)
+    f = liste[0]
+    assert (f["datum"], f["vorfrist"], f["vorfrist2"], f["berechnung"]) == ("2026-10-13", "2026-10-06",
+                                                                            "2026-10-11", None)
+    schritt = f["verlauf"][0]
+    assert (schritt["was"], schritt["alt"], schritt["neu"], schritt["vermerk"]) == (
+        "verlängert", "2026-09-29", "2026-10-13", "Verlängerung gewährt")
+    assert schritt["alt_berechnung"]["ende"] == "2026-09-29" and schritt["alt_vorfristen"] == ["2026-09-22",
+                                                                                               "2026-09-27"]
+    with pytest.raises(ValueError, match="dasselbe"):
+        kalender.verlaengern(con, f["id"], "2026-10-13")
+    kalender.erledigen(con, f["id"], vermerk="Schriftsatz eingereicht")
+    with pytest.raises(ValueError, match="erledigt"):
+        kalender.verlaengern(con, f["id"], "2026-10-20")
+
+
+def test_alte_erledigte_termine_bekommen_ihren_zustand(con):
+    a = neue_akte(con)
+    for titel, vermerk in (("A", "Termin aufgehoben (Verfügung.pdf)"), ("B", "Termin verlegt"), ("C", None)):
+        con.execute("INSERT INTO kalender (akte_id, art, titel, datum, erledigt_am, erledigt_vermerk, angelegt_am, "
+                    "geaendert_am) VALUES (?, 'termin', ?, '2026-11-01', '2026-09-01', ?, '', '')", (a, titel, vermerk))
+    con.execute("INSERT INTO kalender (akte_id, art, titel, datum, erledigt_am, angelegt_am, geaendert_am) "
+                "VALUES (?, 'frist', 'D', '2026-09-01', '2026-09-01', '', '')", (a,))
+    con.execute("UPDATE kalender SET zustand = NULL")
+    einrichten(con)
+    assert {e["titel"]: e["lage"] for e in kalender.liste(con, a, HEUTE)} == {
+        "A": "aufgehoben", "B": "verlegt", "C": "stattgefunden", "D": "erledigt"}
 
 
 # --------------------------------------------------------------------------- Notizen

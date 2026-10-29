@@ -2,9 +2,12 @@
 
 - Frist: endet an einem Tag (Klageerwiderung, Berufungsbegründung …), auf Wunsch mit Vorfrist. Wird sie aus
   Bezugstag und Dauer berechnet, rechnet der Fristenrechner (§§ 187, 188, 193 BGB) und die Berechnung wird mit
-  gespeichert, damit sie nachvollziehbar bleibt.
-- Termin: Gerichtstermin mit Uhrzeit und Ort.
-- Wiedervorlage: Tag, an dem die Akte wieder vorgelegt werden soll.
+  gespeichert, damit sie nachvollziehbar bleibt. Eine Frist ist offen, bis sie erledigt wird; sie läuft nie still
+  ab. Wird sie verlängert, bleibt das alte Fristende im Verlauf.
+- Termin: Gerichtstermin mit Uhrzeit und Ort. Termine werden nicht erledigt: nach dem Termintag gelten sie als
+  stattgefunden, vorher können sie aufgehoben oder verlegt werden. Beim Verlegen entsteht ein Folgetermin, der auf
+  den alten verweist (``verlegt_von``).
+- Wiedervorlage: Tag, an dem die Akte wieder vorgelegt werden soll; wird erledigt oder verschoben.
 
 JuraBox schlägt Fristen und Termine aus Dokumenten nur vor (mit Fundstelle); eingetragen wird erst nach Bestätigung.
 Ein Vorschlag ersetzt nie die eigene Fristenkontrolle.
@@ -29,12 +32,12 @@ CREATE TABLE IF NOT EXISTS kalender (
     datum         TEXT NOT NULL,            -- Fristende, Termin- bzw. Wiedervorlagetag (JJJJ-MM-TT)
     uhrzeit       TEXT,                     -- HH:MM, bei Terminen
     ort           TEXT,                     -- z. B. "Saal 104"
-    vorfrist      TEXT,                     -- JJJJ-MM-TT, bei Fristen
+    vorfrist      TEXT,                     -- JJJJ-MM-TT, bei Fristen (erste Vorfrist)
     berechnung    TEXT,                     -- JSON: Bezugstag, Dauer, Ergebnis des Fristenrechners
     dokument_id   INTEGER REFERENCES dokument(id) ON DELETE SET NULL,
     fundstelle    TEXT,                     -- JSON: {"abschnitt", "seite", "text"} im Dokument
     notiz         TEXT,
-    erledigt_am   TEXT,
+    erledigt_am   TEXT,                     -- abgeschlossen am: erledigt, aufgehoben oder verlegt
     erledigt_vermerk TEXT,
     angelegt_am   TEXT NOT NULL,
     geaendert_am  TEXT NOT NULL
@@ -44,12 +47,31 @@ CREATE INDEX IF NOT EXISTS kalender_offen ON kalender (datum) WHERE erledigt_am 
 """
 
 ARTEN = {"frist": "Frist", "termin": "Termin", "wiedervorlage": "Wiedervorlage"}
-FELDER = ("verfahren_id", "art", "titel", "datum", "uhrzeit", "ort", "vorfrist", "dokument_id", "fundstelle", "notiz")
+# Abschluss eines Eintrags. Fristen und Wiedervorlagen werden erledigt; Termine finden statt (von selbst nach dem
+# Termintag), werden aufgehoben oder verlegt.
+ZUSTAENDE = {"erledigt": "erledigt", "stattgefunden": "stattgefunden", "aufgehoben": "aufgehoben", "verlegt": "verlegt"}
+TERMIN_ZUSTAENDE = ("geplant", "stattgefunden", "aufgehoben", "verlegt")
+FELDER = ("verfahren_id", "art", "titel", "datum", "uhrzeit", "bis_uhrzeit", "ort", "vorfrist", "vorfrist2",
+          "dokument_id", "fundstelle", "notiz")
 _UHRZEIT = re.compile(r"^([01]?\d|2[0-3])[:.]([0-5]\d)$")
+_NEUE_SPALTEN = (("zustand", "TEXT"), ("bis_uhrzeit", "TEXT"), ("verlauf", "TEXT"), ("vorfrist2", "TEXT"),
+                 ("verlegt_von", "INTEGER REFERENCES kalender(id) ON DELETE SET NULL"))
 
 
 def einrichten(con: sqlite3.Connection) -> None:
     con.executescript(_SCHEMA)
+    vorhanden = {z[1] for z in con.execute("PRAGMA table_info(kalender)")}
+    for spalte, typ in _NEUE_SPALTEN:
+        if spalte not in vorhanden:
+            con.execute(f"ALTER TABLE kalender ADD COLUMN {spalte} {typ}")
+    # Einträge aus Versionen, die nur „erledigt“ kannten: Termine bekommen ihren eigentlichen Zustand.
+    con.execute("""UPDATE kalender SET zustand = CASE
+                       WHEN art != 'termin' THEN 'erledigt'
+                       WHEN lower(COALESCE(erledigt_vermerk, '')) LIKE '%aufgehoben%' THEN 'aufgehoben'
+                       WHEN lower(COALESCE(erledigt_vermerk, '')) LIKE '%verlegt%' THEN 'verlegt'
+                       ELSE 'stattgefunden' END
+                   WHERE zustand IS NULL AND erledigt_am IS NOT NULL""")
+    con.execute("CREATE INDEX IF NOT EXISTS kalender_verlegt ON kalender (verlegt_von)")
     con.commit()
 
 
@@ -68,34 +90,61 @@ def _zeile(z: sqlite3.Row, heute: date) -> dict:
     e = dict(z)
     e["berechnung"] = json.loads(e["berechnung"]) if e["berechnung"] else None
     e["fundstelle"] = json.loads(e["fundstelle"]) if e["fundstelle"] else None
+    e["verlauf"] = json.loads(e["verlauf"]) if e.get("verlauf") else []
     e["art_text"] = ARTEN[e["art"]]
     tage = (date.fromisoformat(e["datum"]) - heute).days
     e["in_tagen"] = tage
+    # Welche der beiden Vorfristen zuletzt erreicht ist (1 oder 2); bei Erinnerungen zählt jede einzeln.
+    e["vorfrist_erreicht"] = next((n for n, k in ((2, "vorfrist2"), (1, "vorfrist"))
+                                   if e.get(k) and date.fromisoformat(e[k]) <= heute), None)
     if e["erledigt_am"]:
-        e["lage"] = "erledigt"
+        e["lage"] = e["zustand"] or "erledigt"
+    elif e["art"] == "termin" and tage < 0:
+        e["lage"] = "stattgefunden"
     elif tage < 0:
         e["lage"] = "abgelaufen"
     elif tage == 0:
         e["lage"] = "heute"
-    elif e["vorfrist"] and date.fromisoformat(e["vorfrist"]) <= heute:
+    elif e["vorfrist_erreicht"]:
         e["lage"] = "vorfrist"
     elif tage <= 7:
         e["lage"] = "bald"
     else:
         e["lage"] = "offen"
+    # Abgeschlossen: erledigt, aufgehoben, verlegt oder ein Termin, dessen Tag vorbei ist.
+    e["abgeschlossen"] = e["lage"] in (*ZUSTAENDE, "stattgefunden")
     return e
 
 
+def _verknuepfen(con: sqlite3.Connection, eintraege: list[dict]) -> list[dict]:
+    """Ergänzt bei verlegten Terminen den Folgetermin (``verlegt_auf``) und beim Folgetermin den alten Termin."""
+    ids = [e["id"] for e in eintraege]
+    if not ids:
+        return eintraege
+    platz = ", ".join("?" for _ in ids)
+    folge = {z["verlegt_von"]: dict(z) for z in con.execute(
+        f"SELECT id, datum, uhrzeit, verlegt_von FROM kalender WHERE verlegt_von IN ({platz}) ORDER BY id", ids)}
+    alt_ids = [e["verlegt_von"] for e in eintraege if e.get("verlegt_von")]
+    alt = {z["id"]: dict(z) for z in con.execute(
+        f"SELECT id, datum, uhrzeit FROM kalender WHERE id IN ({', '.join('?' for _ in alt_ids)})", alt_ids)} \
+        if alt_ids else {}
+    for e in eintraege:
+        f = folge.get(e["id"])
+        e["verlegt_auf"] = {"id": f["id"], "datum": f["datum"], "uhrzeit": f["uhrzeit"]} if f else None
+        e["verlegt_von_termin"] = alt.get(e["verlegt_von"]) if e.get("verlegt_von") else None
+    return eintraege
+
+
 def liste(con: sqlite3.Connection, akte_id: int, heute: date | None = None) -> list[dict]:
-    """Alle Einträge der Akte: offene nach Datum, darunter die erledigten (neueste zuerst)."""
+    """Alle Einträge der Akte: offene nach Datum, darunter die abgeschlossenen (neueste zuerst)."""
     heute = heute or date.today()
     zeilen = con.execute(
         """SELECT k.*, COALESCE(d.titel, d.dateiname) AS dokument FROM kalender k
            LEFT JOIN dokument d ON d.id = k.dokument_id
            WHERE k.akte_id = ? ORDER BY k.erledigt_am IS NOT NULL, k.datum, k.uhrzeit, k.id""", (akte_id,)).fetchall()
-    eintraege = [_zeile(z, heute) for z in zeilen]
-    offen = [e for e in eintraege if not e["erledigt_am"]]
-    erledigt = sorted((e for e in eintraege if e["erledigt_am"]), key=lambda e: e["datum"], reverse=True)
+    eintraege = _verknuepfen(con, [_zeile(z, heute) for z in zeilen])
+    offen = [e for e in eintraege if not e["abgeschlossen"]]
+    erledigt = sorted((e for e in eintraege if e["abgeschlossen"]), key=lambda e: e["datum"], reverse=True)
     return offen + erledigt
 
 
@@ -151,17 +200,19 @@ def speichern(con: sqlite3.Connection, akte_id: int, daten: dict, eintrag_id: in
     if not werte["datum"]:
         raise ValueError("Bitte ein Datum angeben oder die Frist berechnen lassen.")
     werte["datum"] = _datum(werte["datum"], "Datum")
-    if werte["vorfrist"]:
-        werte["vorfrist"] = _datum(werte["vorfrist"], "Vorfrist")
-        if werte["vorfrist"] > werte["datum"]:
-            raise ValueError("Die Vorfrist muss vor dem Fristende liegen.")
+    vorfristen = sorted({_datum(werte[k], "Vorfrist") for k in ("vorfrist", "vorfrist2") if werte[k]})
+    if any(v >= werte["datum"] for v in vorfristen):
+        raise ValueError("Die Vorfrist muss vor dem Fristende liegen.")
     if werte["art"] != "frist":
-        werte["vorfrist"] = None
-    if werte["uhrzeit"]:
-        m = _UHRZEIT.match(werte["uhrzeit"])
-        if not m:
-            raise ValueError("Uhrzeit bitte als HH:MM, z. B. 10:30.")
-        werte["uhrzeit"] = f"{int(m.group(1)):02d}:{m.group(2)}"
+        vorfristen = []
+    # Die frühere Vorfrist ist immer die erste.
+    werte["vorfrist"], werte["vorfrist2"] = (vorfristen + [None, None])[:2]
+    if werte["art"] != "termin":
+        werte["uhrzeit"] = werte["bis_uhrzeit"] = werte["ort"] = None
+    werte["uhrzeit"] = _uhrzeit(werte["uhrzeit"])
+    werte["bis_uhrzeit"] = _uhrzeit(werte["bis_uhrzeit"])
+    if werte["bis_uhrzeit"] and (not werte["uhrzeit"] or werte["bis_uhrzeit"] <= werte["uhrzeit"]):
+        raise ValueError("Das Ende des Termins muss nach dem Beginn liegen.")
     if werte["verfahren_id"] is not None and con.execute(
             "SELECT 1 FROM verfahren WHERE id = ? AND akte_id = ?",
             (werte["verfahren_id"], akte_id)).fetchone() is None:
@@ -182,22 +233,110 @@ def speichern(con: sqlite3.Connection, akte_id: int, daten: dict, eintrag_id: in
     return liste(con, akte_id, heute)
 
 
-def erledigen(con: sqlite3.Connection, eintrag_id: int, erledigt: bool = True, vermerk: str = "",
-              heute: date | None = None) -> list[dict]:
-    z = con.execute("SELECT akte_id FROM kalender WHERE id = ?", (eintrag_id,)).fetchone()
+def _uhrzeit(text: str | None) -> str | None:
+    if not text:
+        return None
+    m = _UHRZEIT.match(text)
+    if not m:
+        raise ValueError("Uhrzeit bitte als HH:MM, z. B. 10:30.")
+    return f"{int(m.group(1)):02d}:{m.group(2)}"
+
+
+def _eintrag(con: sqlite3.Connection, eintrag_id: int) -> sqlite3.Row:
+    z = con.execute("SELECT * FROM kalender WHERE id = ?", (eintrag_id,)).fetchone()
     if z is None:
         raise LookupError(f"Eintrag {eintrag_id} gibt es nicht.")
+    return z
+
+
+def erledigen(con: sqlite3.Connection, eintrag_id: int, erledigt: bool = True, vermerk: str = "",
+              heute: date | None = None) -> list[dict]:
+    """Frist oder Wiedervorlage erledigen bzw. wieder öffnen. Termine werden nicht erledigt (``termin_zustand``)."""
+    z = _eintrag(con, eintrag_id)
+    if z["art"] == "termin":
+        raise ValueError("Termine werden nicht erledigt: Sie finden statt, werden aufgehoben oder verlegt.")
     with con:
-        con.execute("UPDATE kalender SET erledigt_am = ?, erledigt_vermerk = ?, geaendert_am = ? WHERE id = ?",
+        con.execute("UPDATE kalender SET erledigt_am = ?, erledigt_vermerk = ?, zustand = ?, geaendert_am = ? "
+                    "WHERE id = ?",
                     (_jetzt() if erledigt else None, " ".join(vermerk.split()) or None if erledigt else None,
-                     _jetzt(), eintrag_id))
+                     "erledigt" if erledigt else None, _jetzt(), eintrag_id))
+    return liste(con, z["akte_id"], heute)
+
+
+def termin_zustand(con: sqlite3.Connection, eintrag_id: int, zustand: str, vermerk: str = "",
+                   neu: dict | None = None, heute: date | None = None) -> list[dict]:
+    """Termin aufheben, verlegen oder wieder als geplant führen.
+
+    Beim Verlegen nennt ``neu`` den neuen Termin ({datum, uhrzeit, bis_uhrzeit, ort, dokument_id, fundstelle});
+    JuraBox legt ihn als Folgetermin an, der auf den alten verweist. Titel, Verfahren und Notiz werden übernommen,
+    Uhrzeit und Ort, wenn ``neu`` keine nennt.
+    """
+    z = _eintrag(con, eintrag_id)
+    if z["art"] != "termin":
+        raise ValueError("Nur Termine werden aufgehoben oder verlegt; Fristen werden erledigt oder verlängert.")
+    if zustand not in TERMIN_ZUSTAENDE:
+        raise ValueError("Bitte wählen: geplant, stattgefunden, aufgehoben oder verlegt.")
+    vermerk = " ".join(vermerk.split())
+    if zustand == "verlegt":
+        if not neu or not neu.get("datum"):
+            raise ValueError("Bitte das neue Datum des Termins angeben.")
+        daten = {"art": "termin", "titel": z["titel"], "verfahren_id": z["verfahren_id"], "notiz": z["notiz"],
+                 "datum": neu["datum"], "uhrzeit": neu.get("uhrzeit", z["uhrzeit"]),
+                 "bis_uhrzeit": neu.get("bis_uhrzeit"), "ort": neu.get("ort") or z["ort"],
+                 "dokument_id": neu.get("dokument_id"), "fundstelle": neu.get("fundstelle")}
+        if _datum(daten["datum"], "Neues Datum") == z["datum"] and _uhrzeit(daten["uhrzeit"]) == z["uhrzeit"]:
+            raise ValueError("Der neue Termin ist derselbe wie der alte.")
+        speichern(con, z["akte_id"], daten, heute=heute)
+        neu_id = con.execute("SELECT max(id) FROM kalender WHERE akte_id = ?", (z["akte_id"],)).fetchone()[0]
+        with con:
+            con.execute("UPDATE kalender SET verlegt_von = ? WHERE id = ?", (eintrag_id, neu_id))
+    abgeschlossen = zustand != "geplant"
+    with con:
+        con.execute("UPDATE kalender SET zustand = ?, erledigt_am = ?, erledigt_vermerk = ?, geaendert_am = ? "
+                    "WHERE id = ?",
+                    (zustand if abgeschlossen else None, _jetzt() if abgeschlossen else None,
+                     (vermerk or None) if abgeschlossen else None, _jetzt(), eintrag_id))
+    return liste(con, z["akte_id"], heute)
+
+
+def verlaengern(con: sqlite3.Connection, eintrag_id: int, datum: str, vermerk: str = "",
+                dokument_id: int | None = None, fundstelle: dict | None = None,
+                heute: date | None = None) -> list[dict]:
+    """Neues Ende einer Frist (Fristverlängerung) bzw. neuer Tag einer Wiedervorlage.
+
+    Das alte Datum, die alte Berechnung und der Beleg bleiben im Verlauf; die Vorfristen rücken um denselben Abstand
+    mit.
+    """
+    z = _eintrag(con, eintrag_id)
+    if z["art"] == "termin":
+        raise ValueError("Termine werden verlegt, nicht verlängert.")
+    if z["erledigt_am"]:
+        raise ValueError("Der Eintrag ist erledigt; bitte zuerst wieder öffnen.")
+    neu = _datum(datum, "Neues Datum")
+    if neu == z["datum"]:
+        raise ValueError("Das neue Datum ist dasselbe wie das bisherige.")
+    abstand = date.fromisoformat(neu) - date.fromisoformat(z["datum"])
+    vorfristen = [v for v in ((date.fromisoformat(z[k]) + abstand).isoformat() for k in ("vorfrist", "vorfrist2")
+                              if z[k]) if v < neu] + [None, None]
+    if dokument_id is not None and con.execute("SELECT 1 FROM dokument WHERE id = ? AND akte_id = ?",
+                                               (dokument_id, z["akte_id"])).fetchone() is None:
+        raise ValueError("Das Dokument gehört nicht zu dieser Akte.")
+    was = ("verschoben" if z["art"] == "wiedervorlage" else "verlängert" if abstand.days > 0 else "verkürzt")
+    verlauf = json.loads(z["verlauf"]) if z["verlauf"] else []
+    verlauf.append({"am": _jetzt(), "was": was, "alt": z["datum"], "neu": neu,
+                    "alt_vorfristen": [v for v in (z["vorfrist"], z["vorfrist2"]) if v],
+                    "alt_berechnung": json.loads(z["berechnung"]) if z["berechnung"] else None,
+                    "vermerk": " ".join(vermerk.split()) or None, "dokument_id": dokument_id,
+                    "fundstelle": fundstelle or None})
+    with con:
+        con.execute("UPDATE kalender SET datum = ?, vorfrist = ?, vorfrist2 = ?, berechnung = NULL, verlauf = ?, "
+                    "geaendert_am = ? WHERE id = ?",
+                    (neu, *vorfristen[:2], json.dumps(verlauf, ensure_ascii=False), _jetzt(), eintrag_id))
     return liste(con, z["akte_id"], heute)
 
 
 def loeschen(con: sqlite3.Connection, eintrag_id: int, heute: date | None = None) -> list[dict]:
-    z = con.execute("SELECT akte_id FROM kalender WHERE id = ?", (eintrag_id,)).fetchone()
-    if z is None:
-        raise LookupError(f"Eintrag {eintrag_id} gibt es nicht.")
+    z = _eintrag(con, eintrag_id)
     with con:
         con.execute("DELETE FROM kalender WHERE id = ?", (eintrag_id,))
     return liste(con, z["akte_id"], heute)
@@ -205,22 +344,25 @@ def loeschen(con: sqlite3.Connection, eintrag_id: int, heute: date | None = None
 
 def naechste(con: sqlite3.Connection, tage: int | None = None, limit: int = 50,
              heute: date | None = None) -> list[dict]:
-    """Offene Einträge aller Akten nach Datum, abgelaufene zuerst; mit ``tage`` nur bis heute + tage."""
+    """Offene Einträge aller Akten nach Datum, abgelaufene zuerst; mit ``tage`` nur bis heute + tage.
+    Vergangene Termine haben stattgefunden und gehören nicht dazu."""
     heute = heute or date.today()
     bis = (heute + timedelta(days=tage)).isoformat() if tage is not None else "9999-12-31"
     zeilen = con.execute(
         """SELECT k.*, a.name AS akte, a.aktenzeichen, COALESCE(d.titel, d.dateiname) AS dokument FROM kalender k
            JOIN akte a ON a.id = k.akte_id LEFT JOIN dokument d ON d.id = k.dokument_id
            WHERE k.erledigt_am IS NULL AND k.datum <= ? AND a.status != 'abgeschlossen'
-           ORDER BY k.datum, k.uhrzeit, k.id LIMIT ?""", (bis, limit)).fetchall()
-    return [_zeile(z, heute) for z in zeilen]
+             AND NOT (k.art = 'termin' AND k.datum < ?)
+           ORDER BY k.datum, k.uhrzeit, k.id LIMIT ?""", (bis, heute.isoformat(), limit)).fetchall()
+    return _verknuepfen(con, [_zeile(z, heute) for z in zeilen])
 
 
 def naechste_je_akte(con: sqlite3.Connection, heute: date | None = None) -> dict[int, dict]:
     """Für die Aktenübersicht: je Akte der früheste offene Eintrag."""
     heute = heute or date.today()
     ergebnis: dict[int, dict] = {}
-    for z in con.execute("SELECT * FROM kalender WHERE erledigt_am IS NULL ORDER BY datum, uhrzeit, id"):
+    for z in con.execute("SELECT * FROM kalender WHERE erledigt_am IS NULL AND NOT (art = 'termin' AND datum < ?) "
+                         "ORDER BY datum, uhrzeit, id", (heute.isoformat(),)):
         if z["akte_id"] not in ergebnis:
             e = _zeile(z, heute)
             ergebnis[z["akte_id"]] = {k: e[k] for k in ("id", "art", "art_text", "titel", "datum", "uhrzeit",
@@ -317,7 +459,8 @@ def vorschlaege(abschnitte: list[dict], dokument_datum: str | None = None, land:
     ``abschnitte``: [{"nr", "seite", "text"}] in Dokumentreihenfolge. Fristen „binnen zwei Wochen nach Zustellung“
     werden ab dem Zustellungsdatum berechnet, wenn das Dokument eines nennt („zugestellt am …“); sonst bleibt der
     Bezugstag offen und muss eingetragen werden. ``vorhandene`` (Einträge der Akte) verhindern doppelte Vorschläge
-    und machen aus „Termin vom … aufgehoben“ einen Vorschlag zum Erledigen des passenden Termins.
+    und machen aus „Termin vom … aufgehoben“ einen Vorschlag, den passenden Termin aufzuheben bzw. (mit dem neuen
+    Termin aus dem Dokument) zu verlegen.
     """
     vorhandene = vorhandene or []
     zustellung = None
@@ -371,16 +514,25 @@ def vorschlaege(abschnitte: list[dict], dokument_datum: str | None = None, land:
             datum = _iso(m)
             passend = [e for e in vorhandene if e["art"] == "termin" and e["datum"] == datum and not e["erledigt_am"]]
             if passend:
-                ergebnis.append({"art": "erledigen", "eintrag_id": passend[0]["id"], "titel": passend[0]["titel"],
-                                 "datum": datum, "vermerk": f"Termin {m.group(4)}",
+                ergebnis.append({"art": "zustand", "zustand": m.group(4), "eintrag_id": passend[0]["id"],
+                                 "titel": passend[0]["titel"], "datum": datum, "vermerk": f"Termin {m.group(4)}",
                                  "fundstelle": {"abschnitt": a["nr"], "seite": a.get("seite"),
                                                 "text": _satz(text, m.start(), m.end())}})
+    # Nennt das Dokument nach der Aufhebung einen neuen Termin, ist der alte verlegt: beides wird ein Vorschlag.
+    for i, v in enumerate(ergebnis):
+        if v["art"] != "zustand":
+            continue
+        neu = next((w for w in ergebnis[i + 1:] if w["art"] == "termin" and w["datum"] > v["datum"]), None)
+        if neu:
+            ergebnis.remove(neu)
+            v["zustand"] = "verlegt"
+            v["neu"] = {k: neu[k] for k in ("titel", "datum", "uhrzeit", "ort", "fundstelle")}
     # Schon eingetragene (gleiche Art und gleiches Datum) nicht noch einmal vorschlagen.
     belegt = {(e["art"], e["datum"]) for e in vorhandene}
     eindeutig: list[dict] = []
     for v in ergebnis:
         schluessel = (v["art"], v.get("datum"))
-        if v["art"] != "erledigen" and v.get("datum") and schluessel in belegt:
+        if v["art"] != "zustand" and v.get("datum") and schluessel in belegt:
             continue
         if any((w["art"], w.get("datum"), w["fundstelle"]["abschnitt"]) == (*schluessel, v["fundstelle"]["abschnitt"])
                for w in eindeutig):
