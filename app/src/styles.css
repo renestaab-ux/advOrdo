@@ -16,6 +16,8 @@
   --band-text: #f3f6fa;
   --band-leise: #b9c8d8;
   --gefahr: #b3261e;
+  /* Dunkle Navigationsleiste links; folgt dem Farbakzent. */
+  --leiste: #1b3550;
   color-scheme: light;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 15px;
@@ -43,39 +45,45 @@
   --band-text: #eef2f6;
   --band-leise: #9fb3c7;
   --gefahr: #f2b8b5;
+  --leiste: #142536;
 }
 
 /* Farbakzente; Blau ist die Vorgabe oben. Je Farbe ein Satz für hell und einer für dunkel. */
-:root[data-akzent="petrol"] { --akzent: #1f5f66; --knopf: #1f5f66; --band: linear-gradient(100deg, #163f45, #22636b); --band-leise: #b3d0d3; }
-:root[data-thema="dunkel"][data-akzent="petrol"] { --akzent: #7cc4c9; --knopf: #2f7178; --band: linear-gradient(100deg, #0f2c30, #184449); --band-leise: #98bfc2; }
-:root[data-akzent="gruen"] { --akzent: #2f5e3a; --knopf: #2f5e3a; --band: linear-gradient(100deg, #21422a, #346b42); --band-leise: #bcd3c0; }
-:root[data-thema="dunkel"][data-akzent="gruen"] { --akzent: #8cc79a; --knopf: #3d7449; --band: linear-gradient(100deg, #152b1b, #20412a); --band-leise: #a3c2aa; }
-:root[data-akzent="bordeaux"] { --akzent: #7a2838; --knopf: #7a2838; --band: linear-gradient(100deg, #561c28, #84303f); --band-leise: #e0bcc3; }
-:root[data-thema="dunkel"][data-akzent="bordeaux"] { --akzent: #e09aa8; --knopf: #8a3a4a; --band: linear-gradient(100deg, #3a141c, #55202b); --band-leise: #d0a6ae; }
-:root[data-akzent="violett"] { --akzent: #533f7a; --knopf: #533f7a; --band: linear-gradient(100deg, #3a2c57, #5c4787); --band-leise: #cbc0e0; }
-:root[data-thema="dunkel"][data-akzent="violett"] { --akzent: #b8a6e3; --knopf: #5f4a8c; --band: linear-gradient(100deg, #251c3a, #372a55); --band-leise: #b4a8cf; }
-:root[data-akzent="graphit"] { --akzent: #3d4248; --knopf: #3d4248; --band: linear-gradient(100deg, #2a2e33, #474d55); --band-leise: #c3c7cc; }
-:root[data-thema="dunkel"][data-akzent="graphit"] { --akzent: #b8bec6; --knopf: #555c65; --band: linear-gradient(100deg, #1f2226, #30353b); --band-leise: #a9aeb5; }
+:root[data-akzent="petrol"] { --leiste: #163f45; --akzent: #1f5f66; --knopf: #1f5f66; --band: linear-gradient(100deg, #163f45, #22636b); --band-leise: #b3d0d3; }
+:root[data-thema="dunkel"][data-akzent="petrol"] { --leiste: #0f2c30; --akzent: #7cc4c9; --knopf: #2f7178; --band: linear-gradient(100deg, #0f2c30, #184449); --band-leise: #98bfc2; }
+:root[data-akzent="gruen"] { --leiste: #21422a; --akzent: #2f5e3a; --knopf: #2f5e3a; --band: linear-gradient(100deg, #21422a, #346b42); --band-leise: #bcd3c0; }
+:root[data-thema="dunkel"][data-akzent="gruen"] { --leiste: #152b1b; --akzent: #8cc79a; --knopf: #3d7449; --band: linear-gradient(100deg, #152b1b, #20412a); --band-leise: #a3c2aa; }
+:root[data-akzent="bordeaux"] { --leiste: #561c28; --akzent: #7a2838; --knopf: #7a2838; --band: linear-gradient(100deg, #561c28, #84303f); --band-leise: #e0bcc3; }
+:root[data-thema="dunkel"][data-akzent="bordeaux"] { --leiste: #3a141c; --akzent: #e09aa8; --knopf: #8a3a4a; --band: linear-gradient(100deg, #3a141c, #55202b); --band-leise: #d0a6ae; }
+:root[data-akzent="violett"] { --leiste: #3a2c57; --akzent: #533f7a; --knopf: #533f7a; --band: linear-gradient(100deg, #3a2c57, #5c4787); --band-leise: #cbc0e0; }
+:root[data-thema="dunkel"][data-akzent="violett"] { --leiste: #251c3a; --akzent: #b8a6e3; --knopf: #5f4a8c; --band: linear-gradient(100deg, #251c3a, #372a55); --band-leise: #b4a8cf; }
+:root[data-akzent="graphit"] { --leiste: #2a2e33; --akzent: #3d4248; --knopf: #3d4248; --band: linear-gradient(100deg, #2a2e33, #474d55); --band-leise: #c3c7cc; }
+:root[data-thema="dunkel"][data-akzent="graphit"] { --leiste: #1f2226; --akzent: #b8bec6; --knopf: #555c65; --band: linear-gradient(100deg, #1f2226, #30353b); --band-leise: #a9aeb5; }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--hintergrund); }
 
 .rahmen { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: 100vh; }
 .rahmen.eingeklappt { grid-template-columns: 60px minmax(0, 1fr); }
-.navigation { border-right: 1px solid var(--linie); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; overflow: hidden auto; }
+/* Die Leiste setzt ihre Farbwerte lokal, damit alles darin (Einträge, KI-Modus, Zeiterfassung) hell auf dunkel steht. */
+.navigation {
+  --text: #f1f4f8; --text-leise: #b7c3d0; --linie: rgba(255, 255, 255, 0.14); --akzent: #ffffff;
+  --gut: #8fd19e; --warnung: #f0c060; --fehler: #f2a7a7; --knopf: rgba(255, 255, 255, 0.16); --knopf-text: #ffffff;
+  background: var(--leiste); color: var(--text); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; overflow: hidden auto; }
 .marke { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; margin: 0 0 14px 4px; white-space: nowrap; }
 .marke-zeichen { flex: none; display: block; width: 30px; height: 30px; }
 .nav-eintrag { display: flex; align-items: center; gap: 12px; text-align: left; background: none; border: none; border-left: 3px solid transparent; padding: 8px 10px 8px 9px; border-radius: 6px; color: var(--text); cursor: pointer; font: inherit; white-space: nowrap; }
 .nav-eintrag .symbol { flex: none; color: var(--text-leise); }
-.nav-eintrag:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
-.nav-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 14%, transparent); border-left-color: var(--akzent); font-weight: 600; }
+.nav-eintrag:hover .symbol { color: var(--text); }
+.nav-eintrag:hover { background: rgba(255, 255, 255, 0.08); }
+.nav-eintrag.aktiv { background: rgba(255, 255, 255, 0.16); border-left-color: var(--akzent); font-weight: 600; }
 .nav-eintrag.aktiv .symbol { color: var(--akzent); }
 .nav-fuss { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--linie); }
 .nav-eintrag.einklappen { color: var(--text-leise); font-size: 13px; margin-top: 4px; }
 .eingeklappt .nav-text { display: none; }
 .eingeklappt .marke { margin-left: 5px; }
 /* Eigenes Logo statt des JuraBox-Zeichens; breite Logos dürfen breiter sein, eingeklappt passt es in die Leiste. */
-.marke.mit-logo .marke-zeichen { width: auto; height: 36px; max-width: 60px; object-fit: contain; }
+.marke.mit-logo .marke-zeichen { width: auto; height: 36px; max-width: 60px; object-fit: contain; background: #ffffff; border-radius: 6px; padding: 3px; }
 .marke.mit-logo .nav-text { white-space: normal; font-size: 15px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .eingeklappt .marke.mit-logo { margin-left: 0; justify-content: center; }
 .eingeklappt .marke.mit-logo .marke-zeichen { max-width: 40px; }
@@ -91,10 +99,10 @@ body { margin: 0; background: var(--hintergrund); }
 [hidden] { display: none !important; }
 .symbol { vertical-align: middle; }
 
-.inhalt { overflow: auto; padding: 24px 32px; }
+.inhalt { overflow: auto; padding: 22px 28px; }
 .kopf { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-h1 { font-size: 22px; margin: 0; }
-h2 { font-size: 18px; margin: 4px 0 12px; }
+h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+h2 { font-size: 18px; font-weight: 650; margin: 4px 0 12px; }
 .aktionen { display: flex; gap: 8px; }
 
 button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--knopf); background: var(--knopf); color: var(--knopf-text); cursor: pointer; }
@@ -650,6 +658,8 @@ button.marke-fehlt { display: block; margin-top: 4px; padding: 0 8px; font-size:
 button.marke-fehlt:hover { border-color: var(--warnung); }
 .status-marke { font-size: 12px; padding: 1px 8px; border-radius: 999px; color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 15%, transparent); }
 .status-marke.laufend { color: var(--gut); background: color-mix(in srgb, var(--gut) 15%, transparent); }
+.status-marke.ruhend { color: var(--warnung); background: color-mix(in srgb, var(--warnung) 15%, transparent); }
+.status-marke.abgeschlossen { color: var(--text-leise); background: none; border: 1px solid var(--linie); }
 
 /* Geöffnete Akte: Kopf, Reiter, Fläche */
 .inhalt.ohne-rand { padding: 0; overflow: hidden; }
@@ -884,6 +894,9 @@ details.kurz-hinweis summary { cursor: pointer; }
 /* Nächste Frist in Übersicht, Akte und Start */
 .naechste-frist { display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; border: none; padding: 0; color: var(--text); font-size: 13px; }
 .naechste-frist .leise { font-size: 12px; }
+.frist-datum { display: inline-flex; align-items: center; gap: 4px; }
+.frist-zeichen { display: inline-flex; margin-right: 4px; vertical-align: -2px; }
+.frist-datum .frist-zeichen { margin-right: 0; }
 .naechste-frist.abgelaufen, .naechste-frist.heute { color: var(--fehler); font-weight: 600; }
 .naechste-frist.vorfrist, .naechste-frist.bald { color: var(--warnung); font-weight: 600; }
 .kopf-frist { background: none; border: none; padding: 0; text-align: left; color: inherit; cursor: pointer; }

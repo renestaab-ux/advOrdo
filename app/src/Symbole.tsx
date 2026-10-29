@@ -164,3 +164,13 @@ export default function Zeichen({ name, groesse = 20 }: { name: SymbolName; groe
     </svg>
   );
 }
+
+/** Kalendersymbol vor einer Frist, die abgelaufen, heute fällig oder bald fällig ist; sonst nichts. */
+export function FristZeichen({ lage }: { lage: string }) {
+  if (!["abgelaufen", "heute", "vorfrist", "bald"].includes(lage)) return null;
+  return (
+    <span className="frist-zeichen">
+      <Zeichen name="fristen" groesse={14} />
+    </span>
+  );
+}
