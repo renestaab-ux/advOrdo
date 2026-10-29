@@ -8,7 +8,7 @@ import Notizen from "./Notizen";
 import Zeiten from "./Zeiten";
 import Schriftstuecke from "./Schriftstuecke";
 import type { EinstellungsReiter } from "./Einstellungen";
-import Zeichen, { SymbolName } from "./Symbole";
+import Zeichen, { FristZeichen, SymbolName } from "./Symbole";
 import Vergleich from "./Vergleich";
 import VerfahrenKarte from "./Verfahren";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -525,7 +525,10 @@ function AktenUebersicht({
                       }}
                       title={`${a.naechste.art_text}: ${a.naechste.titel}`}
                     >
-                      {datumLang(a.naechste.datum)}
+                      <span className="frist-datum">
+                        <FristZeichen lage={a.naechste.lage} />
+                        {datumLang(a.naechste.datum)}
+                      </span>
                       <span className="leise">
                         {a.naechste.titel} · {abstandText({ ...a.naechste, erledigt_am: null })}
                       </span>
@@ -643,6 +646,7 @@ function AkteRahmen({
           >
             <p className="kopfband-ueber">Nächste {akte.naechste.art_text}</p>
             <strong title={`${akte.naechste.titel}: ${abstandText({ ...akte.naechste, erledigt_am: null })}`}>
+              <FristZeichen lage={akte.naechste.lage} />
               {datumLang(akte.naechste.datum)}
               {akte.naechste.in_tagen < 0 ? " · abgelaufen" : akte.naechste.in_tagen <= 7 ? ` · ${abstandText({ ...akte.naechste, erledigt_am: null })}` : ""}
             </strong>

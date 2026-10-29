@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import Zeichen, { SymbolName } from "./Symbole";
+import Zeichen, { FristZeichen, SymbolName } from "./Symbole";
 import {
   Akte,
   EigeneKurzstand,
@@ -124,6 +124,7 @@ export default function Start({
                 {fristen.map((f) => (
                   <li key={f.id} className={`start-frist ${f.lage}`}>
                     <button className="link" onClick={() => onAkte(f.akte_id, "fristen")}>
+                      <FristZeichen lage={f.lage} />
                       {datumLang(f.datum)}
                       {f.uhrzeit && `, ${f.uhrzeit}`} · {f.titel}
                     </button>
