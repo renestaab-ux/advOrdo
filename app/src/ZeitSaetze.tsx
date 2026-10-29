@@ -129,7 +129,8 @@ export default function ZeitSaetze({ onEigeneDaten }: { onEigeneDaten: () => voi
             Hinzufügen
           </button>
         </form>
-        <p className="leise klein">Die vorgegebenen Stufen und Sätze sind nur Beispiele; bitte an eure Vereinbarungen anpassen.</p>
+        <p className="leise klein">Die vorgegebenen Stufen und Sätze sind nur Beispiele; bitte an eure Vereinbarungen anpassen. Für Reisezeiten o. Ä.
+          eine eigene Stufe anlegen; sie lässt sich im einzelnen Eintrag statt der Stufe des Bearbeiters wählen.</p>
       </section>
 
       <section className="karte zeit-einstellungen">

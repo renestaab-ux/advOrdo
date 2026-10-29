@@ -235,3 +235,19 @@ def test_taetigkeitsnachweis_in_der_kostennote(kern, tmp_path):  # noqa: F811
     for text in ("Anlage: Tätigkeitsnachweis zu Rechnung Nr. 2026-0001", "01.10.2026",
                  "Telefonat mit Frau Brückner zur Vergleichsbereitschaft", "0,2 (7 Min.)", "76,00 €"):
         assert text in xml, text
+
+
+def test_abweichende_stufe_je_eintrag_reisezeit(kern):  # noqa: F811
+    aid = kern.test_akte
+    p = _bearbeiter(kern, "Dr. Sophie Albrecht", "Partner")
+    reise = next(s["id"] for s in zeit.stufe_speichern(kern.akten, "Reisezeit", "150")["stufen"]
+                 if s["name"] == "Reisezeit")
+    zeit.speichern(kern.akten, aid, {"datum": "2026-10-01", "dauer": "1", "bearbeiter_id": p,
+                                     "taetigkeit": "Termin beim LG Freiburg wahrgenommen"})
+    zeit.speichern(kern.akten, aid, {"datum": "2026-10-01", "dauer": "2", "bearbeiter_id": p, "stufe_id": reise,
+                                     "taetigkeit": "Fahrt Kanzlei zum LG Freiburg und zurück"})
+    zeit.starten(kern.akten, aid, p, "Rückfahrt vom Ortstermin", stufe_id=reise)
+    zeit.stoppen(kern.akten)
+    k = zeit.fuer_kostennote(kern.akten, aid)
+    texte = {x["text"]: x["stundensatz"] for x in k["posten"]}
+    assert texte == {"Dr. Sophie Albrecht (Partner)": "380.00", "Dr. Sophie Albrecht (Reisezeit)": "150.00"}

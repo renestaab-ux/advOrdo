@@ -373,6 +373,16 @@ def _bearbeiter_von(con: sqlite3.Connection, bearbeiter_id: int | None) -> dict:
     return b
 
 
+def _mit_stufe(con: sqlite3.Connection, b: dict, stufe_id) -> dict:
+    """Abweichende Stufe für einen einzelnen Eintrag, z. B. „Reisezeit“: Name und Satz kommen dann von ihr."""
+    if stufe_id in (None, ""):
+        return b
+    z = con.execute("SELECT name, satz FROM zeit_stufe WHERE id = ?", (int(stufe_id),)).fetchone()
+    if z is None:
+        raise LookupError(f"Stufe {stufe_id} gibt es nicht.")
+    return b | {"stufe": z["name"], "satz": z["satz"]}
+
+
 def _laufzeit(laeuft_seit: str, jetzt: datetime) -> int:
     """Minuten seit dem Start, kaufmännisch gerundet, mindestens eine."""
     sekunden = (jetzt - datetime.fromisoformat(laeuft_seit)).total_seconds()
@@ -438,7 +448,8 @@ def _pruefe_offen(con: sqlite3.Connection, eintrag_id: int) -> sqlite3.Row:
 
 def speichern(con: sqlite3.Connection, akte_id: int, daten: dict, eintrag_id: int | None = None) -> dict:
     """Legt einen Eintrag von Hand an oder ändert ihn. ``daten``: datum, dauer | minuten | von+bis, bearbeiter_id,
-    taetigkeit, abrechenbar, wahlweise satz (sonst der Satz der Stufe des Bearbeiters)."""
+    taetigkeit, abrechenbar, wahlweise stufe_id (abweichende Stufe nur für diesen Eintrag, z. B. Reisezeit) und satz
+    (sonst der Satz der Stufe)."""
     if con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")
     tag = _datum(daten.get("datum") or date.today().isoformat())
@@ -453,6 +464,7 @@ def speichern(con: sqlite3.Connection, akte_id: int, daten: dict, eintrag_id: in
         b = {"id": alt["bearbeiter_id"], "name": alt["bearbeiter"], "stufe": alt["stufe"], "satz": alt["satz"]}
     else:
         b = _bearbeiter_von(con, daten.get("bearbeiter_id"))
+    b = _mit_stufe(con, b, daten.get("stufe_id"))
     satz = _text_satz(_betrag(daten["satz"], "Stundensatz")) if daten.get("satz") not in (None, "") else b["satz"]
     taetigkeit = " ".join(str(daten.get("taetigkeit") or "").split())
     abrechenbar = int(bool(daten.get("abrechenbar", True)))
@@ -502,7 +514,7 @@ def _anhalten(con: sqlite3.Connection, jetzt: datetime) -> None:
 
 
 def starten(con: sqlite3.Connection, akte_id: int, bearbeiter_id: int | None = None, taetigkeit: str = "",
-            eintrag_id: int | None = None, jetzt: datetime | None = None) -> dict:
+            eintrag_id: int | None = None, jetzt: datetime | None = None, stufe_id: int | None = None) -> dict:
     """Startet einen Timer; ein anderer laufender wird dabei angehalten. Mit ``eintrag_id`` läuft ein offener
     Eintrag weiter (Fortsetzen)."""
     jetzt = jetzt or _jetzt()
@@ -513,7 +525,7 @@ def starten(con: sqlite3.Connection, akte_id: int, bearbeiter_id: int | None = N
         akte_id = z["akte_id"]
     elif con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")
-    b = _bearbeiter_von(con, bearbeiter_id) if eintrag_id is None else None
+    b = _mit_stufe(con, _bearbeiter_von(con, bearbeiter_id), stufe_id) if eintrag_id is None else None
     with con:
         _anhalten(con, jetzt)
         if eintrag_id is not None:

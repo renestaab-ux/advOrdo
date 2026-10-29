@@ -17,6 +17,8 @@ const heute = () => new Date().toLocaleDateString("sv-SE"); // JJJJ-MM-TT in Ort
 interface Formular {
   datum: string;
   bearbeiter_id: string;
+  /** Abweichende Stufe nur für diesen Eintrag (z. B. Reisezeit); leer: Stufe des Bearbeiters bzw. unverändert. */
+  stufe_id: string;
   dauer: string;
   von: string;
   bis: string;
@@ -41,9 +43,11 @@ export default function Zeiten({
   const [einst, setEinst] = useState<ZeitEinstellungen | null>(null);
   const [taetigkeit, setTaetigkeit] = useState("");
   const [timerWer, setTimerWer] = useState("");
+  const [timerStufe, setTimerStufe] = useState("");
   const leer = (): Formular => ({
     datum: heute(),
     bearbeiter_id: einst?.standard_bearbeiter_id ? String(einst.standard_bearbeiter_id) : "",
+    stufe_id: "",
     dauer: "",
     von: "",
     bis: "",
@@ -65,7 +69,19 @@ export default function Zeiten({
     setEinst(e);
     const std = e.standard_bearbeiter_id ? String(e.standard_bearbeiter_id) : "";
     setTimerWer((alt) => alt || std);
-    setF((alt) => alt ?? { datum: heute(), bearbeiter_id: std, dauer: "", von: "", bis: "", taetigkeit: "", abrechenbar: true });
+    setF(
+      (alt) =>
+        alt ?? {
+          datum: heute(),
+          bearbeiter_id: std,
+          stufe_id: "",
+          dauer: "",
+          von: "",
+          bis: "",
+          taetigkeit: "",
+          abrechenbar: true,
+        },
+    );
   }
 
   useEffect(() => {
@@ -102,12 +118,15 @@ export default function Zeiten({
           kern<ZeitListe>("zeit.starten", {
             akte_id: akteId,
             bearbeiter_id: timerWer ? Number(timerWer) : null,
+            stufe_id: timerStufe ? Number(timerStufe) : null,
             taetigkeit,
           }),
         true,
       )
-    )
+    ) {
       setTaetigkeit("");
+      setTimerStufe("");
+    }
   }
 
   async function speichern(e: FormEvent) {
@@ -116,6 +135,7 @@ export default function Zeiten({
     const daten = {
       datum: f.datum,
       bearbeiter_id: f.bearbeiter_id ? Number(f.bearbeiter_id) : null,
+      stufe_id: f.stufe_id ? Number(f.stufe_id) : null,
       dauer: f.von && f.bis ? "" : f.dauer,
       von: f.von,
       bis: f.bis,
@@ -123,7 +143,11 @@ export default function Zeiten({
       abrechenbar: f.abrechenbar,
     };
     const ok = await mit(() =>
-      kern<ZeitListe>("zeit.speichern", { akte_id: akteId, daten, eintrag_id: bearbeitet }),
+      kern<ZeitListe>("zeit.speichern", {
+        akte_id: akteId,
+        daten,
+        eintrag_id: bearbeitet,
+      }),
     );
     if (ok) {
       setBearbeitet(null);
@@ -136,6 +160,7 @@ export default function Zeiten({
     setF({
       datum: z.datum,
       bearbeiter_id: z.bearbeiter_id ? String(z.bearbeiter_id) : "",
+      stufe_id: "",
       dauer: stundenText(z.laeuft_seit ? 0 : z.minuten),
       von: "",
       bis: "",
@@ -146,9 +171,7 @@ export default function Zeiten({
 
   if (!liste || !einst || !f) {
     return (
-      <div className="zeiten">
-        {fehler ? <p className="fehler">{fehler}</p> : <p className="status">Lade …</p>}
-      </div>
+      <div className="zeiten">{fehler ? <p className="fehler">{fehler}</p> : <p className="status">Lade …</p>}</div>
     );
   }
 
@@ -200,6 +223,19 @@ export default function Zeiten({
                   <option key={b.id} value={b.id}>
                     {b.name}
                     {b.stufe && ` (${b.stufe})`}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Stufe"
+                title="Abweichende Stufe nur für diesen Eintrag, z. B. Reisezeit"
+                value={timerStufe}
+                onChange={(x) => setTimerStufe(x.target.value)}
+              >
+                <option value="">Stufe wie Bearbeiter</option>
+                {einst.stufen.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.name} · {euro(st.satz)}
                   </option>
                 ))}
               </select>
@@ -257,6 +293,17 @@ export default function Zeiten({
           </label>
         </div>
         <div className="schrift-wahl">
+          <label className="feld" title="Abweichende Stufe nur für diesen Eintrag, z. B. Reisezeit">
+            Stufe
+            <select value={f.stufe_id} onChange={(x) => setF({ ...f, stufe_id: x.target.value })}>
+              <option value="">{bearbeitet ? "unverändert" : "wie Bearbeiter"}</option>
+              {einst.stufen.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name} · {euro(st.satz)}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="feld">
             Tätigkeit
             <input
@@ -268,7 +315,11 @@ export default function Zeiten({
         </div>
         <div className="notiz-optionen">
           <label>
-            <input type="checkbox" checked={f.abrechenbar} onChange={(x) => setF({ ...f, abrechenbar: x.target.checked })} />{" "}
+            <input
+              type="checkbox"
+              checked={f.abrechenbar}
+              onChange={(x) => setF({ ...f, abrechenbar: x.target.checked })}
+            />{" "}
             abrechenbar
           </label>
           <button type="submit">{bearbeitet ? "Änderung speichern" : "Zeit speichern"}</button>
@@ -327,8 +378,12 @@ export default function Zeiten({
                 <th>Datum</th>
                 <th>Bearbeiter</th>
                 <th>Tätigkeit</th>
-                <th className="zahl" title="Erfasst (Stunden:Minuten)">Dauer</th>
-                <th className="zahl" title="Nach der Taktung">Getaktet</th>
+                <th className="zahl" title="Erfasst (Stunden:Minuten)">
+                  Dauer
+                </th>
+                <th className="zahl" title="Nach der Taktung">
+                  Getaktet
+                </th>
                 <th className="zahl">Betrag</th>
                 <th />
               </tr>
@@ -361,7 +416,14 @@ export default function Zeiten({
                             className="link klein"
                             title="Timer für diesen Eintrag weiterlaufen lassen"
                             onClick={() =>
-                              void mit(() => kern<ZeitListe>("zeit.starten", { akte_id: akteId, eintrag_id: z.id }), true)
+                              void mit(
+                                () =>
+                                  kern<ZeitListe>("zeit.starten", {
+                                    akte_id: akteId,
+                                    eintrag_id: z.id,
+                                  }),
+                                true,
+                              )
                             }
                           >
                             Fortsetzen

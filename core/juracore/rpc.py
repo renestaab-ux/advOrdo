@@ -301,8 +301,8 @@ class Kern:
             "zeit.speichern": lambda akte_id, daten, eintrag_id=None: zeiterfassung.speichern(
                 self.akten, akte_id, daten, eintrag_id),
             "zeit.loeschen": lambda eintrag_id: zeiterfassung.loeschen(self.akten, eintrag_id),
-            "zeit.starten": lambda akte_id=None, bearbeiter_id=None, taetigkeit="", eintrag_id=None: (
-                zeiterfassung.starten(self.akten, akte_id, bearbeiter_id, taetigkeit, eintrag_id)),
+            "zeit.starten": lambda akte_id=None, bearbeiter_id=None, taetigkeit="", eintrag_id=None, stufe_id=None: (
+                zeiterfassung.starten(self.akten, akte_id, bearbeiter_id, taetigkeit, eintrag_id, stufe_id=stufe_id)),
             "zeit.stoppen": lambda: zeiterfassung.stoppen(self.akten),
             "zeit.laufend": lambda: zeiterfassung.laufend(self.akten),
             "zeit.fuer_kostennote": lambda akte_id: zeiterfassung.fuer_kostennote(self.akten, akte_id),
