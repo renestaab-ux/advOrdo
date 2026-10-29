@@ -2339,7 +2339,7 @@ export function nachrichtAlter(iso: string | null, jetzt: Date = new Date()): st
 export interface SchriftVorlage {
   id: string;
   titel: string;
-  art: "brief" | "schriftsatz" | "eigen";
+  art: "brief" | "schriftsatz" | "vereinbarung" | "eigen";
   beschreibung?: string;
   datei?: string;
   /** Platzhalter in der Vorlage, in der Schreibweise des Katalogs. */
@@ -2380,7 +2380,8 @@ export interface SchriftErgebnis {
 
 /** Schriftsatz an das Gericht, Brief an den Gegnervertreter, sonst an den Gegner (wie im Kern). */
 export function empfaengerVorschlag(beteiligte: Beteiligung[], art: SchriftVorlage["art"]): number | null {
-  const reihenfolge = art === "schriftsatz" ? ["gericht"] : ["bevollmaechtigter_gegner", "gegner", "mandant"];
+  const reihenfolge =
+    art === "schriftsatz" ? ["gericht"] : art === "vereinbarung" ? ["mandant"] : ["bevollmaechtigter_gegner", "gegner", "mandant"];
   for (const rolle of reihenfolge) {
     const b = beteiligte.find((x) => x.rolle === rolle);
     if (b) return b.id;
@@ -2506,7 +2507,8 @@ export interface KostennoteErgebnis {
   grundlage: string;
   abschnitte: { titel: string; zeilen: KostennoteZeile[] }[];
   /** RVG-Mindestvergütung: beide Beträge netto und welcher berechnet ist. */
-  vergleich: { zeithonorar: string; gesetzlich: string; gewaehlt: "zeithonorar" | "gesetzlich" } | null;
+  /** RVG-Mindestvergütung; ``faktor``: Zeithonorar über dem Fünffachen der gesetzlichen Vergütung. */
+  vergleich: { zeithonorar: string; gesetzlich: string; gewaehlt: "zeithonorar" | "gesetzlich"; faktor?: string } | null;
   steuerfrei: KostennoteZeile[];
   netto: string;
   umsatzsteuer_satz: string;
@@ -2612,12 +2614,38 @@ export interface ZeitLaufend extends ZeitEintrag {
   sekunden: number;
 }
 
+/** Vergütungsvereinbarung mit dem (ersten) Mandanten der Akte; gilt für alle seine Akten. */
+export interface ZeitVereinbarung {
+  mandant: { schluessel: string; name: string; person: boolean; akten: number } | null;
+  vermerkt: boolean;
+  /** Wirksame Taktung der Akte. */
+  taktung: number;
+  /** Taktung aus der Vereinbarung; null: die aus den Einstellungen. */
+  taktung_eigen: number | null;
+  taktung_allgemein: number;
+  vereinbart_am: string | null;
+  mindestverguetung: boolean;
+  notiz: string;
+  /** Kostenschätzung dieser Akte, netto. */
+  kostenschaetzung: string | null;
+  hinweise: string[];
+}
+
 export interface ZeitListe {
   eintraege: ZeitEintrag[];
   summen: { bearbeiter: string; stufe: string; minuten: number; getaktet: number; betrag: string }[];
-  gesamt: { minuten: number; getaktet: number; betrag: string; offen: string; offen_minuten: number };
+  gesamt: {
+    minuten: number;
+    getaktet: number;
+    betrag: string;
+    offen: string;
+    offen_minuten: number;
+    /** Erfasster Betrag in Prozent der Kostenschätzung; null ohne Schätzung. */
+    budget_anteil: number | null;
+  };
   taktung: number;
   laufend: ZeitLaufend | null;
+  vereinbarung: ZeitVereinbarung;
   hinweise: string[];
 }
 
@@ -2625,6 +2653,8 @@ export interface ZeitFuerKostennote {
   posten: Extract<KostenEingabePosten, { typ: "stunden" }>[];
   leistungszeitraum: string;
   taktung: number;
+  /** RVG-Mindestvergütung laut Vereinbarung mit dem Mandanten; null: keine Vereinbarung vermerkt. */
+  mindestverguetung: boolean | null;
   hinweise: string[];
 }
 

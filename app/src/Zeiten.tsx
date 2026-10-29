@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { save } from "@tauri-apps/plugin-dialog";
 import {
   ZeitEinstellungen,
   ZeitEintrag,
@@ -10,6 +11,7 @@ import {
   uhrText,
   zeitGeaendert,
 } from "./kern";
+import ZeitVereinbarung from "./ZeitVereinbarung";
 import { useLaufenderTimer } from "./zeitTimer";
 
 const heute = () => new Date().toLocaleDateString("sv-SE"); // JJJJ-MM-TT in Ortszeit
@@ -58,6 +60,7 @@ export default function Zeiten({
   const [bearbeitet, setBearbeitet] = useState<number | null>(null);
   const [loeschfrage, setLoeschfrage] = useState<ZeitEintrag | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [meldung, setMeldung] = useState<string | null>(null);
   const { laufend, sekunden } = useLaufenderTimer();
 
   async function laden() {
@@ -169,6 +172,28 @@ export default function Zeiten({
     });
   }
 
+  async function exportieren() {
+    setFehler(null);
+    setMeldung(null);
+    const ziel = await save({
+      title: "Zeiten exportieren",
+      defaultPath: `Zeiten ${new Date().toLocaleDateString("sv-SE")}.xlsx`,
+      filters: [
+        { name: "Excel", extensions: ["xlsx"] },
+        { name: "Tabelle (CSV)", extensions: ["csv"] },
+        { name: "PDF (Tätigkeitsnachweis)", extensions: ["pdf"] },
+        { name: "Word", extensions: ["docx"] },
+      ],
+    });
+    if (!ziel) return;
+    try {
+      const r = await kern<{ pfad: string; anzahl: number }>("zeit.exportieren", { akte_id: akteId, pfad: ziel });
+      setMeldung(`${r.anzahl} Einträge exportiert nach ${r.pfad}.`);
+    } catch (x) {
+      setFehler(String(x));
+    }
+  }
+
   if (!liste || !einst || !f) {
     return (
       <div className="zeiten">{fehler ? <p className="fehler">{fehler}</p> : <p className="status">Lade …</p>}</div>
@@ -195,6 +220,15 @@ export default function Zeiten({
           {h}
         </p>
       ))}
+
+      <ZeitVereinbarung
+        akteId={akteId}
+        v={liste.vereinbarung}
+        anteil={g.budget_anteil}
+        taktungen={einst.taktungen}
+        onGespeichert={setListe}
+        onSchriftstuecke={onKostennote}
+      />
 
       <section className="karte zeit-timer" aria-label="Timer">
         {hierLaeuft ? (
@@ -339,6 +373,7 @@ export default function Zeiten({
       </form>
 
       {fehler && <p className="fehler">{fehler}</p>}
+      {meldung && <p className="meldung">{meldung}</p>}
       {loeschfrage && (
         <div className="rueckfrage" role="alertdialog" aria-label="Zeiteintrag löschen?">
           <strong>Diesen Zeiteintrag löschen?</strong>
@@ -370,7 +405,12 @@ export default function Zeiten({
         <section className="karte zeit-liste">
           <div className="kopf">
             <h3>Erfasste Zeiten</h3>
-            <span className="leise klein">Taktung {liste.taktung} Min. je Eintrag</span>
+            <span className="leise klein">
+              Taktung {liste.taktung === 1 ? "minutengenau" : `${liste.taktung} Min. je Eintrag`}
+            </span>
+            <button className="zweitrangig klein" onClick={() => void exportieren()}>
+              Exportieren …
+            </button>
           </div>
           <table className="staffel">
             <thead>
@@ -492,7 +532,7 @@ export default function Zeiten({
       )}
       <p className="leise klein">
         Ein Stundenhonorar setzt eine Vergütungsvereinbarung in Textform voraus (§ 3a Abs. 1 S. 1 RVG). Stundensätze,
-        Bearbeiter und Taktung:{" "}
+        Bearbeiter und die allgemeine Taktung:{" "}
         <button className="link klein" onClick={onEinstellungen}>
           Einstellungen → Zeiterfassung
         </button>

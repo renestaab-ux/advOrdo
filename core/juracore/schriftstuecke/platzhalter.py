@@ -16,6 +16,7 @@ import sqlite3
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from .. import zeiterfassung
 from ..aktenverwaltung import beteiligte, stammdaten, verfahren
 from ..eigene import daten as eigene
 
@@ -73,6 +74,10 @@ KATALOG: list[tuple[str, str]] = [
     ("Empfänger.Zeichen", "Zeichen des Empfängers (bei einem Gericht das Aktenzeichen)"),
     ("Rubrum", "Parteien mit Anschrift, Rolle und Prozessbevollmächtigten, mehrzeilig"),
     ("Rubrum.Kurz", "z. B. „Brückner ./. Autohaus Rehnfeld GmbH“"),
+    ("Vergütung.Stundensätze", "Stundensätze je Stufe aus der Zeiterfassung, mehrzeilig"),
+    ("Vergütung.Taktung", "Satz zur Taktung nach der Vereinbarung mit dem Mandanten"),
+    ("Vergütung.Kostenschätzung", "Kostenschätzung der Akte in Euro (Reiter „Zeiten“)"),
+    ("Vergütung.Mindestvergütung", "Klausel zur RVG-Mindestvergütung, wenn mit dem Mandanten vereinbart"),
     ("Datum", "Heutiges Datum, z. B. 27. Oktober 2026"),
     ("Datum.Kurz", "z. B. 27.10.2026"),
     ("Datum.Ort", "Ort des Absenders und Datum"),
@@ -90,6 +95,7 @@ _WO = {
     "Verfahren": "Stammdaten → Verfahren",
     "Empfänger": "Empfänger wählen bzw. Beteiligte der Akte",
     "Rubrum": "Beteiligte der Akte",
+    "Vergütung": "Einstellungen → Zeiterfassung bzw. Reiter „Zeiten“ der Akte",
     "Datum": "Eigene Daten",
 }
 
@@ -100,7 +106,7 @@ OPTIONAL = {
     "Absender.Berufsträger", "Absender.Steuernummer", "Absender.Bank", "Absender.IBAN", "Absender.BIC",
     "Absender.Bankverbindung", "Bearbeiter.Fachanwalt", "Akte.Gegenstand", "Akte.Gegenstandswert", "Mandant.Vertreter",
     "Gegner.Vertreter", "Gegner.Zeichen", "Gegnervertreter.Zeichen", "Empfänger.Zeichen", "Gericht.Spruchkörper",
-    "Verfahren.Instanz",
+    "Verfahren.Instanz", "Vergütung.Mindestvergütung",
 }
 
 MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
@@ -389,13 +395,39 @@ def _kanzlei_zeile(p: Partei) -> str:
 
 
 def empfaenger_vorschlag(beteiligungen: list[dict], art: str) -> int | None:
-    """Schriftsatz an das Gericht, Brief an den Gegnervertreter, sonst an den Gegner."""
-    reihenfolge = ("gericht",) if art == "schriftsatz" else ("bevollmaechtigter_gegner", "gegner", "mandant")
+    """Schriftsatz an das Gericht, Vergütungsvereinbarung an den Mandanten, Brief an den Gegnervertreter, sonst an
+    den Gegner."""
+    reihenfolge = (("gericht",) if art == "schriftsatz" else ("mandant",) if art == "vereinbarung"
+                   else ("bevollmaechtigter_gegner", "gegner", "mandant"))
     for rolle in reihenfolge:
         for b in beteiligungen:
             if b["rolle"] == rolle:
                 return b["id"]
     return beteiligungen[0]["id"] if beteiligungen else None
+
+
+MINDESTVERGUETUNG = ("In gerichtlichen Verfahren schuldet der Auftraggeber mindestens die gesetzliche Vergütung nach "
+                     "dem RVG. Übersteigt sie das nach Zeitaufwand berechnete Honorar, wird statt des Zeithonorars die "
+                     "gesetzliche Vergütung berechnet; beide werden nicht nebeneinander berechnet.")
+
+
+def _verguetung(con: sqlite3.Connection, akte_id: int) -> dict[str, str]:
+    """Angaben aus der Zeiterfassung für die Vergütungsvereinbarung."""
+    if con.execute("SELECT 1 FROM sqlite_master WHERE name = 'zeit_vereinbarung'").fetchone() is None:
+        return {}
+    v = zeiterfassung.vereinbarung(con, akte_id)
+    stufen = con.execute("SELECT name, satz FROM zeit_stufe ORDER BY reihenfolge, id").fetchall()
+    takt = v["taktung"]
+    if takt == 1:
+        taktung = "Die Zeit wird minutengenau erfasst und abgerechnet."
+    else:
+        stunde = zeiterfassung.stunden_text(takt)
+        taktung = (f"Die Zeit wird je Tätigkeit in Einheiten von {takt} Minuten ({stunde} Stunde) abgerechnet; eine "
+                   "angefangene Einheit wird aufgerundet.")
+    return {"Vergütung.Stundensätze": "\n".join(f"{s['name']}: {euro(s['satz'])} je Stunde" for s in stufen),
+            "Vergütung.Taktung": taktung,
+            "Vergütung.Kostenschätzung": euro(v["kostenschaetzung"]) if v["kostenschaetzung"] else "",
+            "Vergütung.Mindestvergütung": MINDESTVERGUETUNG if v["mindestverguetung"] else ""}
 
 
 def werte(con: sqlite3.Connection, akte_id: int, empfaenger_id: int | None = None, verfahren_id: int | None = None,
@@ -514,6 +546,8 @@ def werte(con: sqlite3.Connection, akte_id: int, empfaenger_id: int | None = Non
         kurz_g = ", ".join(p.kurzname for _, p in gegner)
         a, b = (kurz_m, kurz_g) if mandant_aktiv else (kurz_g, kurz_m)
         w["Rubrum.Kurz"] = " ./. ".join(t for t in (a, b) if t)
+
+    w.update(_verguetung(con, akte_id))
 
     w["Datum"] = datum_lang(heute)
     w["Datum.Kurz"] = heute.strftime("%d.%m.%Y")

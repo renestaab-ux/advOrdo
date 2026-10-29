@@ -306,6 +306,10 @@ class Kern:
             "zeit.stoppen": lambda: zeiterfassung.stoppen(self.akten),
             "zeit.laufend": lambda: zeiterfassung.laufend(self.akten),
             "zeit.fuer_kostennote": lambda akte_id: zeiterfassung.fuer_kostennote(self.akten, akte_id),
+            "zeit.vereinbarung_speichern": lambda akte_id, daten: zeiterfassung.vereinbarung_speichern(
+                self.akten, akte_id, daten),
+            "zeit.exportieren": lambda akte_id, pfad, nur_offen=False: zeiterfassung.exportieren(
+                self.akten, akte_id, pfad, nur_offen),
             "schriftstuecke.vorlage_hinzufuegen": lambda pfad: schrift_vorlagen.hinzufuegen(
                 self.umgebungen.ordner(), pfad),
             "schriftstuecke.vorlage_entfernen": lambda datei: schrift_vorlagen.entfernen(

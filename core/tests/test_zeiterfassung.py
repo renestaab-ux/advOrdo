@@ -191,7 +191,7 @@ def test_grenzen_der_taktung_und_konkrete_taetigkeit(kern):  # noqa: F811
     # minutengenau erfasst bleibt erhalten
     assert sorted(x["minuten"] for x in zeit.liste(kern.akten, aid)["eintraege"]) == [7, 20]
     zeit.taktung_setzen(kern.akten, 6)
-    assert zeit.liste(kern.akten, aid)["hinweise"] == []
+    assert [h for h in zeit.liste(kern.akten, aid)["hinweise"] if "Verbraucher" in h] == []
 
 
 def test_zehn_minuten_ueber_empfehlung(kern):  # noqa: F811
@@ -251,3 +251,130 @@ def test_abweichende_stufe_je_eintrag_reisezeit(kern):  # noqa: F811
     k = zeit.fuer_kostennote(kern.akten, aid)
     texte = {x["text"]: x["stundensatz"] for x in k["posten"]}
     assert texte == {"Dr. Sophie Albrecht (Partner)": "380.00", "Dr. Sophie Albrecht (Reisezeit)": "150.00"}
+
+
+# --------------------------------------------------------------------------- Stufe 2
+
+
+def test_vereinbarung_je_mandant_gilt_fuer_alle_seine_akten(kern):  # noqa: F811
+    from juracore.aktenverwaltung import stammdaten
+
+    aid = kern.test_akte
+    p = _bearbeiter(kern, "Dr. Sophie Albrecht", "Partner")
+    zeit.speichern(kern.akten, aid, {"dauer": "0:07", "bearbeiter_id": p,
+                                     "taetigkeit": "Klageerwiderung auf Seite 3 geprüft"})
+    stand = zeit.liste(kern.akten, aid)
+    v = stand["vereinbarung"]
+    assert v["mandant"]["name"] == "Dr. Lena Brückner" and v["mandant"]["akten"] == 1
+    assert not v["vermerkt"] and v["taktung"] == 6 and v["taktung_eigen"] is None
+    assert any("keine Vergütungsvereinbarung vermerkt" in h and "§ 4b S. 1 RVG" in h for h in stand["hinweise"])
+    assert zeit.fuer_kostennote(kern.akten, aid)["mindestverguetung"] is None
+
+    stand = zeit.vereinbarung_speichern(kern.akten, aid, {"taktung": 1, "vereinbart_am": "2026-10-01",
+                                                          "mindestverguetung": True})
+    assert stand["taktung"] == 1 and stand["eintraege"][0]["getaktet"] == 7
+    assert not any("keine Vergütungsvereinbarung" in h for h in stand["hinweise"])
+    assert zeit.fuer_kostennote(kern.akten, aid)["mindestverguetung"] is True
+    assert zeit.einstellungen(kern.akten)["taktung"] == 6  # die allgemeine bleibt
+
+    # Zweite Akte derselben Mandantin: gleiche Vereinbarung
+    b = akte.akte_anlegen(kern.akten, "Brückner, Mietsache")["id"]
+    stammdaten.beteiligung_hinzufuegen(kern.akten, b, "mandant", beteiligter_id=v["mandant"]["schluessel"][2:]
+                                       and int(v["mandant"]["schluessel"][2:]))
+    assert zeit.akte_taktung(kern.akten, b) == 1
+    assert zeit.liste(kern.akten, b)["vereinbarung"]["mandant"]["akten"] == 2
+
+    # Ohne eigene Taktung gilt wieder die allgemeine; ungültige Taktung abgelehnt
+    assert zeit.vereinbarung_speichern(kern.akten, aid, {"taktung": None})["taktung"] == 6
+    with pytest.raises(ValueError, match="gibt es nicht"):
+        zeit.vereinbarung_speichern(kern.akten, aid, {"taktung": 7})
+    # Akte ohne Mandant: nur die Kostenschätzung lässt sich speichern
+    leer = akte.akte_anlegen(kern.akten, "Ohne Mandant")["id"]
+    assert zeit.vereinbarung_speichern(kern.akten, leer, {"kostenschaetzung": "1.000"})["vereinbarung"][
+        "kostenschaetzung"] == "1000.00"
+    with pytest.raises(ValueError, match="kein Mandant"):
+        zeit.vereinbarung_speichern(kern.akten, leer, {"taktung": 6})
+
+
+def test_kostenschaetzung_meldet_ueberschreitung(kern):  # noqa: F811
+    aid = kern.test_akte
+    p = _bearbeiter(kern, "Dr. Sophie Albrecht", "Partner")  # 380 €/Std.
+    zeit.vereinbarung_speichern(kern.akten, aid, {"kostenschaetzung": "500,00", "vereinbart_am": "2026-10-01"})
+    stand = zeit.speichern(kern.akten, aid, {"dauer": "1:00", "bearbeiter_id": p,
+                                             "taetigkeit": "Besprechung mit Frau Brückner zum Vergleich"})
+    assert stand["gesamt"]["budget_anteil"] == 76 and not any("Kostenschätzung" in h for h in stand["hinweise"])
+    stand = zeit.speichern(kern.akten, aid, {"dauer": "0:30", "bearbeiter_id": p,
+                                             "taetigkeit": "Replik zur Klageerwiderung entworfen"})
+    assert stand["gesamt"]["budget_anteil"] == 114
+    assert any("überschreiten 114 % der Kostenschätzung (500,00 €)" in h for h in stand["hinweise"])
+
+
+def test_fuenffach_pruefung():
+    zeit_posten = {"typ": "stunden", "text": "RAin Albrecht", "minuten": 600, "stundensatz": "380.00"}
+    gebuehr = {"typ": "gebuehr", "nr": "3100", "satz": "1,3"}
+    e = {"art": "rechnung", "gegenstandswert": "1.000", "auftrag_am": "2026-10-01", "posten": [zeit_posten, gebuehr],
+         "mindestverguetung": True}
+    r = kostennote.berechne(e)
+    assert r["vergleich"]["gewaehlt"] == "zeithonorar" and float(r["vergleich"]["faktor"]) > 5
+    assert any("§ 3a Abs. 3 S. 1 RVG" in h and "BB 2025, 2893" in h for h in r["hinweise"])
+    # unter dem Fünffachen kein Hinweis
+    e["posten"] = [{**zeit_posten, "minuten": 60}, gebuehr]
+    r = kostennote.berechne(e)
+    assert "faktor" not in r["vergleich"] and not any("Fünffachen" in h for h in r["hinweise"])
+
+
+def test_vorlage_verguetungsvereinbarung(kern, tmp_path):  # noqa: F811
+    import zipfile
+
+    from juracore.schriftstuecke import platzhalter, vorlagen
+
+    aid = kern.test_akte
+    zeit.vereinbarung_speichern(kern.akten, aid, {"taktung": 6, "mindestverguetung": True,
+                                                  "kostenschaetzung": "4.500", "vereinbart_am": "2026-10-01"})
+    w = platzhalter.werte(kern.akten, aid)["werte"]
+    assert "Partner: 380,00 € je Stunde" in w["Vergütung.Stundensätze"]
+    assert "6 Minuten (0,1 Stunde)" in w["Vergütung.Taktung"]
+    assert w["Vergütung.Kostenschätzung"] == "4.500,00 €"
+    assert "mindestens die gesetzliche Vergütung" in w["Vergütung.Mindestvergütung"]
+    ziel = tmp_path / "v.docx"
+    r = vorlagen.erzeugen(kern.akten, kern.con, kern.umgebungen.ordner(), kern.ablage, aid, "grund:verguetung",
+                          pfad=ziel, in_akte=False, heute=TAG)
+    assert r["dateiname"] == "2026-10-28 Vergütungsvereinbarung Dr. Lena Brückner.docx"
+    assert r["leer"] == [] and r["unbekannt"] == []
+    text = zipfile.ZipFile(ziel).read("word/document.xml").decode()
+    assert "Vergütungsvereinbarung" in text and "regelmäßig nicht mehr als die gesetzliche Vergütung" in text
+    assert "Anerkenntnis" in text and "4.500,00 €" in text
+    # ohne Mindestvergütung bleibt der Absatz leer, ohne Hinweis auf eine Lücke
+    zeit.vereinbarung_speichern(kern.akten, aid, {"mindestverguetung": False})
+    r = vorlagen.erzeugen(kern.akten, kern.con, kern.umgebungen.ordner(), kern.ablage, aid, "grund:verguetung",
+                          pfad=ziel, in_akte=False, heute=TAG)
+    assert r["leer"] == []
+    assert "mindestens die gesetzliche" not in zipfile.ZipFile(ziel).read("word/document.xml").decode()
+
+
+def test_export_der_zeiten(kern, tmp_path):  # noqa: F811
+    import zipfile
+
+    aid = kern.test_akte
+    p = _bearbeiter(kern, "Dr. Sophie Albrecht", "Partner")
+    zeit.speichern(kern.akten, aid, {"datum": "2026-10-02", "dauer": "0:07", "bearbeiter_id": p,
+                                     "taetigkeit": "Telefonat mit Frau Brückner; Fristen besprochen"})
+    zeit.speichern(kern.akten, aid, {"datum": "2026-10-01", "dauer": "1:30", "bearbeiter_id": p,
+                                     "taetigkeit": "Klageschrift =SUMME(A1) entworfen", "abrechenbar": False})
+    csv_pfad = tmp_path / "zeiten.csv"
+    r = zeit.exportieren(kern.akten, aid, str(csv_pfad))
+    assert r["anzahl"] == 2
+    roh = csv_pfad.read_bytes()
+    assert roh.startswith(b"\xef\xbb\xbf") and b"\r\r\n" not in roh
+    zeilen = roh.decode("utf-8-sig").split("\r\n")
+    assert zeilen[0].startswith("Datum;Bearbeiter;Stufe;Tätigkeit")
+    assert zeilen[1].startswith("01.10.2026;Dr. Sophie Albrecht;Partner;")  # älteste zuerst
+    assert ";0,20;380,00;76,00;ja;" in zeilen[2]
+    for art in ("xlsx", "pdf", "docx"):
+        ziel = tmp_path / f"zeiten.{art}"
+        zeit.exportieren(kern.akten, aid, str(ziel))
+        assert ziel.stat().st_size > 500
+    blatt = zipfile.ZipFile(tmp_path / "zeiten.xlsx").read("xl/worksheets/sheet2.xml").decode()
+    assert "=SUMME(A1)" in blatt and "<f>" not in blatt  # Text bleibt Text
+    with pytest.raises(ValueError, match="nicht unterstützt"):
+        zeit.exportieren(kern.akten, aid, str(tmp_path / "zeiten.odt"))

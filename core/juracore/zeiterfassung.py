@@ -15,13 +15,23 @@ Jeder Eintrag merkt sich Bearbeiter, Stufe und Stundensatz zum Zeitpunkt der Erf
 Sätze wirkt nur auf neue Einträge. Eine Kostennote (nicht ein Vorschuss) kennzeichnet die übernommenen Einträge als
 abgerechnet; ein Storno gibt sie wieder frei. Es läuft höchstens ein Timer je Arbeitsumgebung; er steht in der
 Datenbank und läuft deshalb auch nach einem Neustart der App weiter.
+
+Vergütungsvereinbarung je Mandant: Taktung (Vorrang vor der allgemeinen), Datum der Vereinbarung und ob die
+RVG-Mindestvergütung vereinbart ist; sie gilt für alle Akten des Mandanten. Je Akte kommt eine Kostenschätzung
+hinzu, mit der die erfassten Zeiten verglichen werden. Die Zeiten einer Akte lassen sich als Excel, CSV, PDF oder
+Word ausgeben.
 """
 
 from __future__ import annotations
 
+import csv
+import io
+import json
+import re
 import sqlite3
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 from .eigene import daten as eigene
 
@@ -60,6 +70,20 @@ CREATE TABLE IF NOT EXISTS zeit_eintrag (
     geaendert_am  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS zeit_eintrag_akte ON zeit_eintrag(akte_id);
+-- Vergütungsvereinbarung je Mandant; gilt für alle Akten, in denen er Mandant ist.
+CREATE TABLE IF NOT EXISTS zeit_vereinbarung (
+    mandant           TEXT PRIMARY KEY,     -- "b:<beteiligter_id>" oder (Rechtsabteilung) "o:<eigene_organisation_id>"
+    taktung           INTEGER,              -- leer: Taktung aus den Einstellungen
+    vereinbart_am     TEXT,                 -- Datum der Vereinbarung in Textform; leer: keine vermerkt
+    mindestverguetung INTEGER NOT NULL DEFAULT 0,
+    notiz             TEXT NOT NULL DEFAULT '',
+    geaendert_am      TEXT NOT NULL
+);
+-- Kostenschätzung je Akte (Budget), mit der die erfassten Zeiten verglichen werden.
+CREATE TABLE IF NOT EXISTS zeit_akte (
+    akte_id           INTEGER PRIMARY KEY REFERENCES akte(id) ON DELETE CASCADE,
+    kostenschaetzung  TEXT
+);
 """
 
 TAKTUNGEN = (1, 5, 6, 10, 15, 30, 60)
@@ -75,6 +99,8 @@ TAKTUNG_GRENZE = 15
 BGH_ZEITTAKT = "BGH, Urt. v. 13.02.2020 – IX ZR 140/19"
 # Weniger Wörter gelten als pauschale Angabe („Aktenbearbeitung“, „Telefonat“).
 TAETIGKEIT_MIN_WOERTER = 3
+# Kostenschätzung: Hinweis, sobald dieser Anteil erreicht ist.
+BUDGET_WARNUNG = Decimal("0.8")
 
 # Beispielstufen für den Anfang; Namen und Sätze sind frei änderbar (Einstellungen → Zeiterfassung).
 STUFEN_VORGABE = (
@@ -118,9 +144,9 @@ def einrichten(con: sqlite3.Connection) -> None:
 
 
 def _betrag(wert, feld: str) -> Decimal:
-    """Deutsche oder englische Schreibweise: „1.234,50“, „1234,5“, „1234.50“."""
+    """Deutsche oder englische Schreibweise: „1.234,50“, „1.000“, „1234,5“, „1234.50“."""
     t = str(wert).strip().replace(" ", "").replace("€", "")
-    if "," in t:
+    if "," in t or re.fullmatch(r"\d{1,3}(\.\d{3})+", t):  # „1.000“ sind tausend Euro, nicht einer
         t = t.replace(".", "").replace(",", ".")
     try:
         d = Decimal(t)
@@ -240,6 +266,134 @@ def akte_hinweise(con: sqlite3.Connection, akte_id: int, takt: int) -> list[str]
                 "Zeit (Spalte „Dauer“). Für diese Akte besser minutengenau oder mit höchstens 6 Minuten abrechnen."]
     return [f"Der Mandant ist eine natürliche Person und womöglich Verbraucher. {takt} Minuten liegen über den 5 bis "
             f"6 Minuten, die als zulässige Höchstgrenze gelten ({QUELLE_EMPFOHLEN})."]
+
+
+# --------------------------------------------------------------------------- Vereinbarung je Mandant
+
+
+def _mandanten(con: sqlite3.Connection, akte_id: int) -> list[dict]:
+    """Mandanten der Akte in der Reihenfolge der Beteiligtenliste."""
+    aus = []
+    for z in con.execute("""SELECT b.beteiligter_id, b.eigene_organisation_id, t.name, t.art, o.daten AS org
+                            FROM akte_beteiligung b
+                            LEFT JOIN beteiligter t ON t.id = b.beteiligter_id
+                            LEFT JOIN eigene_organisation o ON o.id = b.eigene_organisation_id
+                            WHERE b.akte_id = ? AND b.rolle = 'mandant' ORDER BY b.id""", (akte_id,)):
+        if z["beteiligter_id"] is not None:
+            aus.append({"schluessel": f"b:{z['beteiligter_id']}", "name": z["name"], "person": z["art"] == "person"})
+        elif z["eigene_organisation_id"] is not None:
+            name = json.loads(z["org"] or "{}").get("name") or "Konzerngesellschaft"
+            aus.append({"schluessel": f"o:{z['eigene_organisation_id']}", "name": name, "person": False})
+    return aus
+
+
+def _vereinbarung_zeile(con: sqlite3.Connection, schluessel: str) -> sqlite3.Row | None:
+    return con.execute("SELECT * FROM zeit_vereinbarung WHERE mandant = ?", (schluessel,)).fetchone()
+
+
+def _akten_des_mandanten(con: sqlite3.Connection, schluessel: str) -> int:
+    art, _, nr = schluessel.partition(":")
+    spalte = "beteiligter_id" if art == "b" else "eigene_organisation_id"
+    return con.execute(f"SELECT COUNT(DISTINCT akte_id) FROM akte_beteiligung WHERE rolle = 'mandant' "
+                       f"AND {spalte} = ?", (int(nr),)).fetchone()[0]
+
+
+def akte_taktung(con: sqlite3.Connection, akte_id: int) -> int:
+    """Taktung der Akte: die aus der Vereinbarung mit dem (ersten) Mandanten, sonst die allgemeine."""
+    mandanten = _mandanten(con, akte_id)
+    z = _vereinbarung_zeile(con, mandanten[0]["schluessel"]) if mandanten else None
+    return z["taktung"] if z is not None and z["taktung"] in TAKTUNGEN else taktung(con)
+
+
+def _kostenschaetzung(con: sqlite3.Connection, akte_id: int) -> str | None:
+    z = con.execute("SELECT kostenschaetzung FROM zeit_akte WHERE akte_id = ?", (akte_id,)).fetchone()
+    return z["kostenschaetzung"] if z and z["kostenschaetzung"] else None
+
+
+def vereinbarung(con: sqlite3.Connection, akte_id: int) -> dict:
+    """Was für die Akte vereinbart ist: Vereinbarung mit dem (ersten) Mandanten, wirksame Taktung, Kostenschätzung
+    der Akte."""
+    mandanten = _mandanten(con, akte_id)
+    m = mandanten[0] if mandanten else None
+    z = _vereinbarung_zeile(con, m["schluessel"]) if m else None
+    allgemein = taktung(con)
+    eigen = z["taktung"] if z is not None and z["taktung"] in TAKTUNGEN else None
+    hinweise = []
+    andere = [x["name"] for x in mandanten[1:] if _vereinbarung_zeile(con, x["schluessel"]) is not None]
+    if andere:
+        hinweise.append(f"Die Akte hat mehrere Mandanten. Maßgeblich ist hier die Vereinbarung mit {m['name']}; die "
+                        f"mit {', '.join(andere)} gilt in dieser Akte nicht.")
+    return {"mandant": m | {"akten": _akten_des_mandanten(con, m["schluessel"])} if m else None,
+            "vermerkt": z is not None, "taktung": eigen or allgemein, "taktung_eigen": eigen,
+            "taktung_allgemein": allgemein, "vereinbart_am": z["vereinbart_am"] if z is not None else None,
+            "mindestverguetung": bool(z["mindestverguetung"]) if z is not None else False,
+            "notiz": z["notiz"] if z is not None else "", "kostenschaetzung": _kostenschaetzung(con, akte_id),
+            "hinweise": hinweise}
+
+
+def vereinbarung_speichern(con: sqlite3.Connection, akte_id: int, daten: dict) -> dict:
+    """Speichert die Vereinbarung mit dem Mandanten der Akte (taktung, vereinbart_am, mindestverguetung, notiz)
+    und die Kostenschätzung der Akte; liefert die Liste der Akte."""
+    if con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
+        raise LookupError(f"Akte {akte_id} gibt es nicht.")
+    mandanten = _mandanten(con, akte_id)
+    felder = ("taktung", "vereinbart_am", "mindestverguetung", "notiz")
+    jetzt = _jetzt().isoformat()
+    with con:
+        if "kostenschaetzung" in daten:
+            roh = daten.get("kostenschaetzung")
+            k = _text_satz(_betrag(roh, "Kostenschätzung")) if roh not in (None, "") else None
+            con.execute("INSERT INTO zeit_akte (akte_id, kostenschaetzung) VALUES (?, ?) ON CONFLICT(akte_id) "
+                        "DO UPDATE SET kostenschaetzung = excluded.kostenschaetzung", (akte_id, k))
+        if any(f in daten for f in felder):
+            if not mandanten:
+                raise ValueError("Der Akte ist noch kein Mandant zugeordnet. Die Vereinbarung gilt je Mandant; bitte "
+                                 "zuerst unter „Beteiligte“ den Mandanten eintragen.")
+            alt = _vereinbarung_zeile(con, mandanten[0]["schluessel"])
+            takt = daten.get("taktung", alt["taktung"] if alt is not None else None)
+            if takt in ("", None):
+                takt = None
+            elif int(takt) not in TAKTUNGEN:
+                raise ValueError(f"Taktung {takt} Minuten gibt es nicht; möglich: {', '.join(map(str, TAKTUNGEN))}.")
+            else:
+                takt = int(takt)
+            am = daten.get("vereinbart_am", alt["vereinbart_am"] if alt is not None else None)
+            am = _datum(am, "Vereinbart am").isoformat() if am else None
+            mindest = int(bool(daten.get("mindestverguetung", alt["mindestverguetung"] if alt is not None else 0)))
+            notiz = str(daten.get("notiz", alt["notiz"] if alt is not None else "") or "").strip()
+            con.execute("""INSERT INTO zeit_vereinbarung (mandant, taktung, vereinbart_am, mindestverguetung, notiz,
+                               geaendert_am) VALUES (?, ?, ?, ?, ?, ?)
+                           ON CONFLICT(mandant) DO UPDATE SET taktung = excluded.taktung,
+                               vereinbart_am = excluded.vereinbart_am, mindestverguetung = excluded.mindestverguetung,
+                               notiz = excluded.notiz, geaendert_am = excluded.geaendert_am""",
+                        (mandanten[0]["schluessel"], takt, am, mindest, notiz, jetzt))
+    return liste(con, akte_id)
+
+
+def _budget_hinweis(kostenschaetzung: str | None, betrag: Decimal) -> tuple[int | None, str | None]:
+    if not kostenschaetzung or Decimal(kostenschaetzung) <= 0:
+        return None, None
+    k = Decimal(kostenschaetzung)
+    anteil = int((betrag * 100 / k).to_integral_value())
+    if betrag < k * BUDGET_WARNUNG:
+        return anteil, None
+    wort = "überschreiten" if betrag > k else "erreichen"
+    return anteil, (f"Die erfassten Zeiten ({_euro(betrag)}) {wort} {anteil} % der Kostenschätzung "
+                    f"({_euro(k)}). Bitte den Mandanten rechtzeitig unterrichten, wenn sich eine Überschreitung "
+                    "abzeichnet.")
+
+
+def _euro(d: Decimal) -> str:
+    t = f"{d.quantize(Decimal('0.01')):,.2f}"
+    return t.replace(",", "X").replace(".", ",").replace("X", ".") + " €"
+
+
+def _keine_vereinbarung(v: dict) -> str | None:
+    if v["mandant"] is None or v["vereinbart_am"]:
+        return None
+    return (f"Für {v['mandant']['name']} ist keine Vergütungsvereinbarung vermerkt. Ein Zeithonorar setzt eine "
+            "Vereinbarung in Textform voraus (§ 3a Abs. 1 S. 1 RVG); ohne sie kann nur die gesetzliche Vergütung "
+            "verlangt werden (§ 4b S. 1 RVG). Eine Vorlage gibt es unter „Schriftstücke“.")
 
 
 def einstellungen(con: sqlite3.Connection) -> dict:
@@ -407,8 +561,10 @@ _AUSWAHL = """SELECT e.*, k.nummer AS kostennote FROM zeit_eintrag e
 
 
 def liste(con: sqlite3.Connection, akte_id: int) -> dict:
-    """Einträge der Akte (neueste zuerst) mit Summen je Bearbeiter und dem gerade laufenden Timer."""
-    takt = taktung(con)
+    """Einträge der Akte (neueste zuerst) mit Summen je Bearbeiter, dem gerade laufenden Timer, der Vereinbarung mit
+    dem Mandanten und dem Stand gegenüber der Kostenschätzung."""
+    v = vereinbarung(con, akte_id)
+    takt = v["taktung"]
     jetzt = _jetzt()
     eintraege = [_eintrag(z, takt, jetzt) for z in con.execute(
         _AUSWAHL + " WHERE e.akte_id = ? ORDER BY e.datum DESC, e.id DESC", (akte_id,))]
@@ -430,10 +586,17 @@ def liste(con: sqlite3.Connection, akte_id: int) -> dict:
             gesamt["offen_minuten"] += e["getaktet"]
     for s in summen.values():
         s["betrag"] = str(s["betrag"])
+    anteil, budget = _budget_hinweis(v["kostenschaetzung"], gesamt["betrag"])
+    gesamt["budget_anteil"] = anteil
     for k in ("betrag", "offen"):
         gesamt[k] = str(gesamt[k])
+    hinweise = v["hinweise"] + akte_hinweise(con, akte_id, takt)
+    if any(e["satz"] and e["abrechenbar"] for e in eintraege) and (h := _keine_vereinbarung(v)):
+        hinweise.append(h)
+    if budget:
+        hinweise.append(budget)
     return {"eintraege": eintraege, "summen": list(summen.values()), "gesamt": gesamt, "taktung": takt,
-            "laufend": laufend(con), "hinweise": akte_hinweise(con, akte_id, takt)}
+            "laufend": laufend(con), "vereinbarung": v, "hinweise": hinweise}
 
 
 def _pruefe_offen(con: sqlite3.Connection, eintrag_id: int) -> sqlite3.Row:
@@ -503,7 +666,7 @@ def laufend(con: sqlite3.Connection) -> dict | None:
         return None
     jetzt = _jetzt()
     sekunden = int((jetzt - datetime.fromisoformat(z["laeuft_seit"])).total_seconds()) + z["minuten"] * 60
-    return _eintrag(z, taktung(con), jetzt) | {"akte": z["akte"], "aktenzeichen": z["aktenzeichen"],
+    return _eintrag(z, akte_taktung(con, z["akte_id"]), jetzt) | {"akte": z["akte"], "aktenzeichen": z["aktenzeichen"],
                                                 "sekunden": max(0, sekunden)}
 
 
@@ -555,8 +718,10 @@ def stoppen(con: sqlite3.Connection, jetzt: datetime | None = None) -> dict | No
 
 
 def fuer_kostennote(con: sqlite3.Connection, akte_id: int) -> dict:
-    """Offene, abrechenbare Zeiten der Akte als Posten „Stunden × Satz“, je Bearbeiter, Stufe und Satz."""
-    takt = taktung(con)
+    """Offene, abrechenbare Zeiten der Akte als Posten „Stunden × Satz“, je Bearbeiter, Stufe und Satz; dazu, ob mit
+    dem Mandanten die RVG-Mindestvergütung vereinbart ist (None: keine Vereinbarung vermerkt)."""
+    v = vereinbarung(con, akte_id)
+    takt = v["taktung"]
     gruppen: dict[tuple, dict] = {}
     hinweise: list[str] = []
     tage: list[str] = []
@@ -582,7 +747,9 @@ def fuer_kostennote(con: sqlite3.Connection, akte_id: int) -> dict:
         hinweise.append(f"{knapp} Eintrag/Einträge ohne konkrete Tätigkeit. Pauschale Angaben wie „Aktenbearbeitung“ "
                         f"oder „Telefonat“ reichen als Nachweis nicht; zu nennen ist, welcher Schriftsatz, welche "
                         f"Recherche, welches Gespräch mit wem ({BGH_ZEITTAKT}). Bitte im Reiter „Zeiten“ ergänzen.")
-    hinweise += akte_hinweise(con, akte_id, takt)
+    hinweise += v["hinweise"] + akte_hinweise(con, akte_id, takt)
+    if gruppen and (h := _keine_vereinbarung(v)):
+        hinweise.append(h)
     if ohne_satz:
         hinweise.append(f"{ohne_satz} Eintrag/Einträge ohne Stundensatz bleiben offen; bitte dem Bearbeiter eine Stufe "
                         "zuordnen oder den Satz im Eintrag ergänzen.")
@@ -597,7 +764,9 @@ def fuer_kostennote(con: sqlite3.Connection, akte_id: int) -> dict:
         von, bis = date.fromisoformat(min(tage)), date.fromisoformat(max(tage))
         zeitraum = (von.strftime("%d.%m.%Y") if von == bis
                     else f"{von.strftime('%d.%m.%Y')} bis {bis.strftime('%d.%m.%Y')}")
-    return {"posten": posten, "leistungszeitraum": zeitraum, "taktung": takt, "hinweise": list(dict.fromkeys(hinweise))}
+    return {"posten": posten, "leistungszeitraum": zeitraum, "taktung": takt,
+            "mindestverguetung": v["mindestverguetung"] if v["vermerkt"] else None,
+            "hinweise": list(dict.fromkeys(hinweise))}
 
 
 def nachweis(con: sqlite3.Connection, ids: list[int]) -> list[dict]:
@@ -606,11 +775,11 @@ def nachweis(con: sqlite3.Connection, ids: list[int]) -> list[dict]:
     Heidel/Pauly, AnwaltFormulare, § 57)."""
     if not ids:
         return []
-    takt = taktung(con)
     marken = ",".join("?" * len(ids))
     zeilen = con.execute(f"SELECT *, NULL AS kostennote FROM zeit_eintrag WHERE id IN ({marken}) "
                          "ORDER BY datum, id", [int(i) for i in ids]).fetchall()
-    return [_eintrag(z, takt) for z in zeilen]
+    takte: dict[int, int] = {}
+    return [_eintrag(z, takte.setdefault(z["akte_id"], akte_taktung(con, z["akte_id"]))) for z in zeilen]
 
 
 def abrechnen(con: sqlite3.Connection, akte_id: int, ids: list[int], kostennote_id: int) -> None:
@@ -639,3 +808,105 @@ def pruefe_quellen(con: sqlite3.Connection, akte_id: int, ids: list[int]) -> Non
 def freigeben(con: sqlite3.Connection, kostennote_id: int) -> None:
     """Nach einem Storno sind die Zeiten wieder offen (innerhalb der Transaktion des Aufrufers)."""
     con.execute("UPDATE zeit_eintrag SET kostennote_id = NULL WHERE kostennote_id = ?", (kostennote_id,))
+
+
+# --------------------------------------------------------------------------- Export
+
+EXPORT_FORMATE = {"xlsx": "Excel", "csv": "CSV", "pdf": "PDF", "docx": "Word"}
+_SPALTEN = ("Datum", "Bearbeiter", "Stufe", "Tätigkeit", "Dauer (Min.)", "Getaktet (Std.)", "Stundensatz (€)",
+            "Betrag (€)", "Abrechenbar", "Rechnung")
+
+
+def _de(text: str | None) -> str:
+    return (text or "").replace(".", ",")
+
+
+def _tag(iso: str) -> str:
+    return date.fromisoformat(iso).strftime("%d.%m.%Y")
+
+
+def _export_daten(con: sqlite3.Connection, akte_id: int, nur_offen: bool) -> tuple[dict, list[dict], dict]:
+    akte = con.execute("SELECT name, aktenzeichen FROM akte WHERE id = ?", (akte_id,)).fetchone()
+    if akte is None:
+        raise LookupError(f"Akte {akte_id} gibt es nicht.")
+    stand = liste(con, akte_id)
+    eintraege = [e for e in reversed(stand["eintraege"]) if not nur_offen or not e["kostennote_id"]]
+    return dict(akte), eintraege, stand
+
+
+def als_csv(eintraege: list[dict]) -> str:
+    """CSV mit Semikolon und Dezimalkomma, wie es Excel in deutscher Einstellung erwartet."""
+    puffer = io.StringIO()
+    w = csv.writer(puffer, delimiter=";", lineterminator="\r\n")
+    w.writerow(_SPALTEN)
+    for e in eintraege:
+        w.writerow(_zeile(e, text=True))
+    return puffer.getvalue()
+
+
+def _zeile(e: dict, text: bool) -> list:
+    stunden = Decimal(e["getaktet"]) / 60
+    stunden_wert = _de(str(stunden.quantize(Decimal("0.01")))) if text else float(stunden)
+    satz = (_de(e["satz"]) if text else float(e["satz"])) if e["satz"] else ""
+    betrag = (_de(e["betrag"]) if text else float(e["betrag"])) if e["betrag"] else ""
+    taetigkeit = e["taetigkeit"] + (" (Timer läuft)" if e["laeuft_seit"] else "")
+    return [_tag(e["datum"]), e["bearbeiter"], e["stufe"], taetigkeit, e["minuten"], stunden_wert, satz, betrag,
+            "ja" if e["abrechenbar"] else "nein", e["kostennote"] or ""]
+
+
+def _bericht(akte: dict, eintraege: list[dict], stand: dict, nur_offen: bool):
+    from .ausgabe import Absatz, Bericht, Eintrag, Kopf, Tabelle, Ueberschrift
+
+    v = stand["vereinbarung"]
+    minuten = sum(e["minuten"] for e in eintraege)
+    getaktet = sum(e["getaktet"] for e in eintraege)
+    betrag = sum((Decimal(e["betrag"]) for e in eintraege if e["betrag"]), Decimal(0))
+    tage = [e["datum"] for e in eintraege]
+    zeitraum = (f"{_tag(min(tage))} bis {_tag(max(tage))}" if tage and min(tage) != max(tage)
+                else _tag(tage[0]) if tage else "–")
+    kopf = [("Akte", akte["name"]), ("Aktenzeichen", akte["aktenzeichen"] or "–")]
+    if v["mandant"]:
+        kopf.append(("Mandant", v["mandant"]["name"]))
+    kopf += [("Zeitraum", zeitraum), ("Auswahl", "nur offene Zeiten" if nur_offen else "alle Zeiten"),
+             ("Taktung", "minutengenau" if v["taktung"] == 1 else f"{v['taktung']} Minuten"),
+             ("Erfasst", f"{stunden_text(minuten)} Std. ({minuten} Min.)"),
+             ("Abrechenbar (getaktet)", f"{stunden_text(getaktet)} Std."), ("Betrag netto", _euro(betrag)),
+             ("Erstellt am", _jetzt().strftime("%d.%m.%Y %H:%M"))]
+    bausteine: list = [Kopf(kopf), Ueberschrift("Tätigkeitsnachweis")]
+    for e in eintraege:
+        wer = f"{e['bearbeiter']} ({e['stufe']})" if e["stufe"] else e["bearbeiter"]
+        teile = [wer, f"{stunden_text(e['minuten'])} Std."]
+        if e["abrechenbar"] and e["getaktet"] != e["minuten"]:
+            teile.append(f"getaktet {stunden_text(e['getaktet'])} Std.")
+        if not e["abrechenbar"]:
+            teile.append("nicht abrechenbar")
+        if e["betrag"]:
+            teile.append(_euro(Decimal(e["betrag"])))
+        if e["kostennote"]:
+            teile.append(f"Rechnung {e['kostennote']}")
+        bausteine.append(Eintrag(" · ".join(teile), nummer=_tag(e["datum"]), kompakt=True,
+                                 zeilen=[e["taetigkeit"] or "(ohne Tätigkeit)"]))
+    if not eintraege:
+        bausteine.append(Absatz("Keine Zeiten erfasst."))
+    tabelle = Tabelle("Zeiten", list(_SPALTEN), [_zeile(e, text=False) for e in eintraege],
+                      [11, 22, 18, 60, 12, 16, 15, 12, 11, 14])
+    return Bericht(f"Zeitnachweis {akte['name']}", bausteine, [tabelle])
+
+
+def exportieren(con: sqlite3.Connection, akte_id: int, pfad: str, nur_offen: bool = False) -> dict:
+    """Zeiten der Akte als Excel, CSV, PDF oder Word; das Format folgt der Endung."""
+    from . import ausgabe
+
+    ziel = Path(pfad)
+    art = ziel.suffix.lower().lstrip(".")
+    if art not in EXPORT_FORMATE:
+        raise ValueError(f"Format „.{art}“ wird nicht unterstützt; möglich: "
+                         f"{', '.join('.' + k for k in EXPORT_FORMATE)}.")
+    akte, eintraege, stand = _export_daten(con, akte_id, nur_offen)
+    if art == "csv":
+        # Mit BOM, damit Excel unter Windows die Umlaute richtig liest; newline="" lässt die CSV-Zeilenenden
+        # (\r\n) unverändert, sonst macht Windows daraus \r\r\n und jede zweite Zeile ist leer.
+        ziel.write_text(als_csv(eintraege), encoding="utf-8-sig", newline="")
+    else:
+        ziel.write_bytes(ausgabe.schreiben(_bericht(akte, eintraege, stand, nur_offen), art))
+    return {"pfad": str(ziel), "anzahl": len(eintraege)}
