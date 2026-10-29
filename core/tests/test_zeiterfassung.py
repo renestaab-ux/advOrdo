@@ -312,6 +312,11 @@ def test_rahmen_und_einzelvereinbarung(kern):  # noqa: F811
     assert zeit.rahmen_speichern(kern.akten, mandant, {"taktung": 6})["rahmen"]["mindestverguetung"] is True
     assert zeit.rahmen_loeschen(kern.akten, mandant)["rahmen"] is None
     assert zeit.vereinbarung(kern.akten, aid)["art"] is None
+    # Einzelvereinbarung ohne Datum: kein „keine Vereinbarung“, sondern die Bitte um das Datum
+    h = zeit.vereinbarung_speichern(kern.akten, aid, {"art": "einzel", "taktung": 5})["hinweise"]
+    assert not any("keine Vergütungsvereinbarung" in x for x in h)
+    assert any("Einzelvereinbarung dieser Akte" in x and "fehlt das Datum" in x for x in h)
+    zeit.vereinbarung_speichern(kern.akten, aid, {"einzel_aufheben": True})
     with pytest.raises(LookupError):
         zeit.mandant_vereinbarungen(kern.akten, "b:9999")
 

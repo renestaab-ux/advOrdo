@@ -494,8 +494,13 @@ def _euro(d: Decimal) -> str:
 def _keine_vereinbarung(v: dict) -> str | None:
     if v["mandant"] is None or v["vereinbart_am"]:
         return None
+    if v["art"]:
+        name = "Einzelvereinbarung dieser Akte" if v["art"] == "einzel" else "Rahmenvereinbarung"
+        return (f"Bei der {name} mit {v['mandant']['name']} fehlt das Datum. Bitte eintragen, wann sie in Textform "
+                "geschlossen wurde: Ein Zeithonorar setzt eine Vereinbarung in Textform voraus (§ 3a Abs. 1 S. 1 "
+                "RVG); ohne sie kann nur die gesetzliche Vergütung verlangt werden (§ 4b S. 1 RVG).")
     return (f"Für diese Akte ist keine Vergütungsvereinbarung mit {v['mandant']['name']} vermerkt (weder Rahmen- "
-            "noch Einzelvereinbarung mit Datum). Ein Zeithonorar setzt eine "
+            "noch Einzelvereinbarung). Ein Zeithonorar setzt eine "
             "Vereinbarung in Textform voraus (§ 3a Abs. 1 S. 1 RVG); ohne sie kann nur die gesetzliche Vergütung "
             "verlangt werden (§ 4b S. 1 RVG). Eine Vorlage gibt es unter „Schriftstücke“.")
 
