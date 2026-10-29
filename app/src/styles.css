@@ -70,7 +70,7 @@ body { margin: 0; background: var(--hintergrund); }
   --text: #f1f4f8; --text-leise: #b7c3d0; --linie: rgba(255, 255, 255, 0.14); --akzent: #ffffff;
   --gut: #8fd19e; --warnung: #f0c060; --fehler: #f2a7a7; --knopf: rgba(255, 255, 255, 0.16); --knopf-text: #ffffff;
   background: var(--leiste); color: var(--text); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; overflow: hidden auto; }
-.marke { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; margin: 0 0 14px 4px; white-space: nowrap; }
+.marke { display: flex; align-items: center; min-height: 36px; gap: 10px; font-weight: 600; font-size: 17px; margin: 0 0 14px 4px; white-space: nowrap; }
 .marke-zeichen { flex: none; display: block; width: 30px; height: 30px; }
 .nav-eintrag { display: flex; align-items: center; gap: 12px; text-align: left; background: none; border: none; border-left: 3px solid transparent; padding: 8px 10px 8px 9px; border-radius: 6px; color: var(--text); cursor: pointer; font: inherit; white-space: nowrap; }
 .nav-eintrag .symbol { flex: none; color: var(--text-leise); }
