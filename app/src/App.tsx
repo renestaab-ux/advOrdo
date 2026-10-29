@@ -123,10 +123,18 @@ export default function App() {
   return (
     <div className={eingeklappt ? "rahmen eingeklappt" : "rahmen"}>
       <nav className="navigation" aria-label="Bereiche">
-        <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "JuraBox"}>
-          <img className="marke-zeichen" src={marke?.logo ?? jurabox} alt="" aria-hidden />
-          <span className="nav-text">{marke?.kurzbezeichnung || "JuraBox"}</span>
-        </div>
+        {/* Auf der Startseite stehen Logo und Name groß im Kopfband; die Leiste zeigt dort nur JuraBox. */}
+        {bereich === "start" ? (
+          <div className="marke" title="JuraBox">
+            <img className="marke-zeichen" src={jurabox} alt="" aria-hidden />
+            <span className="nav-text">JuraBox</span>
+          </div>
+        ) : (
+          <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "JuraBox"}>
+            <img className="marke-zeichen" src={marke?.logo ?? jurabox} alt="" aria-hidden />
+            <span className="nav-text">{marke?.kurzbezeichnung || "JuraBox"}</span>
+          </div>
+        )}
         {BEREICHE.map((b) => (
           <button
             key={b.id}

@@ -7,7 +7,6 @@ import {
   KiModus,
   Marke,
   NachrichtenListe,
-  kiModusName,
   abstandText,
   akteTitel,
   datumLang,
@@ -60,113 +59,105 @@ export default function Start({
 
   return (
     <div className="start">
-      <header className="kopfband">
+      <header className="kopfband start-kopf">
+        {marke?.logo && <img className="start-logo" src={marke.logo} alt="Logo" />}
         <div>
-          <p className="kopfband-ueber">Startseite</p>
-          <h1>Willkommen bei JuraBox</h1>
+          <p className="kopfband-ueber">{marke?.name ? "Willkommen bei JuraBox" : "Startseite"}</p>
+          <h1>{marke?.name || "Willkommen bei JuraBox"}</h1>
         </div>
-        <span className={aus ? "modus-pille aus" : extern ? "modus-pille extern" : "modus-pille"}>
-          <span className="modus-punkt" aria-hidden />
-          KI: {kiModusName(modus)}
-        </span>
       </header>
       <div className="start-inhalt">
-        {(marke?.logo || marke?.name) && (
-          <div className="start-marke">
-            {marke.logo && <img src={marke.logo} alt="Logo" />}
-            {marke.name && <span>{marke.name}</span>}
-          </div>
-        )}
-        <p className="erklaerung">Wählen Sie einen Arbeitsbereich oder öffnen Sie direkt eine Akte.</p>
-        <div className="kacheln">
-          {KACHELN.map((k) => (
-            <button key={k.ziel} className="kachel" onClick={() => onWahl(k.ziel)}>
-              <span className="kachel-symbol" aria-hidden>
-                <Zeichen name={k.symbol} groesse={40} />
-              </span>
-              <span className="kachel-titel">{k.titel}</span>
-              <span className="kachel-text">{aus && k.ziel === "akten" ? "Übersicht, Dokumente und Vergleich" : k.text}</span>
-              {k.ziel === "eigene" && profil && (
-                <span className={profil.eingerichtet && profil.fehlend === 0 ? "kachel-stand gut" : "kachel-stand"}>
-                  {profil.text}
+        <div className="start-haupt">
+          <p className="erklaerung">Wählen Sie einen Arbeitsbereich oder öffnen Sie direkt eine Akte.</p>
+          <div className="kacheln">
+            {KACHELN.map((k) => (
+              <button key={k.ziel} className="kachel" onClick={() => onWahl(k.ziel)}>
+                <span className="kachel-symbol" aria-hidden>
+                  <Zeichen name={k.symbol} groesse={40} />
                 </span>
+                <span className="kachel-titel">{k.titel}</span>
+                <span className="kachel-text">{aus && k.ziel === "akten" ? "Übersicht, Dokumente und Vergleich" : k.text}</span>
+                {k.ziel === "eigene" && profil && (
+                  <span className={profil.eingerichtet && profil.fehlend === 0 ? "kachel-stand gut" : "kachel-stand"}>
+                    {profil.text}
+                  </span>
+                )}
+              </button>
+            ))}
+
+            <section className="kachel kachel-liste" aria-label="Zuletzt geöffnete Akten">
+              <h2>Zuletzt geöffnet</h2>
+              {zuletzt.length > 0 ? (
+                <ul>
+                  {zuletzt.map((a) => (
+                    <li key={a.id}>
+                      <button className="link" onClick={() => onAkte(a.id)}>
+                        {akteTitel(a)}
+                      </button>
+                      {a.gegenstand && <span className="leise">{a.gegenstand}</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="leer">
+                  {akten && akten.length > 0 ? "Noch keine Akte geöffnet." : "Noch keine Akte angelegt."}
+                </p>
               )}
-            </button>
-          ))}
+              <button className="link klein" onClick={() => onWahl("akten")}>
+                Alle Akten
+              </button>
+            </section>
 
-          <section className="kachel kachel-liste" aria-label="Zuletzt geöffnete Akten">
-            <h2>Zuletzt geöffnet</h2>
-            {zuletzt.length > 0 ? (
-              <ul>
-                {zuletzt.map((a) => (
-                  <li key={a.id}>
-                    <button className="link" onClick={() => onAkte(a.id)}>
-                      {akteTitel(a)}
-                    </button>
-                    {a.gegenstand && <span className="leise">{a.gegenstand}</span>}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="leer">
-                {akten && akten.length > 0 ? "Noch keine Akte geöffnet." : "Noch keine Akte angelegt."}
-              </p>
-            )}
-            <button className="link klein" onClick={() => onWahl("akten")}>
-              Alle Akten
-            </button>
-          </section>
-
-          <section className="kachel kachel-liste kachel-fristen" aria-label="Nächste Fristen">
-            <h2>Nächste Fristen und Termine</h2>
-            {fristen && fristen.length > 0 ? (
-              <ul>
-                {fristen.map((f) => (
-                  <li key={f.id} className={`start-frist ${f.lage}`}>
-                    <button className="link" onClick={() => onAkte(f.akte_id, "fristen")}>
-                      <FristZeichen lage={f.lage} />
-                      {datumLang(f.datum)}
-                      {f.uhrzeit && `, ${f.uhrzeit}`} · {f.titel}
-                    </button>
-                    <span className="leise">
-                      {abstandText(f)} · {f.aktenzeichen ? `${f.aktenzeichen} ` : ""}
-                      {f.akte}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="leer">{fristen ? "Keine offenen Fristen in den nächsten 14 Tagen." : "Lade …"}</p>
-            )}
-          </section>
-
-          <StartNachrichten onVerwalten={onNachrichten} />
-
-          <section className="kachel kachel-info" aria-label="Ihr Arbeitsbereich">
-            <h2>Ihr Arbeitsbereich</h2>
-            <dl>
-              <dt>KI-Modus</dt>
-              <dd className={extern ? "hinweis" : aus ? undefined : "gut"}>
-                {aus
-                  ? "Nicht aktiv: Die KI ist ausgeschaltet. Dokumente und Akten bleiben auf diesem Gerät."
-                  : extern
-                  ? `Externer Anbieter (${modus?.titel}): Analyse und Chat senden Dokumenttexte dorthin.`
-                  : modus?.ort === "netzwerk"
-                    ? "Lokales Netzwerk: Das Sprachmodell läuft auf einem anderen Rechner im eigenen Netz; Dokumente und Akten verlassen es nicht."
-                    : "Eigener Rechner: Dokumente und Akten bleiben auf diesem Gerät."}
-              </dd>
-              {umgebung && (
-                <>
-                  <dt>Umgebung</dt>
-                  <dd>{umgebung}</dd>
-                </>
+            <section className="kachel kachel-liste kachel-fristen" aria-label="Nächste Fristen">
+              <h2>Nächste Fristen und Termine</h2>
+              {fristen && fristen.length > 0 ? (
+                <ul>
+                  {fristen.map((f) => (
+                    <li key={f.id} className={`start-frist ${f.lage}`}>
+                      <button className="link" onClick={() => onAkte(f.akte_id, "fristen")}>
+                        <FristZeichen lage={f.lage} />
+                        {datumLang(f.datum)}
+                        {f.uhrzeit && `, ${f.uhrzeit}`} · {f.titel}
+                      </button>
+                      <span className="leise">
+                        {abstandText(f)} · {f.aktenzeichen ? `${f.aktenzeichen} ` : ""}
+                        {f.akte}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="leer">{fristen ? "Keine offenen Fristen in den nächsten 14 Tagen." : "Lade …"}</p>
               )}
-            </dl>
-            <button className="link klein" onClick={() => onWahl("einstellungen")}>
-              Einstellungen
-            </button>
-          </section>
+            </section>
+
+            <StartNachrichten onVerwalten={onNachrichten} />
+          </div>
         </div>
+        <aside className="kachel kachel-info" aria-label="Ihr Arbeitsbereich">
+          <h2>Ihr Arbeitsbereich</h2>
+          <dl>
+            <dt>KI-Modus</dt>
+            <dd className={extern ? "hinweis" : aus ? undefined : "gut"}>
+              {aus
+                ? "Nicht aktiv: Die KI ist ausgeschaltet. Dokumente und Akten bleiben auf diesem Gerät."
+                : extern
+                ? `Externer Anbieter (${modus?.titel}): Analyse und Chat senden Dokumenttexte dorthin.`
+                : modus?.ort === "netzwerk"
+                  ? "Lokales Netzwerk: Das Sprachmodell läuft auf einem anderen Rechner im eigenen Netz; Dokumente und Akten verlassen es nicht."
+                  : "Eigener Rechner: Dokumente und Akten bleiben auf diesem Gerät."}
+            </dd>
+            {umgebung && (
+              <>
+                <dt>Umgebung</dt>
+                <dd>{umgebung}</dd>
+              </>
+            )}
+          </dl>
+          <button className="link klein" onClick={() => onWahl("einstellungen")}>
+            Einstellungen
+          </button>
+        </aside>
       </div>
     </div>
   );
