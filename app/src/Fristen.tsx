@@ -10,6 +10,7 @@ import {
   fristenLand,
   kern,
 } from "./kern";
+import { LeerHinweis } from "./Symbole";
 
 const ART_TEXT: Record<KalenderArt, string> = { frist: "Frist", termin: "Termin", wiedervorlage: "Wiedervorlage" };
 const EINHEITEN: Record<FristBerechnung["einheit"], string> = { tage: "Tage", wochen: "Wochen", monate: "Monate", jahre: "Jahre" };
@@ -348,7 +349,7 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
 
       {eintraege == null && !fehler && <p className="status">Lade …</p>}
       {eintraege != null && offen.length === 0 && (
-        <p className="leer">Keine offenen Fristen, Termine oder Wiedervorlagen.</p>
+        <LeerHinweis symbol="fristen">Keine offenen Fristen, Termine oder Wiedervorlagen.</LeerHinweis>
       )}
       {offen.length > 0 && (
         <ul className="kalender-liste">

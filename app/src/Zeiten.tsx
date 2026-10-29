@@ -14,6 +14,7 @@ import {
 } from "./kern";
 import ZeitVereinbarung from "./ZeitVereinbarung";
 import { useLaufenderTimer } from "./zeitTimer";
+import { LeerHinweis } from "./Symbole";
 
 const heute = () => new Date().toLocaleDateString("sv-SE"); // JJJJ-MM-TT in Ortszeit
 
@@ -402,7 +403,7 @@ export default function Zeiten({
       )}
 
       {liste.eintraege.length === 0 ? (
-        <p className="leer">Noch keine Zeiten in dieser Akte.</p>
+        <LeerHinweis symbol="zeiten">Noch keine Zeiten in dieser Akte.</LeerHinweis>
       ) : (
         <section className="karte zeit-liste">
           <div className="kopf">

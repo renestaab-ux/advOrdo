@@ -152,6 +152,20 @@ const PFADE = {
       <path d="m18.7 19.7 2.3 2.3" />
     </>
   ),
+  oeffnen: (
+    <>
+      <path d="M14 4h6v6M20 4l-8.5 8.5" />
+      <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    </>
+  ),
+  bearbeiten: <path d="m5 19 .8-3.6L15.6 5.6a1.8 1.8 0 0 1 2.6 0l.2.2a1.8 1.8 0 0 1 0 2.6L8.6 18.2z M13.5 7.7l2.8 2.8" />,
+  ordner: <path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 17z" />,
+  fassungen: (
+    <>
+      <path d="M12 7.5V12l3 1.8" />
+      <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3h3" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type SymbolName = keyof typeof PFADE;
@@ -162,6 +176,19 @@ export default function Zeichen({ name, groesse = 20 }: { name: SymbolName; groe
     <svg className="symbol" viewBox="0 0 24 24" width={groesse} height={groesse} aria-hidden {...S}>
       {PFADE[name]}
     </svg>
+  );
+}
+
+/** Leerer Bereich: Symbol, kurzer Satz und, wo es passt, der Knopf, der ihn füllt. */
+export function LeerHinweis({ symbol, children, aktion }: { symbol: SymbolName; children: ReactNode; aktion?: ReactNode }) {
+  return (
+    <div className="leer-hinweis">
+      <span className="leer-hinweis-symbol">
+        <Zeichen name={symbol} groesse={28} />
+      </span>
+      <p>{children}</p>
+      {aktion && <div className="leer-hinweis-aktion">{aktion}</div>}
+    </div>
   );
 }
 

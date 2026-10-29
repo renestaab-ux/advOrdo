@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Zeichen from "./Symbole";
 import { AktenDokument, Arbeitskopie, DokumentFassung, kern, zeitpunkt } from "./kern";
 
 type Ausfuehren = <T>(was: string, f: () => Promise<T>) => Promise<T | undefined>;
@@ -84,7 +85,7 @@ export default function DokumentExtern({
           disabled={laeuft}
           title={`Schreibgeschützte Kopie im ${art} öffnen (Einstellungen › Programme)`}
         >
-          Öffnen
+          <Zeichen name="oeffnen" groesse={15} /> Öffnen
         </button>
         <button
           className="zweitrangig"
@@ -92,15 +93,15 @@ export default function DokumentExtern({
           disabled={laeuft}
           title="Arbeitskopie im externen Programm bearbeiten; Änderungen kommen als neue Fassung zurück"
         >
-          Bearbeiten
+          <Zeichen name="bearbeiten" groesse={15} /> Bearbeiten
         </button>
         <button
-          className="link klein"
+          className="zweitrangig"
           onClick={() => ausfuehren("Öffne Ordner …", () => kern("akten.im_ordner_zeigen", { dokument_id: id }))}
           disabled={laeuft}
           title="Zeigt die Arbeitskopie bzw. eine Kopie zum Ansehen im Dateimanager"
         >
-          Im Ordner zeigen
+          <Zeichen name="ordner" groesse={15} /> Im Ordner zeigen
         </button>
         <button
           className="link klein dok-fassung"
@@ -108,7 +109,7 @@ export default function DokumentExtern({
           aria-expanded={!!fassungen}
           title="Alle Fassungen dieses Dokuments"
         >
-          Fassung {dokument.fassung.nr}
+          <Zeichen name="fassungen" groesse={14} /> Fassung {dokument.fassung.nr}
           {dokument.fassung.nr > 1 && ` · geändert ${zeitpunkt(dokument.fassung.erstellt_am)}`}
         </button>
       </div>

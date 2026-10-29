@@ -417,9 +417,14 @@ function Allgemeines() {
 
       <div className="darstellung-gruppe">
         <h3>Hell oder dunkel</h3>
-        <div className="wahl-reihe" role="group" aria-label="Hell oder dunkel">
+        <div className="segment darstellung-segment" role="group" aria-label="Hell oder dunkel">
           {THEMEN.map((t) => (
-            <button key={t.id} aria-pressed={d.thema === t.id} onClick={() => setze({ thema: t.id })}>
+            <button
+              key={t.id}
+              className={d.thema === t.id ? "segment-knopf aktiv" : "segment-knopf"}
+              aria-pressed={d.thema === t.id}
+              onClick={() => setze({ thema: t.id })}
+            >
               {t.titel}
             </button>
           ))}
@@ -441,9 +446,14 @@ function Allgemeines() {
 
       <div className="darstellung-gruppe">
         <h3>Schriftgröße</h3>
-        <div className="wahl-reihe" role="group" aria-label="Schriftgröße">
+        <div className="segment darstellung-segment" role="group" aria-label="Schriftgröße">
           {SCHRIFTGROESSEN.map((g) => (
-            <button key={g.wert} aria-pressed={d.schrift === g.wert} onClick={() => setze({ schrift: g.wert })}>
+            <button
+              key={g.wert}
+              className={d.schrift === g.wert ? "segment-knopf aktiv" : "segment-knopf"}
+              aria-pressed={d.schrift === g.wert}
+              onClick={() => setze({ schrift: g.wert })}
+            >
               {g.titel}
             </button>
           ))}

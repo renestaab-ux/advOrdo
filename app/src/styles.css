@@ -805,7 +805,12 @@ details.kurz-hinweis p { margin: 4px 0; }
 /* Externe Programme und Fassungen (Teil 3) */
 .dok-extern { margin: -4px 0 10px; }
 .dok-extern-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.dok-extern-leiste button.zweitrangig { padding: 3px 10px; font-size: 13px; }
+/* Schlichte Knöpfe mit Symbol, damit die Leiste ruhig bleibt und der Text höher beginnt. */
+.dok-extern-leiste { gap: 2px 4px; }
+.dok-extern-leiste button.zweitrangig { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; font-size: 13px;
+  border-color: transparent; color: var(--text-leise); }
+.dok-extern-leiste button.zweitrangig:hover:not(:disabled) { color: var(--akzent); background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+.dok-extern-leiste .dok-fassung { display: inline-flex; align-items: center; gap: 4px; }
 .dok-extern-leiste .dok-fassung { margin-left: auto; color: var(--text-leise); }
 .arbeitskopie-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); font-size: 13px; }
 .arbeitskopie-zeile > span { margin-right: auto; }
@@ -1261,3 +1266,24 @@ details.kurz-hinweis p { margin: 4px 0; }
 .zeit-formular .notiz-optionen { margin-top: 10px; }
 .zeit-liste .status-marke { white-space: nowrap; display: inline-block; }
 .zeit-einstellungen > .feld.kurz { max-width: 260px; margin-top: 12px; }
+
+/* Leere Bereiche: Symbol, Satz und der passende Knopf statt einer blassen Zeile. */
+.leer-hinweis { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; margin: 16px 0; padding: 28px 20px;
+  border: 1px dashed var(--linie); border-radius: var(--rund); color: var(--text-leise); }
+.leer-hinweis p { margin: 0; max-width: 46ch; }
+.leer-hinweis-symbol { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; color: var(--akzent);
+  background: color-mix(in srgb, var(--akzent) 10%, transparent); }
+.leer-hinweis-aktion { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+
+/* Ziffern gleich breit, damit Daten, Beträge und Zeiten in Tabellen und Listen sauber untereinander stehen. */
+table, .frist-datum, .summen, input.betrag, .kachel-fristen, .zeit-liste, .dok-modi-angaben { font-variant-numeric: tabular-nums; }
+td.zahl, th.zahl { text-align: right; white-space: nowrap; }
+
+/* Einheitliche Karten: gleiche Ecken, Rahmen und ein kaum sichtbarer Schatten. */
+:root { --rund: 10px; --schatten: 0 1px 2px rgb(0 0 0 / 5%); }
+:root[data-thema="dunkel"] { --schatten: 0 1px 2px rgb(0 0 0 / 30%); }
+.karte, .kachel, .beleg, .norm, .dokument, .merkmal, .ki-dokument, .rechner-ergebnis, .formkarte, .dokumente, .rueckfrage, .ki-fortschritt,
+.ki-wahl, .posten { border-radius: var(--rund); }
+.karte, .kachel, .beleg, .norm, .dokument, .ki-dokument, .rechner-ergebnis, .formkarte, .dokumente { border-color: var(--linie); box-shadow: var(--schatten); }
+.kachel:hover:not(:disabled), .formkarte.gewaehlt { box-shadow: 0 0 0 1px var(--akzent), var(--schatten); }
+.darstellung-segment { margin: 6px 0 4px; }

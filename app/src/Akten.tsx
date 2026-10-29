@@ -8,7 +8,7 @@ import Notizen from "./Notizen";
 import Zeiten from "./Zeiten";
 import Schriftstuecke from "./Schriftstuecke";
 import type { EinstellungsReiter } from "./Einstellungen";
-import Zeichen, { FristZeichen, SymbolName } from "./Symbole";
+import Zeichen, { FristZeichen, LeerHinweis, SymbolName } from "./Symbole";
 import Vergleich from "./Vergleich";
 import VerfahrenKarte from "./Verfahren";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -574,11 +574,13 @@ function AktenUebersicht({
         </table>
       )}
       {akten != null && sichtbar.length === 0 && (
-        <p className="leer">
-          {alle.length === 0
-            ? "Noch keine Akte. Lege mit „+ Neue Akte“ die erste an."
-            : "Keine Akte passt zu Suche und Filtern."}
-        </p>
+        alle.length === 0 ? (
+          <LeerHinweis symbol="akten" aktion={<button onClick={onNeu}>+ Neue Akte</button>}>
+            Noch keine Akte. Lege die erste an.
+          </LeerHinweis>
+        ) : (
+          <LeerHinweis symbol="filter">Keine Akte passt zu Suche und Filtern.</LeerHinweis>
+        )
       )}
     </div>
   );

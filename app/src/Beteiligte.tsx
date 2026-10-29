@@ -3,6 +3,7 @@ import { BeteiligterFormular } from "./AkteStammdaten";
 import { AktenOptionen, Beteiligter, akteTitel, istDesktop, kern, sortiert } from "./kern";
 import { SortKopf, useSortierung } from "./Sortierung";
 import { MandantVereinbarungen } from "./ZeitVereinbarung";
+import { LeerHinweis } from "./Symbole";
 
 type Art = "" | "person" | "organisation";
 type Seite = "" | "eigene" | "gegen" | "gericht" | "neutral" | "ohne";
@@ -241,11 +242,11 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
         </tbody>
       </table>
       {sichtbar.length === 0 && !laeuft && (
-        <p className="leer">
+        <LeerHinweis symbol={suche.trim() || kategorie || seite ? "filter" : "beteiligte"}>
           {suche.trim() || kategorie || seite
             ? "Kein Eintrag passt zu Suche und Filtern."
             : "Noch keine Beteiligten. Sie entstehen beim Erfassen in einer Akte oder hier."}
-        </p>
+        </LeerHinweis>
       )}
     </div>
   );
