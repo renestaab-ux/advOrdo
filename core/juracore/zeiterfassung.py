@@ -142,6 +142,10 @@ def _setze(con: sqlite3.Connection, schluessel: str, wert: str | None) -> None:
 
 def einrichten(con: sqlite3.Connection) -> None:
     con.executescript(_SCHEMA)
+    # Verknüpfte Aktennotiz (z. B. Telefonnotiz zum Gespräch); nachgerüstet für bestehende Datenbanken.
+    if "notiz_id" not in [z["name"] for z in con.execute("PRAGMA table_info(zeit_eintrag)")]:
+        con.execute("ALTER TABLE zeit_eintrag ADD COLUMN notiz_id INTEGER REFERENCES aktennotiz(id) "
+                    "ON DELETE SET NULL")
     # Beispielstufen nur beim ersten Mal; wer sie löscht, bekommt sie nicht wieder.
     if _wert(con, "stufen_angelegt") is None:
         for i, (name, satz) in enumerate(STUFEN_VORGABE):
@@ -564,11 +568,14 @@ def _eintrag(z: sqlite3.Row, takt: int, jetzt: datetime | None = None) -> dict:
             "betrag": None if betrag is None else str(betrag), "laeuft_seit": z["laeuft_seit"],
             "taetigkeit": z["taetigkeit"], "abrechenbar": bool(z["abrechenbar"]),
             "kostennote_id": z["kostennote_id"], "kostennote": z["kostennote"] if "kostennote" in z.keys() else None,
-            "angelegt_am": z["angelegt_am"], "geaendert_am": z["geaendert_am"], "abschnitte": []}
+            "angelegt_am": z["angelegt_am"], "geaendert_am": z["geaendert_am"], "abschnitte": [],
+            "notiz_id": z["notiz_id"] if "notiz" in z.keys() and z["notiz"] is not None else None,
+            "notiz": z["notiz"] if "notiz" in z.keys() else None}
 
 
-_AUSWAHL = """SELECT e.*, k.nummer AS kostennote FROM zeit_eintrag e
-              LEFT JOIN kostennote k ON k.id = e.kostennote_id"""
+_AUSWAHL = """SELECT e.*, k.nummer AS kostennote, n.text AS notiz FROM zeit_eintrag e
+              LEFT JOIN kostennote k ON k.id = e.kostennote_id
+              LEFT JOIN aktennotiz n ON n.id = e.notiz_id"""
 
 
 def liste(con: sqlite3.Connection, akte_id: int) -> dict:
@@ -689,6 +696,24 @@ def uhrzeiten_text(e: dict) -> str:
     if e.get("laeuft_seit"):
         teile.append(f"seit {e['laeuft_seit'][11:16]}")
     return ", ".join(teile)
+
+
+def notiz_speichern(con: sqlite3.Connection, eintrag_id: int, text: str) -> dict:
+    """Legt die Aktennotiz zu einem Eintrag an oder ändert sie (z. B. die Telefonnotiz zum Gespräch). Geht auch bei
+    abgerechneten Einträgen; an der Abrechnung ändert die Notiz nichts."""
+    from .aktenverwaltung import notizen
+
+    z = con.execute(_AUSWAHL + " WHERE e.id = ?", (eintrag_id,)).fetchone()
+    if z is None:
+        raise LookupError(f"Zeiteintrag {eintrag_id} gibt es nicht.")
+    if z["notiz"] is not None:
+        notizen.speichern(con, z["akte_id"], text, notiz_id=z["notiz_id"])
+    else:
+        notizen.speichern(con, z["akte_id"], text)
+        neu = con.execute("SELECT MAX(id) FROM aktennotiz WHERE akte_id = ?", (z["akte_id"],)).fetchone()[0]
+        with con:
+            con.execute("UPDATE zeit_eintrag SET notiz_id = ? WHERE id = ?", (neu, eintrag_id))
+    return liste(con, z["akte_id"])
 
 
 def loeschen(con: sqlite3.Connection, eintrag_id: int) -> dict:

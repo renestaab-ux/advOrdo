@@ -443,6 +443,11 @@ export default function Zeiten({
                       {z.laeuft_seit && <span className="status-marke laufend">läuft</span>}
                       {!z.abrechenbar && <span className="status-marke">nicht abrechenbar</span>}
                       {z.kostennote && <span className="status-marke">abgerechnet mit {z.kostennote}</span>}
+                      {z.notiz && (
+                        <button className="status-marke link" title={z.notiz} onClick={() => setDetails(z.id)}>
+                          Notiz
+                        </button>
+                      )}
                       {z.abrechenbar && !z.satz && <span className="status-marke hinweis">ohne Stundensatz</span>}
                     </td>
                     <td className="zahl">{stundenText(z.minuten)}</td>
@@ -491,7 +496,12 @@ export default function Zeiten({
                   {details === z.id && (
                     <tr className="zeit-details">
                       <td colSpan={7}>
-                        <ZeitDetails z={z} />
+                        <ZeitDetails
+                          z={z}
+                          onNotiz={(text) =>
+                            mit(() => kern<ZeitListe>("zeit.notiz_speichern", { eintrag_id: z.id, text }))
+                          }
+                        />
                       </td>
                     </tr>
                   )}
@@ -562,7 +572,10 @@ const uhr = (iso: string) => iso.slice(11, 16);
 const zeitpunkt = (iso: string) => `${datumDe(iso.slice(0, 10))}, ${uhr(iso)} Uhr`;
 
 /** Wann erfasst wurde: Timer-Läufe und von–bis von Hand, dazu Anlage und letzte Änderung. */
-function ZeitDetails({ z }: { z: ZeitEintrag }) {
+function ZeitDetails({ z, onNotiz }: { z: ZeitEintrag; onNotiz: (text: string) => Promise<boolean> }) {
+  const [notiz, setNotiz] = useState<string | null>(null);
+  const zeiten = z.abschnitte.map((a) => `${uhr(a.von)}–${uhr(a.bis)}`).join(", ");
+  const vorlage = `${z.taetigkeit || "Zeiterfassung"}, ${datumDe(z.datum)}${zeiten ? `, ${zeiten} Uhr` : ""} (${z.bearbeiter})\n`;
   const summe = z.abschnitte.reduce(
     (m, a) => m + Math.max(1, Math.round((Date.parse(a.bis) - Date.parse(a.von)) / 60000)),
     0,
@@ -596,6 +609,39 @@ function ZeitDetails({ z }: { z: ZeitEintrag }) {
             Die Dauer wurde von Hand auf {stundenText(z.minuten)} geändert (Zeitspannen ergeben {stundenText(summe)}).
           </p>
         )}
+      {notiz !== null ? (
+        <form
+          className="zeit-notiz"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (await onNotiz(notiz)) setNotiz(null);
+          }}
+        >
+          <textarea rows={4} value={notiz} onChange={(e) => setNotiz(e.target.value)} autoFocus />
+          <span className="aktionen">
+            <button type="submit" disabled={!notiz.trim()}>
+              Notiz speichern
+            </button>
+            <button type="button" className="zweitrangig" onClick={() => setNotiz(null)}>
+              Abbrechen
+            </button>
+          </span>
+        </form>
+      ) : z.notiz ? (
+        <div className="zeit-notiz">
+          <p className="notiz-text">{z.notiz}</p>
+          <span>
+            <button className="link klein" onClick={() => setNotiz(z.notiz ?? "")}>
+              Notiz bearbeiten
+            </button>
+            <span className="leise klein"> · steht auch im Reiter „Notizen“</span>
+          </span>
+        </div>
+      ) : (
+        <button className="link klein" onClick={() => setNotiz(vorlage)}>
+          Notiz dazu
+        </button>
+      )}
       <p className="leise klein">
         Angelegt am {zeitpunkt(z.angelegt_am)}
         {z.geaendert_am !== z.angelegt_am && ` · zuletzt geändert am ${zeitpunkt(z.geaendert_am)}`}

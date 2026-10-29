@@ -227,6 +227,8 @@ export interface Notiz {
   angeheftet: boolean;
   angelegt_am: string;
   geaendert_am: string;
+  /** Zeiteintrag, zu dem die Notiz gehört („2026-10-29 · Bearbeiter“), sonst null. */
+  zeiteintrag: string | null;
 }
 
 export interface RubrumFeld {
@@ -2610,6 +2612,9 @@ export interface ZeitEintrag {
   geaendert_am: string;
   /** Zeitspannen: jeder Timer-Lauf und von–bis von Hand; leer, wenn nur eine Dauer angegeben wurde. */
   abschnitte: { von: string; bis: string; quelle: "timer" | "hand" }[];
+  /** Verknüpfte Aktennotiz, z. B. die Telefonnotiz zum Gespräch. */
+  notiz_id: number | null;
+  notiz: string | null;
 }
 
 export interface ZeitLaufend extends ZeitEintrag {

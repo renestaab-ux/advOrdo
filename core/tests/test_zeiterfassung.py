@@ -408,3 +408,25 @@ def test_uhrzeiten_von_hand(kern):  # noqa: F811
     e = zeit.speichern(kern.akten, aid, {"datum": "2026-10-29", "dauer": "0,5", "bearbeiter_id": p,
                                          "taetigkeit": "Akte für Termin vorbereitet"})["eintraege"][0]
     assert e["abschnitte"] == [] and zeit.uhrzeiten_text(e) == ""
+
+
+def test_notiz_zum_zeiteintrag(kern):  # noqa: F811
+    from juracore.aktenverwaltung import notizen
+
+    aid = kern.test_akte
+    p = _bearbeiter(kern, "Dr. Sophie Albrecht", "Partner")
+    e = zeit.speichern(kern.akten, aid, {"datum": "2026-10-29", "von": "09:00", "bis": "09:20", "bearbeiter_id": p,
+                                         "taetigkeit": "Telefonat mit Frau Brückner"})["eintraege"][0]
+    assert e["notiz"] is None and e["notiz_id"] is None
+    e = zeit.notiz_speichern(kern.akten, e["id"], "Telefonat 29.10.2026, 09:00–09:20\nVergleich bis 8.000 €")[
+        "eintraege"][0]
+    assert e["notiz"].endswith("8.000 €") and e["notiz_id"]
+    n = notizen.liste(kern.akten, aid)
+    assert len(n) == 1 and n[0]["zeiteintrag"] == "2026-10-29 · Dr. Sophie Albrecht"
+    # zweites Speichern ändert dieselbe Notiz
+    e = zeit.notiz_speichern(kern.akten, e["id"], "Vergleich bis 9.000 €")["eintraege"][0]
+    assert e["notiz"] == "Vergleich bis 9.000 €" and len(notizen.liste(kern.akten, aid)) == 1
+    # Notiz gelöscht: Eintrag bleibt, Verweis fällt weg
+    notizen.loeschen(kern.akten, e["notiz_id"])
+    e = zeit.liste(kern.akten, aid)["eintraege"][0]
+    assert e["notiz"] is None and e["notiz_id"] is None

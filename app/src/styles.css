@@ -1165,6 +1165,10 @@ details.kurz-hinweis summary { cursor: pointer; }
 .zeit-liste tr.zeit-details td { background: var(--hintergrund); }
 .zeit-details-inhalt ul { margin: 0 0 4px; padding-left: 18px; }
 .zeit-details-inhalt p { margin: 2px 0; }
+.zeit-notiz { margin: 6px 0; display: grid; gap: 6px; max-width: 720px; justify-items: start; }
+.zeit-notiz textarea { width: 100%; }
+.zeit-notiz .notiz-text { white-space: pre-wrap; margin: 0; }
+.zeit-liste button.status-marke { border: none; cursor: pointer; }
 .zeit-stufen { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
 .zeit-stufen li.archiviert input { color: var(--text-leise); }
 .zeit-einstellungen .kosten-zeile input.betrag { width: 90px; }
