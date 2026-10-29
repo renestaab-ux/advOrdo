@@ -451,7 +451,7 @@ export default function Zeiten({
                   <td className="zeit-aktionen">
                     {!z.kostennote_id && (
                       <>
-                        {!z.laeuft_seit && (
+                        {!z.laeuft_seit && z.datum === heute() && (
                           <button
                             className="link klein"
                             title="Timer für diesen Eintrag weiterlaufen lassen"

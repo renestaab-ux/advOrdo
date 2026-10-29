@@ -679,12 +679,14 @@ def _anhalten(con: sqlite3.Connection, jetzt: datetime) -> None:
 def starten(con: sqlite3.Connection, akte_id: int, bearbeiter_id: int | None = None, taetigkeit: str = "",
             eintrag_id: int | None = None, jetzt: datetime | None = None, stufe_id: int | None = None) -> dict:
     """Startet einen Timer; ein anderer laufender wird dabei angehalten. Mit ``eintrag_id`` läuft ein offener
-    Eintrag weiter (Fortsetzen)."""
+    Eintrag desselben Tages weiter (Fortsetzen, z. B. nach der Mittagspause); die Pause zählt nicht mit."""
     jetzt = jetzt or _jetzt()
     if eintrag_id is not None:
         z = _pruefe_offen(con, eintrag_id)
         if z["laeuft_seit"]:
             return liste(con, z["akte_id"])
+        if z["datum"] != jetzt.date().isoformat():
+            raise ValueError("Fortsetzen geht nur am Tag des Eintrags; für heute bitte einen neuen Timer starten.")
         akte_id = z["akte_id"]
     elif con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")

@@ -112,6 +112,9 @@ def test_timer_laeuft_ueber_neustart_und_nur_einer(kern, tmp_path):  # noqa: F81
     zeit.starten(kern.akten, aid, eintrag_id=erste["id"], jetzt=start + timedelta(hours=1))
     zeit.stoppen(kern.akten, jetzt=start + timedelta(hours=1, minutes=10))
     assert zeit.liste(kern.akten, aid)["eintraege"][0]["minuten"] == 35
+    # an einem anderen Tag nicht
+    with pytest.raises(ValueError, match="nur am Tag des Eintrags"):
+        zeit.starten(kern.akten, aid, eintrag_id=erste["id"], jetzt=start + timedelta(days=1))
 
 
 def test_uebernahme_in_kostennote_und_storno(kern):  # noqa: F811
