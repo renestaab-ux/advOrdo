@@ -303,6 +303,8 @@ class Kern:
             "zeit.loeschen": lambda eintrag_id: zeiterfassung.loeschen(self.akten, eintrag_id),
             "zeit.notiz_speichern": lambda eintrag_id, text: zeiterfassung.notiz_speichern(
                 self.akten, eintrag_id, text),
+            "zeit.notiz_verknuepfen": lambda eintrag_id, notiz_id=None: zeiterfassung.notiz_verknuepfen(
+                self.akten, eintrag_id, notiz_id),
             "zeit.starten": lambda akte_id=None, bearbeiter_id=None, taetigkeit="", eintrag_id=None, stufe_id=None: (
                 zeiterfassung.starten(self.akten, akte_id, bearbeiter_id, taetigkeit, eintrag_id, stufe_id=stufe_id)),
             "zeit.stoppen": lambda: zeiterfassung.stoppen(self.akten),

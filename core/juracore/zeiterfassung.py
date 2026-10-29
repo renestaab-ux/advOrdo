@@ -716,6 +716,20 @@ def notiz_speichern(con: sqlite3.Connection, eintrag_id: int, text: str) -> dict
     return liste(con, z["akte_id"])
 
 
+def notiz_verknuepfen(con: sqlite3.Connection, eintrag_id: int, notiz_id: int | None) -> dict:
+    """Verknüpft eine schon vorhandene Aktennotiz derselben Akte mit dem Eintrag; ``None`` löst die Verknüpfung
+    (die Notiz bleibt bestehen)."""
+    z = con.execute("SELECT akte_id FROM zeit_eintrag WHERE id = ?", (eintrag_id,)).fetchone()
+    if z is None:
+        raise LookupError(f"Zeiteintrag {eintrag_id} gibt es nicht.")
+    if notiz_id is not None and con.execute("SELECT 1 FROM aktennotiz WHERE id = ? AND akte_id = ?",
+                                            (notiz_id, z["akte_id"])).fetchone() is None:
+        raise ValueError("Die Notiz gehört nicht zu dieser Akte.")
+    with con:
+        con.execute("UPDATE zeit_eintrag SET notiz_id = ? WHERE id = ?", (notiz_id, eintrag_id))
+    return liste(con, z["akte_id"])
+
+
 def loeschen(con: sqlite3.Connection, eintrag_id: int) -> dict:
     z = _pruefe_offen(con, eintrag_id)
     with con:

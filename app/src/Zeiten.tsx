@@ -1,6 +1,7 @@
 import { FormEvent, Fragment, useEffect, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import {
+  Notiz,
   ZeitEinstellungen,
   ZeitEintrag,
   ZeitListe,
@@ -501,6 +502,9 @@ export default function Zeiten({
                           onNotiz={(text) =>
                             mit(() => kern<ZeitListe>("zeit.notiz_speichern", { eintrag_id: z.id, text }))
                           }
+                          onVerknuepfen={(notiz_id) =>
+                            mit(() => kern<ZeitListe>("zeit.notiz_verknuepfen", { eintrag_id: z.id, notiz_id }))
+                          }
                         />
                       </td>
                     </tr>
@@ -572,8 +576,18 @@ const uhr = (iso: string) => iso.slice(11, 16);
 const zeitpunkt = (iso: string) => `${datumDe(iso.slice(0, 10))}, ${uhr(iso)} Uhr`;
 
 /** Wann erfasst wurde: Timer-Läufe und von–bis von Hand, dazu Anlage und letzte Änderung. */
-function ZeitDetails({ z, onNotiz }: { z: ZeitEintrag; onNotiz: (text: string) => Promise<boolean> }) {
+function ZeitDetails({
+  z,
+  onNotiz,
+  onVerknuepfen,
+}: {
+  z: ZeitEintrag;
+  onNotiz: (text: string) => Promise<boolean>;
+  onVerknuepfen: (notizId: number | null) => Promise<boolean>;
+}) {
   const [notiz, setNotiz] = useState<string | null>(null);
+  // Vorhandene Notizen der Akte zur Auswahl; erst geladen, wenn man verknüpfen will.
+  const [auswahl, setAuswahl] = useState<Notiz[] | null>(null);
   const zeiten = z.abschnitte.map((a) => `${uhr(a.von)}–${uhr(a.bis)}`).join(", ");
   const vorlage = `${z.taetigkeit || "Zeiterfassung"}, ${datumDe(z.datum)}${zeiten ? `, ${zeiten} Uhr` : ""} (${z.bearbeiter})\n`;
   const summe = z.abschnitte.reduce(
@@ -634,13 +648,48 @@ function ZeitDetails({ z, onNotiz }: { z: ZeitEintrag; onNotiz: (text: string) =
             <button className="link klein" onClick={() => setNotiz(z.notiz ?? "")}>
               Notiz bearbeiten
             </button>
+            {" · "}
+            <button className="link klein" onClick={() => void onVerknuepfen(null)}>
+              Verknüpfung lösen
+            </button>
             <span className="leise klein"> · steht auch im Reiter „Notizen“</span>
           </span>
         </div>
+      ) : auswahl !== null ? (
+        <label className="feld zeit-notiz-wahl">
+          Vorhandene Notiz der Akte
+          <select
+            autoFocus
+            defaultValue=""
+            onChange={async (e) => {
+              if (e.target.value && (await onVerknuepfen(Number(e.target.value)))) setAuswahl(null);
+            }}
+          >
+            <option value="">{auswahl.length ? "– Notiz wählen –" : "Keine Notizen in dieser Akte"}</option>
+            {auswahl.map((n) => (
+              <option key={n.id} value={n.id}>
+                {datumDe(n.angelegt_am.slice(0, 10))} · {n.text.split("\n")[0].slice(0, 80)}
+                {n.zeiteintrag ? " (schon mit einer Zeit verknüpft)" : ""}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="link klein" onClick={() => setAuswahl(null)}>
+            Abbrechen
+          </button>
+        </label>
       ) : (
-        <button className="link klein" onClick={() => setNotiz(vorlage)}>
-          Notiz dazu
-        </button>
+        <span>
+          <button className="link klein" onClick={() => setNotiz(vorlage)}>
+            Notiz dazu
+          </button>
+          {" · "}
+          <button
+            className="link klein"
+            onClick={() => void kern<Notiz[]>("akten.notizen", { akte_id: z.akte_id }).then(setAuswahl)}
+          >
+            Vorhandene Notiz verknüpfen
+          </button>
+        </span>
       )}
       <p className="leise klein">
         Angelegt am {zeitpunkt(z.angelegt_am)}

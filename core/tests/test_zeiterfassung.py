@@ -430,3 +430,21 @@ def test_notiz_zum_zeiteintrag(kern):  # noqa: F811
     notizen.loeschen(kern.akten, e["notiz_id"])
     e = zeit.liste(kern.akten, aid)["eintraege"][0]
     assert e["notiz"] is None and e["notiz_id"] is None
+
+
+def test_vorhandene_notiz_verknuepfen(kern):  # noqa: F811
+    from juracore.aktenverwaltung import notizen
+
+    aid = kern.test_akte
+    p = _bearbeiter(kern, "Dr. Sophie Albrecht", "Partner")
+    nid = notizen.speichern(kern.akten, aid, "Telefonnotiz: Gegenseite bietet 6.000 €")[0]["id"]
+    e = zeit.speichern(kern.akten, aid, {"dauer": "0:15", "bearbeiter_id": p,
+                                         "taetigkeit": "Telefonat mit Gegenanwalt Vogt"})["eintraege"][0]
+    e = zeit.notiz_verknuepfen(kern.akten, e["id"], nid)["eintraege"][0]
+    assert e["notiz_id"] == nid and e["notiz"].startswith("Telefonnotiz")
+    e = zeit.notiz_verknuepfen(kern.akten, e["id"], None)["eintraege"][0]
+    assert e["notiz_id"] is None and len(notizen.liste(kern.akten, aid)) == 1  # Notiz bleibt
+    andere = akte.akte_anlegen(kern.akten, "Andere Akte")["id"]
+    fremd = notizen.speichern(kern.akten, andere, "fremd")[0]["id"]
+    with pytest.raises(ValueError, match="nicht zu dieser Akte"):
+        zeit.notiz_verknuepfen(kern.akten, e["id"], fremd)
