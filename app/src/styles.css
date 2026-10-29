@@ -1162,6 +1162,9 @@ details.kurz-hinweis summary { cursor: pointer; }
 .zeit-budget.knapp span { background: var(--warnung); }
 .zeit-budget.ueber span { background: var(--fehler); }
 .zeit-aktionen button + button { margin-left: 8px; }
+.zeit-liste tr.zeit-details td { background: var(--hintergrund); }
+.zeit-details-inhalt ul { margin: 0 0 4px; padding-left: 18px; }
+.zeit-details-inhalt p { margin: 2px 0; }
 .zeit-stufen { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
 .zeit-stufen li.archiviert input { color: var(--text-leise); }
 .zeit-einstellungen .kosten-zeile input.betrag { width: 90px; }

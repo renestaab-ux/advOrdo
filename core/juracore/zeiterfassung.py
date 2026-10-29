@@ -70,6 +70,16 @@ CREATE TABLE IF NOT EXISTS zeit_eintrag (
     geaendert_am  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS zeit_eintrag_akte ON zeit_eintrag(akte_id);
+-- Zeitspannen eines Eintrags: jeder Timer-Lauf bis zum Anhalten bzw. von–bis von Hand. Einträge mit bloßer
+-- Dauer haben keine.
+CREATE TABLE IF NOT EXISTS zeit_abschnitt (
+    id         INTEGER PRIMARY KEY,
+    eintrag_id INTEGER NOT NULL REFERENCES zeit_eintrag(id) ON DELETE CASCADE,
+    von        TEXT NOT NULL,               -- ISO-Zeitpunkt
+    bis        TEXT NOT NULL,
+    quelle     TEXT NOT NULL CHECK (quelle IN ('timer', 'hand'))
+);
+CREATE INDEX IF NOT EXISTS zeit_abschnitt_eintrag ON zeit_abschnitt(eintrag_id);
 -- Vergütungsvereinbarung je Mandant; gilt für alle Akten, in denen er Mandant ist.
 CREATE TABLE IF NOT EXISTS zeit_vereinbarung (
     mandant           TEXT PRIMARY KEY,     -- "b:<beteiligter_id>" oder (Rechtsabteilung) "o:<eigene_organisation_id>"
@@ -553,7 +563,8 @@ def _eintrag(z: sqlite3.Row, takt: int, jetzt: datetime | None = None) -> dict:
             "stufe": z["stufe"], "satz": z["satz"], "datum": z["datum"], "minuten": minuten, "getaktet": g,
             "betrag": None if betrag is None else str(betrag), "laeuft_seit": z["laeuft_seit"],
             "taetigkeit": z["taetigkeit"], "abrechenbar": bool(z["abrechenbar"]),
-            "kostennote_id": z["kostennote_id"], "kostennote": z["kostennote"] if "kostennote" in z.keys() else None}
+            "kostennote_id": z["kostennote_id"], "kostennote": z["kostennote"] if "kostennote" in z.keys() else None,
+            "angelegt_am": z["angelegt_am"], "geaendert_am": z["geaendert_am"], "abschnitte": []}
 
 
 _AUSWAHL = """SELECT e.*, k.nummer AS kostennote FROM zeit_eintrag e
@@ -568,6 +579,9 @@ def liste(con: sqlite3.Connection, akte_id: int) -> dict:
     jetzt = _jetzt()
     eintraege = [_eintrag(z, takt, jetzt) for z in con.execute(
         _AUSWAHL + " WHERE e.akte_id = ? ORDER BY e.datum DESC, e.id DESC", (akte_id,))]
+    abschnitte = _abschnitte(con, [e["id"] for e in eintraege])
+    for e in eintraege:
+        e["abschnitte"] = abschnitte.get(e["id"], [])
     summen: dict[tuple, dict] = {}
     gesamt = {"minuten": 0, "getaktet": 0, "betrag": Decimal(0), "offen": Decimal(0), "offen_minuten": 0}
     for e in eintraege:
@@ -634,16 +648,47 @@ def speichern(con: sqlite3.Connection, akte_id: int, daten: dict, eintrag_id: in
     jetzt = _jetzt().isoformat()
     with con:
         if alt is None:
-            con.execute("INSERT INTO zeit_eintrag (akte_id, bearbeiter_id, bearbeiter, stufe, satz, datum, minuten, "
-                        "taetigkeit, abrechenbar, angelegt_am, geaendert_am) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                        (akte_id, b["id"], b["name"], b["stufe"] or "", satz, tag.isoformat(), minuten, taetigkeit,
-                         abrechenbar, jetzt, jetzt))
+            eintrag_id = con.execute(
+                "INSERT INTO zeit_eintrag (akte_id, bearbeiter_id, bearbeiter, stufe, satz, datum, minuten, "
+                "taetigkeit, abrechenbar, angelegt_am, geaendert_am) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (akte_id, b["id"], b["name"], b["stufe"] or "", satz, tag.isoformat(), minuten, taetigkeit,
+                 abrechenbar, jetzt, jetzt)).lastrowid
         else:
             con.execute("UPDATE zeit_eintrag SET bearbeiter_id = ?, bearbeiter = ?, stufe = ?, satz = ?, datum = ?, "
                         "minuten = ?, taetigkeit = ?, abrechenbar = ?, geaendert_am = ? WHERE id = ?",
                         (b["id"], b["name"], b["stufe"] or "", satz, tag.isoformat(), minuten,
                          taetigkeit, abrechenbar, jetzt, eintrag_id))
+        # Von–bis von Hand ersetzt die bisherigen Zeitspannen; eine bloße Dauer lässt sie stehen.
+        if daten.get("von") and daten.get("bis") and not (alt is not None and alt["laeuft_seit"]):
+            con.execute("DELETE FROM zeit_abschnitt WHERE eintrag_id = ?", (eintrag_id,))
+            con.execute("INSERT INTO zeit_abschnitt (eintrag_id, von, bis, quelle) VALUES (?, ?, ?, 'hand')",
+                        (eintrag_id, f"{tag.isoformat()}T{_hhmm(daten['von'])}:00",
+                         f"{tag.isoformat()}T{_hhmm(daten['bis'])}:00"))
     return liste(con, akte_id)
+
+
+def _hhmm(t) -> str:
+    h, _, m = str(t).strip().partition(":")
+    return f"{int(h):02d}:{int(m):02d}"
+
+
+def _abschnitte(con: sqlite3.Connection, ids: list[int]) -> dict[int, list[dict]]:
+    aus: dict[int, list[dict]] = {}
+    if not ids:
+        return aus
+    marken = ",".join("?" * len(ids))
+    for z in con.execute(f"SELECT eintrag_id, von, bis, quelle FROM zeit_abschnitt WHERE eintrag_id IN ({marken}) "
+                         "ORDER BY von, id", ids):
+        aus.setdefault(z["eintrag_id"], []).append({"von": z["von"], "bis": z["bis"], "quelle": z["quelle"]})
+    return aus
+
+
+def uhrzeiten_text(e: dict) -> str:
+    """„09:00–10:00, 13:30–14:00“; der laufende Abschnitt als „seit 14:05“."""
+    teile = [f"{a['von'][11:16]}–{a['bis'][11:16]}" for a in e.get("abschnitte") or []]
+    if e.get("laeuft_seit"):
+        teile.append(f"seit {e['laeuft_seit'][11:16]}")
+    return ", ".join(teile)
 
 
 def loeschen(con: sqlite3.Connection, eintrag_id: int) -> dict:
@@ -674,6 +719,8 @@ def _anhalten(con: sqlite3.Connection, jetzt: datetime) -> None:
     for z in con.execute("SELECT id, minuten, laeuft_seit FROM zeit_eintrag WHERE laeuft_seit IS NOT NULL").fetchall():
         con.execute("UPDATE zeit_eintrag SET minuten = ?, laeuft_seit = NULL, geaendert_am = ? WHERE id = ?",
                     (z["minuten"] + _laufzeit(z["laeuft_seit"], jetzt), jetzt.isoformat(), z["id"]))
+        con.execute("INSERT INTO zeit_abschnitt (eintrag_id, von, bis, quelle) VALUES (?, ?, ?, 'timer')",
+                    (z["id"], z["laeuft_seit"], max(jetzt, datetime.fromisoformat(z["laeuft_seit"])).isoformat()))
 
 
 def starten(con: sqlite3.Connection, akte_id: int, bearbeiter_id: int | None = None, taetigkeit: str = "",
@@ -815,8 +862,8 @@ def freigeben(con: sqlite3.Connection, kostennote_id: int) -> None:
 # --------------------------------------------------------------------------- Export
 
 EXPORT_FORMATE = {"xlsx": "Excel", "csv": "CSV", "pdf": "PDF", "docx": "Word"}
-_SPALTEN = ("Datum", "Bearbeiter", "Stufe", "Tätigkeit", "Dauer (Min.)", "Getaktet (Std.)", "Stundensatz (€)",
-            "Betrag (€)", "Abrechenbar", "Rechnung")
+_SPALTEN = ("Datum", "Uhrzeit", "Bearbeiter", "Stufe", "Tätigkeit", "Dauer (Min.)", "Getaktet (Std.)",
+            "Stundensatz (€)", "Betrag (€)", "Abrechenbar", "Rechnung")
 
 
 def _de(text: str | None) -> str:
@@ -852,8 +899,8 @@ def _zeile(e: dict, text: bool) -> list:
     satz = (_de(e["satz"]) if text else float(e["satz"])) if e["satz"] else ""
     betrag = (_de(e["betrag"]) if text else float(e["betrag"])) if e["betrag"] else ""
     taetigkeit = e["taetigkeit"] + (" (Timer läuft)" if e["laeuft_seit"] else "")
-    return [_tag(e["datum"]), e["bearbeiter"], e["stufe"], taetigkeit, e["minuten"], stunden_wert, satz, betrag,
-            "ja" if e["abrechenbar"] else "nein", e["kostennote"] or ""]
+    return [_tag(e["datum"]), uhrzeiten_text(e), e["bearbeiter"], e["stufe"], taetigkeit,
+            e["minuten"], stunden_wert, satz, betrag, "ja" if e["abrechenbar"] else "nein", e["kostennote"] or ""]
 
 
 def _bericht(akte: dict, eintraege: list[dict], stand: dict, nur_offen: bool):
@@ -886,12 +933,14 @@ def _bericht(akte: dict, eintraege: list[dict], stand: dict, nur_offen: bool):
             teile.append(_euro(Decimal(e["betrag"])))
         if e["kostennote"]:
             teile.append(f"Rechnung {e['kostennote']}")
+        if uhr := uhrzeiten_text(e):
+            teile.insert(1, uhr)
         bausteine.append(Eintrag(" · ".join(teile), nummer=_tag(e["datum"]), kompakt=True,
                                  zeilen=[e["taetigkeit"] or "(ohne Tätigkeit)"]))
     if not eintraege:
         bausteine.append(Absatz("Keine Zeiten erfasst."))
     tabelle = Tabelle("Zeiten", list(_SPALTEN), [_zeile(e, text=False) for e in eintraege],
-                      [11, 22, 18, 60, 12, 16, 15, 12, 11, 14])
+                      [11, 22, 22, 18, 60, 12, 16, 15, 12, 11, 14])
     return Bericht(f"Zeitnachweis {akte['name']}", bausteine, [tabelle])
 
 

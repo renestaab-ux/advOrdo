@@ -2606,6 +2606,10 @@ export interface ZeitEintrag {
   abrechenbar: boolean;
   kostennote_id: number | null;
   kostennote: string | null;
+  angelegt_am: string;
+  geaendert_am: string;
+  /** Zeitspannen: jeder Timer-Lauf und von–bis von Hand; leer, wenn nur eine Dauer angegeben wurde. */
+  abschnitte: { von: string; bis: string; quelle: "timer" | "hand" }[];
 }
 
 export interface ZeitLaufend extends ZeitEintrag {

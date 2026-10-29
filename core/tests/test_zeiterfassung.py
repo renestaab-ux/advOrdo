@@ -112,6 +112,10 @@ def test_timer_laeuft_ueber_neustart_und_nur_einer(kern, tmp_path):  # noqa: F81
     zeit.starten(kern.akten, aid, eintrag_id=erste["id"], jetzt=start + timedelta(hours=1))
     zeit.stoppen(kern.akten, jetzt=start + timedelta(hours=1, minutes=10))
     assert zeit.liste(kern.akten, aid)["eintraege"][0]["minuten"] == 35
+    assert zeit.liste(kern.akten, aid)["eintraege"][0]["abschnitte"] == [
+        {"von": "2026-10-28T09:00:00", "bis": "2026-10-28T09:25:00", "quelle": "timer"},
+        {"von": "2026-10-28T10:00:00", "bis": "2026-10-28T10:10:00", "quelle": "timer"}]
+    assert zeit.uhrzeiten_text(zeit.liste(kern.akten, aid)["eintraege"][0]) == "09:00–09:25, 10:00–10:10"
     # an einem anderen Tag nicht
     with pytest.raises(ValueError, match="nur am Tag des Eintrags"):
         zeit.starten(kern.akten, aid, eintrag_id=erste["id"], jetzt=start + timedelta(days=1))
@@ -371,9 +375,10 @@ def test_export_der_zeiten(kern, tmp_path):  # noqa: F811
     roh = csv_pfad.read_bytes()
     assert roh.startswith(b"\xef\xbb\xbf") and b"\r\r\n" not in roh
     zeilen = roh.decode("utf-8-sig").split("\r\n")
-    assert zeilen[0].startswith("Datum;Bearbeiter;Stufe;Tätigkeit")
-    assert zeilen[1].startswith("01.10.2026;Dr. Sophie Albrecht;Partner;")  # älteste zuerst
+    assert zeilen[0].startswith("Datum;Uhrzeit;Bearbeiter;Stufe;Tätigkeit")
+    assert zeilen[1].startswith("01.10.2026;;Dr. Sophie Albrecht;Partner;")  # älteste zuerst
     assert ";0,20;380,00;76,00;ja;" in zeilen[2]
+    assert zeilen[0].startswith("Datum;Uhrzeit;Bearbeiter")
     for art in ("xlsx", "pdf", "docx"):
         ziel = tmp_path / f"zeiten.{art}"
         zeit.exportieren(kern.akten, aid, str(ziel))
@@ -382,3 +387,24 @@ def test_export_der_zeiten(kern, tmp_path):  # noqa: F811
     assert "=SUMME(A1)" in blatt and "<f>" not in blatt  # Text bleibt Text
     with pytest.raises(ValueError, match="nicht unterstützt"):
         zeit.exportieren(kern.akten, aid, str(tmp_path / "zeiten.odt"))
+
+
+def test_uhrzeiten_von_hand(kern):  # noqa: F811
+    aid = kern.test_akte
+    p = _bearbeiter(kern, "Dr. Sophie Albrecht", "Partner")
+    stand = zeit.speichern(kern.akten, aid, {"datum": "2026-10-29", "von": "9:05", "bis": "09:50", "bearbeiter_id": p,
+                                             "taetigkeit": "Telefonat mit Frau Brückner zum Vergleich"})
+    e = stand["eintraege"][0]
+    assert e["minuten"] == 45 and zeit.uhrzeiten_text(e) == "09:05–09:50" and e["abschnitte"][0]["quelle"] == "hand"
+    # bloße Dauer ändern: Zeitspanne bleibt (zeigt, dass von Hand angepasst wurde)
+    e = zeit.speichern(kern.akten, aid, {"datum": "2026-10-29", "dauer": "1:00", "bearbeiter_id": p,
+                                         "taetigkeit": e["taetigkeit"]}, e["id"])["eintraege"][0]
+    assert e["minuten"] == 60 and len(e["abschnitte"]) == 1
+    # neue von–bis ersetzt sie
+    e = zeit.speichern(kern.akten, aid, {"datum": "2026-10-29", "von": "14:00", "bis": "14:30", "bearbeiter_id": p,
+                                         "taetigkeit": e["taetigkeit"]}, e["id"])["eintraege"][0]
+    assert zeit.uhrzeiten_text(e) == "14:00–14:30"
+    # nur Dauer: keine Uhrzeit
+    e = zeit.speichern(kern.akten, aid, {"datum": "2026-10-29", "dauer": "0,5", "bearbeiter_id": p,
+                                         "taetigkeit": "Akte für Termin vorbereitet"})["eintraege"][0]
+    assert e["abschnitte"] == [] and zeit.uhrzeiten_text(e) == ""

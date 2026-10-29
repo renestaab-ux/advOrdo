@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import {
   ZeitEinstellungen,
@@ -59,6 +59,7 @@ export default function Zeiten({
   const [f, setF] = useState<Formular | null>(null);
   const [bearbeitet, setBearbeitet] = useState<number | null>(null);
   const [loeschfrage, setLoeschfrage] = useState<ZeitEintrag | null>(null);
+  const [details, setDetails] = useState<number | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const { laufend, sekunden } = useLaufenderTimer();
@@ -430,55 +431,71 @@ export default function Zeiten({
             </thead>
             <tbody>
               {liste.eintraege.map((z) => (
-                <tr key={z.id} className={z.kostennote_id ? "abgerechnet" : undefined}>
-                  <td>{datumDe(z.datum)}</td>
-                  <td>
-                    {z.bearbeiter}
-                    {z.stufe && <span className="leise klein"> · {z.stufe}</span>}
-                  </td>
-                  <td>
-                    {z.taetigkeit || <span className="leise">–</span>}
-                    {z.laeuft_seit && <span className="status-marke laufend">läuft</span>}
-                    {!z.abrechenbar && <span className="status-marke">nicht abrechenbar</span>}
-                    {z.kostennote && <span className="status-marke">abgerechnet mit {z.kostennote}</span>}
-                    {z.abrechenbar && !z.satz && <span className="status-marke hinweis">ohne Stundensatz</span>}
-                  </td>
-                  <td className="zahl">{stundenText(z.minuten)}</td>
-                  <td className="zahl">{z.abrechenbar ? stundenText(z.getaktet) : ""}</td>
-                  <td className="zahl" title={z.satz ? `${euro(z.satz)} je Stunde` : undefined}>
-                    {z.betrag ? euro(z.betrag) : ""}
-                  </td>
-                  <td className="zeit-aktionen">
-                    {!z.kostennote_id && (
-                      <>
-                        {!z.laeuft_seit && z.datum === heute() && (
-                          <button
-                            className="link klein"
-                            title="Timer für diesen Eintrag weiterlaufen lassen"
-                            onClick={() =>
-                              void mit(
-                                () =>
-                                  kern<ZeitListe>("zeit.starten", {
-                                    akte_id: akteId,
-                                    eintrag_id: z.id,
-                                  }),
-                                true,
-                              )
-                            }
-                          >
-                            Fortsetzen
+                <Fragment key={z.id}>
+                  <tr className={z.kostennote_id ? "abgerechnet" : undefined}>
+                    <td>{datumDe(z.datum)}</td>
+                    <td>
+                      {z.bearbeiter}
+                      {z.stufe && <span className="leise klein"> · {z.stufe}</span>}
+                    </td>
+                    <td>
+                      {z.taetigkeit || <span className="leise">–</span>}
+                      {z.laeuft_seit && <span className="status-marke laufend">läuft</span>}
+                      {!z.abrechenbar && <span className="status-marke">nicht abrechenbar</span>}
+                      {z.kostennote && <span className="status-marke">abgerechnet mit {z.kostennote}</span>}
+                      {z.abrechenbar && !z.satz && <span className="status-marke hinweis">ohne Stundensatz</span>}
+                    </td>
+                    <td className="zahl">{stundenText(z.minuten)}</td>
+                    <td className="zahl">{z.abrechenbar ? stundenText(z.getaktet) : ""}</td>
+                    <td className="zahl" title={z.satz ? `${euro(z.satz)} je Stunde` : undefined}>
+                      {z.betrag ? euro(z.betrag) : ""}
+                    </td>
+                    <td className="zeit-aktionen">
+                      <button
+                        className="link klein"
+                        aria-expanded={details === z.id}
+                        onClick={() => setDetails(details === z.id ? null : z.id)}
+                      >
+                        Details
+                      </button>
+                      {!z.kostennote_id && (
+                        <>
+                          {!z.laeuft_seit && z.datum === heute() && (
+                            <button
+                              className="link klein"
+                              title="Timer für diesen Eintrag weiterlaufen lassen"
+                              onClick={() =>
+                                void mit(
+                                  () =>
+                                    kern<ZeitListe>("zeit.starten", {
+                                      akte_id: akteId,
+                                      eintrag_id: z.id,
+                                    }),
+                                  true,
+                                )
+                              }
+                            >
+                              Fortsetzen
+                            </button>
+                          )}
+                          <button className="link klein" onClick={() => bearbeiten(z)}>
+                            Bearbeiten
                           </button>
-                        )}
-                        <button className="link klein" onClick={() => bearbeiten(z)}>
-                          Bearbeiten
-                        </button>
-                        <button className="link klein gefahr" onClick={() => setLoeschfrage(z)}>
-                          Löschen
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
+                          <button className="link klein gefahr" onClick={() => setLoeschfrage(z)}>
+                            Löschen
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                  {details === z.id && (
+                    <tr className="zeit-details">
+                      <td colSpan={7}>
+                        <ZeitDetails z={z} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -536,6 +553,52 @@ export default function Zeiten({
         <button className="link klein" onClick={onEinstellungen}>
           Einstellungen → Zeiterfassung
         </button>
+      </p>
+    </div>
+  );
+}
+
+const uhr = (iso: string) => iso.slice(11, 16);
+const zeitpunkt = (iso: string) => `${datumDe(iso.slice(0, 10))}, ${uhr(iso)} Uhr`;
+
+/** Wann erfasst wurde: Timer-Läufe und von–bis von Hand, dazu Anlage und letzte Änderung. */
+function ZeitDetails({ z }: { z: ZeitEintrag }) {
+  const summe = z.abschnitte.reduce(
+    (m, a) => m + Math.max(1, Math.round((Date.parse(a.bis) - Date.parse(a.von)) / 60000)),
+    0,
+  );
+  return (
+    <div className="zeit-details-inhalt">
+      {z.abschnitte.length === 0 && !z.laeuft_seit ? (
+        <p className="leise">
+          Keine Uhrzeiten: Es wurde nur eine Dauer angegeben (oder der Eintrag stammt aus einer älteren Version).
+        </p>
+      ) : (
+        <ul>
+          {z.abschnitte.map((a) => (
+            <li key={a.von}>
+              {uhr(a.von)}–{uhr(a.bis)} Uhr{" "}
+              <span className="leise">({a.quelle === "timer" ? "Timer" : "von Hand"})</span>
+            </li>
+          ))}
+          {z.laeuft_seit && (
+            <li>
+              seit {uhr(z.laeuft_seit)} Uhr <span className="leise">(Timer läuft)</span>
+            </li>
+          )}
+        </ul>
+      )}
+      {z.abschnitte.length > 0 &&
+        !z.laeuft_seit &&
+        summe !== z.minuten &&
+        Math.abs(summe - z.minuten) > z.abschnitte.length && (
+          <p className="leise">
+            Die Dauer wurde von Hand auf {stundenText(z.minuten)} geändert (Zeitspannen ergeben {stundenText(summe)}).
+          </p>
+        )}
+      <p className="leise klein">
+        Angelegt am {zeitpunkt(z.angelegt_am)}
+        {z.geaendert_am !== z.angelegt_am && ` · zuletzt geändert am ${zeitpunkt(z.geaendert_am)}`}
       </p>
     </div>
   );
