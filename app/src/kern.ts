@@ -106,6 +106,8 @@ export interface Akte {
   aktenzeichen: string | null;
   status: string;
   gegenstand: string | null;
+  /** Gegenstandswert mit Punkt, z. B. "14555.40". */
+  gegenstandswert: string | null;
   mandanten: string[];
   gegner: string[];
   gerichte: { name: string; aktenzeichen: string }[];

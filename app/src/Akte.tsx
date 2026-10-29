@@ -928,6 +928,11 @@ export default function Akte({
         )}
         {dokumente.length > 0 && (
           <table className="dokumente kompakt">
+            <colgroup>
+              <col className="spalte-datum" />
+              <col />
+              <col className="spalte-zitate" />
+            </colgroup>
             <thead>
               <tr>
                 <th>
@@ -958,11 +963,16 @@ export default function Akte({
                     <DokumentDatum d={d} onFundstelle={() => oeffneDokument(d.id, d.datum_abschnitt ?? undefined)} />
                   </td>
                   <td>
-                    <button className="link" onClick={() => oeffneDokument(d.id)}>
-                      {dokumentName(d)}
-                    </button>
+                    <div className="dok-name-zeile">
+                      <span className="dok-symbol">
+                        <Zeichen name="dokumente" groesse={16} />
+                      </span>
+                      <button className="link dok-name" onClick={() => oeffneDokument(d.id)}>
+                        {dokumentName(d)}
+                      </button>
+                    </div>
                     <div className="herkunft">
-                      {d.art && <>{d.art} · </>}
+                      {d.art && <span className="art-chip">{d.art}</span>}
                       {d.absender && <>von {d.absender.wert === "eigene" ? "uns" : d.absender.name} · </>}
                       {d.titel && <>{d.dateiname} · </>}
                       {lesartText(d)}
@@ -1366,6 +1376,8 @@ const DOK_MODI: { modus: DokModus; text: string }[] = [
   { modus: "details", text: "Details" },
 ];
 
+const FORMAT_NAME: Record<AktenDokument["format"], string> = { pdf: "PDF", docx: "Word", txt: "Text", md: "Markdown" };
+
 function DokModusLeiste({
   dokument,
   modus,
@@ -1380,15 +1392,28 @@ function DokModusLeiste({
   const kiAn = useKiAn();
   return (
     <div className="dok-modi" role="tablist" aria-label={`Darstellung von ${dokument.dateiname}`}>
-      <span className="dok-modi-name" title={dokument.titel ? dokument.dateiname : undefined}>
-        {dokumentName(dokument)}
-      </span>
+      <div className="dok-modi-kopf">
+        <span className="dok-modi-name" title={dokument.titel ? dokument.dateiname : undefined}>
+          {dokumentName(dokument)}
+        </span>
+        <span className="dok-modi-angaben">
+          {[
+            dokument.art,
+            dokument.datum ? dokumentDatum(dokument).text : null,
+            FORMAT_NAME[dokument.format],
+            dokument.seiten != null ? `${dokument.seiten} S.` : null,
+            dokument.titel ? dokument.dateiname : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+      </div>
       {DOK_MODI.filter((m) => kiAn || m.modus !== "chat").map((m) => (
         <button
           key={m.modus}
           role="tab"
           aria-selected={modus === m.modus}
-          className={modus === m.modus ? "reiter-aktiv" : "zweitrangig"}
+          className={modus === m.modus ? "dok-modus aktiv" : "dok-modus"}
           disabled={m.modus === "original" && !pdf}
           title={m.modus === "original" && !pdf ? "Die Originalansicht gibt es nur für PDF-Dateien." : undefined}
           onClick={() => onModus(m.modus)}
