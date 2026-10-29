@@ -710,6 +710,14 @@ button.marke-fehlt:hover { border-color: var(--warnung); }
 button.akte-reiter-knopf { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; background: none; border: none; border-bottom: 3px solid transparent;
   border-radius: 0; color: var(--text-leise); padding: 8px 12px 9px; }
 button.akte-reiter-knopf:hover { color: var(--text); }
+/* Auf schmaleren Bildschirmen (MacBook) rücken die Reiter zusammen, damit alle sichtbar bleiben. */
+@media (max-width: 1520px) {
+  .akte-reiter { padding-left: 16px; padding-right: 16px; gap: 0; }
+  button.akte-reiter-knopf { padding-left: 8px; padding-right: 8px; gap: 5px; font-size: 14px; }
+}
+@media (max-width: 1360px) {
+  button.akte-reiter-knopf .symbol { display: none; }
+}
 button.akte-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--akzent); font-weight: 600; }
 .akte-reiter-knopf .anzahl, .filter-eintrag .anzahl { font-size: 12px; color: var(--text-leise); font-weight: 400; }
 .akte-reiterflaeche { flex: 1; min-height: 0; overflow: auto; position: relative; padding: 16px 24px 24px; }
@@ -756,6 +764,9 @@ button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, 
 .dokumente.kompakt tr.aktiv { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
 .zeilen-aktionen { display: inline-flex; gap: 8px; visibility: hidden; }
 .dokumente.kompakt tr:hover .zeilen-aktionen, .dokumente.kompakt tr.aktiv .zeilen-aktionen, .zeilen-aktionen:focus-within { visibility: visible; }
+/* In der Dokumentliste erscheinen die Zeilenknöpfe nur beim geöffneten Dokument; die übrigen Zeilen halten keinen Platz frei. */
+.dokumente.kompakt .zeilen-aktionen { display: none; margin: 4px 0 0 22px; }
+.dokumente.kompakt tr.aktiv .zeilen-aktionen, .dokumente.kompakt .zeilen-aktionen:focus-within { display: flex; }
 .akte-offen .dok-modi { position: sticky; top: -12px; background: var(--hintergrund); z-index: 1; padding-top: 4px; }
 .akte-offen .akte-arbeitsflaeche { grid-template-columns: minmax(0, 1fr) auto auto; }
 .akte-offen .dokument { margin-top: 0; }
@@ -783,6 +794,7 @@ button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, 
 .dokumente.kompakt .dok-datum .herkunft { display: none; }
 details.kurz-hinweis { font-size: 13px; margin: 0 0 6px; }
 details.kurz-hinweis summary { cursor: pointer; }
+details.kurz-hinweis p { margin: 4px 0; }
 .rollen { display: flex; flex-wrap: wrap; gap: 4px; }
 .rolle-marke { font-size: 12px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; color: var(--text-leise);
   background: color-mix(in srgb, var(--text-leise) 14%, transparent); }

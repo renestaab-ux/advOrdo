@@ -679,19 +679,24 @@ export default function Akte({
 
   const meldungen = (
     <>
-      {ocr && !ocr.verfuegbar && (
-        <details className="hinweis kurz-hinweis">
-          <summary>Texterkennung nicht verfügbar</summary>
-          {ocr.hinweis} PDFs mit Text und Word-Dateien lassen sich trotzdem lesen.
-        </details>
-      )}
-      {gesetzeGeladen === 0 && (
-        <details className="hinweis kurz-hinweis">
-          <summary>Die Wissensbasis ist noch leer</summary>
-          Lade unter „Gesetze“ die Voreinstellung, damit zitierte Normen geprüft werden können; danach hier „Zitate neu
-          prüfen“.
-        </details>
-      )}
+      <EinrichtungsHinweise
+        hinweise={[
+          ocr && !ocr.verfuegbar
+            ? {
+                titel: "Texterkennung nicht verfügbar",
+                text: `${ocr.hinweis} PDFs mit Text und Word-Dateien lassen sich trotzdem lesen.`,
+              }
+            : null,
+          gesetzeGeladen === 0
+            ? {
+                titel: "Die Wissensbasis ist noch leer",
+                text:
+                  "Lade unter „Gesetze“ die Voreinstellung, damit zitierte Normen geprüft werden können; danach hier " +
+                  "„Zitate neu prüfen“.",
+              }
+            : null,
+        ]}
+      />
       <UebernahmeFrage
         kopien={offeneUebernahmen(kopien, spaeter)}
         dokumente={dokumente}
@@ -990,16 +995,21 @@ export default function Akte({
                         onAbbrechen={() => setTagEdit(null)}
                       />
                     ) : (
-                      <div className="tags">
-                        {sortiereTags(d.tags).map((t) => (
-                          <span
-                            key={t.name}
-                            className={`tag ${t.quelle}`}
-                            title={t.quelle === "ordner" ? "Aus dem Ordnernamen übernommen" : "Von Hand gesetzt"}
-                          >
-                            {t.name}
-                          </span>
-                        ))}
+                      <>
+                        {d.tags.length > 0 && (
+                          <div className="tags">
+                            {sortiereTags(d.tags).map((t) => (
+                              <span
+                                key={t.name}
+                                className={`tag ${t.quelle}`}
+                                title={t.quelle === "ordner" ? "Aus dem Ordnernamen übernommen" : "Von Hand gesetzt"}
+                              >
+                                {t.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Nur beim geöffneten Dokument sichtbar (siehe styles.css). */}
                         <span className="zeilen-aktionen">
                           <button
                             className="link klein"
@@ -1017,7 +1027,7 @@ export default function Akte({
                             entfernen
                           </button>
                         </span>
-                      </div>
+                      </>
                     )}
                   </td>
                   <td>
@@ -1087,7 +1097,7 @@ export default function Akte({
             {arbeitsflaeche(
               <>
                 {dokModus === "text" && (
-                  <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} markiert={markiert ?? undefined} />
+                  <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} markiert={markiert ?? undefined} ohneTitel />
                 )}
                 {dokModus === "original" && (
                   <OriginalAnsicht key={inhalt.dokument.id} dokument={inhalt.dokument} startSeite={auswahl?.zitat.seite ?? null} />
@@ -1294,12 +1304,36 @@ function ZitatZaehlung({ zitate, kurz = false }: { zitate: Partial<Record<ZitatS
   );
 }
 
+/** Hinweise zur Einrichtung (Texterkennung, Wissensbasis) in einer einzigen, eingeklappten Zeile. */
+function EinrichtungsHinweise({ hinweise }: { hinweise: ({ titel: string; text: string } | null)[] }) {
+  const da = hinweise.filter((h): h is { titel: string; text: string } => h != null);
+  if (da.length === 0) return null;
+  if (da.length === 1)
+    return (
+      <details className="hinweis kurz-hinweis">
+        <summary>{da[0].titel}</summary>
+        {da[0].text}
+      </details>
+    );
+  return (
+    <details className="hinweis kurz-hinweis">
+      <summary>{da.length} Hinweise zur Einrichtung</summary>
+      {da.map((h) => (
+        <p key={h.titel}>
+          <strong>{h.titel}:</strong> {h.text}
+        </p>
+      ))}
+    </details>
+  );
+}
+
 export function DokumentAnsicht({
   inhalt,
   auswahl = null,
   onZitat,
   markiert,
   begriffe = [],
+  ohneTitel = false,
 }: {
   inhalt: DokumentInhalt;
   auswahl?: Auswahl | null;
@@ -1309,11 +1343,13 @@ export function DokumentAnsicht({
   markiert?: number;
   /** Gesuchte Begriffe, die im Text gelb markiert werden. */
   begriffe?: string[];
+  /** In der Akte steht der Name schon im Kopf des geöffneten Dokuments. */
+  ohneTitel?: boolean;
 }) {
   const d = inhalt.dokument;
   return (
     <article className="dokument">
-      <h2>{d.dateiname}</h2>
+      {!ohneTitel && <h2>{d.dateiname}</h2>}
       <p className="dokument-info">
         {lesartText(d)}
         {d.seiten != null && <> · {d.seiten} Seiten</>} · SHA-256 {d.sha256.slice(0, 12)}…
