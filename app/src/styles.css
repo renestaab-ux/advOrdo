@@ -1154,15 +1154,23 @@ details.kurz-hinweis summary { cursor: pointer; }
 .zeit-stufen { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
 .zeit-stufen li.archiviert input { color: var(--text-leise); }
 .zeit-einstellungen .kosten-zeile input.betrag { width: 90px; }
-.zeit-leiste { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 6px; color: var(--gut);
-  background: color-mix(in srgb, var(--gut) 12%, transparent); font-size: 12px; }
-.zeit-leiste-akte { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: none; border: none; padding: 0;
+.zeit-leiste { display: flex; align-items: center; gap: 6px; padding: 8px; border-radius: 8px; color: var(--gut);
+  background: color-mix(in srgb, var(--gut) 12%, transparent); border: 1px solid color-mix(in srgb, var(--gut) 35%, transparent); }
+.zeit-leiste-akte { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: none; border: none; padding: 0;
   color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.zeit-leiste-akte .nav-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.zeit-leiste-akte strong { font-variant-numeric: tabular-nums; }
-.zeit-leiste-stopp { flex: none; background: none; border: 1px solid currentColor; border-radius: 4px; color: inherit; padding: 0 5px;
-  font-size: 10px; line-height: 16px; cursor: pointer; }
+.zeit-leiste-symbol { flex: none; display: flex; }
+.zeit-leiste-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.zeit-leiste-uhr { font-size: 17px; font-variant-numeric: tabular-nums; }
+.zeit-leiste-name { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zeit-leiste-stopp { flex: none; align-self: center; background: none; border: 1px solid currentColor; border-radius: 4px; color: inherit;
+  padding: 2px 7px; font-size: 11px; line-height: 16px; cursor: pointer; }
 .eingeklappt .zeit-leiste-stopp { display: none; }
+.eingeklappt .zeit-leiste { justify-content: center; padding: 8px 4px; }
+.eingeklappt .zeit-leiste-akte { justify-content: center; }
+/* Eingeklappt: ruhiges Ein- und Ausblenden des Uhrensymbols, damit ein laufender Timer nicht übersehen wird. */
+@keyframes zeit-puls { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.eingeklappt .zeit-leiste-symbol { animation: zeit-puls 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .eingeklappt .zeit-leiste-symbol { animation: none; } }
 .zeit-formular .schrift-wahl .feld > input, .zeit-formular .schrift-wahl .feld > select { min-width: 0; width: 100%; box-sizing: border-box; }
 .zeit-formular .schrift-wahl .feld { min-width: 0; }
 .zeit-formular .schrift-wahl + .schrift-wahl { margin-top: 10px; }

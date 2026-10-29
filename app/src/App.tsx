@@ -153,9 +153,12 @@ export default function App() {
                 onClick={() => oeffneAkte(timer.laufend!.akte_id, "zeiten")}
                 title={`Timer läuft: ${timer.laufend.akte}${timer.laufend.taetigkeit ? ` · ${timer.laufend.taetigkeit}` : ""} (${timer.laufend.bearbeiter}). Zur Zeiterfassung der Akte.`}
               >
-                <Zeichen name="zeiten" groesse={16} />
-                <span className="nav-text">
-                  <strong>{uhrText(timer.sekunden)}</strong> {timer.laufend.akte}
+                <span className="zeit-leiste-symbol">
+                  <Zeichen name="zeiten" groesse={eingeklappt ? 26 : 20} />
+                </span>
+                <span className="nav-text zeit-leiste-text">
+                  <strong className="zeit-leiste-uhr">{uhrText(timer.sekunden)}</strong>
+                  <span className="zeit-leiste-name">{timer.laufend.akte}</span>
                 </span>
               </button>
               <button
