@@ -1151,12 +1151,14 @@ details.kurz-hinweis summary { cursor: pointer; }
 .zeit-liste tr.abgerechnet td { color: var(--text-leise); }
 .zeit-aktionen { white-space: nowrap; text-align: right; }
 .zeit-vereinbarung h3 { font-size: 14px; margin: 0; }
-.zeit-vereinbarung form { display: grid; gap: 8px; margin-top: 8px; }
-.zeit-vereinbarung .haken { display: flex; gap: 6px; align-items: baseline; }
+.zeit-vereinbarung form, .zeit-vereinbarung-form { display: grid; gap: 8px; margin-top: 8px; }
+.zeit-vereinbarung .haken, .zeit-vereinbarung-form .haken { display: flex; gap: 6px; align-items: baseline; }
 .zeit-vereinbarung-stand { margin: 6px 0 4px; }
-.zeit-vereinbarung form .feld.kurz { max-width: 240px; }
-.zeit-vereinbarung form .schrift-wahl .feld:not(.kurz) { max-width: 360px; }
-.zeit-vereinbarung-knoepfe { display: flex; gap: 8px; }
+.zeit-vereinbarung-form .feld.kurz { max-width: 240px; }
+.zeit-vereinbarung-form .schrift-wahl .feld:not(.kurz) { max-width: 360px; }
+.zeit-vereinbarung-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mandant-vereinbarungen .rahmen-vereinbarung p { margin: 4px 0; }
+.mandant-vereinbarungen .rahmen-vereinbarung.hervorgehoben { border-left: 3px solid var(--akzent); background: var(--hintergrund); padding: 6px 10px; border-radius: 4px; margin-bottom: 8px; }
 .zeit-budget { height: 6px; border-radius: 3px; background: var(--linie); overflow: hidden; margin: 4px 0 8px; max-width: 420px; }
 .zeit-budget span { display: block; height: 100%; background: var(--gut); }
 .zeit-budget.knapp span { background: var(--warnung); }

@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS zeit_abschnitt (
     quelle     TEXT NOT NULL CHECK (quelle IN ('timer', 'hand'))
 );
 CREATE INDEX IF NOT EXISTS zeit_abschnitt_eintrag ON zeit_abschnitt(eintrag_id);
--- Vergütungsvereinbarung je Mandant; gilt für alle Akten, in denen er Mandant ist.
+-- Rahmenvereinbarung je Mandant; gilt für alle seine Akten ohne Einzelvereinbarung.
 CREATE TABLE IF NOT EXISTS zeit_vereinbarung (
     mandant           TEXT PRIMARY KEY,     -- "b:<beteiligter_id>" oder (Rechtsabteilung) "o:<eigene_organisation_id>"
     taktung           INTEGER,              -- leer: Taktung aus den Einstellungen
@@ -89,7 +89,8 @@ CREATE TABLE IF NOT EXISTS zeit_vereinbarung (
     notiz             TEXT NOT NULL DEFAULT '',
     geaendert_am      TEXT NOT NULL
 );
--- Kostenschätzung je Akte (Budget), mit der die erfassten Zeiten verglichen werden.
+-- Je Akte: Kostenschätzung (Budget) und, wenn ``einzel`` gesetzt ist, eine Einzelvereinbarung, die eine
+-- Rahmenvereinbarung für diese Akte ersetzt. Die weiteren Spalten rüstet ``einrichten`` nach.
 CREATE TABLE IF NOT EXISTS zeit_akte (
     akte_id           INTEGER PRIMARY KEY REFERENCES akte(id) ON DELETE CASCADE,
     kostenschaetzung  TEXT
@@ -146,6 +147,12 @@ def einrichten(con: sqlite3.Connection) -> None:
     if "notiz_id" not in [z["name"] for z in con.execute("PRAGMA table_info(zeit_eintrag)")]:
         con.execute("ALTER TABLE zeit_eintrag ADD COLUMN notiz_id INTEGER REFERENCES aktennotiz(id) "
                     "ON DELETE SET NULL")
+    spalten = [z["name"] for z in con.execute("PRAGMA table_info(zeit_akte)")]
+    for spalte, art in (("einzel", "INTEGER NOT NULL DEFAULT 0"), ("taktung", "INTEGER"), ("vereinbart_am", "TEXT"),
+                        ("mindestverguetung", "INTEGER NOT NULL DEFAULT 0"), ("notiz", "TEXT NOT NULL DEFAULT ''"),
+                        ("geaendert_am", "TEXT")):
+        if spalte not in spalten:
+            con.execute(f"ALTER TABLE zeit_akte ADD COLUMN {spalte} {art}")
     # Beispielstufen nur beim ersten Mal; wer sie löscht, bekommt sie nicht wieder.
     if _wert(con, "stufen_angelegt") is None:
         for i, (name, satz) in enumerate(STUFEN_VORGABE):
@@ -282,7 +289,9 @@ def akte_hinweise(con: sqlite3.Connection, akte_id: int, takt: int) -> list[str]
             f"6 Minuten, die als zulässige Höchstgrenze gelten ({QUELLE_EMPFOHLEN})."]
 
 
-# --------------------------------------------------------------------------- Vereinbarung je Mandant
+# --------------------------------------------------------------------------- Vergütungsvereinbarung
+# Rahmenvereinbarung je Mandant (zeit_vereinbarung) gilt für alle seine Akten; eine Einzelvereinbarung der Akte
+# (zeit_akte.einzel) ersetzt sie für diese Akte ganz. Ohne beide gilt die Taktung aus den Einstellungen.
 
 
 def _mandanten(con: sqlite3.Connection, akte_id: int) -> list[dict]:
@@ -301,87 +310,167 @@ def _mandanten(con: sqlite3.Connection, akte_id: int) -> list[dict]:
     return aus
 
 
-def _vereinbarung_zeile(con: sqlite3.Connection, schluessel: str) -> sqlite3.Row | None:
+def _rahmen_zeile(con: sqlite3.Connection, schluessel: str) -> sqlite3.Row | None:
     return con.execute("SELECT * FROM zeit_vereinbarung WHERE mandant = ?", (schluessel,)).fetchone()
 
 
-def _akten_des_mandanten(con: sqlite3.Connection, schluessel: str) -> int:
+def _akte_zeile(con: sqlite3.Connection, akte_id: int) -> sqlite3.Row | None:
+    return con.execute("SELECT * FROM zeit_akte WHERE akte_id = ?", (akte_id,)).fetchone()
+
+
+def _akten_des_mandanten(con: sqlite3.Connection, schluessel: str) -> list[int]:
     art, _, nr = schluessel.partition(":")
     spalte = "beteiligter_id" if art == "b" else "eigene_organisation_id"
-    return con.execute(f"SELECT COUNT(DISTINCT akte_id) FROM akte_beteiligung WHERE rolle = 'mandant' "
-                       f"AND {spalte} = ?", (int(nr),)).fetchone()[0]
+    return [z[0] for z in con.execute(f"SELECT DISTINCT akte_id FROM akte_beteiligung WHERE rolle = 'mandant' "
+                                      f"AND {spalte} = ? ORDER BY akte_id", (int(nr),))]
+
+
+def _als_vereinbarung(z: sqlite3.Row | None) -> dict | None:
+    if z is None:
+        return None
+    return {"taktung": z["taktung"] if z["taktung"] in TAKTUNGEN else None, "vereinbart_am": z["vereinbart_am"],
+            "mindestverguetung": bool(z["mindestverguetung"]), "notiz": z["notiz"] or ""}
+
+
+def _gilt(con: sqlite3.Connection, akte_id: int) -> tuple[str | None, dict | None, dict | None, dict | None]:
+    """(Art, geltende Vereinbarung, Rahmen, Einzel) für die Akte; Art ist "einzel", "rahmen" oder None."""
+    mandanten = _mandanten(con, akte_id)
+    rahmen = _als_vereinbarung(_rahmen_zeile(con, mandanten[0]["schluessel"])) if mandanten else None
+    a = _akte_zeile(con, akte_id)
+    einzel = _als_vereinbarung(a) if a is not None and a["einzel"] else None
+    if einzel is not None:
+        return "einzel", einzel, rahmen, einzel
+    if rahmen is not None:
+        return "rahmen", rahmen, rahmen, None
+    return None, None, None, None
 
 
 def akte_taktung(con: sqlite3.Connection, akte_id: int) -> int:
-    """Taktung der Akte: die aus der Vereinbarung mit dem (ersten) Mandanten, sonst die allgemeine."""
-    mandanten = _mandanten(con, akte_id)
-    z = _vereinbarung_zeile(con, mandanten[0]["schluessel"]) if mandanten else None
-    return z["taktung"] if z is not None and z["taktung"] in TAKTUNGEN else taktung(con)
+    """Taktung der Akte: aus der Einzel- bzw. Rahmenvereinbarung, sonst die allgemeine."""
+    _, v, _, _ = _gilt(con, akte_id)
+    return (v or {}).get("taktung") or taktung(con)
 
 
 def _kostenschaetzung(con: sqlite3.Connection, akte_id: int) -> str | None:
-    z = con.execute("SELECT kostenschaetzung FROM zeit_akte WHERE akte_id = ?", (akte_id,)).fetchone()
-    return z["kostenschaetzung"] if z and z["kostenschaetzung"] else None
+    z = _akte_zeile(con, akte_id)
+    return z["kostenschaetzung"] if z is not None and z["kostenschaetzung"] else None
 
 
 def vereinbarung(con: sqlite3.Connection, akte_id: int) -> dict:
-    """Was für die Akte vereinbart ist: Vereinbarung mit dem (ersten) Mandanten, wirksame Taktung, Kostenschätzung
-    der Akte."""
+    """Was für die Akte gilt: Einzelvereinbarung, sonst Rahmenvereinbarung mit dem (ersten) Mandanten; dazu die
+    wirksame Taktung und die Kostenschätzung der Akte."""
     mandanten = _mandanten(con, akte_id)
     m = mandanten[0] if mandanten else None
-    z = _vereinbarung_zeile(con, m["schluessel"]) if m else None
+    art, v, rahmen, einzel = _gilt(con, akte_id)
     allgemein = taktung(con)
-    eigen = z["taktung"] if z is not None and z["taktung"] in TAKTUNGEN else None
+    eigen = (v or {}).get("taktung")
     hinweise = []
-    andere = [x["name"] for x in mandanten[1:] if _vereinbarung_zeile(con, x["schluessel"]) is not None]
-    if andere:
-        hinweise.append(f"Die Akte hat mehrere Mandanten. Maßgeblich ist hier die Vereinbarung mit {m['name']}; die "
-                        f"mit {', '.join(andere)} gilt in dieser Akte nicht.")
-    return {"mandant": m | {"akten": _akten_des_mandanten(con, m["schluessel"])} if m else None,
-            "vermerkt": z is not None, "taktung": eigen or allgemein, "taktung_eigen": eigen,
-            "taktung_allgemein": allgemein, "vereinbart_am": z["vereinbart_am"] if z is not None else None,
-            "mindestverguetung": bool(z["mindestverguetung"]) if z is not None else False,
-            "notiz": z["notiz"] if z is not None else "", "kostenschaetzung": _kostenschaetzung(con, akte_id),
-            "hinweise": hinweise}
+    andere = [x["name"] for x in mandanten[1:] if _rahmen_zeile(con, x["schluessel"]) is not None]
+    if andere and art != "einzel":
+        hinweise.append(f"Die Akte hat mehrere Mandanten. Maßgeblich ist hier die Rahmenvereinbarung mit {m['name']}; "
+                        f"die mit {', '.join(andere)} gilt in dieser Akte nicht.")
+    return {"mandant": m | {"akten": len(_akten_des_mandanten(con, m["schluessel"]))} if m else None,
+            "art": art, "rahmen": rahmen, "einzel": einzel,
+            "vermerkt": art is not None, "taktung": eigen or allgemein, "taktung_eigen": eigen,
+            "taktung_allgemein": allgemein, "vereinbart_am": (v or {}).get("vereinbart_am"),
+            "mindestverguetung": bool((v or {}).get("mindestverguetung")), "notiz": (v or {}).get("notiz", ""),
+            "kostenschaetzung": _kostenschaetzung(con, akte_id), "hinweise": hinweise}
+
+
+def _werte(daten: dict, alt: dict | None) -> tuple:
+    """(taktung, vereinbart_am, mindestverguetung, notiz) aus den Eingaben; Fehlendes bleibt wie bisher."""
+    alt = alt or {}
+    takt = daten.get("taktung", alt.get("taktung"))
+    if takt in ("", None):
+        takt = None
+    elif int(takt) not in TAKTUNGEN:
+        raise ValueError(f"Taktung {takt} Minuten gibt es nicht; möglich: {', '.join(map(str, TAKTUNGEN))}.")
+    else:
+        takt = int(takt)
+    am = daten.get("vereinbart_am", alt.get("vereinbart_am"))
+    am = _datum(am, "Vereinbart am").isoformat() if am else None
+    mindest = int(bool(daten.get("mindestverguetung", alt.get("mindestverguetung", False))))
+    notiz = str(daten.get("notiz", alt.get("notiz", "")) or "").strip()
+    return takt, am, mindest, notiz
+
+
+def _rahmen_schreiben(con: sqlite3.Connection, schluessel: str, daten: dict) -> None:
+    werte = _werte(daten, _als_vereinbarung(_rahmen_zeile(con, schluessel)))
+    con.execute("""INSERT INTO zeit_vereinbarung (mandant, taktung, vereinbart_am, mindestverguetung, notiz,
+                       geaendert_am) VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(mandant) DO UPDATE SET taktung = excluded.taktung,
+                       vereinbart_am = excluded.vereinbart_am, mindestverguetung = excluded.mindestverguetung,
+                       notiz = excluded.notiz, geaendert_am = excluded.geaendert_am""",
+                (schluessel, *werte, _jetzt().isoformat()))
 
 
 def vereinbarung_speichern(con: sqlite3.Connection, akte_id: int, daten: dict) -> dict:
-    """Speichert die Vereinbarung mit dem Mandanten der Akte (taktung, vereinbart_am, mindestverguetung, notiz)
-    und die Kostenschätzung der Akte; liefert die Liste der Akte."""
+    """Speichert für die Akte ``daten["art"]`` = "einzel" (Einzelvereinbarung der Akte) oder "rahmen"
+    (Rahmenvereinbarung mit dem Mandanten), jeweils taktung, vereinbart_am, mindestverguetung, notiz;
+    ``einzel_aufheben`` lässt wieder die Rahmenvereinbarung gelten. Die Kostenschätzung gehört immer zur Akte."""
     if con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")
     mandanten = _mandanten(con, akte_id)
-    felder = ("taktung", "vereinbart_am", "mindestverguetung", "notiz")
-    jetzt = _jetzt().isoformat()
+    art = daten.get("art", "einzel")
     with con:
+        con.execute("INSERT OR IGNORE INTO zeit_akte (akte_id) VALUES (?)", (akte_id,))
         if "kostenschaetzung" in daten:
             roh = daten.get("kostenschaetzung")
             k = _text_satz(_betrag(roh, "Kostenschätzung")) if roh not in (None, "") else None
-            con.execute("INSERT INTO zeit_akte (akte_id, kostenschaetzung) VALUES (?, ?) ON CONFLICT(akte_id) "
-                        "DO UPDATE SET kostenschaetzung = excluded.kostenschaetzung", (akte_id, k))
-        if any(f in daten for f in felder):
-            if not mandanten:
-                raise ValueError("Der Akte ist noch kein Mandant zugeordnet. Die Vereinbarung gilt je Mandant; bitte "
-                                 "zuerst unter „Beteiligte“ den Mandanten eintragen.")
-            alt = _vereinbarung_zeile(con, mandanten[0]["schluessel"])
-            takt = daten.get("taktung", alt["taktung"] if alt is not None else None)
-            if takt in ("", None):
-                takt = None
-            elif int(takt) not in TAKTUNGEN:
-                raise ValueError(f"Taktung {takt} Minuten gibt es nicht; möglich: {', '.join(map(str, TAKTUNGEN))}.")
+            con.execute("UPDATE zeit_akte SET kostenschaetzung = ? WHERE akte_id = ?", (k, akte_id))
+        if daten.get("einzel_aufheben"):
+            con.execute("UPDATE zeit_akte SET einzel = 0 WHERE akte_id = ?", (akte_id,))
+        elif any(f in daten for f in ("taktung", "vereinbart_am", "mindestverguetung", "notiz")):
+            if art == "rahmen":
+                if not mandanten:
+                    raise ValueError("Der Akte ist noch kein Mandant zugeordnet. Eine Rahmenvereinbarung gilt je "
+                                     "Mandant; bitte zuerst unter „Beteiligte“ den Mandanten eintragen.")
+                _rahmen_schreiben(con, mandanten[0]["schluessel"], daten)
+            elif art == "einzel":
+                a = _akte_zeile(con, akte_id)
+                werte = _werte(daten, _als_vereinbarung(a) if a["einzel"] else None)
+                con.execute("UPDATE zeit_akte SET einzel = 1, taktung = ?, vereinbart_am = ?, mindestverguetung = ?, "
+                            "notiz = ?, geaendert_am = ? WHERE akte_id = ?", (*werte, _jetzt().isoformat(), akte_id))
             else:
-                takt = int(takt)
-            am = daten.get("vereinbart_am", alt["vereinbart_am"] if alt is not None else None)
-            am = _datum(am, "Vereinbart am").isoformat() if am else None
-            mindest = int(bool(daten.get("mindestverguetung", alt["mindestverguetung"] if alt is not None else 0)))
-            notiz = str(daten.get("notiz", alt["notiz"] if alt is not None else "") or "").strip()
-            con.execute("""INSERT INTO zeit_vereinbarung (mandant, taktung, vereinbart_am, mindestverguetung, notiz,
-                               geaendert_am) VALUES (?, ?, ?, ?, ?, ?)
-                           ON CONFLICT(mandant) DO UPDATE SET taktung = excluded.taktung,
-                               vereinbart_am = excluded.vereinbart_am, mindestverguetung = excluded.mindestverguetung,
-                               notiz = excluded.notiz, geaendert_am = excluded.geaendert_am""",
-                        (mandanten[0]["schluessel"], takt, am, mindest, notiz, jetzt))
+                raise ValueError(f"Unbekannte Art der Vereinbarung: {art!r}")
     return liste(con, akte_id)
+
+
+def _mandant_pruefen(con: sqlite3.Connection, mandant: str) -> None:
+    art, _, nr = str(mandant).partition(":")
+    tabelle = {"b": "beteiligter", "o": "eigene_organisation"}.get(art)
+    if tabelle is None or not nr.isdigit() or con.execute(f"SELECT 1 FROM {tabelle} WHERE id = ?",
+                                                          (int(nr),)).fetchone() is None:
+        raise LookupError(f"Mandant {mandant!r} gibt es nicht.")
+
+
+def mandant_vereinbarungen(con: sqlite3.Connection, mandant: str) -> dict:
+    """Für die Daten eines Mandanten („b:<id>“): Rahmenvereinbarung und die Akten mit Einzelvereinbarung."""
+    _mandant_pruefen(con, mandant)
+    akten = _akten_des_mandanten(con, mandant)
+    einzel = []
+    for aid in akten:
+        a = _akte_zeile(con, aid)
+        if a is not None and a["einzel"]:
+            k = con.execute("SELECT name, aktenzeichen FROM akte WHERE id = ?", (aid,)).fetchone()
+            einzel.append({"akte_id": aid, "akte": k["name"], "aktenzeichen": k["aktenzeichen"]}
+                          | _als_vereinbarung(a))
+    return {"mandant": mandant, "rahmen": _als_vereinbarung(_rahmen_zeile(con, mandant)), "einzel": einzel,
+            "akten": len(akten), "taktung_allgemein": taktung(con), "taktungen": list(TAKTUNGEN)}
+
+
+def rahmen_speichern(con: sqlite3.Connection, mandant: str, daten: dict) -> dict:
+    _mandant_pruefen(con, mandant)
+    with con:
+        _rahmen_schreiben(con, mandant, daten)
+    return mandant_vereinbarungen(con, mandant)
+
+
+def rahmen_loeschen(con: sqlite3.Connection, mandant: str) -> dict:
+    _mandant_pruefen(con, mandant)
+    with con:
+        con.execute("DELETE FROM zeit_vereinbarung WHERE mandant = ?", (mandant,))
+    return mandant_vereinbarungen(con, mandant)
 
 
 def _budget_hinweis(kostenschaetzung: str | None, betrag: Decimal) -> tuple[int | None, str | None]:
@@ -405,7 +494,8 @@ def _euro(d: Decimal) -> str:
 def _keine_vereinbarung(v: dict) -> str | None:
     if v["mandant"] is None or v["vereinbart_am"]:
         return None
-    return (f"Für {v['mandant']['name']} ist keine Vergütungsvereinbarung vermerkt. Ein Zeithonorar setzt eine "
+    return (f"Für diese Akte ist keine Vergütungsvereinbarung mit {v['mandant']['name']} vermerkt (weder Rahmen- "
+            "noch Einzelvereinbarung mit Datum). Ein Zeithonorar setzt eine "
             "Vereinbarung in Textform voraus (§ 3a Abs. 1 S. 1 RVG); ohne sie kann nur die gesetzliche Vergütung "
             "verlangt werden (§ 4b S. 1 RVG). Eine Vorlage gibt es unter „Schriftstücke“.")
 

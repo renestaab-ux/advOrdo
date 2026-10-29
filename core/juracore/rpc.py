@@ -312,6 +312,9 @@ class Kern:
             "zeit.fuer_kostennote": lambda akte_id: zeiterfassung.fuer_kostennote(self.akten, akte_id),
             "zeit.vereinbarung_speichern": lambda akte_id, daten: zeiterfassung.vereinbarung_speichern(
                 self.akten, akte_id, daten),
+            "zeit.mandant_vereinbarungen": lambda mandant: zeiterfassung.mandant_vereinbarungen(self.akten, mandant),
+            "zeit.rahmen_speichern": lambda mandant, daten: zeiterfassung.rahmen_speichern(self.akten, mandant, daten),
+            "zeit.rahmen_loeschen": lambda mandant: zeiterfassung.rahmen_loeschen(self.akten, mandant),
             "zeit.exportieren": lambda akte_id, pfad, nur_offen=False: zeiterfassung.exportieren(
                 self.akten, akte_id, pfad, nur_offen),
             "schriftstuecke.vorlage_hinzufuegen": lambda pfad: schrift_vorlagen.hinzufuegen(

@@ -263,7 +263,7 @@ def test_abweichende_stufe_je_eintrag_reisezeit(kern):  # noqa: F811
 # --------------------------------------------------------------------------- Stufe 2
 
 
-def test_vereinbarung_je_mandant_gilt_fuer_alle_seine_akten(kern):  # noqa: F811
+def test_rahmen_und_einzelvereinbarung(kern):  # noqa: F811
     from juracore.aktenverwaltung import stammdaten
 
     aid = kern.test_akte
@@ -272,35 +272,58 @@ def test_vereinbarung_je_mandant_gilt_fuer_alle_seine_akten(kern):  # noqa: F811
                                      "taetigkeit": "Klageerwiderung auf Seite 3 geprüft"})
     stand = zeit.liste(kern.akten, aid)
     v = stand["vereinbarung"]
+    mandant = v["mandant"]["schluessel"]
     assert v["mandant"]["name"] == "Dr. Lena Brückner" and v["mandant"]["akten"] == 1
-    assert not v["vermerkt"] and v["taktung"] == 6 and v["taktung_eigen"] is None
-    assert any("keine Vergütungsvereinbarung vermerkt" in h and "§ 4b S. 1 RVG" in h for h in stand["hinweise"])
+    assert not v["vermerkt"] and v["art"] is None and v["taktung"] == 6 and v["taktung_eigen"] is None
+    assert any("keine Vergütungsvereinbarung" in h and "§ 4b S. 1 RVG" in h for h in stand["hinweise"])
     assert zeit.fuer_kostennote(kern.akten, aid)["mindestverguetung"] is None
 
-    stand = zeit.vereinbarung_speichern(kern.akten, aid, {"taktung": 1, "vereinbart_am": "2026-10-01",
-                                                          "mindestverguetung": True})
+    # Rahmenvereinbarung mit der Mandantin gilt in allen ihren Akten
+    stand = zeit.vereinbarung_speichern(kern.akten, aid, {"art": "rahmen", "taktung": 1,
+                                                          "vereinbart_am": "2026-10-01", "mindestverguetung": True})
+    assert stand["vereinbarung"]["art"] == "rahmen"
     assert stand["taktung"] == 1 and stand["eintraege"][0]["getaktet"] == 7
     assert not any("keine Vergütungsvereinbarung" in h for h in stand["hinweise"])
     assert zeit.fuer_kostennote(kern.akten, aid)["mindestverguetung"] is True
     assert zeit.einstellungen(kern.akten)["taktung"] == 6  # die allgemeine bleibt
-
-    # Zweite Akte derselben Mandantin: gleiche Vereinbarung
     b = akte.akte_anlegen(kern.akten, "Brückner, Mietsache")["id"]
-    stammdaten.beteiligung_hinzufuegen(kern.akten, b, "mandant", beteiligter_id=v["mandant"]["schluessel"][2:]
-                                       and int(v["mandant"]["schluessel"][2:]))
+    stammdaten.beteiligung_hinzufuegen(kern.akten, b, "mandant", beteiligter_id=int(mandant[2:]))
     assert zeit.akte_taktung(kern.akten, b) == 1
     assert zeit.liste(kern.akten, b)["vereinbarung"]["mandant"]["akten"] == 2
 
-    # Ohne eigene Taktung gilt wieder die allgemeine; ungültige Taktung abgelehnt
-    assert zeit.vereinbarung_speichern(kern.akten, aid, {"taktung": None})["taktung"] == 6
+    # Einzelvereinbarung für die zweite Akte ersetzt den Rahmen dort ganz
+    v = zeit.vereinbarung_speichern(kern.akten, b, {"art": "einzel", "taktung": 5, "vereinbart_am": "2026-10-20",
+                                                    "notiz": "Pauschal je Instanz besprochen"})["vereinbarung"]
+    assert v["art"] == "einzel" and v["taktung"] == 5 and v["mindestverguetung"] is False
+    assert v["rahmen"]["taktung"] == 1  # der Rahmen bleibt sichtbar
+    assert zeit.akte_taktung(kern.akten, aid) == 1  # die erste Akte behält den Rahmen
+    m = zeit.mandant_vereinbarungen(kern.akten, mandant)
+    assert m["rahmen"]["taktung"] == 1 and m["akten"] == 2
+    assert [(e["akte"], e["taktung"]) for e in m["einzel"]] == [("Brückner, Mietsache", 5)]
+    # Einzel ohne eigene Taktung: dann die allgemeine, nicht der Rahmen
+    assert zeit.vereinbarung_speichern(kern.akten, b, {"art": "einzel", "taktung": None})["taktung"] == 6
+    # aufheben: wieder der Rahmen
+    v = zeit.vereinbarung_speichern(kern.akten, b, {"einzel_aufheben": True})["vereinbarung"]
+    assert v["art"] == "rahmen" and v["taktung"] == 1
+    assert zeit.mandant_vereinbarungen(kern.akten, mandant)["einzel"] == []
+
+    # Rahmen aus den Daten des Mandanten ändern und löschen
+    assert zeit.rahmen_speichern(kern.akten, mandant, {"taktung": 6})["rahmen"]["taktung"] == 6
+    assert zeit.rahmen_speichern(kern.akten, mandant, {"taktung": 6})["rahmen"]["mindestverguetung"] is True
+    assert zeit.rahmen_loeschen(kern.akten, mandant)["rahmen"] is None
+    assert zeit.vereinbarung(kern.akten, aid)["art"] is None
+    with pytest.raises(LookupError):
+        zeit.mandant_vereinbarungen(kern.akten, "b:9999")
+
     with pytest.raises(ValueError, match="gibt es nicht"):
         zeit.vereinbarung_speichern(kern.akten, aid, {"taktung": 7})
-    # Akte ohne Mandant: nur die Kostenschätzung lässt sich speichern
+    # Akte ohne Mandant: Einzelvereinbarung und Kostenschätzung gehen, ein Rahmen nicht
     leer = akte.akte_anlegen(kern.akten, "Ohne Mandant")["id"]
     assert zeit.vereinbarung_speichern(kern.akten, leer, {"kostenschaetzung": "1.000"})["vereinbarung"][
         "kostenschaetzung"] == "1000.00"
+    assert zeit.vereinbarung_speichern(kern.akten, leer, {"taktung": 10})["taktung"] == 10
     with pytest.raises(ValueError, match="kein Mandant"):
-        zeit.vereinbarung_speichern(kern.akten, leer, {"taktung": 6})
+        zeit.vereinbarung_speichern(kern.akten, leer, {"art": "rahmen", "taktung": 6})
 
 
 def test_kostenschaetzung_meldet_ueberschreitung(kern):  # noqa: F811

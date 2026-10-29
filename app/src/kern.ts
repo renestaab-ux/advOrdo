@@ -2623,9 +2623,23 @@ export interface ZeitLaufend extends ZeitEintrag {
   sekunden: number;
 }
 
-/** Vergütungsvereinbarung mit dem (ersten) Mandanten der Akte; gilt für alle seine Akten. */
+/** Inhalt einer Rahmen- oder Einzelvereinbarung. */
+export interface VereinbarungDaten {
+  taktung: number | null;
+  vereinbart_am: string | null;
+  mindestverguetung: boolean;
+  notiz: string;
+}
+
+/**
+ * Was für die Akte gilt: Einzelvereinbarung der Akte, sonst Rahmenvereinbarung mit dem (ersten) Mandanten. Die
+ * flachen Felder beschreiben die geltende Vereinbarung.
+ */
 export interface ZeitVereinbarung {
   mandant: { schluessel: string; name: string; person: boolean; akten: number } | null;
+  art: "einzel" | "rahmen" | null;
+  rahmen: VereinbarungDaten | null;
+  einzel: VereinbarungDaten | null;
   vermerkt: boolean;
   /** Wirksame Taktung der Akte. */
   taktung: number;
@@ -2638,6 +2652,16 @@ export interface ZeitVereinbarung {
   /** Kostenschätzung dieser Akte, netto. */
   kostenschaetzung: string | null;
   hinweise: string[];
+}
+
+/** Vereinbarungen in den Daten eines Mandanten. */
+export interface MandantVereinbarungen {
+  mandant: string;
+  rahmen: VereinbarungDaten | null;
+  einzel: ({ akte_id: number; akte: string; aktenzeichen: string | null } & VereinbarungDaten)[];
+  akten: number;
+  taktung_allgemein: number;
+  taktungen: number[];
 }
 
 export interface ZeitListe {

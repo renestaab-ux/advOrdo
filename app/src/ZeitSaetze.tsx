@@ -85,9 +85,9 @@ export default function ZeitSaetze({ onEigeneDaten }: { onEigeneDaten: () => voi
         </label>
         <p className="leise klein">
           Jeder Eintrag wird auf den nächsten vollen Takt aufgerundet, z. B. 7 Minuten bei 6er-Taktung auf 0,2 Std. Erfasst
-          wird immer minutengenau; die Taktung wirkt erst bei Anzeige und Abrechnung. Ist mit einem Mandanten eine
-          andere Taktung vereinbart, trägst du sie in einer seiner Akten im Reiter „Zeiten“ ein; sie gilt dann für alle
-          seine Akten.
+          wird immer minutengenau; die Taktung wirkt erst bei Anzeige und Abrechnung. Eine andere vereinbarte
+          Taktung trägst du als Rahmenvereinbarung beim Mandanten (Beteiligte) oder als Einzelvereinbarung im Reiter
+          „Zeiten“ der Akte ein; sie geht dieser Einstellung vor.
         </p>
         {e.taktung_hinweis && <p className="hinweis">{e.taktung_hinweis}</p>}
       </section>
