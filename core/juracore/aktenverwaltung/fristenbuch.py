@@ -1,7 +1,9 @@
 """Fristenbuch und Kalenderdatei: Fristen, Vorfristen, Termine und Wiedervorlagen eines Zeitraums ausgeben.
 
-- Fristenbuch: Liste je Tag (Word, PDF, Excel, Markdown, Text oder Druck) für die Fristenkontrolle. Oben stehen
-  immer die abgelaufenen, nicht erledigten Fristen und Wiedervorlagen, auch wenn sie vor dem Zeitraum liegen.
+- Fristenbuch (Word, PDF, Excel, Markdown, Text oder Druck) für die Fristenkontrolle. Oben stehen immer die
+  abgelaufenen, nicht erledigten Fristen und Wiedervorlagen, auch wenn sie vor dem Zeitraum liegen, danach unter
+  „Dringend“ die offenen Fristen, die in den nächsten Tagen ablaufen (hervorgehoben). Es folgen je Art ein eigener
+  Abschnitt (Termine, Fristen, Vorfristen, Wiedervorlagen), darin nach Tagen; Excel bekommt je Abschnitt ein Blatt.
 - Kalenderdatei (.ics, iCalendar nach RFC 5545) zum Einlesen in Outlook, Apple- oder Google-Kalender. JuraBox
   schreibt nur die Datei; ein Abgleich über das Netz findet nicht statt.
 
@@ -23,6 +25,9 @@ from . import kalender
 POSTEN = {"frist": "Frist", "vorfrist": "Vorfrist", "termin": "Termin", "wiedervorlage": "Wiedervorlage"}
 ZUSTAND_TEXT = {"alle": "offen und abgeschlossen", "offen": "nur offen", "abgeschlossen": "nur erledigt und vergangen"}
 WOCHENTAG = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+ABSCHNITTE = (("termin", "Termine"), ("frist", "Fristen"), ("vorfrist", "Vorfristen"),
+              ("wiedervorlage", "Wiedervorlagen"))
+DRINGEND_TAGE = 3  # offene Fristen, die heute oder in den nächsten drei Tagen ablaufen
 _SPALTEN = ("Tag", "Uhrzeit", "Art", "Worum", "Aktenzeichen", "Akte", "Gericht", "Ort", "Fristende", "Stand", "Beleg")
 
 
@@ -88,6 +93,14 @@ def _stand(e: dict) -> str:
     return "offen"
 
 
+def _dringend(p: dict) -> str:
+    """„läuft heute ab“, „läuft morgen ab“, „läuft in 3 Tagen ab“ für offene Fristen kurz vor dem Ablauf, sonst ""."""
+    e = p["eintrag"]
+    if p["typ"] != "frist" or e["abgeschlossen"] or not 0 <= e["in_tagen"] <= DRINGEND_TAGE:
+        return ""
+    return {0: "läuft heute ab", 1: "läuft morgen ab"}.get(e["in_tagen"], f"läuft in {e['in_tagen']} Tagen ab")
+
+
 def _beleg(e: dict) -> str:
     if not e["dokument"]:
         return ""
@@ -129,7 +142,8 @@ def _tabellenzeile(p: dict) -> list[str]:
     return [_tag(p["tag"]), _zeit(e) if p["typ"] == "termin" else "", _art(p), e["titel"],
             e.get("aktenzeichen") or "", e.get("akte") or "", e.get("gericht") or "", e["ort"] or "",
             _tag(e["datum"]) if e["art"] == "frist" else "",
-            _stand(e) if p["typ"] != "vorfrist" else "Vorfrist", _beleg(e)]
+            ", ".join(x for x in (_stand(e), _dringend(p)) if x) if p["typ"] != "vorfrist" else "Vorfrist",
+            _beleg(e)]
 
 
 def _eintrag(p: dict, mit_tag: bool = False) -> Eintrag:
@@ -137,8 +151,24 @@ def _eintrag(p: dict, mit_tag: bool = False) -> Eintrag:
     zeit = _zeit(e) if p["typ"] == "termin" else ""
     nummer = " ".join(x for x in (_tag(p["tag"]) if mit_tag else "", zeit) if x)
     marken = [m for m in (e["zustand"] if e["zustand"] in ("aufgehoben", "verlegt") else "",
-                          "abgelaufen" if e["lage"] == "abgelaufen" and p["typ"] != "vorfrist" else "") if m]
-    return Eintrag(f"{_art(p)}: {e['titel']}", nummer=nummer, marken=marken, zeilen=_zeilen(p), kompakt=True)
+                          "abgelaufen" if e["lage"] == "abgelaufen" and p["typ"] != "vorfrist" else "",
+                          _dringend(p)) if m]
+    return Eintrag(f"{_art(p)}: {e['titel']}", nummer=nummer, marken=marken, zeilen=_zeilen(p), kompakt=True,
+                   dringend=bool(_dringend(p) or (e["lage"] == "abgelaufen" and p["typ"] != "vorfrist")))
+
+
+def _nach_tagen(liste: list[dict]) -> list:
+    bausteine: list = []
+    tag = None
+    for p in liste:
+        if p["tag"] != tag:
+            tag = p["tag"]
+            bausteine.append(Ueberschrift(_tag(tag), ebene=2))
+        bausteine.append(_eintrag(p))
+    return bausteine
+
+
+_BREITEN = [16, 13, 13, 36, 11, 30, 26, 14, 16, 30, 36]
 
 
 def bericht(con: sqlite3.Connection, von: str, bis: str, filter: dict | None = None,
@@ -149,6 +179,10 @@ def bericht(con: sqlite3.Connection, von: str, bis: str, filter: dict | None = N
     ueberfaellig = [p for p in posten(kalender.naechste(con, tage=0, limit=500, heute=heute), {**f, "zustand": "offen"},
                                       "0000-01-01", (heute - timedelta(days=1)).isoformat())
                     if p["typ"] != "vorfrist" and p["eintrag"]["lage"] == "abgelaufen" and p["tag"] < von]
+    dringend = [] if f["nur_abgelaufen"] else [
+        p for p in posten(kalender.zeitraum(con, heute.isoformat(), (heute + timedelta(days=DRINGEND_TAGE)).isoformat(),
+                                            heute), {**f, "zustand": "offen"}, heute.isoformat(), "9999-12-31")
+        if _dringend(p)]
     auswahl = [", ".join(POSTEN[a] for a in f["arten"]) or "keine Art", ZUSTAND_TEXT[f["zustand"]]]
     if f["akte_id"] is not None:
         a = con.execute("SELECT name, aktenzeichen FROM akte WHERE id = ?", (f["akte_id"],)).fetchone()
@@ -164,22 +198,28 @@ def bericht(con: sqlite3.Connection, von: str, bis: str, filter: dict | None = N
     if ueberfaellig:
         bausteine.append(Ueberschrift("Abgelaufen und nicht erledigt (vor dem Zeitraum)"))
         bausteine += [_eintrag(p, mit_tag=True) for p in ueberfaellig]
-    bausteine.append(Ueberschrift("Fristen, Termine und Wiedervorlagen"))
-    tag = None
-    for p in liste:
-        if p["tag"] != tag:
-            tag = p["tag"]
-            bausteine.append(Ueberschrift(_tag(tag), ebene=2))
-        bausteine.append(_eintrag(p))
-    if not liste:
-        bausteine.append(Absatz("Keine Einträge im Zeitraum."))
+    if dringend:
+        bausteine.append(Ueberschrift(f"Dringend: Fristablauf heute und in den nächsten {DRINGEND_TAGE} Tagen"))
+        bausteine += [_eintrag(p, mit_tag=True) for p in dringend]
+    tabellen: list[Tabelle] = []
+    if ueberfaellig:
+        tabellen.append(Tabelle("Abgelaufen", list(_SPALTEN), [_tabellenzeile(p) for p in ueberfaellig], _BREITEN))
+    if dringend:
+        tabellen.append(Tabelle("Dringend", list(_SPALTEN), [_tabellenzeile(p) for p in dringend], _BREITEN))
+    for typ, ueberschrift in ABSCHNITTE:
+        if typ not in f["arten"]:
+            continue
+        teil = [p for p in liste if p["typ"] == typ]
+        bausteine.append(Ueberschrift(ueberschrift))
+        bausteine += _nach_tagen(teil) or [Absatz(f"Keine {ueberschrift} im Zeitraum.", leise=True)]
+        tabellen.append(Tabelle(ueberschrift, list(_SPALTEN), [_tabellenzeile(p) for p in teil], _BREITEN))
+    if not f["arten"]:
+        bausteine.append(Absatz("Keine Art ausgewählt.", leise=True))
     bausteine.append(Absatz("Erstellt mit JuraBox aus den eingetragenen Fristen, Terminen und Wiedervorlagen. "
                             "Vorschläge aus Dokumenten sind nur enthalten, soweit sie eingetragen wurden; die "
                             "eigene Fristenkontrolle ersetzt das Fristenbuch nicht.", leise=True))
-    tabelle = Tabelle("Fristenbuch", list(_SPALTEN), [_tabellenzeile(p) for p in ueberfaellig + liste],
-                      [16, 13, 13, 36, 11, 30, 26, 14, 16, 30, 36])
     return Bericht(f"Fristenbuch {von[8:10]}.{von[5:7]}.{von[:4]} bis {bis[8:10]}.{bis[5:7]}.{bis[:4]}",
-                   bausteine, [tabelle])
+                   bausteine, tabellen)
 
 
 def dateiname(von: str, bis: str) -> str:
@@ -256,7 +296,7 @@ def ics(con: sqlite3.Connection, von: str, bis: str, filter: dict | None = None,
         titel = f"{_art(p)}: {e['titel']}" + (f" ({akte})" if akte else "")
         zeilen.append(f"SUMMARY:{_ics_text(titel)}")
         if e["ort"] and p["typ"] == "termin":
-            zeilen.append(f"LOCATION:{_ics_text(', '.join(x for x in (e['ort'], e.get('gericht')) if x))}")
+            zeilen.append(f"LOCATION:{_ics_text(e['ort'])}")
         zeilen.append(f"DESCRIPTION:{_ics_text(chr(10).join(_zeilen(p)))}")
         zeilen.append("CATEGORIES:" + _ics_text(POSTEN[p["typ"]]))
         if e["zustand"] in ("aufgehoben", "verlegt"):

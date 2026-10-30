@@ -20,9 +20,9 @@ def _x(text: str) -> str:
     return escape(_UNGUELTIG.sub("", text))
 
 
-def _lauf(text: str, fett: bool = False, kursiv: bool = False, grau: bool = False) -> str:
+def _lauf(text: str, fett: bool = False, kursiv: bool = False, grau: bool = False, rot: bool = False) -> str:
     eigenschaften = ("<w:b/>" if fett else "") + ("<w:i/>" if kursiv else "") + (
-        '<w:color w:val="595959"/>' if grau else "")
+        '<w:color w:val="595959"/>' if grau else '<w:color w:val="B31A1A"/>' if rot else "")
     rpr = f"<w:rPr>{eigenschaften}</w:rPr>" if eigenschaften else ""
     return f'<w:r>{rpr}<w:t xml:space="preserve">{_x(text)}</w:t></w:r>'
 
@@ -44,9 +44,10 @@ def _kopf(k: Kopf) -> str:
 
 def _eintrag(e: Eintrag) -> str:
     teile = []
-    titel = (_lauf(f"{e.nummer} ", fett=True) if e.nummer else "") + _lauf(e.titel, fett=not e.kompakt)
+    titel = (_lauf(f"{e.nummer} ", fett=True) if e.nummer else "") + _lauf(
+        e.titel, fett=not e.kompakt or e.dringend, rot=e.dringend)
     if e.marken:
-        titel += _lauf(f"  [{', '.join(e.marken)}]", grau=True)
+        titel += _lauf(f"  [{', '.join(e.marken)}]", fett=e.dringend, grau=not e.dringend, rot=e.dringend)
     teile.append(_absatz(titel, "Eintrag" if e.kompakt else "Ueberschrift3", zusammen=bool(e.zeilen or e.belege)))
     for z in e.zeilen:
         teile.append(_absatz(_lauf(z), "Einschaetzung", zusammen=bool(e.belege)))

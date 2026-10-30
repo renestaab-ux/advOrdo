@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from juracore import ausgabe
 from juracore.aktenverwaltung import (
     aus_dokument,
     beteiligte,
@@ -19,6 +20,7 @@ from juracore.aktenverwaltung import (
     stammdaten,
     verfahren,
 )
+from juracore.ausgabe import Ueberschrift, html
 from juracore.dokumente import akte
 from juracore.eigene import daten as eigene
 from juracore.rpc import Kern
@@ -318,19 +320,60 @@ def test_fristenbuch_mit_ueberfaelligen_und_vorfristen(con, tmp_path):
     b = fristenbuch.bericht(con, "2026-09-28", "2026-10-11", heute=HEUTE, jetzt=datetime(2026, 9, 25, 9, 0))
     titel = [x.text if hasattr(x, "text") else getattr(x, "titel", None) for x in b.bausteine]
     assert titel[1] == "Abgelaufen und nicht erledigt (vor dem Zeitraum)" and titel[2] == "Frist: Replik"
-    assert "Vorfrist: Klageerwiderung, Teil 2" in titel and "2. Vorfrist: Klageerwiderung, Teil 2" in titel
-    assert "Termin: Güteverhandlung" in titel and "Do, 01.10.2026" in titel
+    assert b.bausteine[2].dringend and b.bausteine[2].marken == ["abgelaufen"]
+    # Je Art ein eigener Abschnitt in fester Reihenfolge, darin nach Tagen
+    abschnitte = [x.text for x in b.bausteine if isinstance(x, Ueberschrift) and x.ebene == 1]
+    assert abschnitte == ["Abgelaufen und nicht erledigt (vor dem Zeitraum)", "Termine", "Fristen", "Vorfristen",
+                          "Wiedervorlagen"]
+    def teil(name):
+        start = titel.index(name) + 1
+        ende = next((i for i in range(start, len(titel)) if titel[i] in abschnitte), len(titel))
+        return titel[start:ende]
+    assert teil("Termine") == ["Do, 01.10.2026", "Termin: Güteverhandlung", "Do, 08.10.2026",
+                               "Termin: Güteverhandlung"]
+    assert teil("Fristen") == ["Di, 06.10.2026", "Frist: Klageerwiderung, Teil 2"]
+    assert teil("Vorfristen") == ["Di, 29.09.2026", "Vorfrist: Klageerwiderung, Teil 2", "Fr, 02.10.2026",
+                                  "2. Vorfrist: Klageerwiderung, Teil 2"]
+    assert teil("Wiedervorlagen")[0] == "Keine Wiedervorlagen im Zeitraum."
     verlegt = next(x for x in b.bausteine if getattr(x, "nummer", "") == "10:30 Uhr")
     assert verlegt.marken == ["verlegt"] and "Stand: verlegt auf Do, 08.10.2026" in verlegt.zeilen
-    assert len(b.tabellen[0].zeilen) == 1 + 5
+    assert {t.name: len(t.zeilen) for t in b.tabellen} == {"Abgelaufen": 1, "Termine": 2, "Fristen": 1,
+                                                           "Vorfristen": 2, "Wiedervorlagen": 0}
     nur_termine = fristenbuch.bericht(con, "2026-09-28", "2026-10-11", {"arten": ["termin"], "akteId": a},
                                       heute=HEUTE)
-    assert len(nur_termine.tabellen[0].zeilen) == 2  # die abgelaufene Frist ist keine Art „Termin“
+    # die abgelaufene Frist ist keine Art „Termin“
+    assert [(t.name, len(t.zeilen)) for t in nur_termine.tabellen] == [("Termine", 2)]
     for endung in ("docx", "pdf", "xlsx", "md", "txt"):
         r = fristenbuch.schreiben(con, tmp_path / f"fb.{endung}", "2026-09-28", "2026-10-11")
         assert Path(r["pfad"]).stat().st_size > 100
     with pytest.raises(ValueError, match="nicht unterstützt"):
         fristenbuch.schreiben(con, tmp_path / "fb.odt", "2026-09-28", "2026-10-11")
+
+
+def test_fristenbuch_hebt_bald_ablaufende_fristen_hervor(con):
+    a = _fristenbuch_akte(con)
+    kalender.speichern(con, a, {"art": "frist", "titel": "Berufungsbegründung", "datum": "2026-09-27"})
+    kalender.speichern(con, a, {"art": "frist", "titel": "Stellungnahme", "datum": "2026-09-26"})
+    kalender.speichern(con, a, {"art": "frist", "titel": "Später", "datum": "2026-09-29"})  # in 4 Tagen
+    b = fristenbuch.bericht(con, "2026-09-25", "2026-10-11", heute=HEUTE)
+    abschnitte = [x.text for x in b.bausteine if isinstance(x, Ueberschrift) and x.ebene == 1]
+    assert abschnitte[1] == "Dringend: Fristablauf heute und in den nächsten 3 Tagen"
+    start = b.bausteine.index(next(x for x in b.bausteine if getattr(x, "text", "") == abschnitte[1]))
+    dringend = b.bausteine[start + 1:start + 3]
+    assert [(x.titel, x.marken, x.dringend) for x in dringend] == [
+        ("Frist: Stellungnahme", ["läuft morgen ab"], True),
+        ("Frist: Berufungsbegründung", ["läuft in 2 Tagen ab"], True)]
+    assert isinstance(b.bausteine[start + 3], Ueberschrift)
+    # Im Abschnitt „Fristen“ bleiben sie hervorgehoben, die spätere Frist nicht
+    spaeter = next(x for x in b.bausteine if getattr(x, "titel", "") == "Frist: Später")
+    assert not spaeter.dringend and spaeter.marken == []
+    assert [z[9] for z in next(t for t in b.tabellen if t.name == "Dringend").zeilen] == [
+        "offen, läuft morgen ab", "offen, läuft in 2 Tagen ab"]
+    assert "Dringend" not in [t.name for t in fristenbuch.bericht(con, "2026-09-25", "2026-10-11",
+                                                                  {"arten": ["termin"]}, heute=HEUTE).tabellen]
+    for art in ("pdf", "docx", "md", "txt", "xlsx"):
+        assert ausgabe.schreiben(b, art)
+    assert "db-dringend" in html.fragment(b)
 
 
 def test_kalenderdatei_ics(con, tmp_path):
@@ -340,7 +383,7 @@ def test_kalenderdatei_ics(con, tmp_path):
     assert text.count("BEGIN:VEVENT") == 5
     assert "DTSTART:20261001T103000\r\nDTEND:20261001T113000" in text and "STATUS:CANCELLED" in text
     assert "DTSTART;VALUE=DATE:20260929" in text and "SUMMARY:Vorfrist: Klageerwiderung\\, Teil 2" in text
-    assert "LOCATION:Saal 104\\; 1. OG" in text
+    assert "LOCATION:Saal 104\\; 1. OG\r\n" in text
     assert all(len(z.encode()) <= 75 for z in text.split("\r\n"))
     r = fristenbuch.schreiben(con, tmp_path / "kalender.ics", "2026-09-28", "2026-10-11")
     assert r["anzahl"] == 5

@@ -91,8 +91,10 @@ export default function Fristenbuch({
           <input type="date" value={bis} onChange={(e) => setBis(e.target.value)} />
         </label>
         <p className="leise klein">
-          Es gelten die Filter des Kalenders. Abgelaufene, nicht erledigte Fristen und Wiedervorlagen vor dem{" "}
-          {gueltig ? datumLang(von) : "Beginn"} stehen im Fristenbuch immer oben.
+          Es gelten die Filter des Kalenders. Im Fristenbuch stehen oben die abgelaufenen, nicht erledigten Fristen
+          und Wiedervorlagen (auch vor dem {gueltig ? datumLang(von) : "Beginn"}) und unter „Dringend“ die Fristen, die
+          in den nächsten drei Tagen ablaufen. Danach folgen Termine, Fristen, Vorfristen und Wiedervorlagen je in
+          einem eigenen Abschnitt.
         </p>
       </div>
       <div className="aktionen">

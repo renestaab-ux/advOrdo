@@ -19,6 +19,7 @@ STIL = """
 .druckbericht table.db-kopf td { padding: 1pt 0; }
 .druckbericht p { margin: 3pt 0; }
 .druckbericht .db-leise { color: #555; font-size: 9pt; }
+.druckbericht .db-dringend, .druckbericht .db-dringend .db-marke { color: #b31a1a; border-color: #b31a1a; }
 .druckbericht .db-marke { font-size: 8.5pt; border: 1px solid #777; border-radius: 3pt; padding: 0 3pt;
   margin-left: 4pt; }
 .druckbericht .db-eintrag { break-inside: avoid; margin: 0 0 6pt; }
@@ -47,8 +48,12 @@ def fragment(bericht: Bericht) -> str:
 def _eintrag(e: Eintrag) -> str:
     nummer = f"{escape(e.nummer)} " if e.nummer else ""
     marken = "".join(f'<span class="db-marke">{escape(m)}</span>' for m in e.marken)
-    kopf = (f"<p><strong>{nummer}</strong>{escape(e.titel)}{marken}</p>" if e.kompakt
-            else f"<h3>{nummer}{escape(e.titel)}{marken}</h3>")
+    if e.dringend:
+        kopf = f'<p class="db-dringend"><strong>{nummer}{escape(e.titel)}</strong>{marken}</p>'
+    elif e.kompakt:
+        kopf = f"<p><strong>{nummer}</strong>{escape(e.titel)}{marken}</p>"
+    else:
+        kopf = f"<h3>{nummer}{escape(e.titel)}{marken}</h3>"
     zeilen = "".join(f"<p>{escape(z)}</p>" for z in e.zeilen)
     belege = ""
     if e.belege:

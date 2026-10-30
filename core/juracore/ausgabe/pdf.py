@@ -20,7 +20,7 @@ SATZ = BREITE - LINKS - RECHTS
 
 NORMAL, FETT, KURSIV = "F1", "F2", "F3"
 _BREITEN = {NORMAL: _helvetica.NORMAL, FETT: _helvetica.FETT, KURSIV: _helvetica.NORMAL}
-SCHWARZ, GRAU = "0 0 0", "0.35 0.35 0.35"
+SCHWARZ, GRAU, ROT = "0 0 0", "0.35 0.35 0.35", "0.7 0.1 0.1"
 
 _ERSATZ = str.maketrans({
     "→": "->", "←": "<-", "≤": "<=", "≥": ">=", "≠": "!=", "−": "-", "‑": "-", "‐": "-", " ": " ",
@@ -163,11 +163,13 @@ def _setze(bericht: Bericht) -> Satz:
 
 
 def _eintrag(s: Satz, e: Eintrag) -> None:
-    marken = [Lauf(f"  [{', '.join(e.marken)}]", NORMAL, 8.5, GRAU)] if e.marken else []
+    farbe = ROT if e.dringend else GRAU
+    marken = [Lauf(f"  [{', '.join(e.marken)}]", FETT if e.dringend else NORMAL, 8.5, farbe)] if e.marken else []
     if e.kompakt:
         nummer = Lauf(e.nummer, FETT, 10) if e.nummer else None
         einzug = max(breite(e.nummer, FETT, 10) + 5, 18.0) if e.nummer else 0.0
-        s.absatz([Lauf(e.titel, NORMAL, 10), *marken], einzug=einzug, vor=2, nach=1.5, zusammen=24, vorne=nummer)
+        titel = Lauf(e.titel, FETT, 10, ROT) if e.dringend else Lauf(e.titel, NORMAL, 10)
+        s.absatz([titel, *marken], einzug=einzug, vor=2, nach=1.5, zusammen=24, vorne=nummer)
     else:
         nummer = [Lauf(f"{e.nummer} ", FETT, 10.5)] if e.nummer else []
         einzug = 0.0
