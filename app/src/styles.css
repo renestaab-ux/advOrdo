@@ -355,6 +355,9 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .suche-feld { display: flex; gap: 12px; align-items: center; }
 .suche-feld input[type="search"] { flex: 1; font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 .such-pfeile button:disabled { opacity: 0.4; }
+.such-bereich { font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); max-width: 30%; }
+/* Entscheidung aus der Rechtsprechung in der Suche: Volltext füllt die rechte Seite. */
+.such-dokument-ansicht .akte-seite.volltext { width: auto; position: static; max-height: none; }
 /* Eigener Name: „.akten-wahl“ ist die Knopfzeile in Analyse und Vergleich. */
 .akten-wahl-feld { position: relative; width: 320px; max-width: 40%; }
 .akten-wahl-knopf { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); text-align: left; }
@@ -1408,6 +1411,9 @@ button.listen-posten .posten-titel { white-space: normal; }
 .anm-rechteck.anm-unter { border-bottom: 2px solid var(--anm-linie); mix-blend-mode: normal; }
 .anm-rechteck.anm-durch { mix-blend-mode: normal; background: linear-gradient(transparent calc(50% - 1px), var(--anm-linie) calc(50% - 1px), var(--anm-linie) calc(50% + 1px), transparent calc(50% + 1px)); }
 .anm-rechteck .anm-blase { position: absolute; right: -8px; top: -13px; width: 16px; height: 14px; margin: 0; }
+/* Markieren im Original: Wörter mit der Maus wählen. */
+.original-bild.anm-waehlbar { cursor: text; user-select: none; -webkit-user-select: none; touch-action: pan-y; }
+.anm-seitenauswahl { position: absolute; background: color-mix(in srgb, var(--akzent, #2f6fde) 30%, transparent); border-radius: 2px; pointer-events: none; }
 
 /* Menü über der Auswahl, Vorschau und Editor schweben über dem Text. */
 .anm-menue, .anm-vorschau, .anm-editor { position: fixed; z-index: 50; }

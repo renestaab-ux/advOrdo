@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   abschnittBeginne,
+  auswahlRechtecke,
   anmerkungOrt,
   BEDEUTUNG_VORGABE,
   filtereAnmerkungen,
@@ -12,6 +13,8 @@ import {
   stueckKlassen,
   stuecke,
   type Anmerkung,
+  type SeitenWort,
+  wortAn,
 } from "./anmerkungLogik";
 
 function anm(id: number, start: number, ende: number, mehr: Partial<Anmerkung> = {}): Anmerkung {
@@ -110,5 +113,29 @@ describe("Markdown", () => {
     expect(formatiere("ab cd", 0, 2, "kursiv").text).toBe("*ab* cd");
     expect(formatiere("eins\nzwei\n- drei", 2, 15, "liste").text).toBe("- eins\n- zwei\n- drei");
     expect(formatiere("x", 1, 1, "codeblock").text).toBe("x\n```\n\n```\n");
+  });
+});
+
+describe("Wörter im Original wählen", () => {
+  const w: SeitenWort[] = [
+    ["Die", 1, 0.1, 0.1, 0.05, 0.02],
+    ["Klage", 1, 0.17, 0.1, 0.08, 0.02],
+    ["ist", 2, 0.1, 0.14, 0.04, 0.02],
+    ["begründet.", 2, 0.16, 0.14, 0.12, 0.02],
+  ];
+
+  it("trifft das Wort unter der Maus, sonst das nächste derselben Zeile", () => {
+    expect(wortAn(w, 0.2, 0.11)).toBe(1);
+    expect(wortAn(w, 0.9, 0.15)).toBe(3); // rechts neben dem Zeilenende
+    expect(wortAn(w, 0.05, 0.135)).toBe(2);
+    expect(wortAn([], 0.5, 0.5)).toBeNull();
+  });
+
+  it("ein Rechteck je Zeile", () => {
+    const r = auswahlRechtecke(w, 1, 3);
+    expect(r).toHaveLength(2);
+    expect(r[0]).toMatchObject({ x: 0.17, y: 0.1 });
+    expect(r[1].x).toBeCloseTo(0.1);
+    expect(r[1].b).toBeCloseTo(0.18);
   });
 });

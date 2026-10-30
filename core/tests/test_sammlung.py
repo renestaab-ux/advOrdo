@@ -112,6 +112,7 @@ def test_suche_in_gespeicherten_entscheidungen(akten, tmp_path):
     assert [f["rn"] for f in treffer["fundstellen"]] == [2]
     assert treffer["fundstellen"][0]["ausschnitt"]["treffer"].casefold() in ("berufungsgericht", "wort")
     assert treffer["sha256"] == next(e["sha256"] for e in urteile.sammlung(akten) if e["id"] != anderes)
+    assert treffer["id"] != anderes and treffer["gericht"]  # Angaben für die Trefferliste im Bereich „Suche“
     assert urteile.suche(akten, "Werkv*")["urteile"][0]["sha256"] == next(
         e["sha256"] for e in urteile.sammlung(akten) if e["id"] == anderes)
     assert urteile.suche(akten, "  ") == {"urteile": [], "treffer": 0}

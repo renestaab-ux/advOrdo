@@ -454,6 +454,11 @@ def suche(con: sqlite3.Connection, suchtext: str) -> dict:
     for g in ergebnis:
         g["fundstellen"].sort(key=lambda f: f["nr"])
         del g["gewicht"]
+        # Angaben zur Entscheidung für die Trefferliste der Volltextsuche (Bereich „Suche“).
+        u = con.execute("SELECT id, gericht, aktenzeichen, datum, kopf FROM urteil WHERE id = ?",
+                        (zeile_je_datei[g["sha256"]],)).fetchone()
+        g.update({"id": u["id"], "gericht": u["gericht"], "aktenzeichen": u["aktenzeichen"], "datum": u["datum"],
+                  "kopf": json.loads(u["kopf"]) if u["kopf"] else None})
     return {"urteile": ergebnis, "treffer": sum(len(g["fundstellen"]) for g in ergebnis)}
 
 

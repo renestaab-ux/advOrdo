@@ -1,5 +1,6 @@
 import {
   CSSProperties,
+  MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
   useCallback,
@@ -11,12 +12,22 @@ import {
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   AnmerkungenReiter,
-  AnmerkungsEreignisse,
   AnmerkungsLeiste,
   anmerkungsHandler,
+  OriginalAnmerkungen,
+  SeitenAuswahl,
   useAnmerkungen,
 } from "./Anmerkungen";
-import { abschnittBeginne, Anmerkung, AnmerkungAufSeite, stueckKlassen, stuecke } from "./anmerkungLogik";
+import {
+  abschnittBeginne,
+  Anmerkung,
+  AnmerkungAufSeite,
+  auswahlRechtecke,
+  SeitenWort,
+  stueckKlassen,
+  stuecke,
+  wortAn,
+} from "./anmerkungLogik";
 import Chat from "./Chat";
 import DokumentDetails, { DetailsGriff } from "./DokumentDetails";
 import DokumentExtern, { UebernahmeFrage } from "./DokumentExtern";
@@ -1216,8 +1227,8 @@ export default function Akte({
                     key={inhalt.dokument.id}
                     dokument={inhalt.dokument}
                     startSeite={auswahl?.zitat.seite ?? null}
-                    anmerkungen={{ stand: anm.stand, aktiv: anm.aktiv, ereignisse: anm.ereignisse }}
-                    hinweis="Zitate und Belege zeigt die Textansicht; markieren lässt sich dort."
+                    anmerkungen={anm.original}
+                    hinweis="Zum Markieren mit der Maus über die Wörter ziehen; Zitate und Belege zeigt die Textansicht."
                   />
                 )}
                 {dokModus === "normen" && normen && (
@@ -1659,8 +1670,8 @@ export function OriginalAnsicht({
   /** Gesuchte Begriffe; ihre Fundstellen werden auf den Seiten gelb markiert. */
   begriffe?: string[];
   hinweis?: string;
-  /** Markierungen aus der Textansicht über die Seiten legen; ``stand`` zählt jede Änderung. */
-  anmerkungen?: { stand: number; aktiv: number | null; ereignisse: AnmerkungsEreignisse };
+  /** Markierungen über die Seiten legen und auf den Seiten markieren lassen; ``stand`` zählt jede Änderung. */
+  anmerkungen?: OriginalAnmerkungen;
 }) {
   const seiten = dokument.seiten ?? 1;
   const rahmen = useRef<HTMLDivElement>(null);
@@ -1669,6 +1680,9 @@ export function OriginalAnsicht({
   const [aufSeite, setAufSeite] = useState<Record<number, AnmerkungAufSeite[]>>({});
   const mitAnmerkungen = !!anmerkungen;
   const anmerkStand = anmerkungen?.stand ?? 0;
+  const [woerter, setWoerter] = useState<Record<number, SeitenWort[]>>({});
+  const zug = useRef<{ seite: number; anker: number; x: number; y: number; bewegt: boolean } | null>(null);
+  const [gezogen, setGezogen] = useState<SeitenAuswahl | null>(null);
 
   // Markierungen je geladener Seite; nach jeder Änderung neu.
   const geladen = Object.keys(bilder).join(",");
@@ -1680,6 +1694,10 @@ export function OriginalAnsicht({
       kern<AnmerkungAufSeite[]>("anmerkungen.seite", { dokument_id: dokument.id, seite: s })
         .then((l) => gueltig && setAufSeite((v) => ({ ...v, [s]: l })))
         .catch(() => undefined);
+      if (!woerter[s])
+        kern<SeitenWort[]>("anmerkungen.woerter", { dokument_id: dokument.id, seite: s })
+          .then((w) => gueltig && setWoerter((v) => ({ ...v, [s]: w })))
+          .catch(() => undefined);
     }
     return () => {
       gueltig = false;
@@ -1722,6 +1740,63 @@ export function OriginalAnsicht({
     el?.scrollIntoView({ block: zielMarkiert ? "center" : "start" });
   }, [startSeite, zielMarkiert]);
 
+  // Markieren im Original: mit der Maus über die Wörter ziehen (oder Doppelklick auf ein Wort).
+  function punkt(e: ReactPointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  }
+  function auswahlMelden(el: HTMLElement, a: SeitenAuswahl) {
+    const r = el.getBoundingClientRect();
+    const teile = auswahlRechtecke(woerter[a.seite] ?? [], a.von, a.bis);
+    if (!teile.length) return;
+    const oben = Math.min(...teile.map((t) => t.y));
+    const unten = Math.max(...teile.map((t) => t.y + t.h));
+    const links = Math.min(...teile.map((t) => t.x));
+    const rechts = Math.max(...teile.map((t) => t.x + t.b));
+    anmerkungen?.onAuswahl(
+      a,
+      new DOMRect(r.left + links * r.width, r.top + oben * r.height, (rechts - links) * r.width, (unten - oben) * r.height),
+    );
+  }
+  const ziehen = (s: number) =>
+    anmerkungen && woerter[s]?.length
+      ? {
+          onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => {
+            if (e.button !== 0 || (e.target as Element).closest("[data-anmerkung]")) return;
+            const p = punkt(e);
+            const i = wortAn(woerter[s], p.x, p.y);
+            if (i == null) return;
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            zug.current = { seite: s, anker: i, x: e.clientX, y: e.clientY, bewegt: false };
+          },
+          onPointerMove: (e: ReactPointerEvent<HTMLDivElement>) => {
+            const z = zug.current;
+            if (!z) return;
+            if (!z.bewegt && Math.hypot(e.clientX - z.x, e.clientY - z.y) < 5) return;
+            z.bewegt = true;
+            const p = punkt(e);
+            const i = wortAn(woerter[s], p.x, p.y) ?? z.anker;
+            setGezogen({ seite: s, von: Math.min(z.anker, i), bis: Math.max(z.anker, i) });
+          },
+          onPointerUp: (e: ReactPointerEvent<HTMLDivElement>) => {
+            const z = zug.current;
+            zug.current = null;
+            if (!z) return;
+            if (z.bewegt && gezogen) auswahlMelden(e.currentTarget, gezogen);
+            else if (anmerkungen.auswahl) anmerkungen.onAuswahl(null);
+            setGezogen(null);
+          },
+          onDoubleClick: (e: ReactMouseEvent<HTMLDivElement>) => {
+            if ((e.target as Element).closest("[data-anmerkung]")) return;
+            const p = punkt(e);
+            const i = wortAn(woerter[s], p.x, p.y);
+            if (i != null) auswahlMelden(e.currentTarget, { seite: s, von: i, bis: i });
+          },
+        }
+      : {};
+  const gewaehlt = gezogen ?? anmerkungen?.auswahl ?? null;
+
   return (
     <div className="original" ref={rahmen} {...(anmerkungen ? anmerkungsHandler(anmerkungen.ereignisse) : {})}>
       <p className="dokument-info">
@@ -1732,8 +1807,8 @@ export function OriginalAnsicht({
         return (
           <figure key={s} id={`seite-${s}`} data-seite={s} className="original-seite">
             {typeof b === "object" ? (
-              <div className="original-bild">
-                <img src={b.bild} width={b.breite} height={b.hoehe} alt={`Seite ${s} von ${dokument.dateiname}`} />
+              <div className={`original-bild${anmerkungen && woerter[s]?.length ? " anm-waehlbar" : ""}`} {...ziehen(s)}>
+                <img draggable={false} src={b.bild} width={b.breite} height={b.hoehe} alt={`Seite ${s} von ${dokument.dateiname}`} />
                 {b.markierungen.map((m, i) => (
                   <span
                     key={i}
@@ -1741,6 +1816,14 @@ export function OriginalAnsicht({
                     style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%`, width: `${m.b * 100}%`, height: `${m.h * 100}%` }}
                   />
                 ))}
+                {gewaehlt?.seite === s &&
+                  auswahlRechtecke(woerter[s] ?? [], gewaehlt.von, gewaehlt.bis).map((r, i) => (
+                    <span
+                      key={`w${i}`}
+                      className="anm-seitenauswahl"
+                      style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.b * 100}%`, height: `${r.h * 100}%` }}
+                    />
+                  ))}
                 {(aufSeite[s] ?? []).flatMap((a) =>
                   a.rechtecke.map((r, i) => (
                     <span

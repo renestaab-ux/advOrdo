@@ -265,6 +265,10 @@ class Kern:
             "anmerkungen.loeschen": lambda anmerkung_id: anmerkungen.loeschen(self.akten, anmerkung_id),
             "anmerkungen.suche": lambda text, akte_id=None: anmerkungen.suche(self.akten, text, akte_id),
             "anmerkungen.seite": lambda dokument_id, seite: anmerkungen.auf_seite(self.akten, dokument_id, seite),
+            "anmerkungen.woerter": lambda dokument_id, seite: anmerkungen.woerter(self.akten, dokument_id, seite),
+            "anmerkungen.anlegen_seite": lambda dokument_id, seite, wort_von, wort_bis, farbe="gelb", stil="flaeche",
+                kommentar=None: anmerkungen.anlegen_auf_seite(
+                self.akten, dokument_id, seite, wort_von, wort_bis, farbe, stil, kommentar),
             "anmerkungen.bedeutungen": lambda: anmerkungen.bedeutungen(self.akten),
             "anmerkungen.bedeutungen_setzen": lambda werte: anmerkungen.bedeutungen_setzen(self.akten, werte),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),

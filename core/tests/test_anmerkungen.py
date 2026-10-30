@@ -156,3 +156,24 @@ def test_woerter_textebene(tmp_path):
     assert [(w[0], w[1]) for w in woerter] == [("Erste", 0), ("Zeile", 0), ("hier", 0), ("Zweite", 1)]
     assert all(0 < w[2] < 1 and 0 < w[3] < 1 and w[4] > 0 and w[5] > 0 for w in woerter)
     assert woerter[3][3] > woerter[0][3]
+
+
+def test_markieren_im_original(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "PDF")
+    pdf = schreibe_pdf(tmp_path / "klage.pdf", [
+        ["(1) Auf der ersten Seite steht die Mechatronik."],
+        ["(2) Die Mechatronik ist defekt.", "Die Mechatronik wurde getauscht."],
+    ])
+    d = akte.importiere(akten, con, a["id"], pdf, tmp_path / "ablage", ocr=False)["dokument_id"]
+    woerter = anmerkungen.woerter(akten, d, 2)
+    namen = [w[0] for w in woerter]
+    # Das zweite "Mechatronik" auf Seite 2 bis "wurde" (über die Zeilengrenze).
+    von = namen.index("defekt.")
+    bis = len(namen) - 1 - namen[::-1].index("wurde")
+    m = anmerkungen.anlegen_auf_seite(akten, d, 2, von, bis, farbe="blau")
+    assert " ".join(m["zitat"].split()) == "defekt. Die Mechatronik wurde" and m["seite"] == 2 and m["farbe"] == "blau"
+    nur = anmerkungen.anlegen_auf_seite(akten, d, 2, bis - 1, bis - 1)
+    text = _gesamttext(akten, d)
+    assert nur["start"] == text.rindex("Mechatronik")  # das Vorkommen an dieser Stelle, nicht das erste
+    with pytest.raises(ValueError):
+        anmerkungen.anlegen_auf_seite(akten, d, 2, 5, 2)

@@ -366,10 +366,68 @@ def suche(con: sqlite3.Connection, suchtext: str, akte_id: int | None = None) ->
 
 # --- Originalansicht -------------------------------------------------------------------------------------------------
 
-def auf_seite(con: sqlite3.Connection, dokument_id: int, nr: int) -> list[dict]:
-    """Markierungen auf Seite ``nr`` des Original-PDFs mit ihren Rechtecken (Anteile der Seite, wie Suchtreffer)."""
+def woerter(con: sqlite3.Connection, dokument_id: int, nr: int) -> list[list]:
+    """Wörter auf Seite ``nr`` des Original-PDFs ``[text, zeile, x, y, b, h]``, aus Texterkennung oder Textebene.
+
+    Die Originalansicht legt sie unsichtbar über das Seitenbild, damit sich dort Text auswählen und markieren lässt.
+    """
     import pypdfium2 as pdfium
 
+    from . import ansicht
+
+    d = con.execute("SELECT format, original FROM dokument WHERE id = ?", (dokument_id,)).fetchone()
+    if d is None:
+        raise LookupError(f"Dokument {dokument_id} gibt es nicht.")
+    if d["format"] != "pdf":
+        return []
+    seite = con.execute("SELECT quelle, woerter FROM seite WHERE dokument_id = ? AND nr = ?",
+                        (dokument_id, nr)).fetchone()
+    if seite is not None and seite["quelle"] == "ocr" and seite["woerter"]:
+        return json.loads(seite["woerter"])
+    pdf = pdfium.PdfDocument(d["original"])
+    try:
+        if not 1 <= nr <= len(pdf):
+            return []
+        if seite is not None and seite["quelle"] == "ocr":
+            # Scan aus einer älteren Version ohne Wortpositionen: einmal neu erkennen (wie bei Suchtreffern).
+            return ansicht._woerter_nachtragen(con, dokument_id, nr, pdf[nr - 1]) or []
+        return ansicht.woerter_textebene(pdf[nr - 1])
+    finally:
+        pdf.close()
+
+
+def anlegen_auf_seite(con: sqlite3.Connection, dokument_id: int, seite: int, wort_von: int, wort_bis: int,
+                      farbe: str = "gelb", stil: str = "flaeche", kommentar: str | None = None) -> dict:
+    """Markiert die Wörter ``wort_von``–``wort_bis`` (Nummern aus ``woerter``) einer Seite des Originals.
+
+    Gespeichert wird wie bei einer Auswahl in der Textansicht: Die Stelle wird im gelesenen Text gesucht, auf dieser
+    Seite und möglichst an derselben Lage. So erscheint die Markierung in beiden Ansichten.
+    """
+    from . import ansicht
+
+    alle = woerter(con, dokument_id, seite)
+    von, bis = max(0, int(wort_von)), min(int(wort_bis), len(alle) - 1)
+    if not alle or von > bis:
+        raise ValueError("Die Auswahl enthält keinen Text.")
+    seitentext, _ = ansicht._woerter_text(alle)
+    vorher, _ = ansicht._woerter_text(alle[:von])
+    stelle, _ = ansicht._woerter_text(alle[von:bis + 1])
+    lage = (len(vorher) + 1) / max(len(seitentext), 1) if von else 0.0
+    t = _Text(con, dokument_id)
+    zeichen = [re.escape(z) for z in stelle if not z.isspace()]
+    # Zwischen allen Zeichen darf Leerraum stehen (Leerzeichen vor Satzzeichen, getrennte Wörter).
+    funde = [m.span() for m in re.finditer(r"\s*".join(zeichen), t.text)] if zeichen else []
+    auf_der_seite = [(f, t.stuecke_auf_seite(f[0], f[0] + 1, seite)) for f in funde]
+    auf_der_seite = [(f, s[0][1]) for f, s in auf_der_seite if s]
+    if not auf_der_seite:
+        raise ValueError("Die Stelle wurde im gelesenen Text der Seite nicht gefunden. Bitte in der Textansicht "
+                         "markieren.")
+    (start, ende), _ = min(auf_der_seite, key=lambda x: abs(x[1] - lage))
+    return anlegen(con, dokument_id, start, ende, farbe, stil, kommentar)
+
+
+def auf_seite(con: sqlite3.Connection, dokument_id: int, nr: int) -> list[dict]:
+    """Markierungen auf Seite ``nr`` des Original-PDFs mit ihren Rechtecken (Anteile der Seite, wie Suchtreffer)."""
     from . import ansicht
 
     t = _pruefen(con, dokument_id)
@@ -380,24 +438,10 @@ def auf_seite(con: sqlite3.Connection, dokument_id: int, nr: int) -> list[dict]:
     stuecke = [(z, s) for z, s in stuecke if s]
     if not stuecke:
         return []
-    d = con.execute("SELECT format, original FROM dokument WHERE id = ?", (dokument_id,)).fetchone()
-    if d["format"] != "pdf":
-        return []
-    seite = con.execute("SELECT quelle, woerter FROM seite WHERE dokument_id = ? AND nr = ?",
-                        (dokument_id, nr)).fetchone()
-    if seite is not None and seite["quelle"] == "ocr" and seite["woerter"]:
-        woerter = json.loads(seite["woerter"])
-    else:
-        pdf = pdfium.PdfDocument(d["original"])
-        try:
-            if not 1 <= nr <= len(pdf):
-                return []
-            woerter = ansicht.woerter_textebene(pdf[nr - 1])
-        finally:
-            pdf.close()
+    wo = woerter(con, dokument_id, nr)
     ergebnis = []
     for z, teile in stuecke:
-        rechtecke = [r for text, lage in teile for r in ansicht.rechtecke_fuer_stelle(woerter, text, lage)]
+        rechtecke = [r for text, lage in teile for r in ansicht.rechtecke_fuer_stelle(wo, text, lage)]
         if rechtecke:
             ergebnis.append(_info(z, t) | {"rechtecke": rechtecke})
     return ergebnis

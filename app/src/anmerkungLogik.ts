@@ -245,3 +245,36 @@ export function formatiere(
   const neu = zeichen + text.slice(von, bis) + zeichen;
   return { text: text.slice(0, von) + neu + text.slice(bis), von: von + zeichen.length, bis: bis + zeichen.length };
 }
+
+// --- Markieren im Original ----------------------------------------------------------------------------------------
+
+/** Ein Wort auf einer Seite des Originals: Text, Zeile und Lage als Anteile der Seite (wie im Kern). */
+export type SeitenWort = [string, number, number, number, number, number];
+
+/** Nummer des Wortes unter dem Punkt (Anteile der Seite); daneben das nächste in derselben Zeile, sonst das nächste. */
+export function wortAn(woerter: SeitenWort[], x: number, y: number): number | null {
+  let beste: number | null = null;
+  let abstand = Infinity;
+  woerter.forEach(([, , wx, wy, b, h], i) => {
+    const dx = x < wx ? wx - x : x > wx + b ? x - wx - b : 0;
+    const dy = y < wy ? wy - y : y > wy + h ? y - wy - h : 0;
+    // Senkrechter Abstand wiegt schwer, damit am Zeilenende das Wort der Zeile gewinnt.
+    const d = dx + dy * 8;
+    if (d < abstand) {
+      abstand = d;
+      beste = i;
+    }
+  });
+  return beste;
+}
+
+/** Rechtecke für die gewählten Wörter: eines je Zeile, damit die Auswahl wie im Text aussieht. */
+export function auswahlRechtecke(woerter: SeitenWort[], von: number, bis: number) {
+  const zeilen = new Map<number, { x: number; y: number; r: number; u: number }>();
+  for (const [, zeile, x, y, b, h] of woerter.slice(von, bis + 1)) {
+    const z = zeilen.get(zeile);
+    if (!z) zeilen.set(zeile, { x, y, r: x + b, u: y + h });
+    else Object.assign(z, { x: Math.min(z.x, x), y: Math.min(z.y, y), r: Math.max(z.r, x + b), u: Math.max(z.u, y + h) });
+  }
+  return [...zeilen.values()].map((z) => ({ x: z.x, y: z.y, b: z.r - z.x, h: z.u - z.y }));
+}

@@ -1185,10 +1185,10 @@ export interface SammlungEintrag extends UrteilInfo {
 
 /** Treffer der Volltextsuche in den gespeicherten Entscheidungen, beste zuerst. */
 export interface SammlungSuche {
-  urteile: {
+  urteile: ({
     sha256: string;
     fundstellen: { nr: number; rn: number | null; ausschnitt: { vor: string; treffer: string; nach: string } }[];
-  }[];
+  } & Pick<UrteilInfo, "id" | "gericht" | "aktenzeichen" | "datum" | "kopf">)[];
   treffer: number;
 }
 

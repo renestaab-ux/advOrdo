@@ -409,6 +409,19 @@ function Editor({
 
 // --- Steuerung je Dokument ---------------------------------------------------------------------------------------------
 
+/** Gewählte Wörter auf einer Seite des Originals (Nummern aus ``anmerkungen.woerter``, einschließlich). */
+export type SeitenAuswahl = { seite: number; von: number; bis: number };
+
+/** Was die Originalansicht für Markierungen braucht: Anzeige, Mausereignisse und Auswahl auf den Seiten. */
+export interface OriginalAnmerkungen {
+  stand: number;
+  aktiv: number | null;
+  ereignisse: AnmerkungsEreignisse;
+  /** Die Auswahl, über der gerade das Menü steht; die Ansicht hebt sie hervor. */
+  auswahl: SeitenAuswahl | null;
+  onAuswahl: (seite: SeitenAuswahl | null, rect?: DOMRect) => void;
+}
+
 export interface AnmerkungsEreignisse {
   /** Maus über einer Markierung oder Sprechblase. */
   onZeigen: (id: number, el: Element) => void;
@@ -425,7 +438,10 @@ export function useAnmerkungen(dokumentId: number | null, onGeaendert?: () => vo
   const [liste, setListe] = useState<Anmerkung[]>([]);
   // Zählt jede Änderung; die Originalansicht lädt damit ihre Rechtecke neu.
   const [stand, setStand] = useState(0);
-  const [menue, setMenue] = useState<{ start: number; ende: number; lage: Lage } | null>(null);
+  // Auswahl in der Textansicht (start/ende) oder auf einer Seite des Originals (Wortnummern).
+  const [menue, setMenue] = useState<
+    ({ start: number; ende: number } | { seite: SeitenAuswahl }) & { lage: Lage } | null
+  >(null);
   const [vorschau, setVorschau] = useState<{ id: number; lage: Lage } | null>(null);
   const [editor, setEditor] = useState<{ id: number; lage: Lage } | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -457,6 +473,11 @@ export function useAnmerkungen(dokumentId: number | null, onGeaendert?: () => vo
   useEffect(() => {
     if (!menue) return;
     const zu = () => setMenue(null);
+    if ("seite" in menue) {
+      // Im Original gibt es keine Textauswahl des Browsers; nur Scrollen schließt.
+      window.addEventListener("scroll", zu, true);
+      return () => window.removeEventListener("scroll", zu, true);
+    }
     const auswahl = () => {
       if (window.getSelection()?.isCollapsed) setMenue(null);
     };
@@ -489,11 +510,27 @@ export function useAnmerkungen(dokumentId: number | null, onGeaendert?: () => vo
 
   async function anlegen(farbe: AnmerkFarbe, stil: AnmerkStil, mitKommentar: boolean) {
     if (!menue || dokumentId == null) return;
-    const { start, ende, lage } = menue;
+    const { lage } = menue;
     setMenue(null);
     window.getSelection()?.removeAllRanges();
     try {
-      const neu = await kern<Anmerkung>("anmerkungen.anlegen", { dokument_id: dokumentId, start, ende, farbe, stil });
+      const neu =
+        "seite" in menue
+          ? await kern<Anmerkung>("anmerkungen.anlegen_seite", {
+              dokument_id: dokumentId,
+              seite: menue.seite.seite,
+              wort_von: menue.seite.von,
+              wort_bis: menue.seite.bis,
+              farbe,
+              stil,
+            })
+          : await kern<Anmerkung>("anmerkungen.anlegen", {
+              dokument_id: dokumentId,
+              start: menue.start,
+              ende: menue.ende,
+              farbe,
+              stil,
+            });
       await geaendert();
       setAktiv(neu.id);
       if (mitKommentar) setEditor({ id: neu.id, lage });
@@ -509,6 +546,14 @@ export function useAnmerkungen(dokumentId: number | null, onGeaendert?: () => vo
     setVorschau(null);
     setEditor(null);
     setMenue({ start: a.start, ende: a.ende, lage: lageVon(a.rect) });
+  }
+
+  /** Wörter auf einer Seite des Originals gewählt: dasselbe Menü wie in der Textansicht. */
+  function beiSeitenAuswahl(seite: SeitenAuswahl | null, rect?: DOMRect) {
+    setVorschau(null);
+    setEditor(null);
+    setFehler(null);
+    setMenue(seite && rect ? { seite, lage: lageVon(rect) } : null);
   }
 
   const ereignisse: AnmerkungsEreignisse = {
@@ -582,7 +627,15 @@ export function useAnmerkungen(dokumentId: number | null, onGeaendert?: () => vo
     </>
   );
 
-  return { liste, stand, aktiv, setAktiv, bedeutungen, beiAuswahl, ereignisse, schicht, oeffneEditor: ereignisse.onKlick };
+  const original: OriginalAnmerkungen = {
+    stand,
+    aktiv,
+    ereignisse,
+    auswahl: menue && "seite" in menue ? menue.seite : null,
+    onAuswahl: beiSeitenAuswahl,
+  };
+
+  return { liste, stand, aktiv, setAktiv, bedeutungen, beiAuswahl, ereignisse, schicht, original, oeffneEditor: ereignisse.onKlick };
 }
 
 /** Mausereignisse eines Bereichs mit Markierungen ([data-anmerkung]) an die Steuerung weitergeben. */
