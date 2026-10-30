@@ -19,8 +19,8 @@ wird in Aktenreihenfolge aufgefüllt. Die Antwort nennt, wie viel vorlag.
 Der Verlauf wird je Akte bzw. Dokument in ``ki_chat`` gespeichert; die letzten
 Fragen und Antworten gehen als Zusammenhang mit in die nächste Anfrage.
 
-Zuschaltbares Zusatzwissen (``wissen.py``): Rechner der Toolbox für Zinsen und
-Fristen und Gesetze aus der Wissensbasis.
+Zuschaltbares Zusatzwissen (``wissen.py``): Rechner der Toolbox für Zinsen,
+Fristen und Prozesskosten sowie Gesetze aus der Wissensbasis.
 """
 
 from __future__ import annotations
@@ -214,7 +214,7 @@ def frage(
     """Beantwortet eine Frage zur Akte bzw. zum Dokument, speichert Frage und Antwort und gibt die Antwort zurück.
 
     ``extern``: Name des externen Anbieters, an den die Anfrage geht (wird mit der Antwort vermerkt).
-    ``rechner``: Zinsen und Fristen rechnet die App mit den Angaben des Modells (Toolbox).
+    ``rechner``: Zinsen, Fristen und Prozesskosten rechnet die App mit den Angaben des Modells (Toolbox).
     ``gesetze``: Verbindung zur Wissensbasis; dann gehen die zitierten Normen mit in die Anfrage und, mit
     ``gesetze_suche``, die zur Frage passenden Treffer der Volltextsuche; ``gesetze_ergaenzt``: vom Nutzer
     ergänzte Normen und Gesetze (siehe ``wissen.waehle_normen``).
@@ -242,8 +242,11 @@ def frage(
         raise ValueError("Diese Akte enthält noch keine Dokumente.")
     texte = [belege.lade_text(con, i, PARTEIEN) for i in ids]
 
-    bisher = _zusammenhang(verlauf(con, akte_id, dokument_id))
+    frueher = verlauf(con, akte_id, dokument_id)
+    bisher = _zusammenhang(frueher)
     rechnen = rechner and wissen.soll_rechnen(text)
+    vorige_frage = next((e.get("text", "") for e in reversed(frueher) if e["rolle"] == "frage"), "")
+    passende_rechner = wissen.passende_rechner(text, vorige_frage)
     normen: list[dict] = []
     fehlende_normen: list[str] = []
     if gesetze is not None:
@@ -419,15 +422,16 @@ def frage(
             t = next(t for t in texte if t.dokument_id == f["dokument_id"])
             return f, t.nach_nr[f["abschnitt"]]
 
-        vorschlaege = antwort.get("berechnungen")
+        vorschlaege = wissen.nur_passende(antwort.get("berechnungen"), passende_rechner)
         if not wissen.brauchbar(vorschlaege):
             # Zweiter, schmaler Auftrag nur für die Angaben des Rechners; kleine Modelle übergehen das Feld neben
             # der eigentlichen Antwort gern.
             fortschritt.melde("Das Sprachmodell sucht die Angaben für den Rechner")
             fortschritt.pruefe()
             try:
-                vorschlaege = anbieter.chat(SYSTEM, wissen.rechner_auftrag(chr(10).join(teile), text),
-                                            wissen.SCHEMA_NUR_BERECHNUNG).get("berechnungen")
+                vorschlaege = wissen.nur_passende(anbieter.chat(
+                    SYSTEM, wissen.rechner_auftrag(chr(10).join(teile), text, passende_rechner),
+                    wissen.SCHEMA_NUR_BERECHNUNG).get("berechnungen"), passende_rechner)
             except KiFehler:
                 vorschlaege = None
         berechnungen = wissen.berechne(vorschlaege, belegen, text, heute or date.today(), basiszins, land)

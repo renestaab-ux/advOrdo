@@ -1863,13 +1863,14 @@ export interface ChatEingabe {
   wert: string;
   status: "belegt" | "ohne_beleg";
   fundstelle: KiFundstelle | null;
-  /** frage: aus der Frage übernommen; heute: Tag der Frage. */
-  quelle: "frage" | "heute" | null;
+  /** frage: aus der Frage übernommen; heute: Tag der Frage; annahme: von der App angenommen, Dokumente sagen nichts. */
+  quelle: "frage" | "heute" | "annahme" | null;
 }
 
 export type ChatBerechnung =
   | { rechner: "zinsen"; ergebnis: ZinsErgebnis | null; eingaben: ChatEingabe[]; fehlt: string[]; fehler: string | null; belegt: boolean; text: string }
-  | { rechner: "frist"; ergebnis: FristErgebnis | null; eingaben: ChatEingabe[]; fehlt: string[]; fehler: string | null; belegt: boolean; text: string };
+  | { rechner: "frist"; ergebnis: FristErgebnis | null; eingaben: ChatEingabe[]; fehlt: string[]; fehler: string | null; belegt: boolean; text: string }
+  | { rechner: "prozesskosten"; ergebnis: ProzesskostenErgebnis | null; eingaben: ChatEingabe[]; fehlt: string[]; fehler: string | null; belegt: boolean; text: string };
 
 export interface ChatAuswahl {
   vollstaendig: boolean;

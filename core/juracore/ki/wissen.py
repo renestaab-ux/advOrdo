@@ -4,7 +4,7 @@ jedes zuschaltbar.
 Rechner („Beleg vor Behauptung“): Das Modell rechnet nicht selbst. Es nennt nur die Angaben, die der Rechner
 braucht (etwa Hauptforderung, Zinsbeginn, Zinssatz), jede mit Dokument, Absatz und wörtlichem Zitat. Die App prüft
 das Zitat am Originaltext und, ob der Wert in diesem Absatz wirklich steht, und rechnet dann mit dem
-Verzugszinsen- bzw. Fristenrechner der Toolbox. Angaben ohne Beleg werden so gekennzeichnet.
+Verzugszinsen-, Fristen- bzw. Prozesskostenrechner der Toolbox. Angaben ohne Beleg werden so gekennzeichnet.
 
 Gesetze: Die in der Akte zitierten Normen und die zur Frage passenden Treffer der Wissensbasis gehen mit Wortlaut
 und Fassung in die Anfrage, begrenzt auf ``GESETZE_ZEICHEN``. Zitiert das Modell daraus, prüft die App das Zitat am
@@ -27,7 +27,7 @@ from .. import db
 from ..abgleich.angaben import BETRAG, DATUM, finde_werte
 from ..gesetze import wissensbasis
 from ..gesetze.zitate import finde_zitate
-from ..rechner import fristen, verzugszinsen
+from ..rechner import fristen, prozesskosten, verzugszinsen
 from ..rechner.basiszins import Basiszins
 from ..rechtsprechung.zitate import az_kern
 from . import belege
@@ -48,9 +48,19 @@ GESETZE_STUFEN = (GESETZE_AUS, GESETZE_ZITIERT, GESETZE_SUCHE)
 
 ZINSEN = "zinsen"
 FRIST = "frist"
+PROZESSKOSTEN = "prozesskosten"
 
 # Fragen, bei denen der Rechner angeboten wird.
-_RECHNEN = re.compile(r"zins|frist|rechn|berechn|wie\s+viel|wieviel|ablauf|läuft\s+ab|endet", re.I)
+_RECHNEN = re.compile(
+    r"zins|frist|rechn|berechn|wie\s+viel|wieviel|ablauf|läuft\s+ab|endet|kosten|gebühr|vergütung|\brvg\b|\bgkg\b",
+    re.I)
+# Woran sich erkennen lässt, welcher Rechner zur Frage passt.
+_PASST = {
+    ZINSEN: re.compile(r"zins", re.I),
+    FRIST: re.compile(r"frist|ablauf|läuft\s+ab|endet|wann\s+muss", re.I),
+    PROZESSKOSTEN: re.compile(
+        r"kosten|gebühr|vergütung|honorar|\brvg\b|\bgkg\b|streitwert|kostenrisiko|kostennote|erstatt", re.I),
+}
 
 FELDER = {
     ZINSEN: {
@@ -63,15 +73,25 @@ FELDER = {
         "bezugstag": "Fristauslösendes Ereignis",
         "dauer": "Fristdauer",
     },
+    PROZESSKOSTEN: {
+        "streitwert": "Streitwert",
+        "instanz": "Rechtszug",
+        "ende": "Verfahrensende",
+        "auftrag": "Auftrag an den Anwalt",
+        "geschaeftsgebuehr": "Vorgerichtliche Geschäftsgebühr",
+    },
 }
-PFLICHT = {ZINSEN: ("hauptbetrag", "zinsbeginn", "zinssatz"), FRIST: ("bezugstag", "dauer")}
+PFLICHT = {ZINSEN: ("hauptbetrag", "zinsbeginn", "zinssatz"), FRIST: ("bezugstag", "dauer"),
+           PROZESSKOSTEN: ("streitwert",)}
+# Was die App annimmt, wenn die Dokumente nichts dazu sagen; die Annahme wird als solche angezeigt.
+_ANNAHMEN = {PROZESSKOSTEN: {"instanz": "erste", "ende": "urteil"}}
 
 SCHEMA_BERECHNUNG = {
     "type": "array",
     "items": {
         "type": "object",
         "properties": {
-            "rechner": {"type": "string", "enum": [ZINSEN, FRIST]},
+            "rechner": {"type": "string", "enum": [ZINSEN, FRIST, PROZESSKOSTEN]},
             "angaben": {
                 "type": "array",
                 "items": {
@@ -101,14 +121,20 @@ SCHEMA_NORMBELEGE = {
 }
 
 ANWEISUNG_RECHNER = (
-    "Rechnen: Rechne Zinsen oder Fristen nicht selbst und sage auch nicht, dass ein Basiszinssatz fehlt; das "
-    "erledigt der Rechner der App. Verlangt die Frage eine solche Berechnung, trage unter \"berechnungen\" die "
-    "Angaben aus den Dokumenten ein, jede mit Dokument, Absatz und wörtlichem Zitat, in dem der Wert steht:\n"
+    "Rechnen: Rechne Zinsen, Fristen, Anwalts- oder Gerichtskosten nicht selbst und sage auch nicht, dass ein "
+    "Basiszinssatz oder eine Gebührentabelle fehlt; das erledigen die Rechner der App. Verlangt die Frage eine "
+    "solche Berechnung, wähle den Rechner, der zur Frage passt, und trage unter \"berechnungen\" die Angaben aus "
+    "den Dokumenten ein, jede mit Dokument, Absatz und wörtlichem Zitat, in dem der Wert steht:\n"
     "- rechner \"zinsen\": Felder \"hauptbetrag\" (z. B. \"12.500,00 €\"), \"zinsbeginn\" (TT.MM.JJJJ), "
     "\"zinssatz\" (wörtlich, z. B. \"5 Prozentpunkte über dem Basiszinssatz\" oder \"4 %\"), optional \"bis\" "
     "(TT.MM.JJJJ; ohne Angabe rechnet die App bis heute)\n"
     "- rechner \"frist\": Felder \"bezugstag\" (Tag des Ereignisses, das die Frist auslöst, TT.MM.JJJJ) und "
     "\"dauer\" (z. B. \"2 Wochen\", \"1 Monat\")\n"
+    "- rechner \"prozesskosten\" für Anwaltsvergütung nach RVG und Gerichtskosten nach GKG (auch: was die "
+    "Gegenseite erstatten muss): Feld \"streitwert\" (z. B. \"14.555,40 €\"), optional \"instanz\" (\"erste\", "
+    "\"berufung\" oder \"revision\"), \"ende\" (\"urteil\", \"vergleich\" oder \"ruecknahme\"), \"auftrag\" "
+    "(Tag des Auftrags an den Anwalt, TT.MM.JJJJ) und \"geschaeftsgebuehr\" (Satz der vorgerichtlichen "
+    "Geschäftsgebühr, z. B. \"1,3\"). Für Kosten nie den Zinsrechner nehmen.\n"
     "Steht ein Wert nur in der Frage, nimm dokument 0 und absatz 0 und als Zitat die Stelle aus der Frage. "
     "Sonst lass \"berechnungen\" leer."
 )
@@ -127,14 +153,32 @@ def brauchbar(vorschlaege: object) -> bool:
         isinstance(v, dict) and v.get("rechner") in FELDER and v.get("angaben") for v in vorschlaege)
 
 
-def rechner_auftrag(dokumente: str, frage: str) -> str:
+def rechner_auftrag(dokumente: str, frage: str, rechner: set[str] | None = None) -> str:
     """Anfrage nur nach den Angaben für den Rechner, wenn die Antwort sie nicht enthielt."""
+    nur = (f" Nimm dafür den Rechner {' oder '.join(f'„{r}“' for r in sorted(rechner))}." if rechner else "")
     return (f"{dokumente}\n\nFrage: {frage}\n\nAufgabe: Beantworte die Frage nicht. Suche nur die Angaben, die die "
-            f"App für ihre Berechnung braucht.\n{ANWEISUNG_RECHNER}")
+            f"App für ihre Berechnung braucht.{nur}\n{ANWEISUNG_RECHNER}")
 
 
 def soll_rechnen(frage: str) -> bool:
     return bool(_RECHNEN.search(frage))
+
+
+def passende_rechner(frage: str, vorher: str = "") -> set[str]:
+    """Die Rechner, nach denen die Frage verlangt; leer, wenn sie keinen erkennen lässt. Nennt die Frage selbst
+    keinen (etwa „Rechne das aus.“), zählt die vorige Frage im Gespräch."""
+    for text in (frage, vorher):
+        passend = {r for r, muster in _PASST.items() if muster.search(text)}
+        if passend:
+            return passend
+    return set()
+
+
+def nur_passende(vorschlaege: object, rechner: set[str]) -> object:
+    """Lässt Vorschläge für Rechner weg, die nicht zur Frage passen (etwa den Zinsrechner bei Anwaltskosten)."""
+    if not rechner or not isinstance(vorschlaege, list):
+        return vorschlaege
+    return [v for v in vorschlaege if not isinstance(v, dict) or v.get("rechner") in rechner]
 
 
 # --- Rechner --------------------------------------------------------------------------------------
@@ -190,12 +234,39 @@ def _zinssatz(text: str) -> tuple[str, Decimal] | None:
     return ("dynamisch", zahl) if re.search(r"basiszins", text, re.I) else ("fest", zahl)
 
 
+_INSTANZ = (("revision", re.compile(r"revision|\bbgh\b|bundesgerichtshof", re.I)),
+            ("berufung", re.compile(r"berufung", re.I)),
+            ("erste", re.compile(r"erste|1\.\s*instanz|landgericht|amtsgericht|\blg\b|\bag\b|klage", re.I)))
+_ENDE = (("vergleich", re.compile(r"vergleich", re.I)),
+         ("ruecknahme", re.compile(r"r(?:ü|ue)cknahme|zurückgenommen|anerkenntnis|anerkannt|verzicht", re.I)),
+         ("urteil", re.compile(r"urteil", re.I)))
+_SATZ = re.compile(r"\b([0-2](?:[,.]\d{1,2})?)\b(?!\s*(?:%|€|eur|prozent))", re.I)
+
+
+def _auswahl(muster: tuple, text: str) -> str | None:
+    return next((schluessel for schluessel, m in muster if m.search(text)), None)
+
+
+def _gebuehrensatz(text: str) -> Decimal | None:
+    for m in _SATZ.finditer(text):
+        satz = Decimal(m[1].replace(",", "."))
+        if Decimal("0.5") <= satz <= Decimal("2.5"):
+            return satz
+    return None
+
+
 def _wert(rechner: str, feld: str, wert: str):
     """Der Wert in der Form, die der Rechner braucht, oder None, wenn er sich nicht lesen lässt."""
-    if feld in ("zinsbeginn", "bis", "bezugstag"):
+    if feld in ("zinsbeginn", "bis", "bezugstag", "auftrag"):
         return _datum(wert)
-    if feld == "hauptbetrag":
+    if feld in ("hauptbetrag", "streitwert"):
         return _betrag(wert)
+    if feld == "instanz":
+        return wert if wert in prozesskosten.INSTANZEN else _auswahl(_INSTANZ, wert)
+    if feld == "ende":
+        return wert if wert in prozesskosten.ENDEN else _auswahl(_ENDE, wert)
+    if feld == "geschaeftsgebuehr":
+        return _gebuehrensatz(wert)
     if feld == "zinssatz":
         return _zinssatz(wert)
     if feld == "dauer":
@@ -207,10 +278,16 @@ def _steht_im_text(feld: str, wert, text: str) -> bool:
     """Ob der gelesene Wert in dem Absatz steht, aus dem das Zitat stammt."""
     if wert is None:
         return False
-    if feld in ("zinsbeginn", "bis", "bezugstag"):
+    if feld in ("zinsbeginn", "bis", "bezugstag", "auftrag"):
         return any(w.art == DATUM and w.wert == wert.isoformat() for w in finde_werte(text))
-    if feld == "hauptbetrag":
+    if feld in ("hauptbetrag", "streitwert"):
         return any(w.art == BETRAG and Decimal(w.wert) == wert for w in finde_werte(text))
+    if feld == "instanz":
+        return any(s == wert and m.search(text) for s, m in _INSTANZ)
+    if feld == "ende":
+        return any(s == wert and m.search(text) for s, m in _ENDE)
+    if feld == "geschaeftsgebuehr":
+        return any(Decimal(m[1].replace(",", ".")) == wert for m in _SATZ.finditer(text))
     if feld == "zinssatz":
         art, zahl = wert
         zahlen = {Decimal(z.replace(",", ".")) for z in re.findall(r"\d+(?:,\d+)?", text)}
@@ -223,10 +300,16 @@ def _steht_im_text(feld: str, wert, text: str) -> bool:
 
 
 def _anzeige(feld: str, wert) -> str:
-    if feld in ("zinsbeginn", "bis", "bezugstag"):
+    if feld in ("zinsbeginn", "bis", "bezugstag", "auftrag"):
         return f"{wert:%d.%m.%Y}"
-    if feld == "hauptbetrag":
+    if feld in ("hauptbetrag", "streitwert"):
         return _euro(wert)
+    if feld == "instanz":
+        return prozesskosten.INSTANZEN[wert]["titel"]
+    if feld == "ende":
+        return prozesskosten.ENDEN[wert]
+    if feld == "geschaeftsgebuehr":
+        return f"{wert:f}".replace(".", ",")
     if feld == "zinssatz":
         art, zahl = wert
         z = f"{zahl:f}".rstrip("0").rstrip(".").replace(".", ",")
@@ -287,12 +370,16 @@ def berechne(
         if rechner == ZINSEN and "bis" not in eingaben:
             eingaben["bis"] = {"feld": "bis", "titel": felder["bis"], "wert": f"{heute:%d.%m.%Y} (heute)",
                                "_wert": heute, "status": "belegt", "fundstelle": None, "quelle": "heute"}
+        for feld, wert in _ANNAHMEN.get(rechner, {}).items():
+            if feld not in eingaben:
+                eingaben[feld] = {"feld": feld, "titel": felder[feld], "wert": _anzeige(feld, wert), "_wert": wert,
+                                  "status": "belegt", "fundstelle": None, "quelle": "annahme"}
         fehlt = [felder[f] for f in PFLICHT[rechner] if f not in eingaben]
         ergebnis: dict = {"rechner": rechner, "fehlt": fehlt, "ergebnis": None, "fehler": None}
         if not fehlt:
             try:
                 ergebnis["ergebnis"] = _rechne(rechner, {k: e["_wert"] for k, e in eingaben.items()},
-                                               basiszins, land)
+                                               basiszins, land, heute)
             except (ValueError, ArithmeticError) as f:
                 ergebnis["fehler"] = str(f)
         ergebnis["eingaben"] = [{k: x for k, x in e.items() if k != "_wert"}
@@ -309,7 +396,27 @@ def _gleich(a: dict, b: dict) -> bool:
     return a["rechner"] == b["rechner"] and [e["wert"] for e in a["eingaben"]] == [e["wert"] for e in b["eingaben"]]
 
 
-def _rechne(rechner: str, w: dict, basiszins: Basiszins | None, land: str) -> dict:
+def _fassung(auftrag: date) -> str:
+    """Gebührenrecht nach dem Tag des unbedingten Auftrags (§ 60 RVG)."""
+    return "2025" if auftrag >= date(2025, 6, 1) else "2021"
+
+
+def _rechne(rechner: str, w: dict, basiszins: Basiszins | None, land: str, heute: date) -> dict:
+    if rechner == PROZESSKOSTEN:
+        auftrag = w.get("auftrag")
+        e = prozesskosten.Eingabe(
+            streitwert=w["streitwert"], fassung=_fassung(auftrag or heute),
+            rechtszuege=[prozesskosten.Rechtszug(w["instanz"], w["ende"], True)],
+            geschaeftsgebuehr=w.get("geschaeftsgebuehr"),
+        )
+        r = prozesskosten.berechne(e)
+        if auftrag is None:
+            r["hinweise"].insert(0, f"Gebührenrecht {r['fassung_titel']} angenommen; maßgeblich ist der Tag des "
+                                    "unbedingten Auftrags (§ 60 RVG), den die Dokumente nicht nennen.")
+        r["hinweise"].append("Was die Gegenseite erstattet, richtet sich nach der Kostenentscheidung (§§ 91 ff. "
+                             "ZPO). Die Umsatzsteuer ist nicht erstattungsfähig, soweit der Mandant zum "
+                             "Vorsteuerabzug berechtigt ist (§ 104 Abs. 2 S. 3 ZPO).")
+        return r
     if rechner == ZINSEN:
         art, zahl = w["zinssatz"]
         e = verzugszinsen.Eingabe(
@@ -327,6 +434,14 @@ def _satz(rechner: str, ergebnis: dict, eingaben: dict[str, dict]) -> str:
     if ergebnis["fehler"]:
         return f"Der Rechner konnte nicht rechnen: {ergebnis['fehler']}"
     r = ergebnis["ergebnis"]
+    if rechner == PROZESSKOSTEN:
+        vorgerichtlich = (f" (davon vorgerichtlich {_euro(r['vorgerichtlich']['summe'])})"
+                          if r["vorgerichtlich"] else "")
+        return (f"Prozesskosten bei einem Streitwert von {eingaben['streitwert']['wert']} "
+                f"({eingaben['instanz']['wert']}, {eingaben['ende']['wert']}; Gebührenrecht {r['fassung_titel']}): "
+                f"eigene Anwaltskosten {_euro(r['summe_eigene'])}{vorgerichtlich}, Gerichtskosten "
+                f"{_euro(r['summe_gericht'])}, Anwaltskosten der Gegenseite {_euro(r['summe_gegner'])}; "
+                f"Kostenrisiko insgesamt {_euro(r['kostenrisiko'])}.")
     if rechner == ZINSEN:
         return (f"Zinsen auf {eingaben['hauptbetrag']['wert']} vom {eingaben['zinsbeginn']['wert']} bis "
                 f"{eingaben['bis']['_wert']:%d.%m.%Y} ({eingaben['zinssatz']['wert']}): "
