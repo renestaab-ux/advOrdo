@@ -427,7 +427,7 @@ def berechne(
         ergebnis["eingaben"] = [{k: x for k, x in e.items() if k != "_wert"}
                                 for f in felder if (e := eingaben.get(f))]
         ergebnis["belegt"] = all(e["status"] == "belegt" for e in ergebnis["eingaben"])
-        ergebnis["text"] = _satz(rechner, ergebnis, eingaben)
+        ergebnis["text"] = _satz(rechner, ergebnis, eingaben, erstattung=bool(_ERSTATTUNG.search(frage)))
         if any(_gleich(ergebnis, x) for x in ergebnisse):
             continue
         ergebnisse.append(ergebnis)
@@ -458,6 +458,11 @@ def _rechne(rechner: str, w: dict, basiszins: Basiszins | None, land: str, heute
         r["hinweise"].append("Was die Gegenseite erstattet, richtet sich nach der Kostenentscheidung (§§ 91 ff. "
                              "ZPO). Die Umsatzsteuer ist nicht erstattungsfähig, soweit der Mandant zum "
                              "Vorsteuerabzug berechtigt ist (§ 104 Abs. 2 S. 3 ZPO).")
+        if e.geschaeftsgebuehr is None:
+            r["hinweise"].append("Sind vorgerichtliche Anwaltskosten (Geschäftsgebühr) zugesprochen oder gezahlt, wird "
+                                 "die Geschäftsgebühr zur Hälfte, höchstens mit 0,75, auf die Verfahrensgebühr "
+                                 "angerechnet (Vorbem. 3 Abs. 4 VV RVG, § 15a Abs. 2 RVG); die erstattungsfähigen "
+                                 "Kosten des Rechtsstreits sinken dann entsprechend.")
         return r
     if rechner == ZINSEN:
         art, zahl = w["zinssatz"]
@@ -470,12 +475,22 @@ def _rechne(rechner: str, w: dict, basiszins: Basiszins | None, land: str, heute
     return fristen.berechne(w["bezugstag"], anzahl, einheit, land=land)
 
 
-def _satz(rechner: str, ergebnis: dict, eingaben: dict[str, dict]) -> str:
+# Fragen danach, was die Gegenseite zu erstatten hat.
+_ERSTATTUNG = re.compile(r"erstatt|ersetz|ersatz|gegenseite|gegner|beklagte\w*\s+(?:zahlen|tragen)", re.I)
+
+
+def _satz(rechner: str, ergebnis: dict, eingaben: dict[str, dict], erstattung: bool = False) -> str:
     if ergebnis["fehlt"]:
         return ("Für die Berechnung fehlt in den Dokumenten: " + ", ".join(ergebnis["fehlt"]) + ".")
     if ergebnis["fehler"]:
         return f"Der Rechner konnte nicht rechnen: {ergebnis['fehler']}"
     r = ergebnis["ergebnis"]
+    if rechner == PROZESSKOSTEN and erstattung:
+        erstatten = Decimal(r["summe_eigene"]) + Decimal(r["summe_gericht"])
+        return (f"Von der Gegenseite zu erstatten, wenn sie die Kosten trägt (§ 91 ZPO), bei einem Streitwert von "
+                f"{eingaben['streitwert']['wert']} ({eingaben['instanz']['wert']}, {eingaben['ende']['wert']}; "
+                f"Gebührenrecht {r['fassung_titel']}): {euro(erstatten)}, nämlich eigene Anwaltskosten "
+                f"{euro(r['summe_eigene'])} und die verauslagten Gerichtskosten {euro(r['summe_gericht'])}.")
     if rechner == PROZESSKOSTEN:
         vorgerichtlich = (f" (davon vorgerichtlich {euro(r['vorgerichtlich']['summe'])})"
                           if r["vorgerichtlich"] else "")

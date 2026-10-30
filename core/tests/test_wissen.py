@@ -188,6 +188,17 @@ def test_rvg_kosten_mit_dem_prozesskostenrechner(akten, con, tmp_path):
     assert any("§ 60 RVG" in h for h in b["ergebnis"]["hinweise"])
 
 
+def test_bei_erstattungsfrage_der_erstattungsbetrag(akten, con, tmp_path):
+    akte_id = _urteilsakte(akten, con, tmp_path)
+    erg = chat.frage(akten, Attrappe(lambda p, s: {"aussagen": [], "berechnungen": []}), 32768, akte_id,
+                     "Welche Rechtsanwaltsvergütung nach RVG kann ich von der Gegenseite ersetzt verlangen?",
+                     rechner=True, heute=date(2026, 10, 30))
+    a = erg["aussagen"][0]
+    # 2.290,75 € eigene Anwaltskosten + 1.032,00 € Gerichtskosten
+    assert a["text"].startswith("Von der Gegenseite zu erstatten") and "3.322,75 €" in a["text"]
+    assert any("Vorbem. 3 Abs. 4 VV RVG" in h for h in a["berechnung"]["ergebnis"]["hinweise"])
+
+
 def test_bei_kosten_kein_zinsrechner(akten, con, tmp_path):
     """Fragt der Nutzer nach Kosten, zählt ein Vorschlag für den Zinsrechner nicht; die App fragt gezielt nach den
     Angaben für den Prozesskostenrechner (Fall aus dem Test am 30.10.2026)."""
