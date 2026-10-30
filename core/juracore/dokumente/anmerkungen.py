@@ -14,6 +14,7 @@ Freihandzeichnungen; diese verankern über ``seite`` und ``form`` (Koordinaten a
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import re
@@ -120,6 +121,18 @@ class _Text:
         a = self.abschnitte[i]
         seite = akte._seite_an(a["seite"], json.loads(a["seitenwechsel"]), pos - self.beginn[i])
         return {"abschnitt": a["nr"], "seite": seite, "rn": a["rn"]}
+
+    def seitenbereiche(self, seite: int) -> list[tuple[int, int]]:
+        """Bereiche des Gesamttexts, die auf ``seite`` stehen."""
+        bereiche = []
+        for i, a in enumerate(self.abschnitte):
+            b = self.beginn[i]
+            grenzen = [(0, a["seite"])] + [(p, s) for p, s in json.loads(a["seitenwechsel"])]
+            for k, (von, s) in enumerate(grenzen):
+                bis = grenzen[k + 1][0] if k + 1 < len(grenzen) else len(a["text"])
+                if s == seite and bis > von:
+                    bereiche.append((b + von, b + bis))
+        return bereiche
 
     def stuecke_auf_seite(self, start: int, ende: int, seite: int) -> list[tuple[str, float]]:
         """Teile von ``start``–``ende``, die auf ``seite`` stehen, mit ihrer ungefähren Lage im Seitentext (0–1)."""
@@ -396,6 +409,52 @@ def woerter(con: sqlite3.Connection, dokument_id: int, nr: int) -> list[list]:
         pdf.close()
 
 
+def _auf_seite_finden(t: _Text, seite: int, stelle: str, lage: float) -> tuple[int, int] | None:
+    """Lage von ``stelle`` (Wörter des Seitenbilds) im gelesenen Text der Seite, möglichst nahe an ``lage`` (0–1).
+
+    Verglichen werden nur Buchstaben und Ziffern, ohne Groß/klein: Texterkennung und gelesener Text unterscheiden
+    sich in Satzzeichen, Silbentrennung („ausge-“ / „ausgeschlossen“) und erkannten Zeichen („$“ oder „8“ statt „§“).
+    Findet sich die Stelle so nicht wörtlich, gilt die ähnlichste Stelle, wenn mindestens drei Viertel übereinstimmen.
+    """
+    norm: list[str] = []
+    pos: list[int] = []
+    for von, bis in t.seitenbereiche(seite):
+        for k in range(von, bis):
+            if t.text[k].isalnum():
+                norm.append(t.text[k].lower())
+                pos.append(k)
+    seitentext = "".join(norm)
+    gesucht = "".join(z.lower() for z in stelle if z.isalnum())
+    if not gesucht or not seitentext:
+        return None
+    ziel = lage * len(seitentext)
+    funde = []
+    i = seitentext.find(gesucht)
+    while i >= 0:
+        funde.append((i, i + len(gesucht)))
+        i = seitentext.find(gesucht, i + 1)
+    if not funde:
+        bester: tuple[float, float, int, int] | None = None  # (Ähnlichkeit, -Abstand, von, bis)
+        breite = len(gesucht) + max(4, len(gesucht) // 4)
+        for anfang in range(0, max(1, len(seitentext) - len(gesucht) // 2)):
+            m = difflib.SequenceMatcher(None, seitentext[anfang:anfang + breite], gesucht, autojunk=False)
+            if m.real_quick_ratio() < 0.75 or m.quick_ratio() < 0.75:
+                continue
+            bloecke = [b for b in m.get_matching_blocks() if b.size]
+            gleich = sum(b.size for b in bloecke)
+            if gleich < 0.75 * len(gesucht):
+                continue
+            von, bis = anfang + bloecke[0].a, anfang + bloecke[-1].a + bloecke[-1].size
+            wert = (gleich / len(gesucht), -abs(von - ziel), von, bis)
+            if bester is None or wert[:2] > bester[:2]:
+                bester = wert
+        if bester is None:
+            return None
+        funde = [(bester[2], bester[3])]
+    von, bis = min(funde, key=lambda f: abs(f[0] - ziel))
+    return pos[von], pos[bis - 1] + 1
+
+
 def anlegen_auf_seite(con: sqlite3.Connection, dokument_id: int, seite: int, wort_von: int, wort_bis: int,
                       farbe: str = "gelb", stil: str = "flaeche", kommentar: str | None = None) -> dict:
     """Markiert die Wörter ``wort_von``–``wort_bis`` (Nummern aus ``woerter``) einer Seite des Originals.
@@ -414,15 +473,11 @@ def anlegen_auf_seite(con: sqlite3.Connection, dokument_id: int, seite: int, wor
     stelle, _ = ansicht._woerter_text(alle[von:bis + 1])
     lage = (len(vorher) + 1) / max(len(seitentext), 1) if von else 0.0
     t = _Text(con, dokument_id)
-    zeichen = [re.escape(z) for z in stelle if not z.isspace()]
-    # Zwischen allen Zeichen darf Leerraum stehen (Leerzeichen vor Satzzeichen, getrennte Wörter).
-    funde = [m.span() for m in re.finditer(r"\s*".join(zeichen), t.text)] if zeichen else []
-    auf_der_seite = [(f, t.stuecke_auf_seite(f[0], f[0] + 1, seite)) for f in funde]
-    auf_der_seite = [(f, s[0][1]) for f, s in auf_der_seite if s]
-    if not auf_der_seite:
+    treffer = _auf_seite_finden(t, seite, stelle, lage)
+    if treffer is None:
         raise ValueError("Die Stelle wurde im gelesenen Text der Seite nicht gefunden. Bitte in der Textansicht "
                          "markieren.")
-    (start, ende), _ = min(auf_der_seite, key=lambda x: abs(x[1] - lage))
+    start, ende = treffer
     return anlegen(con, dokument_id, start, ende, farbe, stil, kommentar)
 
 

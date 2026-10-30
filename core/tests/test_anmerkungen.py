@@ -177,3 +177,21 @@ def test_markieren_im_original(akten, con, tmp_path):
     assert nur["start"] == text.rindex("Mechatronik")  # das Vorkommen an dieser Stelle, nicht das erste
     with pytest.raises(ValueError):
         anmerkungen.anlegen_auf_seite(akten, d, 2, 5, 2)
+
+
+def test_original_stelle_trotz_ocr_abweichungen():
+    t = object.__new__(anmerkungen._Text)
+    teile = ["Der Gewährleistungsausschluss ist nach § 476 BGB unwirksam.",
+             "Die Haftung ist nicht ausgeschlossen; § 476 BGB gilt."]
+    t.abschnitte = [{"seite": 2, "seitenwechsel": "[]", "text": x} for x in teile]
+    t.beginn = [0, len(teile[0]) + 1]
+    t.text = "\n".join(teile)
+    # „$“ statt „§“, Silbentrennung am Zeilenende, „8“ statt „§“: die zweite Fundstelle liegt näher an der Lage.
+    von, bis = anmerkungen._auf_seite_finden(t, 2, "nach $ 476 BGB", 0.2)
+    assert t.text[von:bis] == "nach § 476 BGB"
+    von, bis = anmerkungen._auf_seite_finden(t, 2, "nicht ausge-", 0.7)
+    assert t.text[von:bis] == "nicht ausge"
+    von, bis = anmerkungen._auf_seite_finden(t, 2, "ausgeschlossen; 8 476 BGB", 0.9)
+    assert t.text[von:bis] == "ausgeschlossen; § 476 BGB"
+    assert anmerkungen._auf_seite_finden(t, 3, "BGB", 0.5) is None
+    assert anmerkungen._auf_seite_finden(t, 2, "—", 0.5) is None

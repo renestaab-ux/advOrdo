@@ -8,6 +8,7 @@ import {
   BEDEUTUNG_VORGABE,
   Bedeutungen,
   Block,
+  FARB_NAME,
   FARBEN,
   filtereAnmerkungen,
   formatiere,
@@ -201,6 +202,10 @@ function AuswahlMenue({
   onKommentar: () => void;
 }) {
   const { ref, stil } = useSchwebend(lage, true);
+  // Sofort sichtbare Erklärung unter den Knöpfen; der Tooltip des Systems kommt spät oder gar nicht.
+  const [hinweis, setHinweis] = useState<string | null>(null);
+  const zeige = (text: string) => ({ onMouseEnter: () => setHinweis(text), onMouseLeave: () => setHinweis(null) });
+  const legende = FARBEN.map((f) => `${FARB_NAME[f]} = ${bedeutungen[f]}`).join(" · ");
   return (
     <div
       ref={ref}
@@ -214,22 +219,24 @@ function AuswahlMenue({
         <button
           key={f}
           className={`anm-farbknopf anm-punkt-${f}`}
-          title={`${bedeutungen[f]} (${f === "gruen" ? "Grün" : f[0].toUpperCase() + f.slice(1)})`}
+          title={`${bedeutungen[f]} (${FARB_NAME[f]})`}
           aria-label={`Markieren: ${bedeutungen[f]}`}
+          {...zeige(`${FARB_NAME[f]} markieren: „${bedeutungen[f]}“`)}
           onClick={() => onMarkieren(f, "flaeche")}
         />
       ))}
       <span className="anm-menue-trenner" />
-      <button className="anm-menue-knopf" title="Unterstreichen (rot)" onClick={() => onMarkieren("rot", "unterstrichen")}>
+      <button className="anm-menue-knopf" title="Unterstreichen (rot)" {...zeige("Rot unterstreichen")} onClick={() => onMarkieren("rot", "unterstrichen")}>
         <u>U</u>
       </button>
-      <button className="anm-menue-knopf" title="Durchstreichen (rot)" onClick={() => onMarkieren("rot", "durchgestrichen")}>
+      <button className="anm-menue-knopf" title="Durchstreichen (rot)" {...zeige("Rot durchstreichen")} onClick={() => onMarkieren("rot", "durchgestrichen")}>
         <s>S</s>
       </button>
       <span className="anm-menue-trenner" />
-      <button className="anm-menue-knopf" title="Markieren und kommentieren" onClick={onKommentar}>
+      <button className="anm-menue-knopf" title="Markieren und kommentieren" {...zeige("Gelb markieren und Kommentar schreiben")} onClick={onKommentar}>
         <Zeichen name="kommentar" groesse={15} /> Kommentar
       </button>
+      <span className="anm-menue-hinweis">{hinweis ?? legende}</span>
     </div>
   );
 }
