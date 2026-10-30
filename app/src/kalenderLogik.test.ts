@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { KalenderEintrag } from "./kern";
-import { FILTER_START, blaettern, kalenderwoche, posten, wochenbeginn, zeitraumTitel, zeitraumVon } from "./kalender";
+import { FILTER_START, blaettern, kalenderwoche, posten, wochenbeginn, zeitraumTitel, zeitraumVon } from "./kalenderLogik";
 
 const basis: KalenderEintrag = {
   id: 1,

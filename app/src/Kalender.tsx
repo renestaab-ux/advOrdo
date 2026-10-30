@@ -26,7 +26,7 @@ import {
   postenKlasse,
   zeitraumTitel,
   zeitraumVon,
-} from "./kalender";
+} from "./kalenderLogik";
 import { Akte, KalenderEintrag, TerminZustand, Verfahren, abstandText, datumLang, fristenLand, kern } from "./kern";
 import { LeerHinweis } from "./Symbole";
 

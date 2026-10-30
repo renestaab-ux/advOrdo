@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { save } from "@tauri-apps/plugin-dialog";
-import { KalenderFilter } from "./kalender";
+import { KalenderFilter } from "./kalenderLogik";
 import { Druckansicht, EXPORT_FORMATE, datumLang, drucken, kern } from "./kern";
 
 /**

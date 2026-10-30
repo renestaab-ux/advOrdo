@@ -5,7 +5,7 @@
 - Kalenderdatei (.ics, iCalendar nach RFC 5545) zum Einlesen in Outlook, Apple- oder Google-Kalender. JuraBox
   schreibt nur die Datei; ein Abgleich über das Netz findet nicht statt.
 
-Der Filter entspricht dem des Kalenders in der App (app/src/kalender.ts): Arten, Zustand, Akte, Gericht, nur
+Der Filter entspricht dem des Kalenders in der App (app/src/kalenderLogik.ts): Arten, Zustand, Akte, Gericht, nur
 abgelaufene. Vorfristen stehen an ihrem eigenen Tag, solange die Frist offen ist.
 """
 
@@ -40,7 +40,7 @@ def _filter(f: dict | None) -> dict:
 
 
 def posten(eintraege: list[dict], filter: dict | None, von: str, bis: str) -> list[dict]:
-    """Wie ``posten`` in app/src/kalender.ts: je Eintrag sein Tag, bei offenen Fristen dazu die Vorfristen."""
+    """Wie ``posten`` in app/src/kalenderLogik.ts: je Eintrag sein Tag, bei offenen Fristen dazu die Vorfristen."""
     f = _filter(filter)
     liste: list[dict] = []
     for e in eintraege:
