@@ -8,7 +8,7 @@ export function OrtsverzeichnisKnopf({ onFehler }: { onFehler?: (text: string) =
     <button
       type="button"
       className="link"
-      title="justiz.de: Anschrift und Zuständigkeit eines Gerichts nach Ort oder Postleitzahl"
+      title="Orts- und Gerichtsverzeichnis der Justiz: Anschrift und Zuständigkeit eines Gerichts nach Ort oder Postleitzahl"
       onClick={() => void kern("gerichte.verzeichnis_oeffnen").catch((e) => onFehler?.(String(e)))}
     >
       Orts- und Gerichtsverzeichnis öffnen
@@ -88,7 +88,7 @@ export default function Gerichtsverzeichnis() {
       {fehler && <p className="fehler">{fehler}</p>}
       <p className="grenze">
         Die Codeliste enthält nur die Namen, keine Anschriften und keine Zuständigkeiten. Beides findet man im Orts- und
-        Gerichtsverzeichnis der Justiz auf justiz.de: <OrtsverzeichnisKnopf onFehler={setFehler} />
+        Gerichtsverzeichnis der Justiz: <OrtsverzeichnisKnopf onFehler={setFehler} />
       </p>
     </section>
   );

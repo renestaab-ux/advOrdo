@@ -84,10 +84,10 @@ def test_ohne_versionsauskunft_gilt_die_bekannte_version():
     assert gerichte.gueltige_version(oeffnen) == gerichte.VERSION_RUECKFALL
 
 
-def test_verzeichnis_oeffnen_nur_justiz_de():
+def test_verzeichnis_oeffnen_zeigt_die_suchseite():
     geoeffnet = []
     gerichte.verzeichnis_oeffnen(geoeffnet.append)
-    assert geoeffnet == ["https://justiz.de/orts_gerichtsverzeichnis/index.php"]
+    assert geoeffnet == ["https://www.justizadressen.nrw.de/de/justiz/suche"]
 
 
 def test_browser_oeffnet_nur_https():

@@ -8,7 +8,7 @@ als Vorschlagsliste für das Feld „Gericht“. Ins Netz geht nur der Abruf der
 Liste, ohne Bezug zu einer Akte.
 
 Die Codeliste enthält nur Schlüssel und Namen, keine Anschriften und keine Zuständigkeiten.
-Dafür verweist die App auf das Orts- und Gerichtsverzeichnis der Justiz (justiz.de).
+Dafür verweist die App auf die Suchseite des Orts- und Gerichtsverzeichnisses der Justiz (justizadressen.nrw.de).
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ KENNUNG = "urn:xoev-de:xjustiz:codeliste:gds.gerichte"
 VERSION_URL = f"https://www.xrepository.de/api/codeliste/{KENNUNG}/gueltigeVersion"
 # Rückfall, falls die Abfrage der gültigen Version scheitert; Stand 2026-02-18.
 VERSION_RUECKFALL = f"{KENNUNG}_3.7"
-ORTS_UND_GERICHTSVERZEICHNIS = "https://justiz.de/orts_gerichtsverzeichnis/index.php"
+ORTS_UND_GERICHTSVERZEICHNIS = "https://www.justizadressen.nrw.de/de/justiz/suche"
 USER_AGENT = "JuraBox/0.1 (Gerichtsverzeichnis)"
 
 _SCHEMA = """
