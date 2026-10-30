@@ -91,7 +91,7 @@ body { margin: 0; background: var(--hintergrund); }
 .marke .nav-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .eingeklappt .nav-eintrag { justify-content: center; padding: 8px 0; }
 .eingeklappt .modus, .eingeklappt .umgebung-anzeige { justify-content: center; padding-left: 0; padding-right: 0; }
-.bald { font-size: 11px; margin-left: 6px; color: var(--text-leise); }
+.reiter .bald { font-size: 11px; margin-left: 6px; color: var(--text-leise); }
 .modus { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--gut); padding: 4px 6px; white-space: nowrap; }
 .modus-punkt { flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .modus.aus { color: var(--text-leise); background: none; border: none; border-radius: 6px; font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
@@ -862,6 +862,8 @@ details.kurz-hinweis p { margin: 4px 0; }
 .kalender-eintrag.vorfrist, .kalender-eintrag.bald { border-left-color: var(--warnung); }
 .kalender-eintrag.offen { border-left-color: var(--akzent); }
 .kalender-eintrag.erledigt { opacity: .75; }
+.kalender-eintrag.stattgefunden, .kalender-eintrag.aufgehoben, .kalender-eintrag.verlegt { opacity: .75; }
+.kalender-eintrag.aufgehoben .kalender-titel, .kalender-eintrag.verlegt .kalender-titel { text-decoration: line-through; }
 .kalender-eintrag p { margin: 3px 0 0; }
 .kalender-datum { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .kalender-datum strong { font-size: 14px; }
@@ -1287,3 +1289,76 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 .karte, .kachel, .beleg, .norm, .dokument, .ki-dokument, .rechner-ergebnis, .formkarte, .dokumente { border-color: var(--linie); box-shadow: var(--schatten); }
 .kachel:hover:not(:disabled), .formkarte.gewaehlt { box-shadow: 0 0 0 1px var(--akzent), var(--schatten); }
 .darstellung-segment { margin: 6px 0 4px; }
+
+/* Kalender (Bereich in der linken Leiste) */
+.kalender { display: grid; gap: 12px; }
+.kalender-kopf { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.kalender-kopf h1 { margin: 0; font-size: 22px; }
+.kalender-steuerung { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.kalender-blaettern { display: inline-flex; gap: 4px; }
+.kalender-blaettern button { padding: 4px 10px; }
+.kalender-zeitraum { min-width: 170px; font-size: 15px; }
+.kalender-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--linie); border-radius: 999px; background: var(--flaeche); cursor: pointer; }
+.filter-chip.frist { border-color: color-mix(in srgb, var(--akzent) 45%, var(--linie)); }
+.filter-chip.vorfrist { border-color: color-mix(in srgb, var(--warnung) 45%, var(--linie)); }
+.filter-chip.termin { border-color: color-mix(in srgb, var(--gut) 45%, var(--linie)); }
+.kalender-ueberfaellig { border: 1px solid color-mix(in srgb, var(--fehler) 40%, var(--linie)); border-radius: 8px; padding: 8px 12px; background: color-mix(in srgb, var(--fehler) 6%, var(--flaeche)); }
+.kalender-ueberfaellig summary { cursor: pointer; color: var(--fehler); font-weight: 600; }
+.kalender-ueberfaellig ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.kalender-flaeche { display: grid; gap: 12px; align-items: start; }
+.kalender-flaeche.mit-detail { grid-template-columns: minmax(0, 1fr) 300px; }
+.kalender-detail { position: sticky; top: 8px; display: grid; gap: 6px; }
+.kalender-detail h3 { margin: 2px 0; font-size: 16px; }
+.kalender-detail p { margin: 0; }
+.kalender-detail button.link { text-align: left; padding: 0; }
+.kalender-filter .akten-wahl-feld { width: auto; min-width: 220px; max-width: 360px; }
+.kalender-detail .aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.durchgestrichen { text-decoration: line-through; }
+.monats-raster { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--linie); border-radius: 8px; overflow: hidden; background: var(--linie); gap: 1px; }
+.kalender-wochentag { background: var(--flaeche); padding: 6px 8px; font-size: 12px; font-weight: 600; color: var(--text-leise); }
+.kalender-tag { background: var(--flaeche); min-height: 96px; padding: 4px 5px 6px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-width: 0; overflow: hidden; }
+.kalender-tag:hover { background: color-mix(in srgb, var(--akzent) 4%, var(--flaeche)); }
+.kalender-tag.frei { background: color-mix(in srgb, var(--text-leise) 7%, var(--flaeche)); }
+.kalender-tag.fremd .tag-zahl { color: var(--text-leise); opacity: .6; }
+.kalender-tag.heute .tag-zahl { background: var(--knopf); color: var(--knopf-text); border-radius: 999px; padding: 0 7px; }
+.tag-kopf { display: flex; align-items: baseline; gap: 6px; font-size: 12px; min-width: 0; }
+.feiertag { font-size: 11px; color: var(--text-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.kal-posten { display: flex; flex-wrap: nowrap; overflow: hidden; box-sizing: border-box; max-width: 100%; gap: 4px; align-items: baseline; width: 100%; min-width: 0; text-align: left; font-size: 12px; line-height: 1.3; padding: 2px 6px; border-radius: 4px; border: none; border-left: 3px solid var(--akzent); background: color-mix(in srgb, var(--akzent) 10%, var(--flaeche)); color: var(--text); cursor: pointer; }
+button.kal-posten .posten-titel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.posten-zeit { font-variant-numeric: tabular-nums; color: var(--text-leise); }
+.posten-akte { color: var(--text-leise); font-size: 11px; white-space: nowrap; }
+button.kal-posten.frist.abgelaufen, button.kal-posten.frist.heute, button.kal-posten.wiedervorlage.abgelaufen { border-left-color: var(--fehler); background: color-mix(in srgb, var(--fehler) 12%, var(--flaeche)); }
+button.kal-posten.frist.bald, button.kal-posten.frist.vorfrist { border-left-color: var(--warnung); }
+button.kal-posten.vorfrist { border-left-color: var(--warnung); background: color-mix(in srgb, var(--warnung) 12%, var(--flaeche)); }
+button.kal-posten.termin { border-left-color: var(--gut); background: color-mix(in srgb, var(--gut) 11%, var(--flaeche)); }
+button.kal-posten.wiedervorlage { border-left-color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 11%, var(--flaeche)); }
+button.kal-posten.abgeschlossen { opacity: .6; }
+button.kal-posten.aufgehoben .posten-titel, button.kal-posten.verlegt .posten-titel { text-decoration: line-through; }
+button.kal-posten.gewaehlt { outline: 2px solid var(--akzent); outline-offset: 1px; }
+.wochen-spalten { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--linie); border: 1px solid var(--linie); border-radius: 8px; overflow: hidden; }
+.wochen-spalten .kalender-tag { min-height: 320px; padding: 8px 6px; gap: 5px; }
+.wochen-spalten button.kal-posten { flex-wrap: wrap; }
+.wochen-spalten button.kal-posten .posten-titel { white-space: normal; flex-basis: 100%; }
+.wochen-spalten button.kal-posten .posten-akte { flex-basis: 100%; }
+.tages-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.tages-liste h3 { font-size: 14px; margin: 0 0 6px; }
+.tages-liste > li.heute h3 { color: var(--akzent); }
+.tages-liste ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+button.listen-posten { display: grid; grid-template-columns: 90px auto minmax(0, 1fr) auto auto auto; gap: 10px; align-items: baseline; font-size: 13px; padding: 7px 10px; }
+button.listen-posten .posten-titel { white-space: normal; }
+.kalender-neu { display: grid; gap: 10px; }
+.kalender-neu-wahl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.kalender-neu .kalender-formular { border: none; padding: 0; box-shadow: none; }
+@media (max-width: 900px) {
+  .kalender-flaeche.mit-detail { grid-template-columns: 1fr; }
+  .kalender-tag { min-height: 64px; }
+  button.kal-posten .posten-zeit { display: none; }
+  .wochen-spalten { grid-template-columns: 1fr; }
+  .wochen-spalten .kalender-tag { min-height: 0; }
+  button.listen-posten { grid-template-columns: 1fr; gap: 2px; }
+}
+.fristenbuch { display: grid; gap: 10px; max-width: 900px; }
+.fristenbuch .aktionen { display: flex; flex-wrap: wrap; gap: 8px; }
+.fristenbuch-zeitraum { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; }
+.fristenbuch-zeitraum p { flex-basis: 100%; margin: 0; }

@@ -3,20 +3,24 @@
 Alle Texte stammen aus der fiktiven Testakte „Brückner ./. Weber Haustechnik GmbH“.
 """
 
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 
+from juracore import ausgabe
 from juracore.aktenverwaltung import (
     aus_dokument,
     beteiligte,
     einrichten,
+    fristenbuch,
     kalender,
     notizen,
     rubrum,
     stammdaten,
     verfahren,
 )
+from juracore.ausgabe import Ueberschrift, html
 from juracore.dokumente import akte
 from juracore.eigene import daten as eigene
 from juracore.rpc import Kern
@@ -204,10 +208,198 @@ def test_vorschlaege_terminsverlegung(con):
     kalender.speichern(con, a, {"art": "termin", "titel": "Güteverhandlung", "datum": "2026-11-19"})
     vorhandene = [dict(z) for z in con.execute("SELECT * FROM kalender")]
     v = kalender.vorschlaege(TERMINSVERLEGUNG, "2026-10-05", "BW", vorhandene)
-    assert [(x["art"], x["datum"]) for x in v] == [("erledigen", "2026-11-19"), ("termin", "2026-11-26")]
+    # Aufhebung und neuer Termin im selben Dokument: ein Vorschlag „verlegt“ mit dem neuen Termin.
+    assert [(x["art"], x["datum"], x["zustand"]) for x in v] == [("zustand", "2026-11-19", "verlegt")]
     assert v[0]["eintrag_id"] == vorhandene[0]["id"] and v[0]["vermerk"] == "Termin aufgehoben"
+    assert (v[0]["neu"]["datum"], v[0]["neu"]["uhrzeit"], v[0]["neu"]["ort"]) == ("2026-11-26", "11:00", "Saal 104")
+    nur_aufgehoben = kalender.vorschlaege(TERMINSVERLEGUNG[:2], "2026-10-05", "BW", vorhandene)
+    assert [(x["art"], x["zustand"]) for x in nur_aufgehoben] == [("zustand", "aufgehoben")]
     # Schon eingetragene Termine werden nicht noch einmal vorgeschlagen.
     assert kalender.vorschlaege(VERFUEGUNG, None, "BW", vorhandene)[1:] == []
+
+
+def test_termine_werden_nicht_erledigt_sondern_finden_statt(con):
+    a = neue_akte(con)
+    kalender.speichern(con, a, {"art": "termin", "titel": "Güteverhandlung", "datum": "2026-09-20",
+                                "uhrzeit": "10:00", "bis_uhrzeit": "11:30"}, heute=HEUTE)
+    liste = kalender.speichern(con, a, {"art": "termin", "titel": "Haupttermin", "datum": "2026-11-19",
+                                        "uhrzeit": "10:30", "ort": "Saal 104"}, heute=HEUTE)
+    vorbei, kommend = sorted(liste, key=lambda e: e["datum"])
+    assert (vorbei["lage"], vorbei["abgeschlossen"], vorbei["bis_uhrzeit"]) == ("stattgefunden", True, "11:30")
+    assert kommend["lage"] == "offen" and not kommend["abgeschlossen"]
+    assert [e["titel"] for e in kalender.naechste(con, heute=HEUTE)] == ["Haupttermin"]
+    assert kalender.naechste_je_akte(con, HEUTE)[a]["titel"] == "Haupttermin"
+    with pytest.raises(ValueError, match="nicht erledigt"):
+        kalender.erledigen(con, kommend["id"])
+    with pytest.raises(ValueError, match="Ende des Termins"):
+        kalender.speichern(con, a, {"art": "termin", "titel": "X", "datum": "2026-11-20", "uhrzeit": "10:00",
+                                    "bis_uhrzeit": "09:00"})
+
+    # Verlegen: Folgetermin mit Verweis, alter Termin „verlegt“.
+    liste = kalender.termin_zustand(con, kommend["id"], "verlegt", neu={"datum": "2026-12-03"}, heute=HEUTE)
+    alt = next(e for e in liste if e["id"] == kommend["id"])
+    neu = next(e for e in liste if e["verlegt_von"] == kommend["id"])
+    assert (alt["lage"], alt["erledigt_vermerk"]) == ("verlegt", None)
+    assert alt["verlegt_auf"]["datum"] == "2026-12-03" and neu["verlegt_von_termin"]["datum"] == "2026-11-19"
+    assert (neu["titel"], neu["uhrzeit"], neu["ort"], neu["lage"]) == ("Haupttermin", "10:30", "Saal 104", "offen")
+    assert [e["datum"] for e in kalender.naechste(con, heute=HEUTE)] == ["2026-12-03"]
+
+    liste = kalender.termin_zustand(con, neu["id"], "aufgehoben", "Vergleich geschlossen", heute=HEUTE)
+    assert next(e for e in liste if e["id"] == neu["id"])["lage"] == "aufgehoben"
+    liste = kalender.termin_zustand(con, neu["id"], "geplant", heute=HEUTE)
+    assert next(e for e in liste if e["id"] == neu["id"])["lage"] == "offen"
+    with pytest.raises(ValueError, match="neue Datum"):
+        kalender.termin_zustand(con, neu["id"], "verlegt")
+    frist = kalender.speichern(con, a, {"art": "frist", "titel": "Replik", "datum": "2026-10-10"}, heute=HEUTE)
+    with pytest.raises(ValueError, match="Nur Termine"):
+        kalender.termin_zustand(con, next(e for e in frist if e["art"] == "frist")["id"], "aufgehoben")
+
+
+def test_frist_mit_zwei_vorfristen_und_verlaengerung(con):
+    a = neue_akte(con)
+    with pytest.raises(ValueError, match="Vorfrist"):
+        kalender.speichern(con, a, {"art": "frist", "titel": "X", "datum": "2026-10-01", "vorfrist2": "2026-10-01"})
+    liste = kalender.speichern(con, a, {
+        "art": "frist", "titel": "Klageerwiderung", "vorfrist": "2026-09-27", "vorfrist2": "2026-09-22",
+        "berechnung": {"bezugstag": "2026-09-01", "anzahl": 4, "einheit": "wochen", "land": "BW"}}, heute=HEUTE)
+    f = liste[0]
+    # Die frühere Vorfrist steht immer vorn; erreicht ist hier die erste.
+    assert (f["vorfrist"], f["vorfrist2"], f["vorfrist_erreicht"], f["lage"]) == ("2026-09-22", "2026-09-27", 1,
+                                                                                  "vorfrist")
+    assert kalender.liste(con, a, date(2026, 9, 27))[0]["vorfrist_erreicht"] == 2
+
+    liste = kalender.verlaengern(con, f["id"], "2026-10-13", "Verlängerung gewährt", heute=HEUTE)
+    f = liste[0]
+    assert (f["datum"], f["vorfrist"], f["vorfrist2"], f["berechnung"]) == ("2026-10-13", "2026-10-06",
+                                                                            "2026-10-11", None)
+    schritt = f["verlauf"][0]
+    assert (schritt["was"], schritt["alt"], schritt["neu"], schritt["vermerk"]) == (
+        "verlängert", "2026-09-29", "2026-10-13", "Verlängerung gewährt")
+    assert schritt["alt_berechnung"]["ende"] == "2026-09-29" and schritt["alt_vorfristen"] == ["2026-09-22",
+                                                                                               "2026-09-27"]
+    with pytest.raises(ValueError, match="dasselbe"):
+        kalender.verlaengern(con, f["id"], "2026-10-13")
+    kalender.erledigen(con, f["id"], vermerk="Schriftsatz eingereicht")
+    with pytest.raises(ValueError, match="erledigt"):
+        kalender.verlaengern(con, f["id"], "2026-10-20")
+
+
+def test_kalender_zeitraum_ueber_alle_akten_mit_vorfristen(con):
+    a = neue_akte(con)
+    b = neue_akte(con, "Hallenbad")
+    v = verfahren.speichern(con, b, {"art": "klage", "gericht": "Landgericht Freiburg", "aktenzeichen": "2 O 1/26"})
+    vid = v[0]["id"]
+    kalender.speichern(con, a, {"art": "frist", "titel": "Replik", "datum": "2026-11-03", "vorfrist": "2026-10-27"})
+    kalender.speichern(con, b, {"art": "termin", "titel": "Haupttermin", "datum": "2026-10-29", "verfahren_id": vid})
+    kalender.speichern(con, b, {"art": "wiedervorlage", "titel": "Später", "datum": "2026-12-15"})
+    eintraege = kalender.zeitraum(con, "2026-10-26", "2026-11-01", HEUTE)
+    # Die Replik zählt wegen ihrer Vorfrist mit; die Wiedervorlage liegt außerhalb.
+    assert [(e["titel"], e["akte"]) for e in eintraege] == [("Haupttermin", "Hallenbad"), ("Replik", "Brückner ./. Weber")]
+    assert eintraege[0]["gericht"] == "Landgericht Freiburg" and eintraege[0]["gericht_aktenzeichen"] == "2 O 1/26"
+    with pytest.raises(ValueError, match="Zeitraum"):
+        kalender.zeitraum(con, "2026-11-01", "2026-10-01")
+    tage = kalender.feiertage("2026-10-01", "2026-11-30", "BW")
+    assert tage == [{"datum": "2026-10-03", "name": "Tag der Deutschen Einheit"},
+                    {"datum": "2026-11-01", "name": "Allerheiligen"}]
+
+
+def _fristenbuch_akte(con):
+    a = neue_akte(con)
+    kalender.speichern(con, a, {"art": "frist", "titel": "Replik", "datum": "2026-09-10"})  # abgelaufen
+    kalender.speichern(con, a, {"art": "frist", "titel": "Klageerwiderung, Teil 2", "datum": "2026-10-06",
+                                "vorfrist": "2026-09-29", "vorfrist2": "2026-10-02"})
+    liste = kalender.speichern(con, a, {"art": "termin", "titel": "Güteverhandlung", "datum": "2026-10-01",
+                                        "uhrzeit": "10:30", "ort": "Saal 104; 1. OG"})
+    t = next(e for e in liste if e["art"] == "termin")
+    kalender.termin_zustand(con, t["id"], "verlegt", neu={"datum": "2026-10-08", "uhrzeit": "11:00"})
+    return a
+
+
+def test_fristenbuch_mit_ueberfaelligen_und_vorfristen(con, tmp_path):
+    a = _fristenbuch_akte(con)
+    b = fristenbuch.bericht(con, "2026-09-28", "2026-10-11", heute=HEUTE, jetzt=datetime(2026, 9, 25, 9, 0))
+    titel = [x.text if hasattr(x, "text") else getattr(x, "titel", None) for x in b.bausteine]
+    assert titel[1] == "Abgelaufen und nicht erledigt (vor dem Zeitraum)" and titel[2] == "Frist: Replik"
+    assert b.bausteine[2].dringend and b.bausteine[2].marken == ["abgelaufen"]
+    # Je Art ein eigener Abschnitt in fester Reihenfolge, darin nach Tagen
+    abschnitte = [x.text for x in b.bausteine if isinstance(x, Ueberschrift) and x.ebene == 1]
+    assert abschnitte == ["Abgelaufen und nicht erledigt (vor dem Zeitraum)", "Termine", "Fristen", "Vorfristen",
+                          "Wiedervorlagen"]
+    def teil(name):
+        start = titel.index(name) + 1
+        ende = next((i for i in range(start, len(titel)) if titel[i] in abschnitte), len(titel))
+        return titel[start:ende]
+    assert teil("Termine") == ["Do, 01.10.2026", "Termin: Güteverhandlung", "Do, 08.10.2026",
+                               "Termin: Güteverhandlung"]
+    assert teil("Fristen") == ["Di, 06.10.2026", "Frist: Klageerwiderung, Teil 2"]
+    assert teil("Vorfristen") == ["Di, 29.09.2026", "Vorfrist: Klageerwiderung, Teil 2", "Fr, 02.10.2026",
+                                  "2. Vorfrist: Klageerwiderung, Teil 2"]
+    assert teil("Wiedervorlagen")[0] == "Keine Wiedervorlagen im Zeitraum."
+    verlegt = next(x for x in b.bausteine if getattr(x, "nummer", "") == "10:30 Uhr")
+    assert verlegt.marken == ["verlegt"] and "Stand: verlegt auf Do, 08.10.2026" in verlegt.zeilen
+    assert {t.name: len(t.zeilen) for t in b.tabellen} == {"Abgelaufen": 1, "Termine": 2, "Fristen": 1,
+                                                           "Vorfristen": 2, "Wiedervorlagen": 0}
+    nur_termine = fristenbuch.bericht(con, "2026-09-28", "2026-10-11", {"arten": ["termin"], "akteId": a},
+                                      heute=HEUTE)
+    # die abgelaufene Frist ist keine Art „Termin“
+    assert [(t.name, len(t.zeilen)) for t in nur_termine.tabellen] == [("Termine", 2)]
+    for endung in ("docx", "pdf", "xlsx", "md", "txt"):
+        r = fristenbuch.schreiben(con, tmp_path / f"fb.{endung}", "2026-09-28", "2026-10-11")
+        assert Path(r["pfad"]).stat().st_size > 100
+    with pytest.raises(ValueError, match="nicht unterstützt"):
+        fristenbuch.schreiben(con, tmp_path / "fb.odt", "2026-09-28", "2026-10-11")
+
+
+def test_fristenbuch_hebt_bald_ablaufende_fristen_hervor(con):
+    a = _fristenbuch_akte(con)
+    kalender.speichern(con, a, {"art": "frist", "titel": "Berufungsbegründung", "datum": "2026-09-27"})
+    kalender.speichern(con, a, {"art": "frist", "titel": "Stellungnahme", "datum": "2026-09-26"})
+    kalender.speichern(con, a, {"art": "frist", "titel": "Später", "datum": "2026-09-29"})  # in 4 Tagen
+    b = fristenbuch.bericht(con, "2026-09-25", "2026-10-11", heute=HEUTE)
+    abschnitte = [x.text for x in b.bausteine if isinstance(x, Ueberschrift) and x.ebene == 1]
+    assert abschnitte[1] == "Dringend: Fristablauf heute und in den nächsten 3 Tagen"
+    start = b.bausteine.index(next(x for x in b.bausteine if getattr(x, "text", "") == abschnitte[1]))
+    dringend = b.bausteine[start + 1:start + 3]
+    assert [(x.titel, x.marken, x.dringend) for x in dringend] == [
+        ("Frist: Stellungnahme", ["läuft morgen ab"], True),
+        ("Frist: Berufungsbegründung", ["läuft in 2 Tagen ab"], True)]
+    assert isinstance(b.bausteine[start + 3], Ueberschrift)
+    # Im Abschnitt „Fristen“ bleiben sie hervorgehoben, die spätere Frist nicht
+    spaeter = next(x for x in b.bausteine if getattr(x, "titel", "") == "Frist: Später")
+    assert not spaeter.dringend and spaeter.marken == []
+    assert [z[9] for z in next(t for t in b.tabellen if t.name == "Dringend").zeilen] == [
+        "offen, läuft morgen ab", "offen, läuft in 2 Tagen ab"]
+    assert "Dringend" not in [t.name for t in fristenbuch.bericht(con, "2026-09-25", "2026-10-11",
+                                                                  {"arten": ["termin"]}, heute=HEUTE).tabellen]
+    for art in ("pdf", "docx", "md", "txt", "xlsx"):
+        assert ausgabe.schreiben(b, art)
+    assert "db-dringend" in html.fragment(b)
+
+
+def test_kalenderdatei_ics(con, tmp_path):
+    _fristenbuch_akte(con)
+    text = fristenbuch.ics(con, "2026-09-28", "2026-10-11", heute=HEUTE, jetzt=datetime(2026, 9, 25, 9, 0))
+    assert text.startswith("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n") and text.endswith("END:VCALENDAR\r\n")
+    assert text.count("BEGIN:VEVENT") == 5
+    assert "DTSTART:20261001T103000\r\nDTEND:20261001T113000" in text and "STATUS:CANCELLED" in text
+    assert "DTSTART;VALUE=DATE:20260929" in text and "SUMMARY:Vorfrist: Klageerwiderung\\, Teil 2" in text
+    assert "LOCATION:Saal 104\\; 1. OG\r\n" in text
+    assert all(len(z.encode()) <= 75 for z in text.split("\r\n"))
+    r = fristenbuch.schreiben(con, tmp_path / "kalender.ics", "2026-09-28", "2026-10-11")
+    assert r["anzahl"] == 5
+
+
+def test_alte_erledigte_termine_bekommen_ihren_zustand(con):
+    a = neue_akte(con)
+    for titel, vermerk in (("A", "Termin aufgehoben (Verfügung.pdf)"), ("B", "Termin verlegt"), ("C", None)):
+        con.execute("INSERT INTO kalender (akte_id, art, titel, datum, erledigt_am, erledigt_vermerk, angelegt_am, "
+                    "geaendert_am) VALUES (?, 'termin', ?, '2026-11-01', '2026-09-01', ?, '', '')", (a, titel, vermerk))
+    con.execute("INSERT INTO kalender (akte_id, art, titel, datum, erledigt_am, angelegt_am, geaendert_am) "
+                "VALUES (?, 'frist', 'D', '2026-09-01', '2026-09-01', '', '')", (a,))
+    con.execute("UPDATE kalender SET zustand = NULL")
+    einrichten(con)
+    assert {e["titel"]: e["lage"] for e in kalender.liste(con, a, HEUTE)} == {
+        "A": "aufgehoben", "B": "verlegt", "C": "stattgefunden", "D": "erledigt"}
 
 
 # --------------------------------------------------------------------------- Notizen

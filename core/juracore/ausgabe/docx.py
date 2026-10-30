@@ -12,6 +12,7 @@ import zipfile
 from xml.sax.saxutils import escape
 
 from . import Absatz, Bericht, Eintrag, Kopf, Ueberschrift
+from .pdf import nummernspalte as _nummernspalte
 
 _UNGUELTIG = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
@@ -20,15 +21,22 @@ def _x(text: str) -> str:
     return escape(_UNGUELTIG.sub("", text))
 
 
-def _lauf(text: str, fett: bool = False, kursiv: bool = False, grau: bool = False) -> str:
+def _lauf(text: str, fett: bool = False, kursiv: bool = False, grau: bool = False, rot: bool = False) -> str:
     eigenschaften = ("<w:b/>" if fett else "") + ("<w:i/>" if kursiv else "") + (
-        '<w:color w:val="595959"/>' if grau else "")
+        '<w:color w:val="595959"/>' if grau else '<w:color w:val="B31A1A"/>' if rot else "")
     rpr = f"<w:rPr>{eigenschaften}</w:rPr>" if eigenschaften else ""
     return f'<w:r>{rpr}<w:t xml:space="preserve">{_x(text)}</w:t></w:r>'
 
 
-def _absatz(laeufe: str, stil: str | None = None, zusammen: bool = False) -> str:
+def _absatz(laeufe: str, stil: str | None = None, zusammen: bool = False, einzug: int = 0,
+            haengend: bool = False) -> str:
+    """``einzug`` (Twips) überschreibt die Einrückung der Formatvorlage; ``haengend``: erste Zeile beginnt links,
+    ein Tabulator führt zur Einrückung (Nummernspalte)."""
     ppr = (f'<w:pStyle w:val="{stil}"/>' if stil else "") + ("<w:keepNext/>" if zusammen else "")
+    if einzug and haengend:
+        ppr += f'<w:tabs><w:tab w:val="left" w:pos="{einzug}"/></w:tabs><w:ind w:left="{einzug}" w:hanging="{einzug}"/>'
+    elif einzug:
+        ppr += f'<w:ind w:left="{einzug}"/>'
     return f"<w:p>{f'<w:pPr>{ppr}</w:pPr>' if ppr else ''}{laeufe}</w:p>"
 
 
@@ -42,26 +50,34 @@ def _kopf(k: Kopf) -> str:
             + _absatz(""))
 
 
-def _eintrag(e: Eintrag) -> str:
+def _eintrag(e: Eintrag, nummernspalte: int = 0) -> str:
+    """``nummernspalte`` (Twips): kompakte Einträge mit Nummer in eigener Spalte, Zeilen bündig unter dem Titel."""
     teile = []
-    titel = (_lauf(f"{e.nummer} ", fett=True) if e.nummer else "") + _lauf(e.titel, fett=not e.kompakt)
+    spalte_ = nummernspalte if e.kompakt else 0
+    if spalte_:
+        titel = (_lauf(e.nummer, fett=True) if e.nummer else "") + "<w:r><w:tab/></w:r>"
+    else:
+        titel = _lauf(f"{e.nummer} ", fett=True) if e.nummer else ""
+    titel += _lauf(e.titel, fett=not e.kompakt or e.dringend, rot=e.dringend)
     if e.marken:
-        titel += _lauf(f"  [{', '.join(e.marken)}]", grau=True)
-    teile.append(_absatz(titel, "Eintrag" if e.kompakt else "Ueberschrift3", zusammen=bool(e.zeilen or e.belege)))
+        titel += _lauf(f"  [{', '.join(e.marken)}]", fett=e.dringend, grau=not e.dringend, rot=e.dringend)
+    teile.append(_absatz(titel, "Eintrag" if e.kompakt else "Ueberschrift3", zusammen=bool(e.zeilen or e.belege),
+                         einzug=spalte_, haengend=True))
     for z in e.zeilen:
-        teile.append(_absatz(_lauf(z), "Einschaetzung", zusammen=bool(e.belege)))
+        teile.append(_absatz(_lauf(z), "Einschaetzung", zusammen=bool(e.belege), einzug=spalte_))
     for i, b in enumerate(e.belege):
         laeufe = (_lauf(f"{b.vorab} – ") if b.vorab else "") + _lauf(b.ort, fett=True)
         if b.angenaehert:
             laeufe += _lauf(" (Zitat angenähert)", grau=True)
         if b.zitat:
             laeufe += _lauf(": ") + _lauf(f"„{b.zitat}“", kursiv=True)
-        teile.append(_absatz(laeufe, "Beleg", zusammen=i < len(e.belege) - 1))
+        teile.append(_absatz(laeufe, "Beleg", zusammen=i < len(e.belege) - 1, einzug=spalte_ + 284 if spalte_ else 0))
     return "".join(teile)
 
 
 def _koerper(bericht: Bericht) -> str:
     teile = [_absatz(_lauf(bericht.titel), "Titel")]
+    nummernspalte = round(_nummernspalte(bericht) * 20)
     for b in bericht.bausteine:
         if isinstance(b, Kopf):
             teile.append(_kopf(b))
@@ -70,7 +86,7 @@ def _koerper(bericht: Bericht) -> str:
         elif isinstance(b, Absatz):
             teile.append(_absatz(_lauf(b.text), "Hinweis" if b.leise else None))
         elif isinstance(b, Eintrag):
-            teile.append(_eintrag(b))
+            teile.append(_eintrag(b, nummernspalte))
     return "".join(teile)
 
 

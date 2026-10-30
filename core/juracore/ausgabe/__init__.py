@@ -29,6 +29,7 @@ class Eintrag:
     zeilen: list[str] = field(default_factory=list)
     belege: list[Beleg] = field(default_factory=list)
     kompakt: bool = False  # Listenpunkt statt eigener Überschrift
+    dringend: bool = False  # hervorgehoben (fett, rot), z. B. eine Frist kurz vor dem Ablauf
 
 
 @dataclass

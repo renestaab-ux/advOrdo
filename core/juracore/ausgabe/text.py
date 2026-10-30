@@ -35,7 +35,8 @@ def _md_eintrag(e: Eintrag) -> list[str]:
     belege = [f"{'   ' if e.kompakt else ''}- {_md(beleg_text(b))}" for b in e.belege]
     if e.kompakt:
         # Nummer als Text, nicht als Markdown-Liste: Die Nummern sollen genau wie in der App lauten.
-        zeilen = [f"**{_md(e.nummer)}** {_md(e.titel)}{marken}"] if e.nummer else [f"{_md(e.titel)}{marken}"]
+        titel = f"**{_md(e.titel)}**" if e.dringend else _md(e.titel)
+        zeilen = [f"**{_md(e.nummer)}** {titel}{marken}"] if e.nummer else [f"{titel}{marken}"]
         zeilen += [_md(z) for z in e.zeilen]
         return [zeilen[0] + "  ", *(z + "  " for z in zeilen[1:]), *belege, ""]
     zeilen = [f"### {_md(e.nummer) + ' ' if e.nummer else ''}{_md(e.titel)}{marken}", ""]

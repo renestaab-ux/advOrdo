@@ -20,7 +20,7 @@ SATZ = BREITE - LINKS - RECHTS
 
 NORMAL, FETT, KURSIV = "F1", "F2", "F3"
 _BREITEN = {NORMAL: _helvetica.NORMAL, FETT: _helvetica.FETT, KURSIV: _helvetica.NORMAL}
-SCHWARZ, GRAU = "0 0 0", "0.35 0.35 0.35"
+SCHWARZ, GRAU, ROT = "0 0 0", "0.35 0.35 0.35", "0.7 0.1 0.1"
 
 _ERSATZ = str.maketrans({
     "→": "->", "←": "<-", "≤": "<=", "≥": ">=", "≠": "!=", "−": "-", "‑": "-", "‐": "-", " ": " ",
@@ -137,8 +137,17 @@ class Satz:
         self.y -= 4
 
 
+def nummernspalte(bericht: Bericht) -> float:
+    """Breite der Nummernspalte für kompakte Einträge (Datum, Uhrzeit), im ganzen Bericht gleich, damit Titel und
+    Zeilen untereinander stehen; 0, wenn kein kompakter Eintrag eine Nummer hat."""
+    breiten = [breite(b.nummer, FETT, 10) for b in bericht.bausteine if isinstance(b, Eintrag) and b.kompakt
+               and b.nummer]
+    return min(130.0, max(breiten) + 10) if breiten else 0.0
+
+
 def _setze(bericht: Bericht) -> Satz:
     s = Satz()
+    nr_spalte = nummernspalte(bericht)
     s.absatz([Lauf(bericht.titel, FETT, 16)], nach=8)
     for b in bericht.bausteine:
         if isinstance(b, Kopf):
@@ -158,16 +167,20 @@ def _setze(bericht: Bericht) -> Satz:
             else:
                 s.absatz([Lauf(b.text, NORMAL, 10)], nach=4)
         elif isinstance(b, Eintrag):
-            _eintrag(s, b)
+            _eintrag(s, b, nr_spalte)
     return s
 
 
-def _eintrag(s: Satz, e: Eintrag) -> None:
-    marken = [Lauf(f"  [{', '.join(e.marken)}]", NORMAL, 8.5, GRAU)] if e.marken else []
+def _eintrag(s: Satz, e: Eintrag, nummernspalte: float = 0.0) -> None:
+    farbe = ROT if e.dringend else GRAU
+    marken = [Lauf(f"  [{', '.join(e.marken)}]", FETT if e.dringend else NORMAL, 8.5, farbe)] if e.marken else []
     if e.kompakt:
         nummer = Lauf(e.nummer, FETT, 10) if e.nummer else None
-        einzug = max(breite(e.nummer, FETT, 10) + 5, 18.0) if e.nummer else 0.0
-        s.absatz([Lauf(e.titel, NORMAL, 10), *marken], einzug=einzug, vor=2, nach=1.5, zusammen=24, vorne=nummer)
+        einzug = nummernspalte or (max(breite(e.nummer, FETT, 10) + 5, 18.0) if e.nummer else 0.0)
+        titel = Lauf(e.titel, FETT, 10, ROT) if e.dringend else Lauf(e.titel, NORMAL, 10)
+        s.absatz([titel, *marken], einzug=einzug, vor=2, nach=1.5, zusammen=24, vorne=nummer)
+        if nummernspalte:
+            einzug -= 8  # Zeilen stehen bündig unter dem Titel
     else:
         nummer = [Lauf(f"{e.nummer} ", FETT, 10.5)] if e.nummer else []
         einzug = 0.0

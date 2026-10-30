@@ -7,6 +7,7 @@
 Stufe 2:
 - ``verfahren``: Verfahren einer Akte mit Instanz, Gericht und gerichtlichem Aktenzeichen.
 - ``kalender``: Fristen, Termine und Wiedervorlagen; Vorschläge aus Dokumenten.
+- ``fristenbuch``: Fristenbuch (Word, PDF, Excel …) und Kalenderdatei (.ics) eines Zeitraums.
 - ``notizen``: Aktennotizen.
 - ``rubrum`` und ``aus_dokument``: Akte aus einem Dokument anlegen.
 

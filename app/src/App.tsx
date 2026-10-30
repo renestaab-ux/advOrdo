@@ -3,6 +3,7 @@ import Akten, { Reiter } from "./Akten";
 import EigeneDaten from "./EigeneDaten";
 import Einstellungen, { EinstellungsReiter } from "./Einstellungen";
 import Gesetze from "./Gesetze";
+import Kalender from "./Kalender";
 import Rechtsprechung from "./Rechtsprechung";
 import Beteiligte from "./Beteiligte";
 import Start, { StartZiel } from "./Start";
@@ -29,13 +30,14 @@ import {
 } from "./kern";
 import jurabox from "./bilder/jurabox-64.png";
 
-type Bereich = "start" | "eigene" | "toolbox" | "akten" | "beteiligte" | "suche" | "rechtsprechung" | "gesetze" | "einstellungen";
+type Bereich = "start" | "eigene" | "toolbox" | "akten" | "kalender" | "beteiligte" | "suche" | "rechtsprechung" | "gesetze" | "einstellungen";
 
 // Vergleich und Analyse sind Reiter in der geöffneten Akte; die Toolbox und Eigene Daten erreicht man über Start,
 // die Rechtsquellen (Verzeichnisse der Rechtsprechung) über die Einstellungen.
 const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
   { id: "start", titel: "Start", symbol: "start" },
   { id: "akten", titel: "Akten", symbol: "akten" },
+  { id: "kalender", titel: "Kalender", symbol: "fristen" },
   { id: "beteiligte", titel: "Beteiligte", symbol: "beteiligte" },
   { id: "suche", titel: "Suche", symbol: "suche" },
   { id: "rechtsprechung", titel: "Rechtsprechung", symbol: "rechtsprechung" },
@@ -109,6 +111,8 @@ export default function App() {
       setAnlegen(true);
     } else if (ziel === "akten") {
       oeffneAkte(null);
+    } else if (ziel === "kalender") {
+      setBereich("kalender");
     } else if (ziel === "eigene") {
       setBereich("eigene");
     } else if (ziel === "einstellungen") {
@@ -259,6 +263,7 @@ export default function App() {
               onEigeneDaten={() => setBereich("eigene")}
             />
           )}
+          {bereich === "kalender" && <Kalender onAkte={(id) => oeffneAkte(id, "fristen")} />}
           {bereich === "suche" && <Suche onAkte={oeffneAkte} />}
           {bereich === "beteiligte" && <Beteiligte onAkte={oeffneAkte} />}
           {bereich === "rechtsprechung" && (
