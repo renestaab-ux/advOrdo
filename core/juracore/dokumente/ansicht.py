@@ -112,8 +112,39 @@ def markierungen_aus_woertern(woerter: list[list], begriffe: list[str]) -> list[
     aufgehoben, damit auch getrennte Wörter gefunden werden. Ein Fund kann so mehrere Wörter und Zeilen umfassen;
     je Zeile entsteht ein Rechteck. Innerhalb eines Worts wird die Lage nach dem Zeichenanteil geschätzt.
     """
+    text, zuordnung = _woerter_text(woerter)
+    klein = _klein(text)
+    rechtecke: list[dict] = []
+    for begriff in dict.fromkeys(_klein(b.strip()) for b in begriffe if b.strip()):
+        for fund in _muster(begriff).finditer(klein):
+            rechtecke += _rechtecke(woerter, zuordnung, *fund.span())
+    return sorted(rechtecke, key=lambda r: (r["y"], r["x"]))
+
+
+def rechtecke_fuer_stelle(woerter: list[list], stelle: str, lage: float) -> list[dict]:
+    """Rechtecke einer markierten Stelle (Anmerkung) auf der Seite.
+
+    Anders als bei Suchbegriffen ist genau ein Vorkommen gemeint. Steht der Wortlaut mehrfach auf der Seite, gilt das,
+    dessen Lage im Seitentext (0 = Anfang, 1 = Ende) ``lage`` am nächsten kommt.
+    """
+    text, zuordnung = _woerter_text(woerter)
+    klein = _klein(text)
+    # Zwischen allen Zeichen darf Leerraum stehen: PDFs setzen ihn auch vor Satzzeichen ("gefahren “ ;").
+    zeichen = ["[§$8s]" if z == "§" else re.escape(z) for z in _klein(stelle) if not z.isspace()]
+    if not zeichen or not klein:
+        return []
+    muster = re.compile(r"\s*".join(zeichen))
+    funde = list(muster.finditer(klein))
+    if not funde:
+        return []
+    fund = min(funde, key=lambda f: abs(f.start() / len(klein) - lage))
+    return sorted(_rechtecke(woerter, zuordnung, *fund.span()), key=lambda r: (r["y"], r["x"]))
+
+
+def _woerter_text(woerter: list[list]) -> tuple[str, list[tuple[int, int]]]:
+    """Verbindet die Wörter zu einem Text; je Zeichen (Wort, Position im Wort), Leerzeichen als (-1, 0)."""
     text = ""
-    zuordnung: list[tuple[int, int]] = []  # je Zeichen: (Wort, Position im Wort)
+    zuordnung: list[tuple[int, int]] = []
     for i, (wort, zeile, *_lage) in enumerate(woerter):
         if i:
             vorher, vorher_zeile = woerter[i - 1][0], woerter[i - 1][1]
@@ -124,27 +155,93 @@ def markierungen_aus_woertern(woerter: list[list], begriffe: list[str]) -> list[
         sichtbar = wort[:-1] if naechstes_neue_zeile and wort.endswith("-") and len(wort) > 1 else wort
         text += sichtbar
         zuordnung += [(i, k) for k in range(len(sichtbar))]
-    klein = _klein(text)
+    return text, zuordnung
 
-    rechtecke: list[dict] = []
-    for begriff in dict.fromkeys(_klein(b.strip()) for b in begriffe if b.strip()):
-        # Der Suchtext ist für "§" schon korrigiert, die Wörter der Texterkennung nicht ("8 256", "$ 280").
-        muster = re.compile(re.escape(begriff).replace("§", "[§$8s]"))
-        for fund in muster.finditer(klein):
-            start, ende = fund.span()
-            teile: dict[int, list[float]] = {}  # je Zeile: links, oben, rechts, unten
-            for wi, k in zuordnung[start:ende]:
-                if wi < 0:
-                    continue
-                wort, zeile, x, y, b, h = woerter[wi]
-                zeichen = max(len(wort), 1)
-                links, rechts = x + b * k / zeichen, x + b * (k + 1) / zeichen
-                r = teile.setdefault(zeile, [links, y, rechts, y + h])
-                r[0], r[1], r[2], r[3] = min(r[0], links), min(r[1], y), max(r[2], rechts), max(r[3], y + h)
-            for links, oben, rechts, unten in teile.values():
-                rechtecke.append({"x": round(links, 5), "y": round(oben, 5),
-                                  "b": round(rechts - links, 5), "h": round(unten - oben, 5)})
-    return sorted(rechtecke, key=lambda r: (r["y"], r["x"]))
+
+def _muster(begriff: str) -> re.Pattern:
+    # Der Suchtext ist für "§" schon korrigiert, die Wörter der Texterkennung nicht ("8 256", "$ 280").
+    return re.compile(re.escape(begriff).replace("§", "[§$8s]"))
+
+
+def _rechtecke(woerter: list[list], zuordnung: list[tuple[int, int]], start: int, ende: int) -> list[dict]:
+    teile: dict[int, list[float]] = {}  # je Zeile: links, oben, rechts, unten
+    for wi, k in zuordnung[start:ende]:
+        if wi < 0:
+            continue
+        wort, zeile, x, y, b, h = woerter[wi]
+        zeichen = max(len(wort), 1)
+        links, rechts = x + b * k / zeichen, x + b * (k + 1) / zeichen
+        r = teile.setdefault(zeile, [links, y, rechts, y + h])
+        r[0], r[1], r[2], r[3] = min(r[0], links), min(r[1], y), max(r[2], rechts), max(r[3], y + h)
+    return [{"x": round(links, 5), "y": round(oben, 5), "b": round(rechts - links, 5), "h": round(unten - oben, 5)}
+            for links, oben, rechts, unten in teile.values()]
+
+
+_TRENNER = ("\x02", "\xad", "\ufffe")  # weiche Silbentrennung, je nach PDF-Erzeuger
+
+
+def woerter_textebene(seite) -> list[list]:
+    """Wörter einer PDF-Seite mit Textebene im Format der OCR-Wörter ``[text, zeile, x, y, b, h]``.
+
+    Die Lage kommt aus den Zeichenrechtecken von PDFium (Anteile der Seite, oben links ist 0/0). Zeilen trennt PDFium
+    mit Zeilenumbrüchen; eine weiche Trennung am Zeilenende wird zum Bindestrich, damit sie wie bei der Texterkennung
+    aufgehoben wird.
+    """
+    breite, hoehe = seite.get_size()
+    textseite = seite.get_textpage()
+    try:
+        anzahl = textseite.count_chars()
+        text = textseite.get_text_range(0, anzahl) if anzahl else ""
+        woerter: list[list] = []
+        zeile = 0
+        wort, kasten = "", [0.0, 0.0, 0.0, 0.0]  # links, oben, rechts, unten
+        letzte: list[float] | None = None  # Rechteck des vorigen Zeichens
+        frisch = True  # die Zeile hat noch kein Zeichen
+
+        def abschliessen():
+            nonlocal wort
+            if wort:
+                links, oben, rechts, unten = kasten
+                woerter.append([wort, zeile, links / breite, oben / hoehe, (rechts - links) / breite,
+                                (unten - oben) / hoehe])
+            wort = ""
+
+        for i, z in enumerate(text[:anzahl]):
+            if z in "\r\n":
+                abschliessen()
+                if not frisch and (z == "\n" or not text[i + 1: i + 2] == "\n"):
+                    zeile += 1
+                    frisch = True
+                continue
+            if z.isspace():
+                abschliessen()
+                continue
+            if z in _TRENNER:
+                if text[i + 1: i + 2] in ("\r", "\n") and wort:
+                    wort += "-"
+                continue
+            links, unten, rechts, oben = textseite.get_charbox(i)
+            box = [links, hoehe - oben, rechts, hoehe - unten]
+            # Neue Zeile ohne Zeilenumbruch im Text (z. B. nach weicher Trennung): erkennbar an der Höhe.
+            if letzte is not None and abs((box[1] + box[3]) - (letzte[1] + letzte[3])) / 2 > \
+                    0.6 * max(box[3] - box[1], letzte[3] - letzte[1], 1):
+                if wort and text[i - 1: i] in _TRENNER:
+                    wort += "-"
+                abschliessen()
+                if not frisch:
+                    zeile += 1
+            letzte = box
+            frisch = False
+            if not wort:
+                kasten[:] = box
+            else:
+                kasten[:] = [min(kasten[0], box[0]), min(kasten[1], box[1]), max(kasten[2], box[2]),
+                             max(kasten[3], box[3])]
+            wort += z
+        abschliessen()
+        return woerter
+    finally:
+        textseite.close()
 
 
 def _klein(text: str) -> str:

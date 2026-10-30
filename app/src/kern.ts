@@ -616,6 +616,8 @@ export interface AktenDokument {
   hinweise: string[];
   importiert_am: string;
   randnummern: number;
+  /** Zahl der Markierungen und Kommentare (Anmerkungen.tsx). */
+  anmerkungen?: number;
   zitate: Partial<Record<ZitatStatus, number>>;
   /** Unterordner beim Ordner-Import, z. B. "Kläger/Anlagen". */
   herkunft: string | null;

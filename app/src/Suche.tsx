@@ -1,12 +1,16 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { DokumentAnsicht, OriginalAnsicht } from "./Akte";
 import AktenWahl from "./AktenWahl";
+import { useBedeutungen } from "./Anmerkungen";
+import { Anmerkung, anmerkungOrt, kommentarText } from "./anmerkungLogik";
 import { Akte, DokumentInhalt, SuchDokument, SuchErgebnis, SuchFundstelle, fundstelle, istDesktop, kern } from "./kern";
 
 interface Auswahl {
   dokument: SuchDokument;
   fundstelle: SuchFundstelle;
 }
+
+type SuchAnmerkung = Anmerkung & { akte_id: number; akte: string; format: SuchDokument["format"]; seiten: number | null };
 
 /** Volltextsuche über alle Akten, nach dem Vorbild von „PDF Search“: links die Treffer, rechts das Dokument. */
 export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
@@ -15,6 +19,9 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
   // Gesucht wird zunächst in allen Akten; null heißt „Alle Akten“.
   const [akteId, setAkteId] = useState<number | null>(null);
   const [ergebnis, setErgebnis] = useState<SuchErgebnis | null>(null);
+  // Treffer in Markierungen und Kommentaren (Wortlaut, Kommentar, Bedeutung der Farbe).
+  const [anmerkungen, setAnmerkungen] = useState<SuchAnmerkung[]>([]);
+  const bedeutungen = useBedeutungen();
   const [zu, setZu] = useState<Set<number>>(new Set());
   const [auswahl, setAuswahl] = useState<Auswahl | null>(null);
   const [inhalt, setInhalt] = useState<DokumentInhalt | null>(null);
@@ -25,13 +32,18 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
     const nr = ++anfrage.current;
     if (!text.trim()) {
       setErgebnis(null);
+      setAnmerkungen([]);
       return;
     }
     try {
-      const e = await kern<SuchErgebnis>("akten.suche", { text, akte_id: akteId });
+      const [e, a] = await Promise.all([
+        kern<SuchErgebnis>("akten.suche", { text, akte_id: akteId }),
+        kern<SuchAnmerkung[]>("anmerkungen.suche", { text, akte_id: akteId }),
+      ]);
       if (nr !== anfrage.current) return; // eine neuere Eingabe ist schon unterwegs
       setFehler(null);
       setErgebnis(e);
+      setAnmerkungen(a);
       setZu(new Set());
       const erstes = e.dokumente[0];
       if (erstes) void waehle(erstes, erstes.fundstellen.find((f) => f.rang === erstes.rang) ?? erstes.fundstellen[0]);
@@ -99,6 +111,17 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
     void waehle(ziel.dokument, ziel.fundstelle);
   }
 
+  /** Treffer in einer Anmerkung: Dokument an der markierten Stelle zeigen, der Wortlaut ist gelb hervorgehoben. */
+  function waehleAnmerkung(a: SuchAnmerkung) {
+    const zitat = a.zitat ?? "";
+    void waehle(
+      { id: a.dokument_id, dateiname: a.dateiname ?? "", format: a.format, seiten: a.seiten, akte_id: a.akte_id, akte: a.akte,
+        treffer: 0, rang: 0, fundstellen: [] },
+      { seite: a.seite, abschnitt: a.abschnitt ?? 1, rn: a.rn, treffer: 1, rang: 0,
+        ausschnitt: { vor: "", treffer: zitat, nach: "" }, begriffe: zitat ? [zitat] : [] },
+    );
+  }
+
   function absenden(e: FormEvent) {
     e.preventDefault();
     void suchen(eingabe);
@@ -163,7 +186,34 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
 
       <div className="such-flaeche">
         <ul className="such-liste" aria-label="Treffer">
-          {ergebnis && ergebnis.dokumente.length === 0 && <li className="leer">Keine Treffer.</li>}
+          {anmerkungen.length > 0 && (
+            <li className="such-dokument">
+              <div className="such-dokument-kopf such-anmerkungen-kopf">
+                <span className="such-name">In Markierungen und Kommentaren</span>
+                <span className="such-meta">{anmerkungen.length} Treffer</span>
+              </div>
+              <ul>
+                {anmerkungen.map((a) => (
+                  <li key={`a${a.id}`}>
+                    <button
+                      className={`such-fundstelle${auswahl?.dokument.id === a.dokument_id && auswahl.fundstelle.ausschnitt.treffer === a.zitat ? " gewaehlt" : ""}`}
+                      onClick={() => waehleAnmerkung(a)}
+                    >
+                      <span className="such-ort">
+                        {a.dokument} · {anmerkungOrt(a)}
+                      </span>
+                      <span className="such-rang">
+                        <span className={`anm-punkt anm-punkt-${a.farbe}`} /> {bedeutungen[a.farbe]}
+                      </span>
+                      <span className={`ausschnitt anm-zitat anm-rand-${a.farbe}`}>{a.zitat}</span>
+                      {a.kommentar && <span className="ausschnitt">{kommentarText(a.kommentar)}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          )}
+          {ergebnis && ergebnis.dokumente.length === 0 && anmerkungen.length === 0 && <li className="leer">Keine Treffer.</li>}
           {!ergebnis && (
             <li className="leer">
               Gesucht wird im gelesenen Text aller Dokumente. Groß- und Kleinschreibung spielt keine Rolle. Mehrere Wörter

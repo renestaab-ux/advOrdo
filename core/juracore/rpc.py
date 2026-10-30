@@ -47,7 +47,7 @@ from .aktenverwaltung import (
     verfahren,
 )
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
-from .dokumente import akte, ansicht, fassungen, lesen, metadaten, ocr, suche, urteile
+from .dokumente import akte, anmerkungen, ansicht, fassungen, lesen, metadaten, ocr, suche, urteile
 from .eigene import daten as eigene
 from .eigene import marke
 from .eigene.felder import FELDER, FORMEN
@@ -217,7 +217,7 @@ class Kern:
             "beteiligte.loeschen": lambda beteiligter_id: beteiligte.loeschen(self.akten, beteiligter_id),
             "beteiligte.beziehung_setzen": lambda von, zu, art, vorhanden=True, funktion=None: (
                 beteiligte.beziehung_setzen(self.akten, von, zu, art, vorhanden, funktion)),
-            "akten.dokumente": lambda akte_id: metadaten.mit_absender(self.akten, akte.dokumente(self.akten, akte_id)),
+            "akten.dokumente": self.akten_dokumente,
             "akten.loeschen": lambda akte_id: akte.akte_loeschen(self.akten, akte_id, self.ablage),
             "akten.importieren": lambda akte_id, pfad, tags=None, herkunft=None: akte.importiere(
                 self.akten, self.con, akte_id, pfad, self.ablage, tags=tags, herkunft=herkunft
@@ -255,6 +255,18 @@ class Kern:
             "akten.seitenbild": lambda dokument_id, seite, breite=1000, begriffe=None: ansicht.seitenbild(
                 self.akten, dokument_id, seite, breite, begriffe),
             "akten.suche": lambda text, akte_id=None: suche.suche(self.akten, text, akte_id),
+            # Markierungen und Kommentare an Dokumenten (Textansicht, Original, Reiter „Anmerkungen“, Suche).
+            "anmerkungen.liste": lambda akte_id=None, dokument_id=None: anmerkungen.liste(
+                self.akten, akte_id, dokument_id),
+            "anmerkungen.anlegen": lambda dokument_id, start, ende, farbe="gelb", stil="flaeche", kommentar=None: (
+                anmerkungen.anlegen(self.akten, dokument_id, start, ende, farbe, stil, kommentar)),
+            "anmerkungen.aendern": lambda anmerkung_id, farbe=None, stil=None, kommentar=None, ohne_kommentar=False: (
+                anmerkungen.aendern(self.akten, anmerkung_id, farbe, stil, kommentar, ohne_kommentar)),
+            "anmerkungen.loeschen": lambda anmerkung_id: anmerkungen.loeschen(self.akten, anmerkung_id),
+            "anmerkungen.suche": lambda text, akte_id=None: anmerkungen.suche(self.akten, text, akte_id),
+            "anmerkungen.seite": lambda dokument_id, seite: anmerkungen.auf_seite(self.akten, dokument_id, seite),
+            "anmerkungen.bedeutungen": lambda: anmerkungen.bedeutungen(self.akten),
+            "anmerkungen.bedeutungen_setzen": lambda werte: anmerkungen.bedeutungen_setzen(self.akten, werte),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
             "akten.rechtsprechung": lambda akte_id, dokument_id=None: akte.rechtsprechung(
                 self.akten, self.con, akte_id, dokument_id, self._online_quellen()),
@@ -402,6 +414,13 @@ class Kern:
         kostennote.einrichten(self.akten)
         # Zeiterfassung: Zeiten je Akte, Stundensätze und Bearbeiter der Umgebung.
         zeiterfassung.einrichten(self.akten)
+        # Markierungen und Kommentare an Dokumenten.
+        anmerkungen.einrichten(self.akten)
+
+    def akten_dokumente(self, akte_id: int) -> list[dict]:
+        liste = metadaten.mit_absender(self.akten, akte.dokumente(self.akten, akte_id))
+        zahlen = anmerkungen.zahlen(self.akten, akte_id)
+        return [d | {"anmerkungen": zahlen.get(d["id"], 0)} for d in liste]
 
     def _programm(self, dokument_id: int) -> dict:
         fmt = akte.dokument(self.akten, dokument_id)["dokument"]["format"]

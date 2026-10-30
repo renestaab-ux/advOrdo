@@ -50,6 +50,7 @@ const REITER: { id: Reiter; titel: string; symbol: SymbolName }[] = [
   { id: "beteiligte", titel: "Beteiligte", symbol: "beteiligte" },
   { id: "fristen", titel: "Fristen", symbol: "fristen" },
   { id: "notizen", titel: "Notizen", symbol: "notizen" },
+  { id: "anmerkungen", titel: "Anmerkungen", symbol: "markieren" },
   { id: "zeiten", titel: "Zeiten", symbol: "zeiten" },
   { id: "vergleich", titel: "Vergleich", symbol: "vergleich" },
   { id: "analyse", titel: "Analyse", symbol: "analyse" },
@@ -621,10 +622,10 @@ function AkteRahmen({
   const [fehler, setFehler] = useState<string | null>(null);
   const kiAn = useKiAn();
   const gericht = akte.gerichte[0];
-  // Dokumente, Normen, Rechtsprechung und Chat teilen sich eine Ansicht, die beim Wechsel zu Vergleich oder Analyse
+  // Dokumente, Anmerkungen, Normen, Rechtsprechung und Chat teilen sich eine Ansicht, die beim Wechsel zu Vergleich oder Analyse
   // erhalten bleibt (geöffnetes Dokument, Filter).
   const istAkteReiter = (r: Reiter): r is AkteReiter =>
-    r === "dokumente" || r === "normen" || r === "rechtsprechung" || r === "chat";
+    r === "dokumente" || r === "anmerkungen" || r === "normen" || r === "rechtsprechung" || r === "chat";
   const letzter = useRef<AkteReiter>("dokumente");
   if (istAkteReiter(reiter)) letzter.current = reiter;
 

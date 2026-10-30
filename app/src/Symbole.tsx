@@ -166,6 +166,13 @@ const PFADE = {
       <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3h3" />
     </>
   ),
+  markieren: (
+    <>
+      <path d="m9 15.5 8.6-8.6a1.9 1.9 0 0 0-2.7-2.7L6.3 12.8z" />
+      <path d="m6.3 12.8-1.8 4.6 1.6 1.6 4.6-1.8M4 20.5h16" />
+    </>
+  ),
+  kommentar: <path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 19 17h-7.5L7 20.5V17H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z" />,
 } satisfies Record<string, ReactNode>;
 
 export type SymbolName = keyof typeof PFADE;
