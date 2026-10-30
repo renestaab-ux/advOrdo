@@ -1,13 +1,33 @@
 import {
   CSSProperties,
+  MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import {
+  AnmerkungenReiter,
+  AnmerkungsLeiste,
+  anmerkungsHandler,
+  OriginalAnmerkungen,
+  SeitenAuswahl,
+  useAnmerkungen,
+} from "./Anmerkungen";
+import {
+  abschnittBeginne,
+  Anmerkung,
+  AnmerkungAufSeite,
+  auswahlRechtecke,
+  SeitenWort,
+  stueckKlassen,
+  stuecke,
+  wortAn,
+} from "./anmerkungLogik";
 import Chat from "./Chat";
 import DokumentDetails, { DetailsGriff } from "./DokumentDetails";
 import DokumentExtern, { UebernahmeFrage } from "./DokumentExtern";
@@ -63,7 +83,7 @@ import {
   URTEIL_QUELLE_NAME,
 } from "./kern";
 
-type Ansicht = "dokument" | "normen" | "rechtsprechung" | "chat";
+type Ansicht = "dokument" | "anmerkungen" | "normen" | "rechtsprechung" | "chat";
 /** Was zum geöffneten Dokument gezeigt wird. */
 type DokModus = "text" | "original" | "normen" | "rechtsprechung" | "chat" | "details";
 
@@ -115,9 +135,10 @@ interface Auswahl {
 }
 
 /** Reiter der Akte, die diese Komponente zeigt; die übrigen (Beteiligte, Vergleich, Analyse) zeigt der Aktenrahmen. */
-export type AkteReiter = "dokumente" | "normen" | "rechtsprechung" | "chat";
+export type AkteReiter = "dokumente" | "anmerkungen" | "normen" | "rechtsprechung" | "chat";
 
 const FILTER_SCHLUESSEL = "akte.filter.eingeklappt";
+const ANMERK_OFFEN_SCHLUESSEL = "akte.anmerkungen.offen";
 
 /** Filter der Dokumentliste; alle gesetzten gelten zusammen. */
 interface Filter {
@@ -202,6 +223,13 @@ export default function Akte({
   // Geänderte Arbeitskopien, bei denen „Später“ gewählt wurde; gilt bis zum nächsten Speichern.
   const [spaeter, setSpaeter] = useState<ReadonlySet<string>>(new Set());
   const flaeche = useRef<HTMLDivElement>(null);
+  // Markierungen und Kommentare des geöffneten Dokuments; die Zähler in der Dokumentliste folgen jeder Änderung.
+  const anm = useAnmerkungen(inhalt?.dokument.id ?? null, () => void ladeDokumente());
+  // Seitenleiste mit den Anmerkungen: zunächst zu, damit der Text Platz hat; der Zustand wird je Gerät gemerkt.
+  const [anmerkZu, setAnmerkZu] = useState(() => !gemerkt(ANMERK_OFFEN_SCHLUESSEL));
+  // Aus dem Reiter „Anmerkungen“ gewählt: nach dem Öffnen des Dokuments dorthin springen.
+  const [anmerkZiel, setAnmerkZiel] = useState<number | null>(null);
+  const textRahmen = useRef<HTMLDivElement>(null);
   const ansicht: Ansicht = reiter === "dokumente" ? "dokument" : reiter;
 
   function setzeSeitenbreite(breite: number) {
@@ -485,6 +513,49 @@ export default function Akte({
     setMarkiert(abschnitt ?? null);
   }
 
+  function anmerkungenUmschalten() {
+    setAnmerkZu(!anmerkZu);
+    merke(ANMERK_OFFEN_SCHLUESSEL, anmerkZu);
+  }
+
+  /** Anmerkung in der Seitenleiste gewählt: zur Stelle springen und den Editor dort öffnen. */
+  function anmerkungWaehlen(a: Anmerkung, eintrag: Element) {
+    anm.setAktiv(a.id);
+    const stelle =
+      textRahmen.current?.querySelector(`[data-anmerkung~="${a.id}"]`) ??
+      document.querySelector(`.original [data-anmerkung="${a.id}"]`);
+    if (!stelle) {
+      // Nicht (mehr) im Text oder die Seite ist noch nicht geladen: Seite anspringen, Editor an der Liste.
+      if (a.seite != null) document.getElementById(`seite-${a.seite}`)?.scrollIntoView({ block: "start" });
+      anm.oeffneEditor(a.id, eintrag);
+      return;
+    }
+    stelle.scrollIntoView({ block: "center" });
+    // Erst nach dem Scrollen steht die Stelle fest.
+    window.setTimeout(() => anm.oeffneEditor(a.id, stelle), 250);
+  }
+
+  /** Aus dem Reiter „Anmerkungen“: Dokument in der Textansicht öffnen und zur Stelle springen. */
+  async function oeffneAnmerkung(a: Anmerkung) {
+    setAnmerkZiel(a.id);
+    if (inhalt?.dokument.id === a.dokument_id && dokModus === "text") {
+      onReiter("dokumente");
+      return;
+    }
+    await oeffneDokument(a.dokument_id, a.abschnitt ?? undefined);
+  }
+
+  useEffect(() => {
+    if (anmerkZiel == null || reiter !== "dokumente" || !anm.liste.some((a) => a.id === anmerkZiel)) return;
+    const t = window.setTimeout(() => {
+      const stelle = textRahmen.current?.querySelector(`[data-anmerkung~="${anmerkZiel}"]`);
+      stelle?.scrollIntoView({ block: "center" });
+      anm.setAktiv(anmerkZiel);
+      setAnmerkZiel(null);
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, [anmerkZiel, anm.liste, reiter]);
+
   async function ladeNormen(dokumentId: number | null) {
     const n = await ausfuehren("Sammle Normen …", () =>
       kern<NormEintrag[]>("akten.normen", { akte_id: akteId, dokument_id: dokumentId }),
@@ -669,6 +740,8 @@ export default function Akte({
   const zeigeVolltextSeite =
     !!volltext && (ansicht === "rechtsprechung" || (ansicht === "dokument" && dokModus === "rechtsprechung"));
   const zeigeBelegSeite = !!auswahl && ansicht === "dokument" && (dokModus === "text" || dokModus === "original");
+  const zeigeAnmerkSeite =
+    !zeigeBelegSeite && !anmerkZu && !!inhalt && ansicht === "dokument" && (dokModus === "text" || dokModus === "original");
 
   const filterKnopf = (aktiv: boolean, text: string, anzahl: number, onClick: () => void, klasse = "") => (
     <button key={text} className={`filter-eintrag ${klasse}${aktiv ? " aktiv" : ""}`} aria-pressed={aktiv} onClick={onClick}>
@@ -785,9 +858,9 @@ export default function Akte({
 
   // Hauptinhalt mit Seitenleiste (Wortlaut einer Norm, Volltext einer Entscheidung) und verschiebbarem Trenner.
   const arbeitsflaeche = (haupt: ReactNode) => (
-    <div className="akte-arbeitsflaeche" ref={flaeche} style={{ "--seite-breite": `${seitenbreite}px` } as CSSProperties}>
+    <div className={`akte-arbeitsflaeche${zeigeAnmerkSeite ? " mit-anmerkungen" : ""}`} ref={flaeche} style={{ "--seite-breite": `${seitenbreite}px` } as CSSProperties}>
       <div className="akte-haupt">{haupt}</div>
-      {(zeigeVolltextSeite || zeigeBelegSeite) && (
+      {(zeigeVolltextSeite || zeigeBelegSeite || zeigeAnmerkSeite) && (
         <div
           className="trenner"
           role="separator"
@@ -800,6 +873,16 @@ export default function Akte({
       )}
       {zeigeVolltextSeite && volltext && (
         <VolltextAnsicht volltext={volltext} rn={volltextRn} onSchliessen={() => setVolltext(null)} />
+      )}
+      {zeigeAnmerkSeite && (
+        <AnmerkungsLeiste
+          liste={anm.liste}
+          bedeutungen={anm.bedeutungen}
+          aktiv={anm.aktiv}
+          onWaehle={anmerkungWaehlen}
+          onAkte={() => onReiter("anmerkungen")}
+          onSchliessen={anmerkungenUmschalten}
+        />
       )}
       {zeigeBelegSeite && auswahl && (
         <aside className="akte-seite">
@@ -818,6 +901,7 @@ export default function Akte({
           arbeitsflaeche(normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} />)}
         {reiter === "rechtsprechung" && arbeitsflaeche(rechtsprechungAnsicht())}
         {kiAn && reiter === "chat" && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
+        {reiter === "anmerkungen" && <AnmerkungenReiter akteId={akteId} onOeffnen={(a) => void oeffneAnmerkung(a)} />}
       </div>
     );
   }
@@ -997,6 +1081,12 @@ export default function Akte({
                       {d.randnummern > 0 && <> · {d.randnummern} Rn.</>}
                       {d.herkunft && <> · {d.herkunft}</>}
                       {d.fassung.nr > 1 && <> · Fassung {d.fassung.nr}</>}
+                      {!!d.anmerkungen && (
+                        <>
+                          {" · "}
+                          {d.anmerkungen} {d.anmerkungen === 1 ? "Anmerkung" : "Anmerkungen"}
+                        </>
+                      )}
                       {kopien.some((k) => k.dokument_id === d.id) && <> · in Bearbeitung</>}
                     </div>
                     {tagEdit?.id === d.id ? (
@@ -1060,6 +1150,11 @@ export default function Akte({
               dokument={inhalt.dokument}
               modus={dokModus}
               onModus={(m) => m !== dokModus && nachRueckfrage(() => void waehleDokModus(m))}
+              anmerkungen={
+                dokModus === "text" || dokModus === "original"
+                  ? { anzahl: anm.liste.length, offen: zeigeAnmerkSeite, onUmschalten: anmerkungenUmschalten }
+                  : undefined
+              }
             />
             {verlassen && (
               <div className="rueckfrage" role="alertdialog" aria-label="Änderungen speichern?">
@@ -1108,11 +1203,33 @@ export default function Akte({
             />
             {arbeitsflaeche(
               <>
+                {anm.schicht}
                 {dokModus === "text" && (
-                  <DokumentAnsicht inhalt={inhalt} auswahl={auswahl} onZitat={waehleZitat} markiert={markiert ?? undefined} ohneTitel />
+                  <div
+                    ref={textRahmen}
+                    className="anm-rahmen"
+                    onMouseUp={() => textRahmen.current && anm.beiAuswahl(textRahmen.current)}
+                    {...anmerkungsHandler(anm.ereignisse)}
+                  >
+                    <DokumentAnsicht
+                      inhalt={inhalt}
+                      auswahl={auswahl}
+                      onZitat={waehleZitat}
+                      markiert={markiert ?? undefined}
+                      ohneTitel
+                      anmerkungen={anm.liste}
+                      aktiveAnmerkung={anm.aktiv}
+                    />
+                  </div>
                 )}
                 {dokModus === "original" && (
-                  <OriginalAnsicht key={inhalt.dokument.id} dokument={inhalt.dokument} startSeite={auswahl?.zitat.seite ?? null} />
+                  <OriginalAnsicht
+                    key={inhalt.dokument.id}
+                    dokument={inhalt.dokument}
+                    startSeite={auswahl?.zitat.seite ?? null}
+                    anmerkungen={anm.original}
+                    hinweis="Zum Markieren mit der Maus über die Wörter ziehen; Zitate und Belege zeigt die Textansicht."
+                  />
                 )}
                 {dokModus === "normen" && normen && (
                   <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} leer="In diesem Dokument wurden keine Normzitate erkannt." />
@@ -1346,6 +1463,8 @@ export function DokumentAnsicht({
   markiert,
   begriffe = [],
   ohneTitel = false,
+  anmerkungen = [],
+  aktiveAnmerkung = null,
 }: {
   inhalt: DokumentInhalt;
   auswahl?: Auswahl | null;
@@ -1357,8 +1476,48 @@ export function DokumentAnsicht({
   begriffe?: string[];
   /** In der Akte steht der Name schon im Kopf des geöffneten Dokuments. */
   ohneTitel?: boolean;
+  /** Markierungen und Kommentare (Anmerkungen.tsx); Mausereignisse fängt der umgebende Rahmen ab. */
+  anmerkungen?: Anmerkung[];
+  aktiveAnmerkung?: number | null;
 }) {
   const d = inhalt.dokument;
+  const beginne = useMemo(() => abschnittBeginne(inhalt.abschnitte), [inhalt]);
+
+  /** Text von ``von`` bis ``bis`` im Abschnitt: Markierungen, Sprechblasen am Ende kommentierter Stellen, Suchbegriffe. */
+  const markierterText = (text: string, von: number, bis: number, beginn: number) =>
+    stuecke(von, bis, beginn, anmerkungen).map((st) => {
+      const teil = text.slice(st.von, st.bis);
+      const inhaltTeil = markiereBegriffe(teil, begriffe).map((m, j) => (m.treffer ? <mark key={j}>{m.text}</mark> : m.text));
+      const blasen = st.endeVon
+        .filter((a) => a.kommentar)
+        .map((a) => (
+          <span
+            key={`b${a.id}`}
+            className={`anm-blase anm-blase-${a.farbe}`}
+            data-kein-text=""
+            data-anmerkung={a.id}
+            role="button"
+            tabIndex={0}
+            aria-label="Kommentar zeigen"
+          >
+            <Zeichen name="kommentar" groesse={12} />
+          </span>
+        ));
+      if (st.anmerkungen.length === 0) return <span key={st.von}>{inhaltTeil}</span>;
+      const aktiv = st.anmerkungen.some((a) => a.id === aktiveAnmerkung);
+      return (
+        <span key={st.von}>
+          <span
+            className={`${stueckKlassen(st.anmerkungen)}${aktiv ? " anm-aktiv" : ""}`}
+            data-anmerkung={st.anmerkungen.map((a) => a.id).join(" ")}
+          >
+            {inhaltTeil}
+          </span>
+          {blasen}
+        </span>
+      );
+    });
+
   return (
     <article className="dokument">
       {!ohneTitel && <h2>{d.dateiname}</h2>}
@@ -1387,12 +1546,16 @@ export function DokumentAnsicht({
           {h}
         </p>
       ))}
-      {inhalt.abschnitte.map((a) => (
+      {inhalt.abschnitte.map((a, ai) => {
+        let pos = 0;
+        return (
         <section key={a.nr} id={`abschnitt-${a.nr}`} className={`abschnitt ${a.art}${a.nr === markiert ? " markiert" : ""}`}>
           <span className="abschnitt-ort">{fundstelle(a)}</span>
-          <p>
-            {segmente(a.text, a.zitate).map((s, i) =>
-              s.zitat ? (
+          <p data-beginn={beginne[ai]}>
+            {segmente(a.text, a.zitate).map((s, i) => {
+              const von = pos;
+              pos += s.text.length;
+              return s.zitat ? (
                 <button
                   key={i}
                   className={`zitat ${s.zitat.status}${auswahl?.zitat === s.zitat ? " gewaehlt" : ""}`}
@@ -1400,17 +1563,16 @@ export function DokumentAnsicht({
                   onClick={() => onZitat?.(s.zitat!, a)}
                   disabled={!onZitat}
                 >
-                  {s.text}
+                  {markierterText(a.text, von, pos, beginne[ai])}
                 </button>
               ) : (
-                <span key={i}>
-                  {markiereBegriffe(s.text, begriffe).map((m, j) => (m.treffer ? <mark key={j}>{m.text}</mark> : m.text))}
-                </span>
-              ),
-            )}
+                <span key={i}>{markierterText(a.text, von, pos, beginne[ai])}</span>
+              );
+            })}
           </p>
         </section>
-      ))}
+        );
+      })}
     </article>
   );
 }
@@ -1430,10 +1592,13 @@ function DokModusLeiste({
   dokument,
   modus,
   onModus,
+  anmerkungen,
 }: {
   dokument: AktenDokument;
   modus: DokModus;
   onModus: (m: DokModus) => void;
+  /** Knopf für die Seitenleiste mit Markierungen und Kommentaren (nur in Text und Original). */
+  anmerkungen?: { anzahl: number; offen: boolean; onUmschalten: () => void };
 }) {
   const pdf = dokument.format === "pdf";
   // Ohne KI (Einstellungen) kein Chat mit dem Dokument.
@@ -1469,6 +1634,17 @@ function DokModusLeiste({
           {m.text}
         </button>
       ))}
+      {anmerkungen && (
+        <button
+          className={`anm-umschalter${anmerkungen.offen ? " aktiv" : ""}`}
+          aria-pressed={anmerkungen.offen}
+          onClick={anmerkungen.onUmschalten}
+          title={anmerkungen.offen ? "Anmerkungen ausblenden" : "Markierungen und Kommentare dieses Dokuments zeigen"}
+        >
+          <Zeichen name="markieren" groesse={15} /> Anmerkungen
+          {anmerkungen.anzahl > 0 && <span className="anzahl">{anmerkungen.anzahl}</span>}
+        </button>
+      )}
     </div>
   );
 }
@@ -1487,17 +1663,48 @@ export function OriginalAnsicht({
   startSeite,
   begriffe,
   hinweis = "Zitate und Belege zeigt die Textansicht.",
+  anmerkungen,
 }: {
   dokument: Pick<AktenDokument, "id" | "dateiname" | "seiten">;
   startSeite: number | null;
   /** Gesuchte Begriffe; ihre Fundstellen werden auf den Seiten gelb markiert. */
   begriffe?: string[];
   hinweis?: string;
+  /** Markierungen über die Seiten legen und auf den Seiten markieren lassen; ``stand`` zählt jede Änderung. */
+  anmerkungen?: OriginalAnmerkungen;
 }) {
   const seiten = dokument.seiten ?? 1;
   const rahmen = useRef<HTMLDivElement>(null);
   const [bilder, setBilder] = useState<Record<number, Seitenbild | string>>({});
   const angefragt = useRef(new Set<number>());
+  const [aufSeite, setAufSeite] = useState<Record<number, AnmerkungAufSeite[]>>({});
+  const mitAnmerkungen = !!anmerkungen;
+  const anmerkStand = anmerkungen?.stand ?? 0;
+  const [woerter, setWoerter] = useState<Record<number, SeitenWort[]>>({});
+  const zug = useRef<{ seite: number; anker: number; x: number; y: number; bewegt: boolean } | null>(null);
+  const [gezogen, setGezogen] = useState<SeitenAuswahl | null>(null);
+
+  // Markierungen je geladener Seite; nach jeder Änderung neu.
+  const geladen = Object.keys(bilder).join(",");
+  useEffect(() => {
+    if (!mitAnmerkungen) return;
+    let gueltig = true;
+    for (const s of Object.keys(bilder).map(Number)) {
+      if (typeof bilder[s] !== "object") continue;
+      kern<AnmerkungAufSeite[]>("anmerkungen.seite", { dokument_id: dokument.id, seite: s })
+        .then((l) => gueltig && setAufSeite((v) => ({ ...v, [s]: l })))
+        .catch(() => undefined);
+      if (!woerter[s])
+        kern<SeitenWort[]>("anmerkungen.woerter", { dokument_id: dokument.id, seite: s })
+          .then((w) => gueltig && setWoerter((v) => ({ ...v, [s]: w })))
+          .catch(() => undefined);
+    }
+    return () => {
+      gueltig = false;
+    };
+    // Nur bei neuen Seiten oder geänderten Anmerkungen; ``bilder`` selbst ändert sich mit jeder Seite.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mitAnmerkungen, anmerkStand, geladen, dokument.id]);
 
   useEffect(() => {
     const el = rahmen.current;
@@ -1533,8 +1740,65 @@ export function OriginalAnsicht({
     el?.scrollIntoView({ block: zielMarkiert ? "center" : "start" });
   }, [startSeite, zielMarkiert]);
 
+  // Markieren im Original: mit der Maus über die Wörter ziehen (oder Doppelklick auf ein Wort).
+  function punkt(e: ReactPointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  }
+  function auswahlMelden(el: HTMLElement, a: SeitenAuswahl) {
+    const r = el.getBoundingClientRect();
+    const teile = auswahlRechtecke(woerter[a.seite] ?? [], a.von, a.bis);
+    if (!teile.length) return;
+    const oben = Math.min(...teile.map((t) => t.y));
+    const unten = Math.max(...teile.map((t) => t.y + t.h));
+    const links = Math.min(...teile.map((t) => t.x));
+    const rechts = Math.max(...teile.map((t) => t.x + t.b));
+    anmerkungen?.onAuswahl(
+      a,
+      new DOMRect(r.left + links * r.width, r.top + oben * r.height, (rechts - links) * r.width, (unten - oben) * r.height),
+    );
+  }
+  const ziehen = (s: number) =>
+    anmerkungen && woerter[s]?.length
+      ? {
+          onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => {
+            if (e.button !== 0 || (e.target as Element).closest("[data-anmerkung]")) return;
+            const p = punkt(e);
+            const i = wortAn(woerter[s], p.x, p.y);
+            if (i == null) return;
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            zug.current = { seite: s, anker: i, x: e.clientX, y: e.clientY, bewegt: false };
+          },
+          onPointerMove: (e: ReactPointerEvent<HTMLDivElement>) => {
+            const z = zug.current;
+            if (!z) return;
+            if (!z.bewegt && Math.hypot(e.clientX - z.x, e.clientY - z.y) < 5) return;
+            z.bewegt = true;
+            const p = punkt(e);
+            const i = wortAn(woerter[s], p.x, p.y) ?? z.anker;
+            setGezogen({ seite: s, von: Math.min(z.anker, i), bis: Math.max(z.anker, i) });
+          },
+          onPointerUp: (e: ReactPointerEvent<HTMLDivElement>) => {
+            const z = zug.current;
+            zug.current = null;
+            if (!z) return;
+            if (z.bewegt && gezogen) auswahlMelden(e.currentTarget, gezogen);
+            else if (anmerkungen.auswahl) anmerkungen.onAuswahl(null);
+            setGezogen(null);
+          },
+          onDoubleClick: (e: ReactMouseEvent<HTMLDivElement>) => {
+            if ((e.target as Element).closest("[data-anmerkung]")) return;
+            const p = punkt(e);
+            const i = wortAn(woerter[s], p.x, p.y);
+            if (i != null) auswahlMelden(e.currentTarget, { seite: s, von: i, bis: i });
+          },
+        }
+      : {};
+  const gewaehlt = gezogen ?? anmerkungen?.auswahl ?? null;
+
   return (
-    <div className="original" ref={rahmen}>
+    <div className="original" ref={rahmen} {...(anmerkungen ? anmerkungsHandler(anmerkungen.ereignisse) : {})}>
       <p className="dokument-info">
         Originaldatei aus der Ablage der Akte, {seiten} {seiten === 1 ? "Seite" : "Seiten"}. {hinweis}
       </p>
@@ -1543,8 +1807,8 @@ export function OriginalAnsicht({
         return (
           <figure key={s} id={`seite-${s}`} data-seite={s} className="original-seite">
             {typeof b === "object" ? (
-              <div className="original-bild">
-                <img src={b.bild} width={b.breite} height={b.hoehe} alt={`Seite ${s} von ${dokument.dateiname}`} />
+              <div className={`original-bild${anmerkungen && woerter[s]?.length ? " anm-waehlbar" : ""}`} {...ziehen(s)}>
+                <img draggable={false} src={b.bild} width={b.breite} height={b.hoehe} alt={`Seite ${s} von ${dokument.dateiname}`} />
                 {b.markierungen.map((m, i) => (
                   <span
                     key={i}
@@ -1552,6 +1816,30 @@ export function OriginalAnsicht({
                     style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%`, width: `${m.b * 100}%`, height: `${m.h * 100}%` }}
                   />
                 ))}
+                {gewaehlt?.seite === s &&
+                  auswahlRechtecke(woerter[s] ?? [], gewaehlt.von, gewaehlt.bis).map((r, i) => (
+                    <span
+                      key={`w${i}`}
+                      className="anm-seitenauswahl"
+                      style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.b * 100}%`, height: `${r.h * 100}%` }}
+                    />
+                  ))}
+                {(aufSeite[s] ?? []).flatMap((a) =>
+                  a.rechtecke.map((r, i) => (
+                    <span
+                      key={`a${a.id}-${i}`}
+                      className={`anm-rechteck ${stueckKlassen([a])}${a.id === anmerkungen?.aktiv ? " anm-aktiv" : ""}`}
+                      data-anmerkung={a.id}
+                      style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.b * 100}%`, height: `${r.h * 100}%` }}
+                    >
+                      {a.kommentar && i === a.rechtecke.length - 1 && (
+                        <span className={`anm-blase anm-blase-${a.farbe}`} aria-hidden>
+                          <Zeichen name="kommentar" groesse={11} />
+                        </span>
+                      )}
+                    </span>
+                  )),
+                )}
               </div>
             ) : typeof b === "string" ? (
               <p className="fehler">Seite {s} lässt sich nicht anzeigen: {b}</p>

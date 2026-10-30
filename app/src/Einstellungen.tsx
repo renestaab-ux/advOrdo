@@ -2,6 +2,7 @@ import ZeitSaetze from "./ZeitSaetze";
 import { FormEvent, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import AktenEinstellungen from "./AktenEinstellungen";
+import { BedeutungenKarte } from "./Anmerkungen";
 import Diagnose from "./Diagnose";
 import Nachrichten from "./Nachrichten";
 import Gerichtsverzeichnis from "./Gerichtsverzeichnis";
@@ -196,6 +197,7 @@ export default function Einstellungen({
     inhalt = (
       <>
         <AktenEinstellungen umgebungen={umgebungen} />
+        <BedeutungenKarte key={umgebungen?.aktiv} />
         <Gerichtsverzeichnis />
       </>
     );

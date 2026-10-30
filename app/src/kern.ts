@@ -616,6 +616,8 @@ export interface AktenDokument {
   hinweise: string[];
   importiert_am: string;
   randnummern: number;
+  /** Zahl der Markierungen und Kommentare (Anmerkungen.tsx). */
+  anmerkungen?: number;
   zitate: Partial<Record<ZitatStatus, number>>;
   /** Unterordner beim Ordner-Import, z. B. "Kläger/Anlagen". */
   herkunft: string | null;
@@ -1183,10 +1185,10 @@ export interface SammlungEintrag extends UrteilInfo {
 
 /** Treffer der Volltextsuche in den gespeicherten Entscheidungen, beste zuerst. */
 export interface SammlungSuche {
-  urteile: {
+  urteile: ({
     sha256: string;
     fundstellen: { nr: number; rn: number | null; ausschnitt: { vor: string; treffer: string; nach: string } }[];
-  }[];
+  } & Pick<UrteilInfo, "id" | "gericht" | "aktenzeichen" | "datum" | "kopf">)[];
   treffer: number;
 }
 
