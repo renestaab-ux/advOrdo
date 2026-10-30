@@ -231,6 +231,8 @@ def zweck(anfrage: urllib.request.Request) -> str:
         return "Entscheidungen suchen (NeuRIS)"
     if host.endswith("xrepository.de"):
         return "Gerichtsverzeichnis laden"
+    if host.endswith("justizadressen.nrw.de"):
+        return "Zuständiges Gericht suchen (justizadressen.nrw.de)"
     return "Abruf"
 
 
