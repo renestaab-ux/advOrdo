@@ -202,14 +202,16 @@ export default function Prozesskosten() {
   );
 }
 
-function KostenAusgabe({ e }: { e: ProzesskostenErgebnis }) {
+export function KostenAusgabe({ e, mitDruck = true }: { e: ProzesskostenErgebnis; mitDruck?: boolean }) {
   return (
     <div className="rechner-ergebnis">
       <div className="kopf">
         <h2>Kostenrisiko: {euro(e.kostenrisiko)}</h2>
-        <button className="zweitrangig nicht-drucken" onClick={() => void drucken()}>
-          Drucken …
-        </button>
+        {mitDruck && (
+          <button className="zweitrangig nicht-drucken" onClick={() => void drucken()}>
+            Drucken …
+          </button>
+        )}
       </div>
       <dl className="summen">
         <dt>Streitwert</dt>

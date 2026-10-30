@@ -74,7 +74,7 @@ def test_zinsen_rechnet_die_app_mit_belegten_angaben(akten, con, tmp_path):
     antwort = chat.frage(akten, modell, 32768, akte_id, "Kannst du mir die Zinsen zum heutigen Tag ausrechnen?",
                          rechner=True, heute=date(2026, 10, 23))
 
-    assert "Rechne Zinsen oder Fristen nicht selbst" in modell.anfragen[0]
+    assert "Rechne Zinsen, Fristen, Anwalts- oder Gerichtskosten nicht selbst" in modell.anfragen[0]
     erste = antwort["aussagen"][0]
     assert erste["art"] == "berechnung" and erste["status"] == "belegt"
     b = erste["berechnung"]
@@ -141,6 +141,172 @@ def test_frist_mit_dem_fristenrechner(akten, con, tmp_path):
     assert a["status"] == "belegt"
     assert a["berechnung"]["ergebnis"]["ende"] == "2026-03-16"
     assert "Montag, 16.03.2026" in a["text"]
+
+
+URTEIL = (
+    "Landgericht Freiburg im Breisgau\n\nUrteil\n\n"
+    "Die Beklagte wird verurteilt, an die Klägerin 14.448,73 € nebst Zinsen in Höhe von fünf Prozentpunkten über dem "
+    "Basiszinssatz seit dem 30.07.2025 zu zahlen. Die Beklagte trägt die Kosten des Rechtsstreits.\n\n"
+    "Der Streitwert wird auf 14.555,40 € festgesetzt."
+)
+
+
+def _urteilsakte(akten, con, tmp_path) -> int:
+    a = akte.akte_anlegen(akten, "Brückner ./. Autohaus")
+    pfad = tmp_path / "08_Urteil.md"
+    pfad.write_text(URTEIL, encoding="utf-8")
+    akte.importiere(akten, con, a["id"], pfad, tmp_path / "ablage", ocr=False)
+    return a["id"]
+
+
+def _kostenangaben(prompt: str) -> list[dict]:
+    d, n = _zeile(prompt, "Streitwert wird")
+    return [{"feld": "streitwert", "wert": "14.555,40 €", "dokument": d, "absatz": n,
+             "zitat": "Der Streitwert wird auf 14.555,40 € festgesetzt"}]
+
+
+def test_rvg_kosten_mit_dem_prozesskostenrechner(akten, con, tmp_path):
+    akte_id = _urteilsakte(akten, con, tmp_path)
+    modell = Attrappe(lambda p, s: {"aussagen": [], "berechnungen": [
+        {"rechner": "prozesskosten", "angaben": _kostenangaben(p)}]})
+    erg = chat.frage(akten, modell, 32768, akte_id, "Bitte rechne die RVG-Kosten aus, die die Gegenseite "
+                     "erstatten muss.", rechner=True, heute=date(2026, 10, 30))
+
+    assert '"prozesskosten"' in modell.anfragen[0]
+    a = erg["aussagen"][0]
+    b = a["berechnung"]
+    assert b["rechner"] == "prozesskosten" and a["status"] == "belegt"
+    # Rechtszug und Verfahrensende belegt die App selbst am Urteil (Gericht, Überschrift).
+    assert all(e["status"] == "belegt" and e["fundstelle"] for e in b["eingaben"])
+    assert [e["feld"] for e in b["eingaben"]] == ["streitwert", "instanz", "ende"]
+    # 14.555,40 €, erste Instanz mit Urteil, Gebührenrecht seit 01.06.2025: volle Gebühr RVG 762 €, GKG 344 €
+    # (Anlage 2 RVG/GKG, Wertstufe bis 16.000 €).
+    assert b["ergebnis"]["gebuehr_rvg"] == "762.0" and b["ergebnis"]["gebuehr_gkg"] == "344.0"
+    # (1,3 + 1,2) × 762 € = 1.905 € + 20 € Pauschale = 1.925 € + 19 % USt = 2.290,75 €; Gericht 3,0 × 344 €
+    assert b["ergebnis"]["summe_eigene"] == "2290.75"
+    assert b["ergebnis"]["summe_gericht"] == "1032.00"
+    assert "eigene Anwaltskosten 2.290,75 €" in a["text"] and "Gerichtskosten 1.032,00 €" in a["text"]
+    assert any("§ 60 RVG" in h for h in b["ergebnis"]["hinweise"])
+
+
+def test_bei_erstattungsfrage_der_erstattungsbetrag(akten, con, tmp_path):
+    akte_id = _urteilsakte(akten, con, tmp_path)
+    erg = chat.frage(akten, Attrappe(lambda p, s: {"aussagen": [], "berechnungen": []}), 32768, akte_id,
+                     "Ich vertrete die Klägerin, welche Rechtsanwaltskosten kann ich nun, auf Basis dieses Urteils, "
+                     "von der Beklagten verlangen?",
+                     rechner=True, heute=date(2026, 10, 30))
+    a = erg["aussagen"][0]
+    # 2.290,75 € eigene Anwaltskosten + 1.032,00 € Gerichtskosten
+    assert a["text"].startswith("Von der Gegenseite zu erstatten") and "3.322,75 €" in a["text"]
+    assert any("Vorbem. 3 Abs. 4 VV RVG" in h for h in a["berechnung"]["ergebnis"]["hinweise"])
+
+
+def test_bei_kosten_kein_zinsrechner(akten, con, tmp_path):
+    """Fragt der Nutzer nach Kosten, zählt ein Vorschlag für den Zinsrechner nicht; die App fragt gezielt nach den
+    Angaben für den Prozesskostenrechner (Fall aus dem Test am 30.10.2026)."""
+    akte_id = _urteilsakte(akten, con, tmp_path)
+
+    def antwort(prompt, schema):
+        if "Beantworte die Frage nicht" in prompt:
+            assert "„prozesskosten“" in prompt
+            return {"berechnungen": [{"rechner": "prozesskosten", "angaben": _kostenangaben(prompt)}]}
+        d, n = _zeile(prompt, "14.448,73")
+        return {"aussagen": [], "berechnungen": [{"rechner": "zinsen", "angaben": [
+            {"feld": "hauptbetrag", "wert": "14.448,73 €", "dokument": d, "absatz": n, "zitat": "14.448,73 €"},
+            {"feld": "zinsbeginn", "wert": "30.07.2025", "dokument": d, "absatz": n, "zitat": "seit dem 30.07.2025"},
+            {"feld": "zinssatz", "wert": "5 Prozentpunkte über dem Basiszinssatz", "dokument": d, "absatz": n,
+             "zitat": "fünf Prozentpunkten über dem Basiszinssatz"},
+        ]}]}
+
+    chat.frage(akten, Attrappe(lambda p, s: {"aussagen": []}), 32768, akte_id,
+               "Welche Rechtsanwaltsvergütung nach RVG kann ich von der Gegenseite ersetzt verlangen?")
+    erg = chat.frage(akten, Attrappe(antwort), 32768, akte_id, "Bitte rechne das aus.", rechner=True,
+                     heute=date(2026, 10, 30))
+    rechner = [a["berechnung"]["rechner"] for a in erg["aussagen"] if a["art"] == "berechnung"]
+    assert rechner == ["prozesskosten"]
+
+
+def test_streitwert_findet_die_app_selbst(akten, con, tmp_path):
+    """Das Modell liefert keine Angaben, auch nicht auf die Nachfrage (Test von René am 30.10.2026): Die App liest
+    den Streitwert selbst aus dem Urteil, mit Fundstelle."""
+    akte_id = _urteilsakte(akten, con, tmp_path)
+    modell = Attrappe(lambda p, s: {"aussagen": [
+        {"text": "Die Dokumente enthalten keine Informationen zur Berechnung der Rechtsanwaltsvergütung nach RVG.",
+         "art": "hinweis", "belege": []}], "berechnungen": []})
+    erg = chat.frage(akten, modell, 32768, akte_id, "Bitte rechne diese Kosten aus.", rechner=True,
+                     heute=date(2026, 10, 30))
+    a = erg["aussagen"][0]
+    assert a["berechnung"]["rechner"] == "prozesskosten" and a["status"] == "belegt"
+    streitwert = a["berechnung"]["eingaben"][0]
+    assert streitwert["wert"] == "14.555,40 €" and streitwert["fundstelle"] is not None
+    assert len(modell.anfragen) == 1  # keine Nachfrage nötig
+    assert not any(x["art"] == "hinweis" for x in erg["aussagen"])
+
+
+def test_streitwert_des_dokuments_geht_dem_modell_vor(akten, con, tmp_path):
+    akte_id = _urteilsakte(akten, con, tmp_path)
+    erg = chat.frage(akten, Attrappe(lambda p, s: {"aussagen": [], "berechnungen": [{"rechner": "prozesskosten",
+                     "angaben": [{"feld": "streitwert", "wert": "14.900,00 €", "dokument": 1, "absatz": 1,
+                                  "zitat": "Urteil"}]}]}),
+                     32768, akte_id, "Bitte berechne die Prozesskosten.", rechner=True)
+    e = erg["aussagen"][0]["berechnung"]["eingaben"][0]
+    assert e["wert"] == "14.555,40 €" and e["status"] == "belegt"
+
+
+def test_streitwert_aus_den_stammdaten(akten, con, tmp_path):
+    from juracore.aktenverwaltung import einrichten
+    from juracore.eigene import daten as eigene
+
+    eigene.einrichten(akten)
+    einrichten(akten)
+    akte_id = _akte(akten, con, tmp_path)
+    with akten:
+        akten.execute("UPDATE akte SET gegenstandswert = '12500.00' WHERE id = ?", (akte_id,))
+    erg = chat.frage(akten, Attrappe(lambda p, s: {"aussagen": [], "berechnungen": []}), 32768, akte_id,
+                     "Welche Anwaltsgebühren fallen an?", rechner=True)
+    e = erg["aussagen"][0]["berechnung"]["eingaben"][0]
+    assert e["wert"] == "12.500,00 €" and e["quelle"] == "akte"
+
+
+def test_ohne_streitwert_wird_er_als_fehlend_genannt(akten, con, tmp_path):
+    akte_id = _akte(akten, con, tmp_path)
+    erg = chat.frage(akten, Attrappe(lambda p, s: {"aussagen": [], "berechnungen": []}), 32768, akte_id,
+                     "Welche Anwaltsgebühren fallen an?", rechner=True)
+    b = erg["aussagen"][0]["berechnung"]
+    assert b["fehlt"] == ["Streitwert"] and "fehlt" in erg["aussagen"][0]["text"]
+
+
+def test_streitwert_angabe_bevorzugt_festgesetzten_wert():
+    texte = [{1: "Streitwert (vorläufig): 10.000,00 €"}, {4: "Der Streitwert wird auf 9.500,00 € festgesetzt."}]
+    assert wissen.streitwert_angabe(texte)["wert"] == "9.500,00 €"
+    texte = [{1: "Vorläufiger Streitwert: 10.000,00 €"}, {4: "Gegenstandswert: 9.500 €"}]
+    assert wissen.streitwert_angabe(texte)["dokument"] == 2
+
+
+def test_passende_rechner():
+    assert wissen.passende_rechner("Bitte rechne diese Kosten aus.") == {wissen.PROZESSKOSTEN}
+    assert wissen.passende_rechner("Rechne die Zinsen aus.") == {wissen.ZINSEN}
+    assert wissen.passende_rechner("Rechne das aus.", "Wann endet die Frist?") == {wissen.FRIST}
+    assert wissen.passende_rechner("Rechne das aus.") == set()
+
+
+def test_prozesskosten_angaben_werden_geprueft(akten, con, tmp_path):
+    akte_id = _urteilsakte(akten, con, tmp_path)
+
+    def antwort(prompt, schema):
+        d, n = _zeile(prompt, "Streitwert wird")
+        return {"aussagen": [], "berechnungen": [{"rechner": "prozesskosten", "angaben": [
+            *_kostenangaben(prompt),
+            {"feld": "instanz", "wert": "berufung", "dokument": d, "absatz": n, "zitat": "Der Streitwert wird"},
+            {"feld": "auftrag", "wert": "02.04.2025", "dokument": 0, "absatz": 0, "zitat": "Auftrag am 02.04.2025"},
+        ]}]}
+
+    erg = chat.frage(akten, Attrappe(antwort), 32768, akte_id,
+                     "Welche Gebühren fallen an? Der Auftrag kam am 02.04.2025.", rechner=True)
+    b = erg["aussagen"][0]["berechnung"]
+    status = {e["feld"]: e["status"] for e in b["eingaben"]}
+    assert status["instanz"] == "ohne_beleg" and status["auftrag"] == "belegt"
+    assert b["ergebnis"]["fassung"] == "2021"
 
 
 def test_ohne_rechenfrage_kein_rechner(akten, con, tmp_path):

@@ -5,6 +5,7 @@ import { Zitatbereich, ZitateSchalter, useZitateZeigen } from "./Belege";
 import { GegenueberstellungListe } from "./Gegenueberstellung";
 import { gemerkt, merke } from "./merken";
 import { FristAusgabe, ZinsAusgabe, gespeichertesLand } from "./Toolbox";
+import { KostenAusgabe } from "./Prozesskosten";
 import {
   ChatAussage,
   ChatBerechnung,
@@ -272,7 +273,7 @@ export default function Chat({
             aria-label={`Frage zu ${gegenstand}`}
           />
           <div className="chat-wissen" role="group" aria-label="Zusatzwissen für die Antwort">
-            <label title="Zinsen und Fristen rechnet die App mit dem Rechner der Toolbox; das Modell liefert nur die Angaben aus den Dokumenten.">
+            <label title="Zinsen, Fristen und Prozesskosten (RVG, GKG) rechnet die App mit den Rechnern der Toolbox; das Modell liefert nur die Angaben aus den Dokumenten.">
               <input
                 type="checkbox"
                 checked={rechner}
@@ -281,7 +282,7 @@ export default function Chat({
                   merke("chat.ohne_rechner", !e.target.checked);
                 }}
               />{" "}
-              Rechner (Zinsen, Fristen)
+              Rechner (Zinsen, Fristen, Kosten)
             </label>
             <label title="Normen gehen mit Wortlaut und Fassung an das Modell. Das braucht mehr Kontext (bis etwa 4.000 Token) und dauert länger; die Suche zur Frage am längsten.">
               Gesetze:{" "}
@@ -483,6 +484,8 @@ function Berechnung({
           <li key={e.feld} className={e.status}>
             <span className="leise">{e.titel}:</span> {e.wert}{" "}
             {e.quelle === "frage" && <span className="leise">(aus der Frage)</span>}
+            {e.quelle === "annahme" && <span className="leise">(angenommen, in der Toolbox änderbar)</span>}
+            {e.quelle === "akte" && <span className="leise">(aus den Stammdaten der Akte)</span>}
             {e.status === "ohne_beleg" && <span className="ohne-beleg">ohne Beleg</span>}
             {e.fundstelle && (
               <ul className="belege">
@@ -497,6 +500,8 @@ function Berechnung({
           <summary>Rechenweg wie in der Toolbox</summary>
           {b.rechner === "zinsen" ? (
             <ZinsAusgabe e={b.ergebnis} mitDruck={false} />
+          ) : b.rechner === "prozesskosten" ? (
+            <KostenAusgabe e={b.ergebnis} mitDruck={false} />
           ) : (
             <FristAusgabe e={b.ergebnis} mitDruck={false} />
           )}
