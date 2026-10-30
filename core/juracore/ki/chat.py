@@ -29,6 +29,7 @@ import json
 import re
 import sqlite3
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from ..abgleich.abgleich import PARTEIEN
 from ..rechner.basiszins import Basiszins
@@ -281,7 +282,10 @@ def frage(
         # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung, Verlauf und Zusatzwissen,
         # rund 3 Zeichen je Token.
         budget = max(3000, (kontext - ANTWORT_TOKEN - 1200) * 3 - len(bisher) - len(text) - zusatz)
-        stuecke, auswahl = waehle(texte, text + " " + bisher[-300:], budget)
+        begriffe = text + " " + bisher[-300:]
+        if rechnen and wissen.PROZESSKOSTEN in passende_rechner:
+            begriffe += " " + wissen.KOSTEN_BEGRIFFE
+        stuecke, auswahl = waehle(texte, begriffe, budget)
 
         teile = []
         for nr, (t, abschnitte) in enumerate(zip(texte, stuecke, strict=True), 1):
@@ -423,6 +427,10 @@ def frage(
             return f, t.nach_nr[f["abschnitt"]]
 
         vorschlaege = wissen.nur_passende(antwort.get("berechnungen"), passende_rechner)
+        if wissen.PROZESSKOSTEN in passende_rechner:
+            # Den Streitwert findet die App auch selbst; kleine Modelle übersehen ihn gern.
+            vorschlaege = wissen.ergaenze_prozesskosten(vorschlaege, [t.nach_nr for t in texte],
+                                                        _gegenstandswert(con, akte_id))
         if not wissen.brauchbar(vorschlaege):
             # Zweiter, schmaler Auftrag nur für die Angaben des Rechners; kleine Modelle übergehen das Feld neben
             # der eigentlichen Antwort gern.
@@ -434,6 +442,9 @@ def frage(
                     wissen.SCHEMA_NUR_BERECHNUNG).get("berechnungen"), passende_rechner)
             except KiFehler:
                 vorschlaege = None
+            if wissen.PROZESSKOSTEN in passende_rechner:
+                vorschlaege = wissen.ergaenze_prozesskosten(vorschlaege, [t.nach_nr for t in texte],
+                                                            _gegenstandswert(con, akte_id))
         berechnungen = wissen.berechne(vorschlaege, belegen, text, heute or date.today(), basiszins, land)
     for b in reversed(berechnungen):
         aussagen.insert(0, {"text": b["text"], "art": BERECHNUNG, "status": BELEGT if b["belegt"] else OHNE_BELEG,
@@ -642,6 +653,20 @@ def _zu_lang_text(fehler: Exception) -> str:
     return ("Die Anfrage passt nicht in den Kontext, mit dem das Modell im Programm geladen ist. In LM Studio die "
             "„Context Length“ des Modells prüfen (empfohlen 32768, wie unter „Einstellungen“ angegeben) oder weniger "
             f"Gesetze oder Rechtsprechung einbeziehen. Meldung des Programms: {fehler}")
+
+
+def _gegenstandswert(con: sqlite3.Connection, akte_id: int) -> str | None:
+    """Gegenstandswert aus den Stammdaten der Akte, falls eingetragen."""
+    try:
+        zeile = con.execute("SELECT gegenstandswert FROM akte WHERE id = ?", (akte_id,)).fetchone()
+    except sqlite3.OperationalError:  # Akte ohne Stammdaten-Spalten (ältere Datenbank)
+        return None
+    if not zeile or not zeile[0]:
+        return None
+    try:
+        return wissen.euro(Decimal(zeile[0]))
+    except ArithmeticError:
+        return str(zeile[0])
 
 
 def _beleg(texte: list[belege.Text], dokument: object, absatz: object, zitat: object) -> dict | None:

@@ -485,6 +485,7 @@ function Berechnung({
             <span className="leise">{e.titel}:</span> {e.wert}{" "}
             {e.quelle === "frage" && <span className="leise">(aus der Frage)</span>}
             {e.quelle === "annahme" && <span className="leise">(angenommen, in der Toolbox änderbar)</span>}
+            {e.quelle === "akte" && <span className="leise">(aus den Stammdaten der Akte)</span>}
             {e.status === "ohne_beleg" && <span className="ohne-beleg">ohne Beleg</span>}
             {e.fundstelle && (
               <ul className="belege">

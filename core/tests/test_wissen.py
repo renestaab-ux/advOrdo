@@ -213,6 +213,63 @@ def test_bei_kosten_kein_zinsrechner(akten, con, tmp_path):
     assert rechner == ["prozesskosten"]
 
 
+def test_streitwert_findet_die_app_selbst(akten, con, tmp_path):
+    """Das Modell liefert keine Angaben, auch nicht auf die Nachfrage (Test von René am 30.10.2026): Die App liest
+    den Streitwert selbst aus dem Urteil, mit Fundstelle."""
+    akte_id = _urteilsakte(akten, con, tmp_path)
+    modell = Attrappe(lambda p, s: {"aussagen": [
+        {"text": "Die Dokumente enthalten keine Informationen zur Berechnung der Rechtsanwaltsvergütung nach RVG.",
+         "art": "hinweis", "belege": []}], "berechnungen": []})
+    erg = chat.frage(akten, modell, 32768, akte_id, "Bitte rechne diese Kosten aus.", rechner=True,
+                     heute=date(2026, 10, 30))
+    a = erg["aussagen"][0]
+    assert a["berechnung"]["rechner"] == "prozesskosten" and a["status"] == "belegt"
+    streitwert = a["berechnung"]["eingaben"][0]
+    assert streitwert["wert"] == "14.555,40 €" and streitwert["fundstelle"] is not None
+    assert len(modell.anfragen) == 1  # keine Nachfrage nötig
+    assert not any(x["art"] == "hinweis" for x in erg["aussagen"])
+
+
+def test_streitwert_des_dokuments_geht_dem_modell_vor(akten, con, tmp_path):
+    akte_id = _urteilsakte(akten, con, tmp_path)
+    erg = chat.frage(akten, Attrappe(lambda p, s: {"aussagen": [], "berechnungen": [{"rechner": "prozesskosten",
+                     "angaben": [{"feld": "streitwert", "wert": "14.900,00 €", "dokument": 1, "absatz": 1,
+                                  "zitat": "Urteil"}]}]}),
+                     32768, akte_id, "Bitte berechne die Prozesskosten.", rechner=True)
+    e = erg["aussagen"][0]["berechnung"]["eingaben"][0]
+    assert e["wert"] == "14.555,40 €" and e["status"] == "belegt"
+
+
+def test_streitwert_aus_den_stammdaten(akten, con, tmp_path):
+    from juracore.aktenverwaltung import einrichten
+    from juracore.eigene import daten as eigene
+
+    eigene.einrichten(akten)
+    einrichten(akten)
+    akte_id = _akte(akten, con, tmp_path)
+    with akten:
+        akten.execute("UPDATE akte SET gegenstandswert = '12500.00' WHERE id = ?", (akte_id,))
+    erg = chat.frage(akten, Attrappe(lambda p, s: {"aussagen": [], "berechnungen": []}), 32768, akte_id,
+                     "Welche Anwaltsgebühren fallen an?", rechner=True)
+    e = erg["aussagen"][0]["berechnung"]["eingaben"][0]
+    assert e["wert"] == "12.500,00 €" and e["quelle"] == "akte"
+
+
+def test_ohne_streitwert_wird_er_als_fehlend_genannt(akten, con, tmp_path):
+    akte_id = _akte(akten, con, tmp_path)
+    erg = chat.frage(akten, Attrappe(lambda p, s: {"aussagen": [], "berechnungen": []}), 32768, akte_id,
+                     "Welche Anwaltsgebühren fallen an?", rechner=True)
+    b = erg["aussagen"][0]["berechnung"]
+    assert b["fehlt"] == ["Streitwert"] and "fehlt" in erg["aussagen"][0]["text"]
+
+
+def test_streitwert_angabe_bevorzugt_festgesetzten_wert():
+    texte = [{1: "Streitwert (vorläufig): 10.000,00 €"}, {4: "Der Streitwert wird auf 9.500,00 € festgesetzt."}]
+    assert wissen.streitwert_angabe(texte)["wert"] == "9.500,00 €"
+    texte = [{1: "Vorläufiger Streitwert: 10.000,00 €"}, {4: "Gegenstandswert: 9.500 €"}]
+    assert wissen.streitwert_angabe(texte)["dokument"] == 2
+
+
 def test_passende_rechner():
     assert wissen.passende_rechner("Bitte rechne diese Kosten aus.") == {wissen.PROZESSKOSTEN}
     assert wissen.passende_rechner("Rechne die Zinsen aus.") == {wissen.ZINSEN}

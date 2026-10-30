@@ -1863,8 +1863,8 @@ export interface ChatEingabe {
   wert: string;
   status: "belegt" | "ohne_beleg";
   fundstelle: KiFundstelle | null;
-  /** frage: aus der Frage übernommen; heute: Tag der Frage; annahme: von der App angenommen, Dokumente sagen nichts. */
-  quelle: "frage" | "heute" | "annahme" | null;
+  /** frage: aus der Frage übernommen; heute: Tag der Frage; annahme: von der App angenommen, Dokumente sagen nichts; akte: aus den Stammdaten. */
+  quelle: "frage" | "heute" | "annahme" | "akte" | null;
 }
 
 export type ChatBerechnung =

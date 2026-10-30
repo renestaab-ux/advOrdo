@@ -49,6 +49,7 @@ GESETZE_STUFEN = (GESETZE_AUS, GESETZE_ZITIERT, GESETZE_SUCHE)
 ZINSEN = "zinsen"
 FRIST = "frist"
 PROZESSKOSTEN = "prozesskosten"
+AKTE = "akte"  # Angabe aus den Stammdaten der Akte statt aus einem Dokument
 
 # Fragen, bei denen der Rechner angeboten wird.
 _RECHNEN = re.compile(
@@ -172,6 +173,45 @@ def passende_rechner(frage: str, vorher: str = "") -> set[str]:
         if passend:
             return passend
     return set()
+
+
+# Streitwert im Dokument, etwa „Streitwert: 14.555,40 €“ oder „Gegenstandswert von 14.555,40 €“.
+_STREITWERT = re.compile(
+    r"(?:vorläufig\w*\s+)?(?:Streit|Gegenstands)wert\b[^0-9€\n]{0,40}?"
+    r"(?P<b>\d{1,3}(?:\.\d{3})*(?:,\d{2})?\s*(?:€|Euro|EUR))", re.I)
+# Begriffe, nach denen bei Kostenfragen die Absätze für das Modell zusätzlich ausgewählt werden.
+KOSTEN_BEGRIFFE = "Streitwert Gegenstandswert Geschäftsgebühr Kostenentscheidung"
+
+
+def streitwert_angabe(texte: list[dict[int, str]]) -> dict | None:
+    """Streitwert aus den Dokumenten (je Dokument Absatz-Nr. → Text), ohne Modell, mit wörtlichem Zitat.
+    Ein festgesetzter Wert geht einem vorläufigen vor."""
+    funde = [("vorläufig" in m[0].lower(), d, nr, m) for d, absaetze in enumerate(texte, 1)
+             for nr, text in absaetze.items() for m in _STREITWERT.finditer(text) if _betrag(m["b"])]
+    if not funde:
+        return None
+    _, d, nr, m = min(funde, key=lambda f: f[0])
+    return {"feld": "streitwert", "wert": m["b"], "dokument": d, "absatz": nr, "zitat": m[0].strip()}
+
+
+def ergaenze_prozesskosten(vorschlaege: object, texte: list[dict[int, str]], akte_wert: str | None) -> list:
+    """Den Streitwert liest die App bei einer Kostenfrage selbst aus den Dokumenten; er geht dem Wert des Modells
+    vor, das ihn gern falsch abschreibt. Steht keiner in den Dokumenten, gilt der Wert des Modells, sonst der
+    Gegenstandswert aus den Stammdaten der Akte. Ohne alles bleibt die Berechnung mit „fehlt: Streitwert“ stehen."""
+    liste = [v for v in (vorschlaege if isinstance(vorschlaege, list) else []) if isinstance(v, dict)]
+    kosten = next((v for v in liste if v.get("rechner") == PROZESSKOSTEN), None)
+    if kosten is None:
+        kosten = {"rechner": PROZESSKOSTEN, "angaben": []}
+        liste.insert(0, kosten)
+    angaben = [a for a in kosten.get("angaben") or [] if isinstance(a, dict)]
+    vom_modell = any(a.get("feld") == "streitwert" and _betrag(str(a.get("wert", ""))) for a in angaben)
+    angabe = streitwert_angabe(texte)
+    if angabe is None and not vom_modell and akte_wert:
+        angabe = {"feld": "streitwert", "wert": akte_wert, "dokument": AKTE, "absatz": 0, "zitat": ""}
+    if angabe:
+        angaben = [angabe] + [a for a in angaben if a.get("feld") != "streitwert"]
+    kosten["angaben"] = angaben
+    return liste
 
 
 def nur_passende(vorschlaege: object, rechner: set[str]) -> object:
@@ -303,7 +343,7 @@ def _anzeige(feld: str, wert) -> str:
     if feld in ("zinsbeginn", "bis", "bezugstag", "auftrag"):
         return f"{wert:%d.%m.%Y}"
     if feld in ("hauptbetrag", "streitwert"):
-        return _euro(wert)
+        return euro(wert)
     if feld == "instanz":
         return prozesskosten.INSTANZEN[wert]["titel"]
     if feld == "ende":
@@ -322,7 +362,7 @@ def _anzeige(feld: str, wert) -> str:
     return str(wert)
 
 
-def _euro(betrag: Decimal | str) -> str:
+def euro(betrag: Decimal | str) -> str:
     text = f"{Decimal(betrag):,.2f}"
     return text.replace(",", "X").replace(".", ",").replace("X", ".") + " €"
 
@@ -358,7 +398,9 @@ def berechne(
                 continue
             eintrag = {"feld": feld, "titel": felder[feld], "wert": _anzeige(feld, wert), "_wert": wert,
                        "status": "ohne_beleg", "fundstelle": None, "quelle": None}
-            if a.get("dokument") == 0:
+            if a.get("dokument") == AKTE:
+                eintrag.update(status="belegt", quelle="akte")
+            elif a.get("dokument") == 0:
                 if _steht_im_text(feld, wert, frage):
                     eintrag.update(status="belegt", quelle="frage")
             elif (gefunden := belegen(a.get("dokument"), a.get("absatz"), a.get("zitat"))) is not None:
@@ -435,17 +477,17 @@ def _satz(rechner: str, ergebnis: dict, eingaben: dict[str, dict]) -> str:
         return f"Der Rechner konnte nicht rechnen: {ergebnis['fehler']}"
     r = ergebnis["ergebnis"]
     if rechner == PROZESSKOSTEN:
-        vorgerichtlich = (f" (davon vorgerichtlich {_euro(r['vorgerichtlich']['summe'])})"
+        vorgerichtlich = (f" (davon vorgerichtlich {euro(r['vorgerichtlich']['summe'])})"
                           if r["vorgerichtlich"] else "")
         return (f"Prozesskosten bei einem Streitwert von {eingaben['streitwert']['wert']} "
                 f"({eingaben['instanz']['wert']}, {eingaben['ende']['wert']}; Gebührenrecht {r['fassung_titel']}): "
-                f"eigene Anwaltskosten {_euro(r['summe_eigene'])}{vorgerichtlich}, Gerichtskosten "
-                f"{_euro(r['summe_gericht'])}, Anwaltskosten der Gegenseite {_euro(r['summe_gegner'])}; "
-                f"Kostenrisiko insgesamt {_euro(r['kostenrisiko'])}.")
+                f"eigene Anwaltskosten {euro(r['summe_eigene'])}{vorgerichtlich}, Gerichtskosten "
+                f"{euro(r['summe_gericht'])}, Anwaltskosten der Gegenseite {euro(r['summe_gegner'])}; "
+                f"Kostenrisiko insgesamt {euro(r['kostenrisiko'])}.")
     if rechner == ZINSEN:
         return (f"Zinsen auf {eingaben['hauptbetrag']['wert']} vom {eingaben['zinsbeginn']['wert']} bis "
                 f"{eingaben['bis']['_wert']:%d.%m.%Y} ({eingaben['zinssatz']['wert']}): "
-                f"{_euro(r['summe_zinsen'])}; Hauptforderung und Zinsen zusammen {_euro(r['gesamt'])}.")
+                f"{euro(r['summe_zinsen'])}; Hauptforderung und Zinsen zusammen {euro(r['gesamt'])}.")
     ende = date.fromisoformat(r["ende"])
     return (f"Frist von {eingaben['dauer']['wert']} ab {eingaben['bezugstag']['wert']}: Ende am "
             f"{r['wochentag']}, {ende:%d.%m.%Y}" + (f" (verschoben wegen {r['grund']})" if r["verschoben"] else "")
