@@ -5,6 +5,7 @@ from __future__ import annotations
 from html import escape
 
 from . import Absatz, Bericht, Eintrag, Kopf, Ueberschrift
+from .pdf import nummernspalte as _nummernspalte
 
 # Gilt nur innerhalb von .druckbericht, damit die Oberfläche der App unberührt bleibt. Die Klassen tragen „db-“
 # vorn, weil die Druckansicht im Dokument der App steht und deren Regeln (z. B. .belege li) sonst mitgelten.
@@ -23,6 +24,10 @@ STIL = """
 .druckbericht .db-marke { font-size: 8.5pt; border: 1px solid #777; border-radius: 3pt; padding: 0 3pt;
   margin-left: 4pt; }
 .druckbericht .db-eintrag { break-inside: avoid; margin: 0 0 6pt; }
+.druckbericht .db-spalte { padding-left: var(--db-spalte); }
+.druckbericht .db-spalte .db-nr { display: inline-block; width: var(--db-spalte); 
+  margin-left: calc(-1 * var(--db-spalte));
+  font-weight: 600; color: #000; }
 .druckbericht ul.db-belege { margin: 2pt 0 0; padding-left: 16pt; font-size: 9.5pt; }
 .druckbericht .db-ort { font-weight: 600; }
 .druckbericht .db-zitat { font-style: italic; }
@@ -30,7 +35,10 @@ STIL = """
 
 
 def fragment(bericht: Bericht) -> str:
-    teile = [f'<div class="druckbericht"><h1>{escape(bericht.titel)}</h1>']
+    nummernspalte = _nummernspalte(bericht)
+    # Etwas Luft, weil die Schrift im Druck (Helvetica Neue, Arial) breiter laufen kann als im PDF
+    stil = f' style="--db-spalte: {nummernspalte + 10:.0f}pt"' if nummernspalte else ""
+    teile = [f'<div class="druckbericht"{stil}><h1>{escape(bericht.titel)}</h1>']
     for b in bericht.bausteine:
         if isinstance(b, Kopf):
             teile.append('<table class="db-kopf">' + "".join(
@@ -40,18 +48,23 @@ def fragment(bericht: Bericht) -> str:
         elif isinstance(b, Absatz):
             teile.append(f'<p class="db-leise">{escape(b.text)}</p>' if b.leise else f"<p>{escape(b.text)}</p>")
         elif isinstance(b, Eintrag):
-            teile.append(_eintrag(b))
+            teile.append(_eintrag(b, bool(nummernspalte)))
     teile.append("</div>")
     return "".join(teile)
 
 
-def _eintrag(e: Eintrag) -> str:
-    nummer = f"{escape(e.nummer)} " if e.nummer else ""
+def _eintrag(e: Eintrag, nummernspalte: bool = False) -> str:
+    spalte_ = nummernspalte and e.kompakt
+    if spalte_:
+        nummer = f'<span class="db-nr">{escape(e.nummer)}</span>'
+    else:
+        nummer = f"{escape(e.nummer)} " if e.nummer else ""
     marken = "".join(f'<span class="db-marke">{escape(m)}</span>' for m in e.marken)
     if e.dringend:
-        kopf = f'<p class="db-dringend"><strong>{nummer}{escape(e.titel)}</strong>{marken}</p>'
+        kopf = (f'<p class="db-dringend">{nummer}<strong>{escape(e.titel)}</strong>{marken}</p>' if spalte_ else
+                f'<p class="db-dringend"><strong>{nummer}{escape(e.titel)}</strong>{marken}</p>')
     elif e.kompakt:
-        kopf = f"<p><strong>{nummer}</strong>{escape(e.titel)}{marken}</p>"
+        kopf = f"<p>{nummer if spalte_ else f'<strong>{nummer}</strong>'}{escape(e.titel)}{marken}</p>"
     else:
         kopf = f"<h3>{nummer}{escape(e.titel)}{marken}</h3>"
     zeilen = "".join(f"<p>{escape(z)}</p>" for z in e.zeilen)
@@ -67,7 +80,7 @@ def _eintrag(e: Eintrag) -> str:
                 text += f': <span class="db-zitat">„{escape(b.zitat)}“</span>'
             punkte.append(f"<li>{text}</li>")
         belege = f'<ul class="db-belege">{"".join(punkte)}</ul>'
-    return f'<div class="db-eintrag">{kopf}{zeilen}{belege}</div>'
+    return f'<div class="db-eintrag{" db-spalte" if spalte_ else ""}">{kopf}{zeilen}{belege}</div>'
 
 
 def seite(bericht: Bericht) -> str:

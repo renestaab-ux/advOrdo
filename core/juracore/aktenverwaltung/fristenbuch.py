@@ -148,7 +148,7 @@ def _tabellenzeile(p: dict) -> list[str]:
 
 def _eintrag(p: dict, mit_tag: bool = False) -> Eintrag:
     e = p["eintrag"]
-    zeit = _zeit(e) if p["typ"] == "termin" else ""
+    zeit = (_zeit(e) or "ganztägig") if p["typ"] == "termin" else ""
     nummer = " ".join(x for x in (_tag(p["tag"]) if mit_tag else "", zeit) if x)
     marken = [m for m in (e["zustand"] if e["zustand"] in ("aufgehoben", "verlegt") else "",
                           "abgelaufen" if e["lage"] == "abgelaufen" and p["typ"] != "vorfrist" else "",
