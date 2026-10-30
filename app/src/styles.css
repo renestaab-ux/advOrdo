@@ -373,6 +373,8 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .such-pfeile { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .such-pfeile button { padding: 2px 10px; }
 .such-position { min-width: 56px; text-align: right; }
+/* Ohne Statuszeile (leeres Feld, nur Rechtsprechung) denselben Abstand unter der Suchleiste halten. */
+.suche-feld + .such-flaeche, .suche-bereich > .fehler + .such-flaeche { margin-top: 12px; }
 .such-flaeche { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 380px) minmax(0, 1fr); gap: 16px; }
 .such-liste { list-style: none; margin: 0; padding: 0 4px 0 0; overflow: auto; border-right: 1px solid var(--linie); }
 .such-liste ul { list-style: none; margin: 0 0 6px; padding: 0; }
