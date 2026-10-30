@@ -23,7 +23,18 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, db, diagnose, einstellungen, gerichte, nachrichten, netzprotokoll, programme, zeiterfassung
+from . import (
+    __version__,
+    db,
+    diagnose,
+    einstellungen,
+    gerichte,
+    justizadressen,
+    nachrichten,
+    netzprotokoll,
+    programme,
+    zeiterfassung,
+)
 from .abgleich import abgleich
 from .aktenverwaltung import (
     aus_dokument,
@@ -164,8 +175,8 @@ class Kern:
                 self.akten, pruefung_id, entscheidung, begruendung),
             "akten.kollision_verlauf": lambda akte_id: kollision.verlauf(self.akten, akte_id),
             "akten.verfahren": lambda akte_id: verfahren.liste(self.akten, akte_id),
-            "akten.verfahren_speichern": lambda akte_id, daten, verfahren_id=None: verfahren.speichern(
-                self.akten, akte_id, daten, verfahren_id),
+            "akten.verfahren_speichern": lambda akte_id, daten, verfahren_id=None, gericht_daten=None: (
+                verfahren.speichern(self.akten, akte_id, daten, verfahren_id, gericht_daten=gericht_daten)),
             "akten.verfahren_loeschen": lambda verfahren_id: verfahren.loeschen(self.akten, verfahren_id),
             "akten.kalender": lambda akte_id: kalender.liste(self.akten, akte_id),
             "akten.kalender_speichern": lambda akte_id, daten, eintrag_id=None: kalender.speichern(
@@ -286,6 +297,8 @@ class Kern:
             "gerichte.laden_datei": self.gerichte_laden_datei,
             "gerichte.namen": lambda: gerichte.namen(self.con),
             "gerichte.verzeichnis_oeffnen": lambda: gerichte.verzeichnis_oeffnen(),
+            "gerichte.zustaendig": lambda plz, ort: justizadressen.zustaendig(
+                self.con, plz, ort, self.archiv, self.diagnose_oeffnen),
             # Schriftstücke aus der Akte: Grundvorlagen und eigene Word-Vorlagen der Umgebung mit Platzhaltern.
             "schriftstuecke.vorlagen": lambda: schrift_vorlagen.liste(self.umgebungen.ordner()),
             "schriftstuecke.katalog": schrift_platzhalter.katalog,

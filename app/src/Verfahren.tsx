@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { OrtsverzeichnisKnopf } from "./Gerichtsverzeichnis";
+import { OrtsverzeichnisKnopf, ZustaendigesGericht } from "./Gerichtsverzeichnis";
 import { AktenOptionen, INSTANZ_VORGABE, Verfahren, datumLang, kern } from "./kern";
 import VerfahrenAusDokument from "./VerfahrenAusDokument";
 
@@ -40,6 +40,9 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [ausDokument, setAusDokument] = useState(false);
+  const [suche, setSuche] = useState(false);
+  // Anschrift des übernommenen Gerichts; geht beim Speichern ins Beteiligtenverzeichnis (füllt nur leere Felder).
+  const [gerichtDaten, setGerichtDaten] = useState<{ name: string; daten: Record<string, string> } | null>(null);
 
   useEffect(() => {
     void kern<Verfahren[]>("akten.verfahren", { akte_id: akteId }).then(setVerfahren, (e) => setFehler(String(e)));
@@ -68,9 +71,12 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
           akte_id: akteId,
           daten: bearbeitet.e,
           verfahren_id: bearbeitet.id,
+          gericht_daten: gerichtDaten?.name === bearbeitet.e.gericht ? gerichtDaten.daten : null,
         }),
       );
       setBearbeitet(null);
+      setGerichtDaten(null);
+      setSuche(false);
       onGeaendert();
     } catch (e) {
       setFehler(String(e));
@@ -242,9 +248,35 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
               </datalist>
               <span className="leise klein">
                 {!verzeichnisGeladen && "Alle Gerichte schlägt das Feld vor, wenn unter Einstellungen → Akten das Gerichtsverzeichnis geladen ist. "}
-                Anschrift und Zuständigkeit: <OrtsverzeichnisKnopf onFehler={setFehler} />
+                {!suche && (
+                  <>
+                    <button type="button" className="link" onClick={() => setSuche(true)}>
+                      Zuständiges Gericht suchen
+                    </button>{" "}
+                    (nach Postleitzahl und Ort, mit Anschrift) ·{" "}
+                  </>
+                )}
+                <OrtsverzeichnisKnopf onFehler={setFehler} />
               </span>
+              {gerichtDaten?.name === e.gericht && gerichtDaten.daten.strasse && (
+                <span className="leise klein">
+                  Anschrift wird übernommen: {gerichtDaten.daten.strasse}, {gerichtDaten.daten.plz} {gerichtDaten.daten.ort}
+                </span>
+              )}
             </label>
+            {suche && (
+              <div className="feld-breit">
+                <ZustaendigesGericht
+                  akteId={akteId}
+                  onSchliessen={() => setSuche(false)}
+                  onUebernehmen={(s) => {
+                    setze({ gericht: s.name });
+                    setGerichtDaten({ name: s.name, daten: s.beteiligter });
+                    setSuche(false);
+                  }}
+                />
+              </div>
+            )}
             <label className="feld">
               Spruchkörper
               <input
@@ -284,7 +316,15 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
             <button type="submit" disabled={laeuft}>
               {bearbeitet?.id ? "Speichern" : "Verfahren eintragen"}
             </button>
-            <button type="button" className="zweitrangig" onClick={() => setBearbeitet(null)}>
+            <button
+              type="button"
+              className="zweitrangig"
+              onClick={() => {
+                setBearbeitet(null);
+                setGerichtDaten(null);
+                setSuche(false);
+              }}
+            >
               Abbrechen
             </button>
           </span>
