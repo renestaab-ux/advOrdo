@@ -210,8 +210,32 @@ def ergaenze_prozesskosten(vorschlaege: object, texte: list[dict[int, str]], akt
         angabe = {"feld": "streitwert", "wert": akte_wert, "dokument": AKTE, "absatz": 0, "zitat": ""}
     if angabe:
         angaben = [angabe] + [a for a in angaben if a.get("feld") != "streitwert"]
+    # Rechtszug und Verfahrensende belegt die App selbst, wenn die Dokumente es hergeben (Gericht, „Urteil“).
+    for feld, wert, muster in (("instanz", "erste", _ERSTE_INSTANZ), ("ende", "urteil", _URTEIL)):
+        vom_modell = next((a for a in angaben if a.get("feld") == feld), None)
+        if vom_modell and _wert(PROZESSKOSTEN, feld, str(vom_modell.get("wert", ""))) not in (None, wert):
+            continue
+        if feld == "instanz" and any(_HOEHERE_INSTANZ.search(t) for d in texte for t in d.values()):
+            continue
+        if fund := _fund(texte, muster):
+            angaben = [a for a in angaben if a.get("feld") != feld] + [{"feld": feld, "wert": wert, **fund}]
     kosten["angaben"] = angaben
     return liste
+
+
+_ERSTE_INSTANZ = re.compile(r"\b(?:Landgericht|Amtsgericht)\b")
+_HOEHERE_INSTANZ = re.compile(r"\b(?:Berufung|Revision)\w*\b(?!\s+wird\s+nicht)", re.I)
+_URTEIL = re.compile(r"\b(?:End|Schluss|Teil|Versäumnis)?urteil\b", re.I)
+
+
+def _fund(texte: list[dict[int, str]], muster: re.Pattern) -> dict | None:
+    """Erster Absatz, in dem das Muster vorkommt, mit einem kurzen wörtlichen Zitat um den Treffer."""
+    for d, absaetze in enumerate(texte, 1):
+        for nr, text in absaetze.items():
+            if m := muster.search(text):
+                anfang, ende = max(0, m.start() - 30), min(len(text), m.end() + 30)
+                return {"dokument": d, "absatz": nr, "zitat": text[anfang:ende].strip()}
+    return None
 
 
 def nur_passende(vorschlaege: object, rechner: set[str]) -> object:
@@ -476,7 +500,9 @@ def _rechne(rechner: str, w: dict, basiszins: Basiszins | None, land: str, heute
 
 
 # Fragen danach, was die Gegenseite zu erstatten hat.
-_ERSTATTUNG = re.compile(r"erstatt|ersetz|ersatz|gegenseite|gegner|beklagte\w*\s+(?:zahlen|tragen)", re.I)
+_ERSTATTUNG = re.compile(
+    r"erstatt|ersetz|ersatz|gegenseite|gegner|verlangen|fordern|beanspruch|festsetz|"
+    r"(?:beklagt|klägerin|kläger)\w*\s+(?:zahlen|tragen)", re.I)
 
 
 def _satz(rechner: str, ergebnis: dict, eingaben: dict[str, dict], erstattung: bool = False) -> str:

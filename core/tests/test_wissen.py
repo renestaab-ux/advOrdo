@@ -144,7 +144,7 @@ def test_frist_mit_dem_fristenrechner(akten, con, tmp_path):
 
 
 URTEIL = (
-    "Urteil\n\n"
+    "Landgericht Freiburg im Breisgau\n\nUrteil\n\n"
     "Die Beklagte wird verurteilt, an die Klägerin 14.448,73 € nebst Zinsen in Höhe von fünf Prozentpunkten über dem "
     "Basiszinssatz seit dem 30.07.2025 zu zahlen. Die Beklagte trägt die Kosten des Rechtsstreits.\n\n"
     "Der Streitwert wird auf 14.555,40 € festgesetzt."
@@ -176,8 +176,9 @@ def test_rvg_kosten_mit_dem_prozesskostenrechner(akten, con, tmp_path):
     a = erg["aussagen"][0]
     b = a["berechnung"]
     assert b["rechner"] == "prozesskosten" and a["status"] == "belegt"
-    assert {e["feld"]: e["quelle"] for e in b["eingaben"]} == {
-        "streitwert": None, "instanz": "annahme", "ende": "annahme"}
+    # Rechtszug und Verfahrensende belegt die App selbst am Urteil (Gericht, Überschrift).
+    assert all(e["status"] == "belegt" and e["fundstelle"] for e in b["eingaben"])
+    assert [e["feld"] for e in b["eingaben"]] == ["streitwert", "instanz", "ende"]
     # 14.555,40 €, erste Instanz mit Urteil, Gebührenrecht seit 01.06.2025: volle Gebühr RVG 762 €, GKG 344 €
     # (Anlage 2 RVG/GKG, Wertstufe bis 16.000 €).
     assert b["ergebnis"]["gebuehr_rvg"] == "762.0" and b["ergebnis"]["gebuehr_gkg"] == "344.0"
@@ -191,7 +192,8 @@ def test_rvg_kosten_mit_dem_prozesskostenrechner(akten, con, tmp_path):
 def test_bei_erstattungsfrage_der_erstattungsbetrag(akten, con, tmp_path):
     akte_id = _urteilsakte(akten, con, tmp_path)
     erg = chat.frage(akten, Attrappe(lambda p, s: {"aussagen": [], "berechnungen": []}), 32768, akte_id,
-                     "Welche Rechtsanwaltsvergütung nach RVG kann ich von der Gegenseite ersetzt verlangen?",
+                     "Ich vertrete die Klägerin, welche Rechtsanwaltskosten kann ich nun, auf Basis dieses Urteils, "
+                     "von der Beklagten verlangen?",
                      rechner=True, heute=date(2026, 10, 30))
     a = erg["aussagen"][0]
     # 2.290,75 € eigene Anwaltskosten + 1.032,00 € Gerichtskosten
