@@ -22,7 +22,7 @@ build-backend = "setuptools.build_meta"
 include = ["juracore*"]
 
 [tool.setuptools.package-data]
-juracore = ["gesetze/*.json"]
+juracore = ["gesetze/*.json", "ausgabe/schriften/*.ttf", "ausgabe/schriften/OFL.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -2,8 +2,10 @@
 
 Gesetzt wird in den PDF-Standardschriften Helvetica, Helvetica-Bold und Helvetica-Oblique, die jeder PDF-Betrachter
 mitbringt; es wird keine Schrift eingebettet. Die Kodierung ist WinAnsi (cp1252): Umlaute, ß, §, „ “, – und €
-sind enthalten. Zeichen außerhalb davon werden ersetzt (z. B. „→“ durch „->“), sonst durch „?“. Zeilen werden mit
-den echten Zeichenbreiten umbrochen. Format A4, Fußzeile mit Titel und „Seite n von m“.
+sind enthalten. Einige Zeichen werden ersetzt (z. B. „→“ durch „->“). Enthält der Bericht Zeichen außerhalb von
+WinAnsi (etwa „ş“, „ł“, „č“ in Namen), wird er ganz in der eingebetteten Liberation Sans gesetzt (``schrift.py``),
+die dieselben Zeichenbreiten hat. Zeilen werden mit den echten Zeichenbreiten umbrochen. Format A4, Fußzeile mit
+Titel und „Seite n von m“.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ import re
 import zlib
 from dataclasses import dataclass
 
-from . import Absatz, Bericht, Eintrag, Kopf, Ueberschrift, _helvetica
+from . import Absatz, Bericht, Eintrag, Kopf, Ueberschrift, _helvetica, schrift
 
 BREITE, HOEHE = 595.28, 841.89
 LINKS, RECHTS, OBEN, UNTEN = 62.0, 62.0, 60.0, 64.0
@@ -34,8 +36,81 @@ def _kodiere(text: str) -> bytes:
 
 
 def breite(text: str, schrift: str, groesse: float) -> float:
+    """Breite in den Standardschriften (WinAnsi)."""
     tabelle = _BREITEN[schrift]
     return sum(tabelle[b - 32] if b >= 32 else 0 for b in _kodiere(text)) * groesse / 1000
+
+
+def _winansi(text: str) -> bool:
+    try:
+        text.translate(_ERSATZ).encode("cp1252")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+class _Standard:
+    """Die PDF-Standardschriften Helvetica, Helvetica-Bold und Helvetica-Oblique (WinAnsi)."""
+
+    def breite(self, text: str, schrift: str, groesse: float) -> float:
+        return breite(text, schrift, groesse)
+
+    def zeichenkette(self, text: str, schrift: str) -> bytes:
+        return _zeichenkette(_kodiere(text))
+
+    def objekte(self, erste_nummer: int) -> tuple[list[bytes], dict[str, int]]:
+        objekte = [b"<< /Type /Font /Subtype /Type1 /BaseFont /%s /Encoding /WinAnsiEncoding >>" % name.encode()
+                   for name in ("Helvetica", "Helvetica-Bold", "Helvetica-Oblique")]
+        return objekte, {NORMAL: erste_nummer, FETT: erste_nummer + 1, KURSIV: erste_nummer + 2}
+
+
+class _Eingebettet:
+    """Liberation Sans, eingebettet als Teilmenge; für Zeichen außerhalb von WinAnsi."""
+
+    def __init__(self) -> None:
+        self.schriften = {NORMAL: schrift.Satzschrift(schrift.TrueType.laden("normal")),
+                          FETT: schrift.Satzschrift(schrift.TrueType.laden("fett")),
+                          KURSIV: schrift.Satzschrift(schrift.TrueType.laden("kursiv"))}
+
+    @staticmethod
+    def _text(text: str) -> str:
+        return re.sub(r"[\x00-\x1f]", " ", text.translate(_ERSATZ))
+
+    def breite(self, text: str, schrift_: str, groesse: float) -> float:
+        return self.schriften[schrift_].breite(self._text(text)) * groesse / 1000
+
+    def zeichenkette(self, text: str, schrift_: str) -> bytes:
+        return self.schriften[schrift_].zeichenkette(self._text(text))
+
+    def objekte(self, erste_nummer: int) -> tuple[list[bytes], dict[str, int]]:
+        objekte: list[bytes] = []
+        nummern = {}
+        for name, s in self.schriften.items():
+            nummern[name] = erste_nummer + len(objekte)
+            objekte += s.objekte(nummern[name])
+        return objekte, nummern
+
+
+def _texte(bericht: Bericht):
+    yield bericht.titel
+    for b in bericht.bausteine:
+        if isinstance(b, Kopf):
+            for k, v in b.zeilen:
+                yield k
+                yield v
+        elif isinstance(b, (Ueberschrift, Absatz)):
+            yield b.text
+        elif isinstance(b, Eintrag):
+            yield from (b.titel, b.nummer, *b.marken, *b.zeilen)
+            for beleg in b.belege:
+                yield from (beleg.ort, beleg.zitat or "", beleg.vorab or "")
+
+
+def _schriften(bericht: Bericht) -> _Standard | _Eingebettet:
+    """Standardschriften, solange alle Zeichen in WinAnsi liegen; sonst die eingebettete Schrift."""
+    if all(_winansi(t) for t in _texte(bericht)) or not schrift.verfuegbar():
+        return _Standard()
+    return _Eingebettet()
 
 
 @dataclass
@@ -54,7 +129,8 @@ def _zeichenkette(roh: bytes) -> bytes:
 class Satz:
     """Setzt Absätze untereinander und beginnt bei Bedarf eine neue Seite."""
 
-    def __init__(self) -> None:
+    def __init__(self, schriften: _Standard | _Eingebettet | None = None) -> None:
+        self.schriften = schriften or _Standard()
         self.seiten: list[list[bytes]] = []
         self.y = 0.0
         self.neue_seite()
@@ -67,6 +143,9 @@ class Satz:
         if self.y - hoehe < UNTEN and self.y < HOEHE - OBEN - 1:
             self.neue_seite()
 
+    def breite(self, text: str, schrift_: str, groesse: float) -> float:
+        return self.schriften.breite(text, schrift_, groesse)
+
     def _zeilen(self, laeufe: list[Lauf], weite: float) -> list[list[tuple[Lauf, str]]]:
         """Umbruch an Leerzeichen; ein Wort, das allein zu breit ist, wird an Zeichen geteilt."""
         zeilen: list[list[tuple[Lauf, str]]] = [[]]
@@ -76,21 +155,21 @@ class Satz:
             for stueck in re.findall(r"\S+|\s+", lauf.text):
                 if stueck.isspace():
                     if zeilen[-1]:
-                        leer = (lauf, breite(" ", lauf.schrift, lauf.groesse))
+                        leer = (lauf, self.breite(" ", lauf.schrift, lauf.groesse))
                     continue
-                w = breite(stueck, lauf.schrift, lauf.groesse)
+                w = self.breite(stueck, lauf.schrift, lauf.groesse)
                 abstand = leer[1] if leer else 0.0
                 if zeilen[-1] and x + abstand + w > weite:
                     zeilen.append([])
                     x, leer, abstand = 0.0, None, 0.0
                 while w > weite and len(stueck) > 1:
                     n = len(stueck)
-                    while n > 1 and breite(stueck[:n], lauf.schrift, lauf.groesse) > weite - x:
+                    while n > 1 and self.breite(stueck[:n], lauf.schrift, lauf.groesse) > weite - x:
                         n -= 1
                     zeilen[-1].append((lauf, stueck[:n]))
                     zeilen.append([])
                     stueck, x = stueck[n:], 0.0
-                    w = breite(stueck, lauf.schrift, lauf.groesse)
+                    w = self.breite(stueck, lauf.schrift, lauf.groesse)
                 if leer and zeilen[-1]:
                     zeilen[-1].append((leer[0], " "))
                     x += leer[1]
@@ -123,13 +202,14 @@ class Satz:
                     self.seiten[-1].append(self._text(lauf, text, an))
                     continue
                 self.seiten[-1].append(self._text(lauf, text, x))
-                x += breite(text, lauf.schrift, lauf.groesse)
+                x += self.breite(text, lauf.schrift, lauf.groesse)
             self.y -= zeilenhoehe - groesse
         self.y -= nach
 
     def _text(self, lauf: Lauf, text: str, x: float) -> bytes:
         return b"BT /%s %.1f Tf %s rg %.2f %.2f Td %s Tj ET" % (
-            lauf.schrift.encode(), lauf.groesse, lauf.farbe.encode(), x, self.y, _zeichenkette(_kodiere(text)))
+            lauf.schrift.encode(), lauf.groesse, lauf.farbe.encode(), x, self.y,
+            self.schriften.zeichenkette(text, lauf.schrift))
 
     def linie(self) -> None:
         self.seiten[-1].append(b"0.6 0.6 0.6 RG 0.5 w %.2f %.2f m %.2f %.2f l S" % (
@@ -146,12 +226,12 @@ def nummernspalte(bericht: Bericht) -> float:
 
 
 def _setze(bericht: Bericht) -> Satz:
-    s = Satz()
+    s = Satz(_schriften(bericht))
     nr_spalte = nummernspalte(bericht)
     s.absatz([Lauf(bericht.titel, FETT, 16)], nach=8)
     for b in bericht.bausteine:
         if isinstance(b, Kopf):
-            spalte = min(130.0, max((breite(k, FETT, 9.5) for k, _ in b.zeilen), default=0.0) + 14)
+            spalte = min(130.0, max((s.breite(k, FETT, 9.5) for k, _ in b.zeilen), default=0.0) + 14)
             for k, v in b.zeilen:
                 s.absatz([Lauf(v, NORMAL, 9.5)], einzug=spalte, nach=1.5, vorne=Lauf(k, FETT, 9.5))
             s.y -= 6
@@ -176,7 +256,7 @@ def _eintrag(s: Satz, e: Eintrag, nummernspalte: float = 0.0) -> None:
     marken = [Lauf(f"  [{', '.join(e.marken)}]", FETT if e.dringend else NORMAL, 8.5, farbe)] if e.marken else []
     if e.kompakt:
         nummer = Lauf(e.nummer, FETT, 10) if e.nummer else None
-        einzug = nummernspalte or (max(breite(e.nummer, FETT, 10) + 5, 18.0) if e.nummer else 0.0)
+        einzug = nummernspalte or (max(s.breite(e.nummer, FETT, 10) + 5, 18.0) if e.nummer else 0.0)
         titel = Lauf(e.titel, FETT, 10, ROT) if e.dringend else Lauf(e.titel, NORMAL, 10)
         s.absatz([titel, *marken], einzug=einzug, vor=2, nach=1.5, zusammen=24, vorne=nummer)
         if nummernspalte:
@@ -203,22 +283,25 @@ def schreiben(bericht: Bericht) -> bytes:
     seiten = [s for s in satz.seiten if s] or [[]]
     gesamt = len(seiten)
 
-    objekte: list[bytes] = [b"<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) >>", b""]
-    schriften = []
-    for name in ("Helvetica", "Helvetica-Bold", "Helvetica-Oblique"):
-        objekte.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /%s /Encoding /WinAnsiEncoding >>" % name.encode())
-        schriften.append(len(objekte))
-    ressourcen = b"<< /Font << /F1 %d 0 R /F2 %d 0 R /F3 %d 0 R >> >>" % tuple(schriften)
-    kinder = []
+    inhalte = []
     for nr, befehle in enumerate(seiten, start=1):
         titel = bericht.titel
         fuss = f"{titel} · Seite {nr} von {gesamt}"
-        while breite(fuss, NORMAL, 8) > SATZ and len(titel) > 10:
+        while satz.breite(fuss, NORMAL, 8) > SATZ and len(titel) > 10:
             titel = titel[:-2]
             fuss = f"{titel} … · Seite {nr} von {gesamt}"
         befehle = [*befehle, b"BT /F1 8 Tf %s rg %.2f %.2f Td %s Tj ET" % (
-            GRAU.encode(), LINKS, UNTEN - 30, _zeichenkette(_kodiere(fuss)))]
-        inhalt = zlib.compress(b"\n".join(befehle))
+            GRAU.encode(), LINKS, UNTEN - 30, satz.schriften.zeichenkette(fuss, NORMAL))]
+        inhalte.append(zlib.compress(b"\n".join(befehle)))
+
+    # Schriften erst jetzt: Eine eingebettete Teilmenge braucht alle Zeichen, auch die der Fußzeilen.
+    objekte: list[bytes] = [b"<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) >>", b""]
+    schrift_objekte, nummern = satz.schriften.objekte(len(objekte) + 1)
+    objekte += schrift_objekte
+    ressourcen = b"<< /Font << /F1 %d 0 R /F2 %d 0 R /F3 %d 0 R >> >>" % (nummern[NORMAL], nummern[FETT],
+                                                                         nummern[KURSIV])
+    kinder = []
+    for inhalt in inhalte:
         objekte.append(b"<< /Length %d /Filter /FlateDecode >>\nstream\n" % len(inhalt) + inhalt + b"\nendstream")
         objekte.append(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2f %.2f] /Resources %s /Contents %d 0 R >>" % (
             BREITE, HOEHE, ressourcen, len(objekte)))
