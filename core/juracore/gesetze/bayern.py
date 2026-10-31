@@ -104,8 +104,13 @@ def abk_aus_titel(daten: bytes | str) -> str | None:
 
 _BLOCK = {"p", "div", "br", "li", "ul", "ol", "dl", "dt", "dd", "tr", "td", "th", "table", "section", "article",
           "header", "footer", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "nav", "main", "aside", "hr"}
-_UEBERSPRINGEN = {"script", "style", "noscript", "template", "select", "option", "button", "form"}
+# Kein "form": Die ganze Seite steckt in einem Suchformular.
+_UEBERSPRINGEN = {"script", "style", "noscript", "template", "select", "option", "button"}
 _LEER = {"br", "img", "hr", "meta", "link", "input", "wbr", "col", "area", "base", "source"}
+
+
+_ANLAGE = "\x00Anlage"
+_HOCH = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
 
 
 @dataclass
@@ -121,11 +126,15 @@ class _Zeilen(HTMLParser):
         self.zeilen: list[_Zeile] = []
         self.titel = ""
         self._stapel: list[str] = []
+        self._klassen: list[set[str]] = []  # Klassen je offenem Element, parallel zu _stapel
         self._teile: list[tuple[str, bool]] = []  # (Text, innerhalb eines Verweises)
         self._sup = ""
 
     def _im(self, *tags: str) -> bool:
         return any(t in self._stapel for t in tags)
+
+    def _klasse(self, *namen: str) -> bool:
+        return any(n in k for k in self._klassen for n in namen)
 
     def _ausgeben(self) -> None:
         text = re.sub(r"\s+", " ", "".join(t for t, _ in self._teile).replace("\xa0", " ")).strip()
@@ -143,6 +152,9 @@ class _Zeilen(HTMLParser):
             self._ausgeben()
         if tag not in _LEER:
             self._stapel.append(tag)
+            self._klassen.append(klassen := set((dict(attrs).get("class") or "").split()))
+            if "annexheading" in klassen:
+                self.zeilen.append(_Zeile(_ANLAGE))  # Anlagen sind keine Artikel; der letzte Artikel endet hier
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag in _BLOCK:
@@ -152,8 +164,10 @@ class _Zeilen(HTMLParser):
         if tag in _LEER:
             return
         if tag in self._stapel:
-            while self._stapel and self._stapel.pop() != tag:
-                pass
+            while self._stapel:
+                self._klassen.pop()
+                if self._stapel.pop() == tag:
+                    break
         if tag in _BLOCK:
             self._ausgeben()
 
@@ -163,8 +177,11 @@ class _Zeilen(HTMLParser):
             return
         if self._im(*_UEBERSPRINGEN) or self._im("head"):
             return
+        # Satznummern („<sup class="satznr">1</sup>“), Fußnotenzeichen und Fußnoten gehören nicht zum Normtext.
+        if self._klasse("satznr", "footnotelink-down", "footnotelink-up", "fn-container"):
+            return
         if self._im("sup") and data.strip().isdigit():
-            return  # hochgestellte Satznummer
+            data = data.translate(_HOCH)  # m² und m³ bleiben lesbar
         self._teile.append((data, self._im("a")))
 
     def close(self) -> None:
@@ -280,7 +297,7 @@ def parse_bayern_html(daten: bytes | str, abk: str = "") -> GesetzDokument:
             continue
         if z.nur_verweis:
             continue
-        if artikel and (t in _ENDE or t.startswith("©")):
+        if artikel and (t in _ENDE or t.startswith("©") or t == _ANLAGE):
             break
 
         m = _ART.match(t)

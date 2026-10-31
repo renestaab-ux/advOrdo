@@ -197,3 +197,32 @@ def test_gespeicherte_pag_seite_bekommt_abk_der_voreinstellung(tmp_path):
     datei = tmp_path / "pag.html"
     datei.write_bytes(SEITE.replace(b"<title>BayBO:", b"<title>BayPAG:"))
     assert quelle.lies_datei(datei, None).abk == "PAG"
+
+
+# --- Echte Seite (gekürzt): BayBO, Gesamtansicht, gespeichert am 31.10.2026 ---------------------------
+
+ECHT = (FIXTURES / "bayern_baybo_auszug.html").read_bytes()
+
+
+def test_echte_seite_bayern():
+    """Auszug aus der echten Gesamtansicht: Art. 1–2 und Art. 83–84 mit Fußnote und leerer Anlage.
+
+    Die ganze Seite steckt in einem <form> (Suchformular); Satznummern stehen als <sup class="satznr">."""
+    assert bayern.ist_bayern(ECHT)
+    dok = bayern.parse_bayern_html(ECHT, "BAYBO")
+    assert dok.builddate == "20260501"
+    assert dok.stand[0].startswith("Bayerische Bauordnung (BayBO) in der Fassung der Bekanntmachung")
+    normen = {n.bezeichnung: n for n in dok.normen}
+    assert list(normen) == ["Art. 1", "Art. 2", "Art. 83", "Art. 84"]
+    art1 = normen["Art. 1"]
+    assert art1.titel == "Anwendungsbereich"
+    assert art1.gliederung == ["Erster Teil Allgemeine Vorschriften"]
+    assert art1.absaetze[0].saetze[0].text == "Dieses Gesetz gilt für alle baulichen Anlagen und Bauprodukte."
+    assert [nr for nr, _ in art1.absaetze[1].saetze[0].nummern] == ["1", "2", "3", "4", "5", "6", "7"]
+    # m² bleibt erhalten (kein Satznummer-<sup>).
+    assert "400 m²" in normen["Art. 2"].text
+    # Fußnotenzeichen und Fußnote gehören nicht zu Titel und Text, die Anlage nicht zum letzten Artikel.
+    art84 = normen["Art. 84"]
+    assert art84.titel == "Inkrafttreten"
+    assert "Amtl. Anm." not in art84.text and "nicht mehr belegt" not in art84.text
+    assert art84.text.endswith("in Kraft.")
