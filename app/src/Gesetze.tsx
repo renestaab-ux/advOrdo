@@ -235,15 +235,21 @@ export default function Gesetze() {
       </form>
 
       {gesetze.length > 0 ? (
-        <ul className="bestand">
-          {gesetze.map((g) => (
-            <li key={g.abk}>
-              <strong>{g.abk}</strong> {g.langtitel} · {g.normen} Normen · Stand der Quelle{" "}
-              {formatiereBuilddate(g.builddate)}
-              {g.fassungen > 1 && <> · {g.fassungen} Fassungen gespeichert</>}
-            </li>
-          ))}
-        </ul>
+        <details className="bestand-klappe">
+          <summary>
+            Geladene Gesetze: {gesetze.length}, zusammen {gesetze.reduce((s, g) => s + g.normen, 0).toLocaleString("de-DE")}{" "}
+            Normen
+          </summary>
+          <ul className="bestand">
+            {gesetze.map((g) => (
+              <li key={g.abk}>
+                <strong>{g.abk}</strong> {g.langtitel} · {g.normen} Normen · Stand der Quelle{" "}
+                {formatiereBuilddate(g.builddate)}
+                {g.fassungen > 1 && <> · {g.fassungen} Fassungen gespeichert</>}
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : (
         <p className="leer">Noch keine Gesetze in der Wissensbasis. Lade die Voreinstellung, um zu beginnen.</p>
       )}

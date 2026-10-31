@@ -127,6 +127,9 @@ button.link { background: none; border: none; padding: 0; color: var(--akzent); 
 .voreinstellung li.geladen strong { color: var(--gut); }
 .weiteres { display: flex; gap: 8px; margin: 12px 0 0; max-width: 640px; }
 .gesetzespakete { margin: 16px 0 0; }
+.bestand-klappe { margin: 16px 0 0; font-size: 13px; }
+.bestand-klappe summary { cursor: pointer; font-weight: 600; }
+.bestand-klappe .bestand { margin-top: 8px; }
 .gesetzespakete h2 { font-size: 15px; margin: 0 0 4px; }
 .gesetzespakete > .leise { margin: 0 0 8px; }
 .paket { padding: 8px 12px; margin: 6px 0; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; }
