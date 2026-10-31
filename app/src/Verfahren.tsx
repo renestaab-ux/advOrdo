@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { OrtsverzeichnisKnopf, ZustaendigesGericht } from "./Gerichtsverzeichnis";
 import { AktenOptionen, INSTANZ_VORGABE, Verfahren, datumLang, kern } from "./kern";
 import VerfahrenAusDokument from "./VerfahrenAusDokument";
+import Zeichen from "./Symbole";
 
 interface Entwurf {
   art: string;
@@ -249,16 +250,17 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
                   <option key={g} value={g} />
                 ))}
               </datalist>
+              {!suche && sucheMoeglich && (
+                <span className="gericht-suchen">
+                  <button type="button" className="zweitrangig" onClick={() => setSuche(true)}>
+                    <Zeichen name="suche" groesse={15} />
+                    Zuständiges Gericht suchen
+                  </button>
+                  <span className="leise klein">nach Postleitzahl und Ort, mit Anschrift</span>
+                </span>
+              )}
               <span className="leise klein">
                 {!verzeichnisGeladen && "Alle Gerichte schlägt das Feld vor, wenn unter Einstellungen → Akten das Gerichtsverzeichnis geladen ist. "}
-                {!suche && sucheMoeglich && (
-                  <>
-                    <button type="button" className="link" onClick={() => setSuche(true)}>
-                      Zuständiges Gericht suchen
-                    </button>{" "}
-                    (nach Postleitzahl und Ort, mit Anschrift) ·{" "}
-                  </>
-                )}
                 <OrtsverzeichnisKnopf onFehler={setFehler} />
               </span>
               {gerichtDaten?.name === e.gericht && gerichtDaten.daten.strasse && (
