@@ -105,3 +105,14 @@ def test_ordner_tags_und_loeschen_ueber_rpc(tmp_path):
     assert rufe("akten.loeschen", akte_id=akte["id"])["name"] == "Testakte"
     assert rufe("akten.liste") == []
     assert not (tmp_path / "akten" / f"akte-{akte['id']}").exists()
+
+def test_params_form_wird_geprueft(tmp_path):
+    from juracore.rpc import Kern
+
+    kern = Kern(tmp_path / "wissensbasis.sqlite", tmp_path / "archiv")
+    # Ein String als params wurde bisher in Einzelzeichen entpackt; jetzt gibt es eine klare Meldung.
+    antwort = kern.bearbeite(json.dumps({"id": 1, "method": "ping", "params": "x"}))
+    assert "params muss ein Objekt oder eine Liste sein" in antwort["error"]["message"]
+    # Ohne params und mit Liste bleibt alles beim Alten.
+    assert kern.bearbeite(json.dumps({"id": 2, "method": "ping"}))["result"]["version"]
+    assert kern.bearbeite(json.dumps({"id": 3, "method": "ping", "params": []}))["result"]["version"]

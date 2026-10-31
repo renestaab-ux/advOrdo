@@ -993,8 +993,15 @@ class Kern:
             methode = self.methoden.get(anfrage.get("method", ""))
             if methode is None:
                 raise LookupError(f"Unbekannte Methode: {anfrage.get('method')!r}")
-            params = anfrage.get("params") or {}
-            ergebnis = methode(**params) if isinstance(params, dict) else methode(*params)
+            params = anfrage.get("params")
+            if params is None:
+                ergebnis = methode()
+            elif isinstance(params, dict):
+                ergebnis = methode(**params)
+            elif isinstance(params, list):
+                ergebnis = methode(*params)
+            else:
+                raise TypeError(f"params muss ein Objekt oder eine Liste sein, nicht {type(params).__name__}.")
             return {"id": anfrage_id, "result": ergebnis}
         except (ValueError, LookupError, TypeError, OSError, RuntimeError, sqlite3.Error) as fehler:
             log.warning("Fehler bei Anfrage %s: %s", anfrage_id, fehler)
