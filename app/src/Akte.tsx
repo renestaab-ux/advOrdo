@@ -69,6 +69,7 @@ import {
   fundstelle,
   istDesktop,
   kern,
+  kernImHintergrund,
   kopieSchluessel,
   lesartText,
   markiereBegriffe,
@@ -718,7 +719,7 @@ export default function Akte({
 
   async function volltexteLaden(zitat?: string) {
     const e = await ausfuehren(`Lade ${zitat ? "Volltext" : "Volltexte"} aus den öffentlichen Quellen …`, () =>
-      kern<{ geladen: string[]; fehler: { zitat: string; fehler: string }[] }>("akten.volltexte_laden", {
+      kernImHintergrund<{ geladen: string[]; fehler: { zitat: string; fehler: string }[] }>("akten.volltexte_laden", {
         akte_id: akteId,
         zitat: zitat ?? null,
       }),
@@ -733,7 +734,7 @@ export default function Akte({
 
   async function onlinePruefen() {
     const e = await ausfuehren("Suche zitierte Entscheidungen bei gesetze-bayern.de bzw. NeuRIS …", () =>
-      kern<{ geprueft: { zitat: string; quelle: string; status: UrteilStatus }[]; fehler: { zitat: string; quelle: string; fehler: string }[] }>(
+      kernImHintergrund<{ geprueft: { zitat: string; quelle: string; status: UrteilStatus }[]; fehler: { zitat: string; quelle: string; fehler: string }[] }>(
         "akten.online_pruefen",
         { akte_id: akteId },
       ),

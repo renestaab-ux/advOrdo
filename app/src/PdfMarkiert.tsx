@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { kern } from "./kern";
+import { kern, kernImHintergrund } from "./kern";
 
 /** Kopie des Original-PDFs mit den Markierungen als PDF-Anmerkungen (juracore/dokumente/pdf_markiert.py). */
 
@@ -91,7 +91,7 @@ export function PdfKopienAkte({ akteId, ids }: { akteId: number; ids: number[] }
         a.setMeldung("Kein Ordner gewählt, nichts gespeichert.");
         return;
       }
-      const r = await kern<{ ordner: string; dateien: { dokument: string; eingezeichnet: number }[]; kein_pdf: string[]; fehlend: Fehlend[] }>(
+      const r = await kernImHintergrund<{ ordner: string; dateien: { dokument: string; eingezeichnet: number }[]; kein_pdf: string[]; fehlend: Fehlend[] }>(
         "anmerkungen.pdf_akte",
         { akte_id: akteId, ordner, ids },
       );

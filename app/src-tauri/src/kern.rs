@@ -191,6 +191,26 @@ mod tests {
         let akte = kern.aufruf("akten.anlegen", json!({ "name": "Testakte" })).expect("akte");
         assert_eq!(kern.aufruf("akten.dokumente", json!({ "akte_id": akte["id"] })).expect("dokumente"), json!([]));
 
+        // Lange Befehle laufen im Hintergrund des Kerns; die Brücke bleibt währenddessen frei.
+        let auftrag = kern
+            .aufruf(
+                "hintergrund.starten",
+                json!({ "methode": "gesetze.importieren_datei", "params": { "pfad": fixture } }),
+            )
+            .expect("hintergrund");
+        let mut stand = auftrag.clone();
+        for _ in 0..200 {
+            if stand["status"] != "laeuft" {
+                break;
+            }
+            assert!(kern.aufruf("ping", json!({})).is_ok());
+            std::thread::sleep(std::time::Duration::from_millis(25));
+            stand = kern
+                .aufruf("hintergrund.auftrag", json!({ "auftrag_id": auftrag["auftrag_id"] }))
+                .expect("auftrag");
+        }
+        assert_eq!(stand["status"], "fertig", "{stand}");
+
         let fehler = kern.aufruf("gibt.es.nicht", json!({})).unwrap_err();
         assert!(fehler.contains("Unbekannte Methode"));
         let _ = std::fs::remove_dir_all(daten);

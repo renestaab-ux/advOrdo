@@ -11,6 +11,83 @@ export async function kern<T>(methode: string, params: Record<string, unknown> =
   return invoke<T>("kern_aufruf", { methode, params });
 }
 
+// --- Lange Befehle im Hintergrund ---------------------------------------------------------------
+// Importe und Online-Abrufe laufen im Kern in einem eigenen Thread (hintergrund.starten); die Oberfläche fragt
+// nach Fortschritt und Ergebnis. So reagiert die App währenddessen, und die Warteanzeige (Hintergrund.tsx) kann
+// abbrechen.
+
+export interface HintergrundAuftrag {
+  auftrag_id: number;
+  aufgabe: string;
+  titel: string;
+  status: "laeuft" | "fertig" | "fehler" | "abgebrochen";
+  text: string;
+  schritt: number | null;
+  von: number | null;
+  sekunden: number;
+  ergebnis: unknown;
+  fehler: string | null;
+}
+
+const hintergrundLaufend = new Map<number, HintergrundAuftrag>();
+const hintergrundBeobachter = new Set<(liste: HintergrundAuftrag[]) => void>();
+
+function hintergrundMelden() {
+  const liste = [...hintergrundLaufend.values()];
+  hintergrundBeobachter.forEach((f) => f(liste));
+}
+
+function hintergrundSetzen(a: HintergrundAuftrag) {
+  if (a.status === "laeuft") hintergrundLaufend.set(a.auftrag_id, a);
+  else hintergrundLaufend.delete(a.auftrag_id);
+  hintergrundMelden();
+}
+
+/** Meldet die laufenden Hintergrundaufträge dieses Fensters; gibt die Abmeldung zurück. */
+export function beobachteHintergrund(f: (liste: HintergrundAuftrag[]) => void): () => void {
+  hintergrundBeobachter.add(f);
+  f([...hintergrundLaufend.values()]);
+  return () => {
+    hintergrundBeobachter.delete(f);
+  };
+}
+
+export async function hintergrundAbbrechen(auftragId: number): Promise<void> {
+  const a = await kern<HintergrundAuftrag>("hintergrund.abbrechen", { auftrag_id: auftragId });
+  if (hintergrundLaufend.has(auftragId)) hintergrundSetzen(a);
+}
+
+/** Ergebnis eines beendeten Auftrags, sonst ein Fehler mit der Meldung des Kerns bzw. „… abgebrochen.“ */
+export function hintergrundErgebnis<T>(a: HintergrundAuftrag): T {
+  if (a.status === "fertig") return a.ergebnis as T;
+  if (a.status === "abgebrochen") throw new Error(`${a.titel}: abgebrochen.`);
+  throw new Error(a.fehler ?? `${a.titel}: fehlgeschlagen.`);
+}
+
+/** Abfragepause: anfangs kurz (kleine Importe sind schnell fertig), dann höchstens eine Sekunde. */
+export function hintergrundPause(runde: number): number {
+  return Math.min(250 * 1.5 ** runde, 1000);
+}
+
+/**
+ * Wie `kern`, aber für lange Befehle: startet sie im Hintergrund des Kerns und wartet auf das Ergebnis,
+ * ohne andere Aufrufe aufzuhalten. Abbrechen über die Warteanzeige führt zu einem Fehler „… abgebrochen.“
+ */
+export async function kernImHintergrund<T>(methode: string, params: Record<string, unknown> = {}): Promise<T> {
+  let a = await kern<HintergrundAuftrag>("hintergrund.starten", { methode, params });
+  hintergrundSetzen(a);
+  try {
+    for (let runde = 0; a.status === "laeuft"; runde++) {
+      await new Promise((weiter) => setTimeout(weiter, hintergrundPause(runde)));
+      a = await kern<HintergrundAuftrag>("hintergrund.auftrag", { auftrag_id: a.auftrag_id });
+      hintergrundSetzen(a);
+    }
+  } finally {
+    if (hintergrundLaufend.delete(a.auftrag_id)) hintergrundMelden();
+  }
+  return hintergrundErgebnis<T>(a);
+}
+
 export interface Fassung {
   id: number;
   quelle: string;

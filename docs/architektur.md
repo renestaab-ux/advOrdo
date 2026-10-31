@@ -19,6 +19,16 @@ mit PyInstaller zu einer ausführbaren Datei gebündelt (`core/kern_bauen.py`) u
 Tauri-Sidecar mitgeliefert (`npm run paket`, Konfiguration `tauri.paket.conf.json`). Der Release-Build
 startet `juracore` aus dem Ordner der App; fehlt die Datei, nimmt er wie die Entwicklung die `.venv`.
 
+Der Kern beantwortet Anfragen der Reihe nach. Lange Befehle (Gesetze, Rechtsprechungs- und
+Gerichtsverzeichnis laden, Volltexte laden, Zitate online prüfen, PDF-Kopien einer Akte) startet die
+Oberfläche deshalb mit `hintergrund.starten` (`juracore.hintergrund`): Sie laufen in einem eigenen Thread
+mit eigenen Datenbankverbindungen (`Kern.con`/`Kern.akten` liefern dort die des Auftrags), verschiedene
+Befehle auch gleichzeitig, derselbe nur einmal. `hintergrund.auftrag` liefert Fortschritt und Ergebnis,
+`hintergrund.abbrechen` bricht spätestens vor der nächsten Netzverbindung ab (Prüfung im Netzprotokoll)
+und verwirft ein Ergebnis, das danach noch fertig wird. In der Oberfläche ruft `kernImHintergrund` statt
+`kern` auf; die Warteanzeige unten rechts (`Hintergrund.tsx`) zeigt laufende Aufträge mit „Abbrechen“.
+Während ein Auftrag läuft, wechselt die Arbeitsumgebung nicht.
+
 ## Wissensbasis Gesetze
 
 `gesetz` → `fassung` (je Quelldatei mit SHA-256, Abrufzeit, Stand) → `norm` →

@@ -42,6 +42,8 @@ ORTE = {INTERNET: "Internet", GERAET: "Eigener Rechner", NETZWERK: "Lokales Netz
 
 # Anlass aus der Bedienung („Zitate der Akte online prüfen“), gilt für alle Anfragen in diesem Ablauf.
 _anlass: contextvars.ContextVar[str | None] = contextvars.ContextVar("netz_anlass", default=None)
+# Prüfung eines Hintergrundauftrags auf Abbruch: vor jeder Anfrage aufgerufen, löst im Abbruchfall eine Ausnahme aus.
+_abbruch: contextvars.ContextVar[Callable[[], None] | None] = contextvars.ContextVar("netz_abbruch", default=None)
 
 _datei: Path | None = None
 _gekuerzt_am: str | None = None  # Tag, an dem zuletzt Altes entfernt wurde
@@ -122,10 +124,23 @@ def kennzeichnen(anfrage: urllib.request.Request, zweck: str, gesendet: str | No
     return anfrage
 
 
+@contextlib.contextmanager
+def abbrechbar(pruefe: Callable[[], None]) -> Iterator[None]:
+    """Ruft in diesem Block (im selben Thread) vor jeder Anfrage ``pruefe`` auf. So endet ein abgebrochener
+    Hintergrundauftrag spätestens vor der nächsten Verbindung, auch wenn er selbst nicht nachfragt."""
+    marke = _abbruch.set(pruefe)
+    try:
+        yield
+    finally:
+        _abbruch.reset(marke)
+
+
 # --- Handler ---------------------------------------------------------------------------------------
 
 
 def _mitschreiben(anfrage: urllib.request.Request, oeffnen: Callable[[], Any]) -> Any:
+    if (pruefe := _abbruch.get()) is not None:
+        pruefe()  # abgebrochen: keine Verbindung mehr, daher auch kein Eintrag
     beginn = time.monotonic()
     try:
         antwort = oeffnen()
