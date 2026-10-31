@@ -103,3 +103,42 @@ def test_unbekanntes_gesetz_haelt_die_uebrigen_nicht_auf(server, tmp_path):
     assert "nicht gefunden" in ergebnisse[0]["fehler"]
     assert ergebnisse[1]["neu"] is True
     assert "Ungültige" in ergebnisse[2]["fehler"]
+
+
+def test_umwg_steht_in_der_voreinstellung():
+    assert quelle.pfadkuerzel("UmwG") == ("UMWG", "umwg_1995")
+
+
+def test_kuerzel_mit_jahreszahl_aus_dem_verzeichnis(monkeypatch, tmp_path):
+    """Ein freies Kürzel ohne Treffer wird im Verzeichnis gii-toc.xml als „<kürzel>_<jahr>“ gesucht."""
+    aufrufe = []
+    verzeichnis = (b'<?xml version="1.0"?><items>'
+                   b"<item><title>Gesetz A</title><link>http://www.gesetze-im-internet.de/beispg_1990/xml.zip</link></item>"
+                   b"<item><title>Gesetz B</title><link>http://www.gesetze-im-internet.de/beispg_2008/xml.zip</link></item>"
+                   b"<item><title>Anderes</title><link>http://www.gesetze-im-internet.de/beispgeg/xml.zip</link></item>"
+                   b"</items>")
+
+    def urlopen(anfrage, timeout):
+        aufrufe.append(anfrage.full_url)
+        if anfrage.full_url == quelle.VERZEICHNIS_URL:
+            return Antwort(verzeichnis)
+        if anfrage.full_url == "https://www.gesetze-im-internet.de/beispg_2008/xml.zip":
+            return Antwort(zip_von("hgb_auszug.xml"))
+        raise urllib.error.HTTPError(anfrage.full_url, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(quelle.urllib.request, "urlopen", urlopen)
+    roh = quelle.lade_gesetz("BeispG", tmp_path, gesetze=[])
+    assert roh.abk == "BEISPG" and roh.quelle.endswith("/beispg_2008/xml.zip")
+    assert aufrufe == ["https://www.gesetze-im-internet.de/beispg/xml.zip", quelle.VERZEICHNIS_URL,
+                       "https://www.gesetze-im-internet.de/beispg_2008/xml.zip"]
+
+
+def test_unbekanntes_kuerzel_auch_nicht_im_verzeichnis(monkeypatch, tmp_path):
+    def urlopen(anfrage, timeout):
+        if anfrage.full_url == quelle.VERZEICHNIS_URL:
+            return Antwort(b"<items></items>")
+        raise urllib.error.HTTPError(anfrage.full_url, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(quelle.urllib.request, "urlopen", urlopen)
+    with pytest.raises(ValueError, match="nicht gefunden"):
+        quelle.lade_gesetz("GIBTSNICHT", tmp_path, gesetze=[])

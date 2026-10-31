@@ -21,6 +21,7 @@
     {"abk": "HGB", "kuerzel": "hgb", "titel": "Handelsgesetzbuch", "gruppe": "Handels- und Gesellschaftsrecht", "paket": "zivilrecht"},
     {"abk": "GmbHG", "kuerzel": "gmbhg", "titel": "GmbH-Gesetz", "gruppe": "Handels- und Gesellschaftsrecht", "paket": "zivilrecht"},
     {"abk": "AktG", "kuerzel": "aktg", "titel": "Aktiengesetz", "gruppe": "Handels- und Gesellschaftsrecht", "paket": "zivilrecht"},
+    {"abk": "UmwG", "kuerzel": "umwg_1995", "titel": "Umwandlungsgesetz", "gruppe": "Handels- und Gesellschaftsrecht", "paket": "zivilrecht"},
     {"abk": "GenG", "kuerzel": "geng", "titel": "Genossenschaftsgesetz", "gruppe": "Handels- und Gesellschaftsrecht", "paket": "zivilrecht"},
     {"abk": "PartGG", "kuerzel": "partgg", "titel": "Partnerschaftsgesellschaftsgesetz", "gruppe": "Handels- und Gesellschaftsrecht", "paket": "zivilrecht"},
     {"abk": "UWG", "kuerzel": "uwg_2004", "titel": "Gesetz gegen den unlauteren Wettbewerb", "gruppe": "Wettbewerb und geistiges Eigentum", "paket": "zivilrecht"},

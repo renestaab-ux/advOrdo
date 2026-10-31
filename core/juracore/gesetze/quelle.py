@@ -149,6 +149,41 @@ def lade_gesetz(abk: str, archiv: Path, timeout: float = 60, gesetze: list[dict]
     if eurlex.ist_celex(kuerzel):
         daten, url = eurlex.lade(kuerzel, timeout)
         return archiviere(abk, daten, url, archiv)
+    try:
+        return _lade_gii(abk, kuerzel, archiv, timeout)
+    except NichtGefunden:
+        # Viele Gesetze tragen auf gesetze-im-internet.de eine Jahreszahl im Pfad (umwg_1995, vvg_2008). Für ein
+        # Kürzel, das nicht in der Liste steht, im Verzeichnis aller Gesetze nach „<kürzel>_<jahr>“ suchen.
+        gefunden = _pfad_im_verzeichnis(kuerzel, timeout) if kuerzel == abk.lower() else None
+        if gefunden is None:
+            raise ValueError(
+                f"{abk} wurde auf gesetze-im-internet.de nicht gefunden (Kürzel {kuerzel!r}). "
+                "Bitte die Abkürzung aus der Adresse des Gesetzes verwenden."
+            ) from None
+        return _lade_gii(abk, gefunden, archiv, timeout)
+
+
+class NichtGefunden(Exception):
+    """gesetze-im-internet.de kennt das Pfadkürzel nicht (404)."""
+
+
+VERZEICHNIS_URL = f"{BASIS_URL}/gii-toc.xml"
+
+
+def _pfad_im_verzeichnis(kuerzel: str, timeout: float) -> str | None:
+    """Pfadkürzel „<kuerzel>_<jahr>“ aus dem Verzeichnis gii-toc.xml; bei mehreren das jüngste Jahr."""
+    anfrage = urllib.request.Request(VERZEICHNIS_URL, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(anfrage, timeout=timeout) as antwort:
+            text = antwort.read().decode("utf-8", "replace")
+    except (urllib.error.URLError, OSError):
+        return None
+    muster = re.compile(r"gesetze-im-internet\.de/(" + re.escape(kuerzel) + r"_(\d{4}))/xml\.zip", re.IGNORECASE)
+    treffer = {m.group(1).lower(): int(m.group(2)) for m in muster.finditer(text)}
+    return max(treffer, key=treffer.__getitem__) if treffer else None
+
+
+def _lade_gii(abk: str, kuerzel: str, archiv: Path, timeout: float) -> Rohdatei:
     url = f"{BASIS_URL}/{kuerzel}/xml.zip"
     meta_pfad = archiv / abk / "abruf.json"
     meta = json.loads(meta_pfad.read_text(encoding="utf-8")) if meta_pfad.exists() else {}
@@ -166,10 +201,7 @@ def lade_gesetz(abk: str, archiv: Path, timeout: float = 60, gesetze: list[dict]
         if fehler.code == 304:
             raise NichtGeaendert(abk) from None
         if fehler.code == 404:
-            raise ValueError(
-                f"{abk} wurde auf gesetze-im-internet.de nicht gefunden (Kürzel {kuerzel!r}). "
-                "Bitte die Abkürzung aus der Adresse des Gesetzes verwenden."
-            ) from None
+            raise NichtGefunden(kuerzel) from None
         raise
 
     roh = archiviere(abk, daten, url, archiv)
