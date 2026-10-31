@@ -57,6 +57,7 @@ from .dokumente import (
     lesezeichen,
     metadaten,
     ocr,
+    pdf_markiert,
     suche,
     urteile,
 )
@@ -299,6 +300,9 @@ class Kern:
             "lesezeichen.ordner_umbenennen": lambda ordner_id, name: lesezeichen.ordner_umbenennen(
                 self.akten, ordner_id, name),
             "lesezeichen.ordner_loeschen": lambda ordner_id: lesezeichen.ordner_loeschen(self.akten, ordner_id),
+            "anmerkungen.pdf_name": lambda dokument_id: {"name": pdf_markiert.dateiname(self.akten, dokument_id)},
+            "anmerkungen.pdf": self.pdf_markiert,
+            "anmerkungen.pdf_akte": self.pdf_markiert_akte,
             "anmerkungen.export_name": lambda akte_id: {"name": anmerkungen_ausgabe.dateiname(self.akten, akte_id)},
             "anmerkungen.export": lambda akte_id, ordner, format, pfad, gliederung="ordner", auswahl=None: (
                 anmerkungen_ausgabe.schreiben(self.akten, akte_id, ordner, format, pfad, gliederung, auswahl)),
@@ -484,6 +488,25 @@ class Kern:
         programm = programme.lade(self.programme_datei)["text"]
         programme.starten(pfad, programm)
         return {"pfad": str(pfad), "programm": programm["programm"] or "Standardprogramm"}
+
+    def pdf_markiert(self, dokument_id: int, pfad: str, ids: list[int] | None = None) -> dict:
+        """PDF-Kopie mit Markierungen schreiben und im Dateimanager zeigen, damit sie gleich zu finden ist."""
+        r = pdf_markiert.schreiben(self.akten, dokument_id, pfad, ids)
+        self._zeigen(r["pfad"])
+        return r
+
+    def pdf_markiert_akte(self, akte_id: int, ordner: str, ids: list[int] | None = None) -> dict:
+        r = pdf_markiert.akte_schreiben(self.akten, akte_id, ordner, ids)
+        if r["dateien"]:
+            self._zeigen(r["dateien"][0]["pfad"])
+        return r
+
+    @staticmethod
+    def _zeigen(pfad: str) -> None:
+        try:
+            programme.im_ordner_zeigen(Path(pfad))
+        except Exception as fehler:  # Ohne Dateimanager ist die Datei trotzdem geschrieben.
+            log.warning("Dateimanager nicht geöffnet: %s", fehler)
 
     def vorlagen_ordner(self) -> dict:
         ordner = schrift_vorlagen.ordner_anlegen(self.umgebungen.ordner())

@@ -955,6 +955,7 @@ export default function Akte({
           onAkte={() => onReiter("anmerkungen")}
           onSchliessen={anmerkungenUmschalten}
           lesezeichenAnzahl={lz.lesezeichen.length}
+          pdfDokument={inhalt?.dokument.format === "pdf" ? inhalt.dokument.id : undefined}
           lesezeichen={
             <LesezeichenLeiste
               lz={lz}
