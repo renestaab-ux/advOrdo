@@ -57,6 +57,7 @@ from .dokumente import (
     lesezeichen,
     metadaten,
     ocr,
+    pdf_markiert,
     suche,
     urteile,
 )
@@ -299,6 +300,11 @@ class Kern:
             "lesezeichen.ordner_umbenennen": lambda ordner_id, name: lesezeichen.ordner_umbenennen(
                 self.akten, ordner_id, name),
             "lesezeichen.ordner_loeschen": lambda ordner_id: lesezeichen.ordner_loeschen(self.akten, ordner_id),
+            "anmerkungen.pdf_name": lambda dokument_id: {"name": pdf_markiert.dateiname(self.akten, dokument_id)},
+            "anmerkungen.pdf": lambda dokument_id, pfad, ids=None: pdf_markiert.schreiben(
+                self.akten, dokument_id, pfad, ids),
+            "anmerkungen.pdf_akte": lambda akte_id, ordner, ids=None: pdf_markiert.akte_schreiben(
+                self.akten, akte_id, ordner, ids),
             "anmerkungen.export_name": lambda akte_id: {"name": anmerkungen_ausgabe.dateiname(self.akten, akte_id)},
             "anmerkungen.export": lambda akte_id, ordner, format, pfad, gliederung="ordner", auswahl=None: (
                 anmerkungen_ausgabe.schreiben(self.akten, akte_id, ordner, format, pfad, gliederung, auswahl)),

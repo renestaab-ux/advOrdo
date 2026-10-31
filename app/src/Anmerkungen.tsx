@@ -21,6 +21,7 @@ import {
 import { istDesktop, kern } from "./kern";
 import type { LesezeichenStelle } from "./Lesezeichen";
 import Zeichen from "./Symbole";
+import { PdfKopieKnopf } from "./PdfMarkiert";
 
 // --- Bedeutung der Farben (je Arbeitsumgebung, im Kern gespeichert) ----------------------------------------------------
 
@@ -795,6 +796,7 @@ export function AnmerkungsLeiste({
   onSchliessen,
   lesezeichen,
   lesezeichenAnzahl = 0,
+  pdfDokument,
 }: {
   liste: Anmerkung[];
   bedeutungen: Bedeutungen;
@@ -805,6 +807,8 @@ export function AnmerkungsLeiste({
   /** Inhalt des Reiters „Lesezeichen“ (Lesezeichen.tsx). */
   lesezeichen?: ReactNode;
   lesezeichenAnzahl?: number;
+  /** Ist das Dokument ein PDF: Kopie mit eingezeichneten Markierungen anbieten. */
+  pdfDokument?: number;
 }) {
   const [filter, setFilter] = useState<AnmerkFilter>(KEIN_ANMERK_FILTER);
   const [teil, setTeil] = useState<"anmerkungen" | "lesezeichen">(() => {
@@ -862,6 +866,7 @@ export function AnmerkungsLeiste({
             ))}
             {sichtbar.length === 0 && <li className="leise">Keine passende Anmerkung.</li>}
           </ul>
+          {pdfDokument != null && <PdfKopieKnopf key={pdfDokument} dokumentId={pdfDokument} />}
         </>
       )}
     </aside>

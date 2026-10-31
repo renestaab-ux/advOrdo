@@ -1,6 +1,7 @@
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Druckansicht, istDesktop, kern } from "./kern";
 import { AusgabeKnoepfe } from "./Export";
+import { PdfKopienAkte } from "./PdfMarkiert";
 import { AnmerkungsEintrag, FilterLeiste, useBedeutungen } from "./Anmerkungen";
 import { AnmerkFilter, Anmerkung, filtereAnmerkungen, KEIN_ANMERK_FILTER, vergleichbar } from "./anmerkungLogik";
 import {
@@ -440,6 +441,12 @@ export function OrdnerAnsicht({
               />
             );
           })()}
+          {ansicht !== "lesezeichen" && (
+            <PdfKopienAkte
+              akteId={akteId}
+              ids={gruppen.flatMap((g) => g.eintraege.filter(sichtbar)).flatMap((e) => (e.art === "markierung" ? [e.a.id] : []))}
+            />
+          )}
         </section>
       )}
       {gruppen.map((g) => {
