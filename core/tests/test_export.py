@@ -212,3 +212,25 @@ def test_html_maskiert_inhalte():
     b = Bericht("<Titel>", [Eintrag("<script>alert(1)</script>", belege=[ausgabe.Beleg("a & b", "<i>")])])
     html = ausgabe.schreiben(b, "html").decode()
     assert "<script>" not in html and "&lt;script&gt;" in html and "„&lt;i&gt;“" in html
+
+
+def test_pdf_mit_zeichen_ausserhalb_von_winansi():
+    """Namen wie „Şahin“ oder „Łukasz“ bleiben erhalten: Die Schrift wird als Teilmenge eingebettet."""
+    b = Bericht("Fristenbuch Şahin ./. Dąbrowski", [
+        Ueberschrift("Beteiligte"),
+        Eintrag("Frist für Gökhan Çelik", "1.", kompakt=True,
+                belege=[ausgabe.Beleg("Dok.pdf, S. 2", "Jiří Dvořák und Ștefan Popescu", vorab="Zeuge")]),
+        Eintrag("Chinesisch 中文", "2."),
+    ])
+    daten = pdf.schreiben(b)
+    text = " ".join(_pdf_text(daten))
+    for name in ("Şahin", "Dąbrowski", "Gökhan Çelik", "Jiří Dvořák", "Ștefan Popescu", "Seite 1 von 1"):
+        assert name in text
+    assert "Chinesisch ??" in text  # fehlt in der Schrift: Fragezeichen statt leerer Stelle
+    assert b"/FontFile2" in daten and b"+LiberationSans-Bold" in daten and b"/Helvetica" not in daten
+    assert len(daten) < 150_000  # nur die benutzten Glyphen
+
+
+def test_pdf_ohne_sonderzeichen_bleibt_bei_standardschriften():
+    daten = pdf.schreiben(Bericht("Brückner ./. Autohaus", [Ueberschrift("Fristen"), Eintrag("Frist § 276 ZPO", "1.")]))
+    assert b"/Helvetica" in daten and b"/FontFile2" not in daten

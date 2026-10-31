@@ -48,6 +48,8 @@ def main() -> int:
             "--collect-all", "pypdfium2_raw",
             "--collect-submodules", "truststore",
             "--add-data", f"{daten}{os.pathsep}juracore/gesetze",
+            # Eingebettete Schrift für PDF-Berichte mit Zeichen außerhalb von WinAnsi, samt Lizenz (OFL)
+            "--add-data", f"{CORE / 'juracore' / 'ausgabe' / 'schriften'}{os.pathsep}juracore/ausgabe/schriften",
             "--distpath", str(ZIEL),
             "--workpath", str(tmp_pfad / "build"),
             "--specpath", str(tmp_pfad),

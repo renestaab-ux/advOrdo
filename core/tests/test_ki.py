@@ -725,6 +725,30 @@ def test_chronologie_mit_belegtem_datum(akten, con, tmp_path):
     assert speicher.ergebnisse(akten, akte_id, modell.modell)["chronologie"]["ereignisse"][0]["datum"] == "2025-06-27"
 
 
+def test_chronologie_teilt_abgeschnittene_antwort(akten, con, tmp_path):
+    """Abgeschnittene Antwort: der Block wird halbiert, bis jede Hälfte eine vollständige Antwort bekommt."""
+    akte_id, ids = _akte(akten, con, tmp_path)
+    pfad = tmp_path / "07_Replik.md"
+    pfad.write_text(REPLIK, encoding="utf-8")
+    akte.importiere(akten, con, akte_id, pfad, tmp_path / "ablage", ocr=False, tags=["Kläger"])
+
+    def antwort(prompt: str, schema: dict) -> dict:
+        if "ereignisse" not in schema["properties"]:
+            return chronologie_antwort(prompt, schema)
+        zeilen = re.findall(r"^\[(A\d+)\] .*?(\d\d\.\d\d\.\d{4})", prompt, re.M)
+        if len(zeilen) > 1:
+            raise anbieter.KiFehler("Antwort abgeschnitten (Längengrenze erreicht), kein vollständiges JSON.")
+        return {"ereignisse": [{"datum": d, "art": "ereignis", "ereignis": f"Ereignis {k}", "streitig": False,
+                                "angaben": [k]} for k, d in zeilen], "dokumente": []}
+
+    modell = Attrappe(antwort)
+    ergebnis = Analyse(akten, modell).chronologie(akte_id)
+    assert ergebnis["luecken"] == [] and not ergebnis["unvollstaendig"]
+    assert ergebnis["teile"] == 3 == ergebnis["angaben"]
+    assert {e["anzeige"] for e in ergebnis["ereignisse"]} == {"02.07.2025", "27.06.2025"}
+    assert all(e["status"] == "belegt" for e in ergebnis["ereignisse"])
+
+
 def test_kopf_reicht_bis_ort_und_datum_vor_den_unterschriften(akten, con, tmp_path):
     from juracore.ki import chronologie
 

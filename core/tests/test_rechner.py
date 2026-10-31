@@ -161,6 +161,22 @@ def test_frist_tagesbeginn():
     assert (f["fristbeginn"], f["ende"]) == ("2026-01-01", "2026-12-31")
 
 
+def test_frist_tagesbeginn_am_monatsende():
+    """§ 188 Abs. 2 Alt. 2, Abs. 3 BGB: Fehlt der entsprechende Tag, endet die Frist am Monatsletzten."""
+    def ende(tag, anzahl=1, einheit="monate"):
+        return fristen.berechne(tag, anzahl, einheit, beginn="tagesbeginn", paragraf_193=False)["rechnerisches_ende"]
+
+    assert ende(date(2026, 1, 31)) == "2026-02-28"
+    assert ende(date(2026, 1, 30)) == "2026-02-28"
+    assert ende(date(2026, 1, 29)) == "2026-02-28"
+    assert ende(date(2026, 1, 28)) == "2026-02-27"
+    assert ende(date(2028, 1, 31)) == "2028-02-29"  # Schaltjahr
+    assert ende(date(2026, 3, 31)) == "2026-04-30"
+    assert ende(date(2026, 3, 1)) == "2026-03-31"
+    assert ende(date(2024, 2, 29), 1, "jahre") == "2025-02-28"
+    assert ende(date(2026, 8, 31), 6) == "2027-02-28"
+
+
 def test_rpc(tmp_path):
     kern = rpc.Kern(tmp_path / "wissen.sqlite", tmp_path / "archiv")
 

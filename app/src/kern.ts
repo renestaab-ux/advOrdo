@@ -1187,6 +1187,14 @@ export interface NormEintrag {
   fundstellen: Fundstelle[];
 }
 
+/** Ergebnis je Datei von `akten.importieren_dateien`: eingelesen (`dokument_id`, `neu`) oder mit `fehler`. */
+export interface ImportErgebnisDatei {
+  name: string;
+  dokument_id?: number;
+  neu?: boolean;
+  fehler?: string;
+}
+
 export interface AktenImport {
   dateiname: string;
   dokument_id: number;

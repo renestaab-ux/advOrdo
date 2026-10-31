@@ -247,6 +247,8 @@ class Kern:
             "akten.importieren": lambda akte_id, pfad, tags=None, herkunft=None: akte.importiere(
                 self.akten, self.con, akte_id, pfad, self.ablage, tags=tags, herkunft=herkunft
             ),
+            # Mehrere Dateien nacheinander, als Hintergrundauftrag (Texterkennung dauert je Seite einige Sekunden).
+            "akten.importieren_dateien": self.importieren_dateien,
             "akten.ordner_pruefen": akte.ordner_pruefen,
             "akten.dokument_loeschen": lambda dokument_id: akte.dokument_loeschen(
                 self.akten, dokument_id, self.ablage
@@ -586,6 +588,24 @@ class Kern:
         # Zusammenfassungen und Auswertungen beruhen auf dem alten Text.
         ergebnis["ki_verworfen"] = ki_speicher.vergessen(self.akten, akte_id, dokument_id)
         return ergebnis
+
+    def importieren_dateien(self, akte_id: int, dateien: list[dict]) -> dict:
+        """Liest Dateien nacheinander in die Akte ein. Eine unlesbare Datei hält die übrigen nicht auf; ihr Fehler
+        steht im Ergebnis. Abgebrochen wird zwischen zwei Dateien bzw. zwei Seiten der Texterkennung; was bis dahin
+        eingelesen ist, bleibt in der Akte."""
+        ergebnisse = []
+        for i, d in enumerate(dateien, 1):
+            hintergrund.pruefe()
+            name = d.get("name") or Path(d["pfad"]).name
+            hintergrund.melde(f"Lese {i} von {len(dateien)}: {name} …", i - 1, len(dateien))
+            try:
+                r = akte.importiere(self.akten, self.con, akte_id, d["pfad"], self.ablage, tags=d.get("tags"),
+                                    herkunft=d.get("herkunft"))
+                ergebnisse.append({"name": name, "dokument_id": r["dokument_id"], "neu": r["neu"]})
+            except (ValueError, LookupError, OSError, RuntimeError, sqlite3.Error) as fehler:
+                log.warning("Import von %s fehlgeschlagen: %s", name, fehler)
+                ergebnisse.append({"name": name, "fehler": str(fehler)})
+        return {"ergebnisse": ergebnisse}
 
     def akte_anlegen(self, name: str, aktenzeichen: str | None = None, ohne_aktenzeichen: bool = False) -> dict:
         """Neue Akte; sie bekommt das vorgeschlagene oder das eingegebene Aktenzeichen."""

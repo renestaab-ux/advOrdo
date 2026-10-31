@@ -54,6 +54,8 @@ def lies(pfad: Path, ocr: Tesseract | None | bool = True) -> Dokument:
 def _lies_pdf(pfad: Path, ocr: Tesseract | None | bool) -> Dokument:
     import pypdfium2 as pdfium
 
+    from .. import hintergrund  # erst hier: hintergrund lädt die KI-Module, die wiederum Dokumente lesen
+
     try:
         pdf = pdfium.PdfDocument(pfad)
     except pdfium.PdfiumError as fehler:
@@ -76,7 +78,9 @@ def _lies_pdf(pfad: Path, ocr: Tesseract | None | bool) -> Dokument:
                 zeilen = text.replace("\r\n", "\n").replace("\x02", "-\n").split("\n")
                 seiten.append(Seite(i + 1, TEXTEBENE, zeilen))
                 continue
-            # Bildseite: Texterkennung.
+            # Bildseite: Texterkennung. Im Hintergrundauftrag je Seite abbrechbar und mit Fortschritt.
+            hintergrund.pruefe()
+            hintergrund.melde(f"Texterkennung {pfad.name}: Seite {i + 1} von {len(pdf)} …")
             if tesseract is None and ocr is True and ocr_fehler is None:
                 try:
                     tesseract = Tesseract.finden()

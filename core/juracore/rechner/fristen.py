@@ -32,7 +32,14 @@ def berechne(bezugstag: date, anzahl: int, einheit: str, beginn: str = "ereignis
         voll = bezugstag + timedelta(weeks=anzahl)
     else:
         voll = plus_monate(bezugstag, anzahl * (12 if einheit == "jahre" else 1))
-    rechnerisch = voll if beginn == "ereignis" else voll - timedelta(days=1)
+    if beginn == "ereignis":
+        rechnerisch = voll
+    elif einheit in ("monate", "jahre") and voll.day != bezugstag.day:
+        # § 188 Abs. 2 Alt. 2, Abs. 3 BGB: Fehlt der dem Anfangstag entsprechende Tag im Endmonat (Beginn am 29., 30.
+        # oder 31.), endet die Frist mit dem letzten Tag dieses Monats, nicht einen Tag davor.
+        rechnerisch = voll
+    else:
+        rechnerisch = voll - timedelta(days=1)
 
     ende, gruende = _verschiebe(rechnerisch, land, maria_himmelfahrt_bayern) if paragraf_193 else (rechnerisch, [])
     hinweise = []

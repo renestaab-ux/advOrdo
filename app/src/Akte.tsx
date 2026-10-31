@@ -41,7 +41,7 @@ import {
   Abschnitt,
   Akte as AkteTyp,
   AktenDokument,
-  AktenImport,
+  ImportErgebnisDatei,
   Arbeitskopie,
   BETEILIGTE,
   Beleg,
@@ -414,39 +414,42 @@ export default function Akte({
 
   async function einlesen(dateien: Einzulesen[]) {
     if (dateien.length === 0) return;
-    const fehlschlaege: string[] = [];
-    let letztes: AktenImport | null = null;
-    let schonDa = 0;
     setFehler(null);
     setMeldung(null);
-    for (const [i, d] of dateien.entries()) {
-      setLaeuft(
-        `Lese ${i + 1} von ${dateien.length}: ${d.name} … (Scans werden per Texterkennung gelesen, das dauert je Seite einige Sekunden)`,
-      );
-      try {
-        letztes = await kern<AktenImport>("akten.importieren", {
+    setLaeuft(
+      `Lese ${dateien.length === 1 ? dateien[0].name : `${dateien.length} Dateien`} … ` +
+        "(Scans werden per Texterkennung gelesen, das dauert je Seite einige Sekunden; der Fortschritt steht unten rechts)",
+    );
+    // Im Hintergrund des Kerns: Die App bleibt bedienbar (Zeiterfassung, Erinnerungen), abbrechen über die Warteanzeige.
+    let ergebnisse: ImportErgebnisDatei[] = [];
+    let abbruch: string | null = null;
+    try {
+      ergebnisse = (
+        await kernImHintergrund<{ ergebnisse: ImportErgebnisDatei[] }>("akten.importieren_dateien", {
           akte_id: akteId,
-          pfad: d.pfad,
-          tags: d.tags ?? null,
-          herkunft: d.herkunft ?? null,
-        });
-        if (!letztes.neu) schonDa += 1;
-      } catch (e) {
-        // Eine unlesbare Datei soll die übrigen nicht aufhalten.
-        fehlschlaege.push(`${d.name}: ${String(e)}`);
-      }
+          dateien: dateien.map((d) => ({ pfad: d.pfad, name: d.name, tags: d.tags ?? null, herkunft: d.herkunft ?? null })),
+        })
+      ).ergebnisse;
+    } catch (e) {
+      abbruch = String(e);
+    } finally {
+      setLaeuft(null);
     }
-    setLaeuft(null);
+    // Auch nach einem Abbruch: Was schon eingelesen ist, steht in der Akte.
     await ausfuehren("Lade Dokumente …", ladeDokumente);
     onGeaendert();
-    if (dateien.length === 1 && letztes) await oeffneDokument(letztes.dokument_id);
-    const gelesen = dateien.length - fehlschlaege.length;
-    if (dateien.length > 1)
+    const fehlschlaege = ergebnisse.filter((e) => e.fehler).map((e) => `${e.name}: ${e.fehler}`);
+    const gelesen = ergebnisse.filter((e) => !e.fehler);
+    const schonDa = gelesen.filter((e) => e.neu === false).length;
+    if (dateien.length === 1 && gelesen.length === 1 && gelesen[0].dokument_id != null)
+      await oeffneDokument(gelesen[0].dokument_id);
+    if (dateien.length > 1 && !abbruch)
       setMeldung(
-        `${gelesen} von ${dateien.length} Dateien übernommen` +
+        `${gelesen.length} von ${dateien.length} Dateien übernommen` +
           (schonDa ? `, davon ${schonDa} schon in der Akte (nur Tags ergänzt).` : "."),
       );
-    if (fehlschlaege.length > 0) setFehler(`Nicht gelesen:\n${fehlschlaege.join("\n")}`);
+    if (abbruch) setFehler(abbruch);
+    else if (fehlschlaege.length > 0) setFehler(`Nicht gelesen:\n${fehlschlaege.join("\n")}`);
   }
 
   async function loeschen() {
