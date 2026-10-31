@@ -19,6 +19,7 @@ import {
   STILE,
 } from "./anmerkungLogik";
 import { istDesktop, kern } from "./kern";
+import type { LesezeichenStelle } from "./Lesezeichen";
 import Zeichen, { LeerHinweis } from "./Symbole";
 
 // --- Bedeutung der Farben (je Arbeitsumgebung, im Kern gespeichert) ----------------------------------------------------
@@ -195,11 +196,13 @@ function AuswahlMenue({
   bedeutungen,
   onMarkieren,
   onKommentar,
+  onLesezeichen,
 }: {
   lage: Lage;
   bedeutungen: Bedeutungen;
   onMarkieren: (farbe: AnmerkFarbe, stil: AnmerkStil) => void;
   onKommentar: () => void;
+  onLesezeichen?: () => void;
 }) {
   const { ref, stil } = useSchwebend(lage, true);
   // Sofort sichtbare Erklärung unter den Knöpfen; der Tooltip des Systems kommt spät oder gar nicht.
@@ -236,6 +239,11 @@ function AuswahlMenue({
       <button className="anm-menue-knopf" title="Markieren und kommentieren" {...zeige("Gelb markieren und Kommentar schreiben")} onClick={onKommentar}>
         <Zeichen name="kommentar" groesse={15} /> Kommentar
       </button>
+      {onLesezeichen && (
+        <button className="anm-menue-knopf" title="Lesezeichen an dieser Stelle" {...zeige("Lesezeichen an dieser Stelle setzen")} onClick={onLesezeichen}>
+          <Zeichen name="lesezeichen" groesse={15} />
+        </button>
+      )}
       <span className="anm-menue-hinweis">{hinweis ?? legende}</span>
     </div>
   );
@@ -440,7 +448,12 @@ export interface AnmerkungsEreignisse {
  * Markierungen und Kommentare eines Dokuments: Liste, Menü über der Auswahl, Vorschau und Editor.
  * ``schicht`` gehört einmal in die Ansicht; Text- und Originalansicht melden Auswahl und Mausereignisse.
  */
-export function useAnmerkungen(dokumentId: number | null, onGeaendert?: () => void) {
+export function useAnmerkungen(
+  dokumentId: number | null,
+  onGeaendert?: () => void,
+  /** Menüpunkt „Lesezeichen“ über der Auswahl (Lesezeichen.tsx). */
+  onLesezeichen?: (s: LesezeichenStelle) => void,
+) {
   const bedeutungen = useBedeutungen();
   const [liste, setListe] = useState<Anmerkung[]>([]);
   // Zählt jede Änderung; die Originalansicht lädt damit ihre Rechtecke neu.
@@ -594,6 +607,17 @@ export function useAnmerkungen(dokumentId: number | null, onGeaendert?: () => vo
           bedeutungen={bedeutungen}
           onMarkieren={(f, s) => void anlegen(f, s, false)}
           onKommentar={() => void anlegen("gelb", "flaeche", true)}
+          onLesezeichen={
+            onLesezeichen &&
+            (() => {
+              const m = menue;
+              setMenue(null);
+              window.getSelection()?.removeAllRanges();
+              onLesezeichen(
+                "seite" in m ? { seite: m.seite.seite, wort_von: m.seite.von, wort_bis: m.seite.bis } : { start: m.start, ende: m.ende },
+              );
+            })
+          }
         />
       )}
       {inVorschau && vorschau && !editor && <Vorschau anmerkung={inVorschau} bedeutungen={bedeutungen} lage={vorschau.lage} />}
@@ -769,6 +793,8 @@ export function AnmerkungsLeiste({
   onWaehle,
   onAkte,
   onSchliessen,
+  lesezeichen,
+  lesezeichenAnzahl = 0,
 }: {
   liste: Anmerkung[];
   bedeutungen: Bedeutungen;
@@ -776,21 +802,54 @@ export function AnmerkungsLeiste({
   onWaehle: (a: Anmerkung, el: Element) => void;
   onAkte: () => void;
   onSchliessen: () => void;
+  /** Inhalt des Reiters „Lesezeichen“ (Lesezeichen.tsx). */
+  lesezeichen?: ReactNode;
+  lesezeichenAnzahl?: number;
 }) {
   const [filter, setFilter] = useState<AnmerkFilter>(KEIN_ANMERK_FILTER);
+  const [teil, setTeil] = useState<"anmerkungen" | "lesezeichen">(() => {
+    try {
+      return localStorage.getItem("akte.leiste.teil") === "lesezeichen" ? "lesezeichen" : "anmerkungen";
+    } catch {
+      return "anmerkungen";
+    }
+  });
+  function waehleTeil(t: typeof teil) {
+    setTeil(t);
+    try {
+      localStorage.setItem("akte.leiste.teil", t);
+    } catch {
+      // Ohne Speicher gilt die Wahl bis zum Neustart.
+    }
+  }
   const sichtbar = filtereAnmerkungen(liste, filter, bedeutungen);
   return (
-    <aside className="akte-seite anm-leiste" aria-label="Anmerkungen">
+    <aside className="akte-seite anm-leiste" aria-label="Anmerkungen und Lesezeichen">
       <div className="anm-leiste-kopf">
-        <h3>Anmerkungen</h3>
-        <button className="link" onClick={onAkte} title="Alle Anmerkungen der Akte, mit Suche">
-          Ganze Akte
-        </button>
-        <button className="leisten-knopf" onClick={onSchliessen} title="Anmerkungen ausblenden" aria-label="Anmerkungen ausblenden">
+        {lesezeichen ? (
+          <div className="anm-leiste-reiter" role="tablist">
+            <button role="tab" aria-selected={teil === "anmerkungen"} className={teil === "anmerkungen" ? "aktiv" : ""} onClick={() => waehleTeil("anmerkungen")}>
+              Anmerkungen{liste.length > 0 && <span className="anzahl">{liste.length}</span>}
+            </button>
+            <button role="tab" aria-selected={teil === "lesezeichen"} className={teil === "lesezeichen" ? "aktiv" : ""} onClick={() => waehleTeil("lesezeichen")}>
+              Lesezeichen{lesezeichenAnzahl > 0 && <span className="anzahl">{lesezeichenAnzahl}</span>}
+            </button>
+          </div>
+        ) : (
+          <h3>Anmerkungen</h3>
+        )}
+        {teil === "anmerkungen" && (
+          <button className="link" onClick={onAkte} title="Alle Anmerkungen der Akte, mit Suche">
+            Ganze Akte
+          </button>
+        )}
+        <button className="leisten-knopf" onClick={onSchliessen} title="Seitenleiste ausblenden" aria-label="Seitenleiste ausblenden">
           ×
         </button>
       </div>
-      {liste.length === 0 ? (
+      {lesezeichen && teil === "lesezeichen" ? (
+        lesezeichen
+      ) : liste.length === 0 ? (
         <p className="leise anm-leer">
           Text auswählen, dann im Menü über der Auswahl eine Farbe oder „Kommentar“ wählen.
         </p>

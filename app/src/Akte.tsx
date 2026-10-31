@@ -36,6 +36,8 @@ import { useKiAn } from "./kiSchalter";
 import { BelegAnsicht } from "./Gesetze";
 import { gemerkt, merke } from "./merken";
 import Zeichen, { LeerHinweis } from "./Symbole";
+import { Bildlaufmarken, LesezeichenLeiste, LesezeichenVerwaltung, useLesezeichen } from "./Lesezeichen";
+import { Lesezeichen, LesezeichenAufSeite } from "./lesezeichenLogik";
 import {
   Abschnitt,
   Akte as AkteTyp,
@@ -224,7 +226,13 @@ export default function Akte({
   const [spaeter, setSpaeter] = useState<ReadonlySet<string>>(new Set());
   const flaeche = useRef<HTMLDivElement>(null);
   // Markierungen und Kommentare des geöffneten Dokuments; die Zähler in der Dokumentliste folgen jeder Änderung.
-  const anm = useAnmerkungen(inhalt?.dokument.id ?? null, () => void ladeDokumente());
+  // Lesezeichen: Inhaltsverzeichnis des PDFs und eigene Lesezeichen; „Lesezeichen“ steht auch im Menü über der Auswahl.
+  const lz = useLesezeichen(inhalt?.dokument.id ?? null);
+  const anm = useAnmerkungen(inhalt?.dokument.id ?? null, () => void ladeDokumente(), (s) => void lz.anlegen(s));
+  // Reiter „Anmerkungen“ der Akte: Markierungen und Kommentare oder Lesezeichen.
+  const [anmTeil, setAnmTeil] = useState<"markierungen" | "lesezeichen">("markierungen");
+  // Wo die Marken an der Bildlaufleiste gemessen werden: Text oder Original des geöffneten Dokuments.
+  const [markenWurzel, setMarkenWurzel] = useState<HTMLElement | null>(null);
   // Seitenleiste mit den Anmerkungen: zunächst zu, damit der Text Platz hat; der Zustand wird je Gerät gemerkt.
   const [anmerkZu, setAnmerkZu] = useState(() => !gemerkt(ANMERK_OFFEN_SCHLUESSEL));
   // Aus dem Reiter „Anmerkungen“ gewählt: nach dem Öffnen des Dokuments dorthin springen.
@@ -556,6 +564,71 @@ export default function Akte({
     return () => window.clearTimeout(t);
   }, [anmerkZiel, anm.liste, reiter]);
 
+  useEffect(() => {
+    setMarkenWurzel(
+      reiter !== "dokumente"
+        ? null
+        : dokModus === "text"
+          ? textRahmen.current
+          : dokModus === "original"
+            ? (flaeche.current?.querySelector<HTMLElement>(".original") ?? null)
+            : null,
+    );
+  }, [reiter, dokModus, inhalt?.dokument.id]);
+
+  /** Oberer Rand des sichtbaren Bereichs um ``el`` (Bildschirmkoordinate). */
+  function sichtOben(el: HTMLElement) {
+    const r = scrollRahmen(el);
+    return r ? r.getBoundingClientRect().top : 0;
+  }
+
+  /** „Hier setzen“: Lesezeichen am obersten sichtbaren Absatz bzw. an der obersten sichtbaren Seite. */
+  function lesezeichenHier() {
+    if (dokModus === "text" && textRahmen.current) {
+      const oben = sichtOben(textRahmen.current) + 8;
+      const p = [...textRahmen.current.querySelectorAll<HTMLElement>("p[data-beginn]")].find(
+        (x) => x.getBoundingClientRect().bottom > oben,
+      );
+      if (p) void lz.anlegen({ start: Number(p.dataset.beginn) });
+      return;
+    }
+    const original = flaeche.current?.querySelector<HTMLElement>(".original");
+    if (!original) return;
+    const oben = sichtOben(original) + 40;
+    const seite = [...original.querySelectorAll<HTMLElement>("figure[data-seite]")].find((f) => f.getBoundingClientRect().bottom > oben);
+    if (seite) void lz.anlegen({ seite: Number(seite.dataset.seite) });
+  }
+
+  /** Eigenes Lesezeichen gewählt: zum Fähnchen springen, sonst zur Seite. */
+  function lesezeichenWaehlen(z: Lesezeichen) {
+    const el =
+      textRahmen.current?.querySelector(`[data-lesezeichen="${z.id}"]`) ??
+      flaeche.current?.querySelector(`.original [data-lesezeichen="${z.id}"]`);
+    if (el) el.scrollIntoView({ block: "center" });
+    else if (dokModus === "original" && z.seite != null) document.getElementById(`seite-${z.seite}`)?.scrollIntoView({ block: "start" });
+    else if (z.abschnitt != null) document.getElementById(`abschnitt-${z.abschnitt}`)?.scrollIntoView({ block: "start" });
+  }
+
+  /** Eintrag des Inhaltsverzeichnisses: Seite im Original bzw. ersten Absatz der Seite im Text anspringen. */
+  function inhaltWaehlen(seite: number) {
+    if (dokModus === "original") {
+      document.getElementById(`seite-${seite}`)?.scrollIntoView({ block: "start" });
+      return;
+    }
+    const a = inhalt?.abschnitte.find((x) => x.seite != null && (x.seite_bis ?? x.seite) >= seite);
+    if (a) document.getElementById(`abschnitt-${a.nr}`)?.scrollIntoView({ block: "start" });
+  }
+
+  /** Aus dem Reiter „Anmerkungen“ → „Lesezeichen“: Dokument an der Stelle öffnen. */
+  async function oeffneLesezeichen(z: Lesezeichen) {
+    if (inhalt?.dokument.id === z.dokument_id) {
+      onReiter("dokumente");
+      window.setTimeout(() => lesezeichenWaehlen(z), 80);
+      return;
+    }
+    await oeffneDokument(z.dokument_id, z.abschnitt ?? undefined);
+  }
+
   async function ladeNormen(dokumentId: number | null) {
     const n = await ausfuehren("Sammle Normen …", () =>
       kern<NormEintrag[]>("akten.normen", { akte_id: akteId, dokument_id: dokumentId }),
@@ -882,6 +955,20 @@ export default function Akte({
           onWaehle={anmerkungWaehlen}
           onAkte={() => onReiter("anmerkungen")}
           onSchliessen={anmerkungenUmschalten}
+          lesezeichenAnzahl={lz.lesezeichen.length}
+          lesezeichen={
+            <LesezeichenLeiste
+              lz={lz}
+              pdf={inhalt?.dokument.format === "pdf"}
+              onWaehle={lesezeichenWaehlen}
+              onInhalt={inhaltWaehlen}
+              onHier={lesezeichenHier}
+              onAkte={() => {
+                setAnmTeil("lesezeichen");
+                onReiter("anmerkungen");
+              }}
+            />
+          }
         />
       )}
       {zeigeBelegSeite && auswahl && (
@@ -901,7 +988,23 @@ export default function Akte({
           arbeitsflaeche(normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} />)}
         {reiter === "rechtsprechung" && arbeitsflaeche(rechtsprechungAnsicht())}
         {kiAn && reiter === "chat" && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
-        {reiter === "anmerkungen" && <AnmerkungenReiter akteId={akteId} onOeffnen={(a) => void oeffneAnmerkung(a)} />}
+        {reiter === "anmerkungen" && (
+          <div className="anm-reiter-rahmen">
+            <div className="segment anm-teil-wahl" role="tablist" aria-label="Anmerkungen oder Lesezeichen">
+              <button role="tab" aria-selected={anmTeil === "markierungen"} className={`segment-knopf${anmTeil === "markierungen" ? " aktiv" : ""}`} onClick={() => setAnmTeil("markierungen")}>
+                Markierungen und Kommentare
+              </button>
+              <button role="tab" aria-selected={anmTeil === "lesezeichen"} className={`segment-knopf${anmTeil === "lesezeichen" ? " aktiv" : ""}`} onClick={() => setAnmTeil("lesezeichen")}>
+                Lesezeichen
+              </button>
+            </div>
+            {anmTeil === "markierungen" ? (
+              <AnmerkungenReiter akteId={akteId} onOeffnen={(a) => void oeffneAnmerkung(a)} />
+            ) : (
+              <LesezeichenVerwaltung akteId={akteId} onOeffnen={(z) => void oeffneLesezeichen(z)} />
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -1219,15 +1322,18 @@ export default function Akte({
                       ohneTitel
                       anmerkungen={anm.liste}
                       aktiveAnmerkung={anm.aktiv}
+                      lesezeichen={lz.lesezeichen}
                     />
                   </div>
                 )}
+                {(dokModus === "text" || dokModus === "original") && <Bildlaufmarken wurzel={markenWurzel} />}
                 {dokModus === "original" && (
                   <OriginalAnsicht
                     key={inhalt.dokument.id}
                     dokument={inhalt.dokument}
                     startSeite={auswahl?.zitat.seite ?? null}
                     anmerkungen={anm.original}
+                    lesezeichenStand={lz.stand}
                     hinweis="Zum Markieren mit der Maus über die Wörter ziehen; Zitate und Belege zeigt die Textansicht."
                   />
                 )}
@@ -1465,6 +1571,7 @@ export function DokumentAnsicht({
   ohneTitel = false,
   anmerkungen = [],
   aktiveAnmerkung = null,
+  lesezeichen = [],
 }: {
   inhalt: DokumentInhalt;
   auswahl?: Auswahl | null;
@@ -1479,6 +1586,8 @@ export function DokumentAnsicht({
   /** Markierungen und Kommentare (Anmerkungen.tsx); Mausereignisse fängt der umgebende Rahmen ab. */
   anmerkungen?: Anmerkung[];
   aktiveAnmerkung?: number | null;
+  /** Eigene Lesezeichen: ein Fähnchen am Rand des Absatzes, in dem die Stelle beginnt. */
+  lesezeichen?: Lesezeichen[];
 }) {
   const d = inhalt.dokument;
   const beginne = useMemo(() => abschnittBeginne(inhalt.abschnitte), [inhalt]);
@@ -1552,6 +1661,13 @@ export function DokumentAnsicht({
         <section key={a.nr} id={`abschnitt-${a.nr}`} className={`abschnitt ${a.art}${a.nr === markiert ? " markiert" : ""}`}>
           <span className="abschnitt-ort">{fundstelle(a)}</span>
           <p data-beginn={beginne[ai]}>
+            {lesezeichen
+              .filter((z) => z.status === "gefunden" && z.start >= beginne[ai] && z.start <= beginne[ai] + a.text.length)
+              .map((z) => (
+                <span key={`lz${z.id}`} className="lz-fahne" data-kein-text="" data-lesezeichen={z.id} title={`Lesezeichen: ${z.titel}`}>
+                  <Zeichen name="lesezeichen" groesse={14} />
+                </span>
+              ))}
             {segmente(a.text, a.zitate).map((s, i) => {
               const von = pos;
               pos += s.text.length;
@@ -1664,6 +1780,7 @@ export function OriginalAnsicht({
   begriffe,
   hinweis = "Zitate und Belege zeigt die Textansicht.",
   anmerkungen,
+  lesezeichenStand,
 }: {
   dokument: Pick<AktenDokument, "id" | "dateiname" | "seiten">;
   startSeite: number | null;
@@ -1672,6 +1789,8 @@ export function OriginalAnsicht({
   hinweis?: string;
   /** Markierungen über die Seiten legen und auf den Seiten markieren lassen; ``stand`` zählt jede Änderung. */
   anmerkungen?: OriginalAnmerkungen;
+  /** Eigene Lesezeichen als Fähnchen am Seitenrand zeigen; die Zahl ändert sich mit jeder Änderung. */
+  lesezeichenStand?: number;
 }) {
   const seiten = dokument.seiten ?? 1;
   const rahmen = useRef<HTMLDivElement>(null);
@@ -1681,6 +1800,8 @@ export function OriginalAnsicht({
   const mitAnmerkungen = !!anmerkungen;
   const anmerkStand = anmerkungen?.stand ?? 0;
   const [woerter, setWoerter] = useState<Record<number, SeitenWort[]>>({});
+  const [fahnen, setFahnen] = useState<Record<number, LesezeichenAufSeite[]>>({});
+  const mitLesezeichen = lesezeichenStand != null;
   const zug = useRef<{ seite: number; anker: number; x: number; y: number; bewegt: boolean } | null>(null);
   const [gezogen, setGezogen] = useState<SeitenAuswahl | null>(null);
 
@@ -1739,6 +1860,22 @@ export function OriginalAnsicht({
       : rahmen.current?.querySelector(`#seite-${startSeite}`);
     el?.scrollIntoView({ block: zielMarkiert ? "center" : "start" });
   }, [startSeite, zielMarkiert]);
+
+  // Lesezeichen je geladener Seite; nach jeder Änderung neu.
+  useEffect(() => {
+    if (!mitLesezeichen) return;
+    let gueltig = true;
+    for (const s of Object.keys(bilder).map(Number)) {
+      if (typeof bilder[s] !== "object") continue;
+      kern<LesezeichenAufSeite[]>("lesezeichen.seite", { dokument_id: dokument.id, seite: s })
+        .then((l) => gueltig && setFahnen((v) => ({ ...v, [s]: l })))
+        .catch(() => undefined);
+    }
+    return () => {
+      gueltig = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mitLesezeichen, lesezeichenStand, geladen, dokument.id]);
 
   // Markieren im Original: mit der Maus über die Wörter ziehen (oder Doppelklick auf ein Wort).
   function punkt(e: ReactPointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>) {
@@ -1815,6 +1952,17 @@ export function OriginalAnsicht({
                     className="markierung"
                     style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%`, width: `${m.b * 100}%`, height: `${m.h * 100}%` }}
                   />
+                ))}
+                {(fahnen[s] ?? []).map((z) => (
+                  <span
+                    key={`lz${z.id}`}
+                    className="lz-fahne lz-fahne-seite"
+                    data-lesezeichen={z.id}
+                    title={`Lesezeichen: ${z.titel}`}
+                    style={{ top: `${(z.y ?? 0.02) * 100}%` }}
+                  >
+                    <Zeichen name="lesezeichen" groesse={16} />
+                  </span>
                 ))}
                 {gewaehlt?.seite === s &&
                   auswahlRechtecke(woerter[s] ?? [], gewaehlt.von, gewaehlt.bis).map((r, i) => (

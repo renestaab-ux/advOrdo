@@ -47,7 +47,7 @@ from .aktenverwaltung import (
     verfahren,
 )
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
-from .dokumente import akte, anmerkungen, ansicht, fassungen, lesen, metadaten, ocr, suche, urteile
+from .dokumente import akte, anmerkungen, ansicht, fassungen, lesen, lesezeichen, metadaten, ocr, suche, urteile
 from .eigene import daten as eigene
 from .eigene import marke
 from .eigene.felder import FELDER, FORMEN
@@ -271,6 +271,22 @@ class Kern:
                 self.akten, dokument_id, seite, wort_von, wort_bis, farbe, stil, kommentar),
             "anmerkungen.bedeutungen": lambda: anmerkungen.bedeutungen(self.akten),
             "anmerkungen.bedeutungen_setzen": lambda werte: anmerkungen.bedeutungen_setzen(self.akten, werte),
+            "lesezeichen.inhalt": lambda dokument_id: lesezeichen.inhalt(self.akten, dokument_id),
+            "lesezeichen.liste": lambda akte_id=None, dokument_id=None: lesezeichen.liste(
+                self.akten, akte_id, dokument_id),
+            "lesezeichen.anlegen": lambda dokument_id, start, ende=None, titel=None, ordner_id=None: (
+                lesezeichen.anlegen(self.akten, dokument_id, start, ende, titel, ordner_id)),
+            "lesezeichen.anlegen_seite": lambda dokument_id, seite, wort_von=None, wort_bis=None, titel=None,
+                ordner_id=None: lesezeichen.anlegen_auf_seite(
+                self.akten, dokument_id, seite, wort_von, wort_bis, titel, ordner_id),
+            "lesezeichen.aendern": lambda lesezeichen_id, titel: lesezeichen.aendern(self.akten, lesezeichen_id, titel),
+            "lesezeichen.loeschen": lambda lesezeichen_id: lesezeichen.loeschen(self.akten, lesezeichen_id),
+            "lesezeichen.anordnen": lambda akte_id, ordner: lesezeichen.anordnen(self.akten, akte_id, ordner),
+            "lesezeichen.seite": lambda dokument_id, seite: lesezeichen.auf_seite(self.akten, dokument_id, seite),
+            "lesezeichen.ordner_anlegen": lambda akte_id, name: lesezeichen.ordner_anlegen(self.akten, akte_id, name),
+            "lesezeichen.ordner_umbenennen": lambda ordner_id, name: lesezeichen.ordner_umbenennen(
+                self.akten, ordner_id, name),
+            "lesezeichen.ordner_loeschen": lambda ordner_id: lesezeichen.ordner_loeschen(self.akten, ordner_id),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
             "akten.rechtsprechung": lambda akte_id, dokument_id=None: akte.rechtsprechung(
                 self.akten, self.con, akte_id, dokument_id, self._online_quellen()),
@@ -420,6 +436,7 @@ class Kern:
         zeiterfassung.einrichten(self.akten)
         # Markierungen und Kommentare an Dokumenten.
         anmerkungen.einrichten(self.akten)
+        lesezeichen.einrichten(self.akten)
 
     def akten_dokumente(self, akte_id: int) -> list[dict]:
         liste = metadaten.mit_absender(self.akten, akte.dokumente(self.akten, akte_id))

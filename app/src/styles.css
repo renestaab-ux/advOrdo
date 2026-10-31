@@ -1508,3 +1508,63 @@ button.anm-eintrag.verloren { opacity: 0.7; border-style: dashed; }
 .anm-bedeutungen label { display: flex; align-items: center; gap: 8px; }
 .anm-bedeutungen input { font: inherit; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--linie); background: var(--feld); color: var(--text); width: 100%; }
 @media print { .anm-blase, .anm-menue, .anm-vorschau, .anm-editor { display: none; } }
+
+/* Lesezeichen: Seitenleiste, Fähnchen im Text und im Original, Verwaltung im Reiter der Akte. */
+.anm-leiste-reiter { display: flex; gap: 2px; flex: 1; }
+.anm-leiste-reiter button { background: none; border: none; padding: 4px 8px; border-radius: 6px; font-size: 13px; color: var(--text-leise); display: inline-flex; gap: 5px; align-items: center; }
+.anm-leiste-reiter button.aktiv { color: var(--text); background: color-mix(in srgb, var(--akzent) 12%, transparent); font-weight: 600; }
+.anm-leiste-reiter .anzahl { font-size: 11px; background: var(--linie); border-radius: 8px; padding: 0 6px; }
+.lz-leiste { display: flex; flex-direction: column; gap: 14px; }
+.lz-leiste .link { align-self: flex-start; font-size: 12px; text-align: left; margin-top: 6px; }
+.lz-leiste section { display: flex; flex-direction: column; }
+.lz-leiste h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-leise); }
+.lz-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lz-gruppe h5 { margin: 8px 0 4px; font-size: 12.5px; display: flex; gap: 4px; align-items: center; }
+.lz-eintrag { display: flex; align-items: center; gap: 4px; padding: 3px 4px; border-radius: 6px; }
+.lz-eintrag:hover { background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+.lz-eintrag.verloren { opacity: 0.65; }
+.lz-fahne-symbol { color: var(--akzent); display: inline-flex; }
+button.lz-titel { flex: 1; min-width: 0; background: none; border: none; padding: 2px 0; text-align: left; display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; color: var(--text); font-size: 13px; }
+button.lz-titel:disabled { color: var(--text-leise); }
+.lz-titel > span:first-child { overflow-wrap: anywhere; }
+.lz-ort { font-size: 11.5px; color: var(--text-leise); font-variant-numeric: tabular-nums; }
+.lz-dokument { flex-basis: 100%; font-size: 11.5px; color: var(--text-leise); }
+.lz-knopf { background: none !important; border: none; padding: 2px 4px; color: var(--text-leise); opacity: 0; font-size: 15px; line-height: 1; }
+.lz-eintrag:hover .lz-knopf, .lz-knopf:focus-visible { opacity: 1; }
+.lz-titel-feld { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid var(--akzent); border-radius: 4px; background: var(--flaeche); color: var(--text); }
+.lz-inhalt { list-style: none; margin: 0; padding: 0; }
+.lz-inhalt li { border-left: 2px solid transparent; }
+.lz-inhalt button.lz-titel { padding: 3px 4px; border-radius: 4px; }
+.lz-inhalt button.lz-titel:hover:not(:disabled) { background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+/* Fähnchen: im Text am linken Rand des Absatzes, im Original am linken Seitenrand. */
+.lz-fahne { color: var(--akzent); user-select: none; -webkit-user-select: none; display: inline-flex; vertical-align: -2px; margin-right: 4px; }
+.lz-fahne-seite { position: absolute; left: 4px; margin: 0; transform: translateY(-15%); z-index: 2; pointer-events: auto; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 25%)); }
+/* Reiter der Akte: Umschalter Markierungen / Lesezeichen und die Ordner. */
+.anm-reiter-rahmen { display: flex; flex-direction: column; gap: 10px; max-width: 980px; }
+.anm-teil-wahl { align-self: flex-start; }
+.lz-verwaltung { display: flex; flex-direction: column; gap: 10px; }
+.lz-neuer-ordner { display: flex; gap: 8px; }
+.lz-neuer-ordner input { flex: 1; max-width: 420px; font: inherit; padding: 6px 10px; border: 1px solid var(--linie); border-radius: 6px; background: var(--flaeche); color: var(--text); }
+.lz-ordner { border: 1px solid var(--linie); border-radius: var(--rund, 8px); background: var(--flaeche); padding: 6px 10px 8px; }
+.lz-ordner.lz-ziel { border-color: var(--akzent); box-shadow: inset 0 0 0 1px var(--akzent); }
+.lz-ordner.gezogen, .lz-zeile.gezogen { opacity: 0.5; }
+.lz-ordner-kopf { display: flex; align-items: center; gap: 6px; }
+.lz-ordner-kopf h3 { margin: 0; font-size: 14px; flex: 1; }
+.lz-ordner-kopf:hover .lz-knopf { opacity: 1; }
+.lz-ordner-inhalt { display: flex; flex-direction: column; margin-top: 4px; }
+.lz-leer { margin: 4px 0 2px 24px; font-size: 12px; }
+.lz-zeile { border-top: 2px solid transparent; border-bottom: 2px solid transparent; }
+.lz-zeile.lz-ziel-vor { border-top-color: var(--akzent); }
+.lz-zeile.lz-ziel-nach { border-bottom-color: var(--akzent); }
+.lz-griff { cursor: grab; color: var(--text-leise); display: inline-flex; touch-action: none; padding: 2px; }
+.lz-griff:active { cursor: grabbing; }
+.lz-ordner-wahl { font: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid var(--linie); border-radius: 4px; background: var(--flaeche); color: var(--text-leise); max-width: 140px; }
+/* Marken an der Bildlaufleiste: Markierungen in ihrer Farbe, Lesezeichen im Akzent. */
+.bildlaufmarken { position: fixed; width: 10px; z-index: 5; pointer-events: none; }
+.bildlaufmarke { position: absolute; right: 1px; width: 8px; height: 3px; border-radius: 1px; pointer-events: auto; cursor: pointer; background: var(--anm-gelb-linie, #c9a400); }
+.bildlaufmarke.marke-gelb { background: #d6b000; }
+.bildlaufmarke.marke-gruen { background: #2e9b4f; }
+.bildlaufmarke.marke-blau { background: #2f6fde; }
+.bildlaufmarke.marke-rot { background: #d64545; }
+.bildlaufmarke.marke-lesezeichen { background: var(--akzent); height: 5px; width: 10px; right: 0; }
+@media print { .bildlaufmarken, .lz-fahne { display: none; } }
