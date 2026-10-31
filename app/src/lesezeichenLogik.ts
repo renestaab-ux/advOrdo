@@ -1,4 +1,4 @@
-import type { Anmerkung } from "./anmerkungLogik";
+import { FARBEN, type AnmerkFilter, type Anmerkung, type Bedeutungen } from "./anmerkungLogik";
 
 /** Lesezeichen: Inhaltsverzeichnis des PDFs und eigene Lesezeichen in Ordnern; dazu die Marken an der Bildlaufleiste. */
 
@@ -112,6 +112,26 @@ export function verschiebeOrdner<G extends { id: number | null }>(gruppen: G[], 
 /** Was der Kern zum Speichern einer neuen Ordnung braucht. */
 export function ordnung(gruppen: OrdnerGruppe[]) {
   return gruppen.map((g) => ({ id: g.id, eintraege: g.eintraege.map((e) => ({ art: e.art, id: eintragId(e) })) }));
+}
+
+/** Nur die sichtbaren Einträge in der Ordnung der Ordner, für Export und Druck; leere Ordner fallen weg. */
+export function sichtbareOrdnung(gruppen: OrdnerGruppe[], sichtbar: (e: OrdnerEintrag) => boolean) {
+  return ordnung(gruppen.map((g) => ({ ...g, eintraege: g.eintraege.filter(sichtbar) })).filter((g) => g.eintraege.length > 0));
+}
+
+export type OrdnerAnsichtArt = "markierungen" | "lesezeichen" | "alle";
+
+/** In Worten, was ausgewählt ist, für den Kopf des Ausdrucks; null = alles. */
+export function auswahlText(ansicht: OrdnerAnsichtArt, f: AnmerkFilter, bedeutungen: Bedeutungen): string | null {
+  const teile: string[] = [];
+  if (ansicht === "markierungen") teile.push("nur Markierungen und Kommentare");
+  if (ansicht === "lesezeichen") teile.push("nur Lesezeichen");
+  if (ansicht !== "lesezeichen") {
+    if (f.farben.length > 0) teile.push(`Bedeutung ${FARBEN.filter((x) => f.farben.includes(x)).map((x) => bedeutungen[x]).join(", ")}`);
+    if (f.nurKommentar) teile.push("nur mit Kommentar");
+    if (f.suche.trim()) teile.push(`Suche „${f.suche.trim()}“`);
+  }
+  return teile.length ? teile.join("; ") : null;
 }
 
 // --- Bildlaufleiste --------------------------------------------------------------------------------------------------

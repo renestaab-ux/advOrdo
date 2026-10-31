@@ -47,7 +47,19 @@ from .aktenverwaltung import (
     verfahren,
 )
 from .aktenverwaltung import einrichten as aktenverwaltung_einrichten
-from .dokumente import akte, anmerkungen, ansicht, fassungen, lesen, lesezeichen, metadaten, ocr, suche, urteile
+from .dokumente import (
+    akte,
+    anmerkungen,
+    anmerkungen_ausgabe,
+    ansicht,
+    fassungen,
+    lesen,
+    lesezeichen,
+    metadaten,
+    ocr,
+    suche,
+    urteile,
+)
 from .eigene import daten as eigene
 from .eigene import marke
 from .eigene.felder import FELDER, FORMEN
@@ -287,6 +299,11 @@ class Kern:
             "lesezeichen.ordner_umbenennen": lambda ordner_id, name: lesezeichen.ordner_umbenennen(
                 self.akten, ordner_id, name),
             "lesezeichen.ordner_loeschen": lambda ordner_id: lesezeichen.ordner_loeschen(self.akten, ordner_id),
+            "anmerkungen.export_name": lambda akte_id: {"name": anmerkungen_ausgabe.dateiname(self.akten, akte_id)},
+            "anmerkungen.export": lambda akte_id, ordner, format, pfad, gliederung="ordner", auswahl=None: (
+                anmerkungen_ausgabe.schreiben(self.akten, akte_id, ordner, format, pfad, gliederung, auswahl)),
+            "anmerkungen.export_druck": lambda akte_id, ordner, gliederung="ordner", auswahl=None: (
+                anmerkungen_ausgabe.druckansicht(self.akten, akte_id, ordner, gliederung, auswahl)),
             "akten.zitate_pruefen": lambda akte_id: akte.zitate_neu_pruefen(self.akten, self.con, akte_id),
             "akten.rechtsprechung": lambda akte_id, dokument_id=None: akte.rechtsprechung(
                 self.akten, self.con, akte_id, dokument_id, self._online_quellen()),
