@@ -261,7 +261,7 @@ export function ZustaendigesGericht({
       >
         <label className="feld">
           PLZ
-          <input value={plz} onChange={(ev) => setPlz(ev.target.value)} inputMode="numeric" maxLength={5} placeholder="79098" />
+          <input value={plz} onChange={(ev) => setPlz(ev.target.value)} inputMode="numeric" maxLength={5} placeholder="5 Ziffern" />
         </label>
         <label className="feld">
           Ort
@@ -286,6 +286,13 @@ export function ZustaendigesGericht({
         )}
         {ang && ZUSTAENDIGKEIT_HINWEIS[ang]} Gesendet werden nur Postleitzahl und Ort.
       </p>
+      {!bereit && (plz.trim() || ort.trim()) && (
+        <p className="hinweis">
+          {!/^\d{5}$/.test(plz.trim())
+            ? "Zum Suchen bitte die fünfstellige Postleitzahl eintragen; das Verzeichnis sucht nicht nach dem Ort allein."
+            : "Bitte auch den Ort eintragen."}
+        </p>
+      )}
       {fehler && <p className="fehler">{fehler}</p>}
       {ergebnis?.gerichtsbarkeit === ang && gerichte.length === 0 && (
         <p className="hinweis">
