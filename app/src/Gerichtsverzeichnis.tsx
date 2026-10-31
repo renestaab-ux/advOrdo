@@ -167,7 +167,8 @@ export function ZustaendigesGericht({
         setEinstellungen(e);
         setAng(startGerichtsbarkeit(e.aktiv, verfahrensArt));
       },
-      (e) => setFehler(String(e)),
+      // Älterer Kern ohne Einstellung: nur der allgemeine Gerichtsstand, wie bisher.
+      () => setAng("zivil"),
     );
   }, []);
 
