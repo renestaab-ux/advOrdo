@@ -114,8 +114,20 @@ def starten(datei: Path, einstellung: dict) -> None:
     _ausfuehren(aufruf)
 
 
+def befehlszeile(aufruf: list[str]) -> str | list[str]:
+    """Unter Windows die Befehlszeile für den Explorer selbst bauen.
+
+    ``subprocess`` setzt ein Argument mit Leerzeichen ganz in Anführungszeichen (``"/select,C:\\a b.pdf"``). Das
+    versteht der Explorer nicht und öffnet dann „Dokumente“; er braucht ``/select,"C:\\a b.pdf"``.
+    """
+    if len(aufruf) == 2 and aufruf[0] == "explorer" and aufruf[1].startswith("/select,"):
+        return f'explorer /select,"{aufruf[1][len("/select,"):]}"'
+    return aufruf
+
+
 def im_ordner_zeigen(datei: Path) -> None:
-    _ausfuehren(ordner_befehl(datei))
+    aufruf = ordner_befehl(datei)
+    _ausfuehren(aufruf, befehlszeile(aufruf) if sys.platform == "win32" else None)
 
 
 def im_browser_oeffnen(adresse: str) -> None:
@@ -128,7 +140,7 @@ def im_browser_oeffnen(adresse: str) -> None:
     _ausfuehren(["open" if sys.platform == "darwin" else "xdg-open", adresse])
 
 
-def _ausfuehren(aufruf: list[str]) -> None:
+def _ausfuehren(aufruf: list[str], zeile: str | list[str] | None = None) -> None:
     if shutil.which(aufruf[0]) is None and not Path(aufruf[0]).exists():
         if aufruf[0] == "xdg-open":
             raise RuntimeError(
@@ -142,7 +154,7 @@ def _ausfuehren(aufruf: list[str]) -> None:
         zusatz["start_new_session"] = True
     try:
         subprocess.Popen(  # noqa: S603 - Programm und Datei stammen aus den Einstellungen und der Ablage
-            aufruf, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            zeile or aufruf, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             close_fds=True, **zusatz,
         )
     except OSError as fehler:
