@@ -124,6 +124,9 @@ fn austausch(p: &mut Prozess, anfrage: &Value, id: u64) -> Result<Value, String>
         .and_then(|_| p.stdin.write_all(b"\n"))
         .and_then(|_| p.stdin.flush())
         .map_err(|e| format!("Senden an den Kern fehlgeschlagen: {e}"))?;
+    // Der Kern sendet nur Antworten auf Anfragen. Zeilen mit einer anderen Kennung deuten auf einen
+    // Fehler hin (etwa eine Ausgabe auf stdout); ohne Grenze würde hier endlos gelesen.
+    let mut fremde_zeilen = 0u32;
     loop {
         let mut antwort = String::new();
         let n = p.stdout.read_line(&mut antwort).map_err(|e| format!("Lesen vom Kern fehlgeschlagen: {e}"))?;
@@ -133,6 +136,12 @@ fn austausch(p: &mut Prozess, anfrage: &Value, id: u64) -> Result<Value, String>
         let wert: Value = serde_json::from_str(&antwort).map_err(|e| format!("Ungültige Antwort des Kerns: {e}"))?;
         if wert.get("id").and_then(Value::as_u64) == Some(id) {
             return Ok(wert);
+        }
+        fremde_zeilen += 1;
+        if fremde_zeilen >= 64 {
+            return Err(
+                "Der Kern antwortet nicht mit der erwarteten Kennung (64 Zeilen ohne Treffer)".into(),
+            );
         }
     }
 }

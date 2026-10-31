@@ -115,7 +115,14 @@ class Umgebungen:
             raise ValueError("Ungültige Umgebung.")
         z["umgebungen"] = [e for e in z["umgebungen"] if e["id"] != umgebung_id]
         self._speichere(z)
-        shutil.rmtree(ordner, ignore_errors=True)
+        try:
+            shutil.rmtree(ordner)
+        except OSError as fehler:
+            # Die Umgebung ist aus der Liste entfernt; der Ordner blieb (teilweise) bestehen,
+            # etwa weil eine Datei gesperrt ist. Der Fehler darf nicht still bleiben (Datenschutz).
+            raise RuntimeError(
+                "Die Umgebung wurde entfernt, ihr Ordner ließ sich aber nicht vollständig löschen: "
+                f"{fehler}") from fehler
         return self.liste()
 
     @staticmethod
