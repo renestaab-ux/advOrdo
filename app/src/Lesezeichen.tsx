@@ -1,5 +1,6 @@
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
-import { istDesktop, kern } from "./kern";
+import { Druckansicht, istDesktop, kern } from "./kern";
+import { AusgabeKnoepfe } from "./Export";
 import { AnmerkungsEintrag, FilterLeiste, useBedeutungen } from "./Anmerkungen";
 import { AnmerkFilter, Anmerkung, filtereAnmerkungen, KEIN_ANMERK_FILTER, vergleichbar } from "./anmerkungLogik";
 import {
@@ -9,10 +10,13 @@ import {
   Marke,
   OrdnerEintrag,
   OrdnerGruppe,
+  type OrdnerAnsichtArt,
+  auswahlText,
   lesezeichenGruppen,
   ordnerGruppen,
   ordnung,
   schluessel,
+  sichtbareOrdnung,
   verdichteMarken,
   verschiebeEintrag,
   verschiebeOrdner,
@@ -240,7 +244,7 @@ export function LesezeichenLeiste({
 }
 
 /** Was der Reiter „Anmerkungen“ der Akte zeigt; die Ordner sind für alle drei Ansichten dieselben. */
-export type OrdnerAnsichtArt = "markierungen" | "lesezeichen" | "alle";
+export type { OrdnerAnsichtArt };
 
 /**
  * Reiter „Anmerkungen“ der Akte: Markierungen und Kommentare, Lesezeichen oder beides in den Ordnern der Akte.
@@ -268,6 +272,8 @@ export function OrdnerAnsicht({
   const zug = useRef<{ art: "eintrag"; key: string } | { art: "ordner"; id: number } | null>(null);
   const [ziel, setZiel] = useState<{ gruppe: number | null; vor: string | null; ordner: boolean } | null>(null);
   const [gezogen, setGezogen] = useState<string | null>(null);
+  const [ausgabe, setAusgabe] = useState(false);
+  const [gliederung, setGliederung] = useState<"ordner" | "dokumente">("ordner");
 
   const laden = useCallback(async () => {
     try {
@@ -386,11 +392,55 @@ export function OrdnerAnsicht({
             : "Noch nichts markiert. Öffne ein Dokument, wähle Text aus und markiere ihn im Menü über der Auswahl; dort lassen sich auch ein Kommentar oder ein Lesezeichen anfügen."}
         </LeerHinweis>
       ) : (
-        <p className="leise">
-          {anzahlSichtbar === vorhanden.length ? `${vorhanden.length} Einträge` : `${anzahlSichtbar} von ${vorhanden.length} Einträgen`}. Am Griff
-          ziehen: Einträge in einen Ordner oder an eine andere Stelle, Ordner in eine andere Reihenfolge. Die Ordner gelten für
-          Markierungen und Lesezeichen gemeinsam.
-        </p>
+        <div className="lz-hinweis-zeile">
+          <p className="leise">
+            {anzahlSichtbar === vorhanden.length ? `${vorhanden.length} Einträge` : `${anzahlSichtbar} von ${vorhanden.length} Einträgen`}. Am Griff
+            ziehen: Einträge in einen Ordner oder an eine andere Stelle, Ordner in eine andere Reihenfolge. Die Ordner gelten für
+            Markierungen und Lesezeichen gemeinsam.
+          </p>
+          <button className="zweitrangig" aria-expanded={ausgabe} onClick={() => setAusgabe(!ausgabe)}>
+            Exportieren / Drucken …
+          </button>
+        </div>
+      )}
+      {ausgabe && vorhanden.length > 0 && (
+        <section className="karte ki-export lz-ausgabe">
+          <div className="ki-export-kopf">
+            <strong>{anzahlSichtbar === vorhanden.length ? "Alle angezeigten Einträge ausgeben" : `${anzahlSichtbar} angezeigte Einträge ausgeben`}</strong>
+            <button className="zweitrangig" onClick={() => setAusgabe(false)}>
+              Schließen
+            </button>
+          </div>
+          <p className="leise">
+            Ausgegeben wird, was oben angezeigt ist (Ansicht, Bedeutung, Suche), mit Fundstelle (Dokument, Seite, Rn.) und
+            Kommentar.
+          </p>
+          <div className="ki-export-teile" role="radiogroup" aria-label="Gliederung">
+            <label>
+              <input type="radio" checked={gliederung === "ordner"} onChange={() => setGliederung("ordner")} /> Nach Ordnern, in der Reihenfolge wie hier
+            </label>
+            <label>
+              <input type="radio" checked={gliederung === "dokumente"} onChange={() => setGliederung("dokumente")} /> Nach Dokumenten, in Textfolge
+            </label>
+          </div>
+          {(() => {
+            const params = {
+              akte_id: akteId,
+              ordner: sichtbareOrdnung(gruppen, sichtbar),
+              gliederung,
+              auswahl: auswahlText(ansicht, filter, bedeutungen),
+            };
+            return (
+              <AusgabeKnoepfe
+                was="Anmerkungen"
+                gesperrt={anzahlSichtbar === 0}
+                name={async () => (await kern<{ name: string }>("anmerkungen.export_name", { akte_id: akteId })).name}
+                schreiben={(format, pfad) => kern<{ pfad: string }>("anmerkungen.export", { ...params, format, pfad })}
+                druckansicht={() => kern<Druckansicht>("anmerkungen.export_druck", params)}
+              />
+            );
+          })()}
+        </section>
       )}
       {gruppen.map((g) => {
         const zeilen = g.eintraege.filter(sichtbar);

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { BEDEUTUNG_VORGABE, KEIN_ANMERK_FILTER } from "./anmerkungLogik";
 import {
+  auswahlText,
   lesezeichenGruppen,
   ordnerGruppen,
   ordnung,
   schluessel,
+  sichtbareOrdnung,
   verdichteMarken,
   verschiebeEintrag,
   verschiebeOrdner,
@@ -50,6 +53,24 @@ describe("Lesezeichen in Ordnern", () => {
     expect(ordnung(verschiebeEintrag(g, "l2", 10, "m7"))[0].eintraege.map((e) => e.id)).toEqual([1, 2, 7, 3]);
     expect(verschiebeOrdner(g, 11, 10).map((x) => x.id)).toEqual([11, 10, null]);
     expect(verschiebeOrdner(g, 10, null).map((x) => x.id)).toEqual([11, 10, null]);
+  });
+});
+
+describe("Ausgabe der angezeigten Einträge", () => {
+  it("nimmt nur Sichtbares, ohne leere Ordner", () => {
+    const g = lesezeichenGruppen(liste).map((x) => ({ ...x, eintraege: x.eintraege.map((z) => ({ art: "lesezeichen" as const, z })) }));
+    expect(sichtbareOrdnung(g, (e) => e.art === "lesezeichen" && e.z.id !== 3)).toEqual([
+      { id: 10, eintraege: [{ art: "lesezeichen", id: 1 }] },
+      { id: null, eintraege: [{ art: "lesezeichen", id: 2 }, { art: "lesezeichen", id: 4 }] },
+    ]);
+  });
+
+  it("beschreibt die Auswahl in Worten", () => {
+    expect(auswahlText("alle", KEIN_ANMERK_FILTER, BEDEUTUNG_VORGABE)).toBeNull();
+    expect(auswahlText("lesezeichen", { farben: ["rot"], nurKommentar: true, suche: "x" }, BEDEUTUNG_VORGABE)).toBe("nur Lesezeichen");
+    expect(auswahlText("markierungen", { farben: ["rot", "gelb"], nurKommentar: true, suche: " Gutachten " }, BEDEUTUNG_VORGABE)).toBe(
+      "nur Markierungen und Kommentare; Bedeutung Wichtig, Streitig; nur mit Kommentar; Suche „Gutachten“",
+    );
   });
 });
 

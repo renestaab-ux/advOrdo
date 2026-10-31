@@ -1571,3 +1571,10 @@ button.lz-titel:disabled { color: var(--text-leise); }
 .lz-markierung { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
 .lz-markierung .anm-liste { flex: 1; min-width: 0; }
 .lz-markierung button.anm-eintrag { padding: 5px 8px; gap: 2px; }
+
+/* Anmerkungen ausgeben (Reiter „Anmerkungen“ der Akte) */
+.lz-hinweis-zeile { display: flex; align-items: flex-start; gap: 12px; }
+.lz-hinweis-zeile p { flex: 1; margin: 0; }
+.lz-hinweis-zeile button { flex: none; }
+.lz-ausgabe { margin-top: 8px; }
+.lz-ausgabe > p.leise { margin: 0 0 8px; }

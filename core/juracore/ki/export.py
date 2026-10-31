@@ -224,7 +224,8 @@ def _tabelle(name: str, spalten: list[str], zeilen: list[list], breiten: list[in
 # --- Bericht ------------------------------------------------------------------------------------------------------
 
 
-def _kopf(con: sqlite3.Connection, akte_id: int, modelle: list[str], jetzt: datetime) -> Kopf:
+def aktenkopf(con: sqlite3.Connection, akte_id: int, modelle: list[str], jetzt: datetime) -> Kopf:
+    """Kopf eines Berichts: Akte, Aktenzeichen, Gegenstand, Parteien, Verfahren, Ausgabezeit."""
     a = stammdaten.stammdaten(con, akte_id)
     zeilen = [("Akte", a["name"])]
     if a.get("aktenzeichen"):
@@ -263,7 +264,7 @@ def bericht(con: sqlite3.Connection, akte_id: int, modell: str, teile: list[str]
     if "dokumente" in vorhanden:
         teile_ergebnisse += list(ergebnisse["dokumente"].values())
     modelle = list(dict.fromkeys(e.get("modell") or modell for e in teile_ergebnisse))
-    kopf = _kopf(con, akte_id, [m for m in modelle if m], jetzt)
+    kopf = aktenkopf(con, akte_id, [m for m in modelle if m], jetzt)
     b = Bericht(f"KI-Auswertung: {kopf.zeilen[0][1]}", [kopf, Absatz(HINWEIS, leise=True)])
     for t in vorhanden:
         if t == "widersprueche":
@@ -279,11 +280,12 @@ def bericht(con: sqlite3.Connection, akte_id: int, modell: str, teile: list[str]
     return b
 
 
-def dateiname(con: sqlite3.Connection, akte_id: int, jetzt: datetime | None = None) -> str:
+def dateiname(con: sqlite3.Connection, akte_id: int, jetzt: datetime | None = None,
+              vorne: str = "KI-Auswertung") -> str:
     """Vorschlag ohne Endung, z. B. „KI-Auswertung Brückner gg. Autohaus 2026-10-23“."""
     a = stammdaten.stammdaten(con, akte_id)
     name = a.get("aktenzeichen") or a["name"]
-    name = re.sub(r"\s*\./\.\s*", " gg. ", f"KI-Auswertung {name}")  # „./.“ darf nicht in einen Dateinamen
+    name = re.sub(r"\s*\./\.\s*", " gg. ", f"{vorne} {name}")  # „./.“ darf nicht in einen Dateinamen
     name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "-", name)
     return " ".join(name.split())[:120] + f" {(jetzt or datetime.now()).strftime('%Y-%m-%d')}"
 
