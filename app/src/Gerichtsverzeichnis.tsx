@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { GerichtsverzeichnisStand, datumLang, istDesktop, kern, zeitpunkt } from "./kern";
+import { GerichtsverzeichnisStand, datumLang, istDesktop, kern, kernImHintergrund, zeitpunkt } from "./kern";
 
 /** Öffnet das Orts- und Gerichtsverzeichnis der Justiz im Browser, für Anschrift und Zuständigkeit. */
 export function OrtsverzeichnisKnopf({ onFehler }: { onFehler?: (text: string) => void }) {
@@ -52,7 +52,7 @@ export default function Gerichtsverzeichnis() {
   async function ausDatei() {
     const pfad = await open({ title: "Codeliste GDS.Gerichte wählen", filters: [{ name: "XML", extensions: ["xml"] }] });
     if (typeof pfad !== "string") return;
-    await ausfuehren("Lese die Datei …", () => kern<GerichtsverzeichnisStand>("gerichte.laden_datei", { pfad }));
+    await ausfuehren("Lese die Datei …", () => kernImHintergrund<GerichtsverzeichnisStand>("gerichte.laden_datei", { pfad }));
   }
 
   return (
@@ -75,7 +75,7 @@ export default function Gerichtsverzeichnis() {
         <button
           className={stand ? "zweitrangig" : undefined}
           disabled={!!laeuft}
-          onClick={() => void ausfuehren("Lade das Gerichtsverzeichnis von xrepository.de …", () => kern("gerichte.laden"))}
+          onClick={() => void ausfuehren("Lade das Gerichtsverzeichnis von xrepository.de …", () => kernImHintergrund("gerichte.laden"))}
         >
           {stand ? "Verzeichnis aktualisieren" : "Verzeichnis laden"}
         </button>

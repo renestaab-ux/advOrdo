@@ -15,6 +15,7 @@ import json
 import logging
 import sqlite3
 import sys
+import threading
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -29,6 +30,7 @@ from . import (
     diagnose,
     einstellungen,
     gerichte,
+    hintergrund,
     justizadressen,
     nachrichten,
     netzprotokoll,
@@ -86,6 +88,10 @@ log = logging.getLogger("juracore.rpc")
 
 class Kern:
     def __init__(self, db_pfad: Path, archiv: Path):
+        # Hintergrundaufträge arbeiten mit eigenen Verbindungen (SQLite-Verbindungen gehören zu ihrem Thread);
+        # ``con`` und ``akten`` liefern im Auftrag dessen Verbindungen, sonst die des Hauptthreads.
+        self._lokal = threading.local()
+        self.hintergrund = hintergrund.Hintergrund()
         self.con = db.oeffne(db_pfad)
         self.db_pfad = Path(db_pfad)
         self.archiv = archiv
@@ -418,6 +424,11 @@ class Kern:
             "ki.schalten": self.ki_schalten,
             "ki.extern_setzen": self.ki_extern_setzen,
             "ki.starten": self.ki_starten,
+            # Lange Befehle (Importe, Online-Abrufe) im Hintergrund, damit die App bedienbar bleibt.
+            "hintergrund.starten": self.hintergrund_starten,
+            "hintergrund.auftrag": self.hintergrund.status,
+            "hintergrund.abbrechen": self.hintergrund.abbrechen,
+            "hintergrund.laufend": self.hintergrund.laufend,
             "ki.auftrag": self.auftraege.status,
             "ki.laufend": lambda: (a.als_dict() if (a := self.auftraege.laufend()) else None),
             "ki.abbrechen": self.auftraege.abbrechen,
@@ -439,6 +450,46 @@ class Kern:
             "rechner.basiszins_entfernen": lambda ab: basiszins.entfernen(self.basiszins_datei, ab),
             "ki.chat_leeren": lambda akte_id, dokument_id=None: ki_chat.leeren(self.akten, akte_id, dokument_id),
         }
+
+    @property
+    def con(self) -> sqlite3.Connection:
+        """Verbindung zur Wissensbasis; in einem Hintergrundauftrag dessen eigene."""
+        lokal = getattr(self._lokal, "con", None)
+        return self._con if lokal is None else lokal
+
+    @con.setter
+    def con(self, wert: sqlite3.Connection) -> None:
+        self._con = wert
+
+    @property
+    def akten(self) -> sqlite3.Connection:
+        """Verbindung zu den Akten der aktiven Umgebung; in einem Hintergrundauftrag dessen eigene."""
+        lokal = getattr(self._lokal, "akten", None)
+        return self._akten if lokal is None else lokal
+
+    @akten.setter
+    def akten(self, wert: sqlite3.Connection) -> None:
+        self._akten = wert
+
+    def hintergrund_starten(self, methode: str, params: dict | list | None = None, warten: bool = False) -> dict:
+        """Startet einen langen Befehl (``hintergrund.BEFEHLE``) im Hintergrund; Fortschritt und Ergebnis liefert
+        ``hintergrund.auftrag``. ``warten`` führt ihn sofort aus (Tests)."""
+        funktion = self.methoden.get(methode)
+        if funktion is None or methode not in hintergrund.BEFEHLE:
+            raise LookupError(f"{methode!r} läuft nicht im Hintergrund.")
+        db_pfad, akten_pfad = self.db_pfad, self.akten_pfad
+
+        def arbeit() -> Any:
+            self._lokal.con = db.oeffne(db_pfad)
+            self._lokal.akten = akte.oeffne(akten_pfad)
+            try:
+                return _aufrufen(funktion, params)
+            finally:
+                self._lokal.con.close()
+                self._lokal.akten.close()
+                del self._lokal.con, self._lokal.akten
+
+        return self.hintergrund.starte(methode, arbeit, warten=bool(warten))
 
     def _oeffne_akten(self, ordner: Path) -> None:
         self.akten_pfad = ordner / "akten.sqlite"
@@ -703,6 +754,9 @@ class Kern:
         """Schließt die Akten der aktiven Umgebung und öffnet die der gewählten."""
         if self.auftraege.laufend():
             raise RuntimeError("Eine Analyse läuft noch. Bitte warten oder sie abbrechen, dann die Umgebung wechseln.")
+        if laufend := self.hintergrund.laufend():
+            raise RuntimeError(f"„{laufend[0]['titel']}“ läuft noch. Bitte warten oder abbrechen, dann die Umgebung "
+                               "wechseln.")
         ordner = self.umgebungen.aktivieren(umgebung_id)
         self.akten.close()
         self._oeffne_akten(ordner)
@@ -710,7 +764,9 @@ class Kern:
 
     def importieren(self, gesetze: list[str]) -> list[dict]:
         ergebnisse = []
-        for abk in gesetze:
+        for i, abk in enumerate(gesetze, 1):
+            hintergrund.pruefe()
+            hintergrund.melde(f"Lade {abk.upper()} ({i} von {len(gesetze)}) …", i, len(gesetze))
             try:
                 roh = quelle.lade_gesetz(abk, self.archiv, gesetze=quelle.voreinstellung(self.eigene_liste))
                 ergebnisse.append(wissensbasis.importiere(self.con, roh, roh.abk))
@@ -993,15 +1049,7 @@ class Kern:
             methode = self.methoden.get(anfrage.get("method", ""))
             if methode is None:
                 raise LookupError(f"Unbekannte Methode: {anfrage.get('method')!r}")
-            params = anfrage.get("params")
-            if params is None:
-                ergebnis = methode()
-            elif isinstance(params, dict):
-                ergebnis = methode(**params)
-            elif isinstance(params, list):
-                ergebnis = methode(*params)
-            else:
-                raise TypeError(f"params muss ein Objekt oder eine Liste sein, nicht {type(params).__name__}.")
+            ergebnis = _aufrufen(methode, anfrage.get("params"))
             return {"id": anfrage_id, "result": ergebnis}
         except (ValueError, LookupError, TypeError, OSError, RuntimeError, sqlite3.Error) as fehler:
             log.warning("Fehler bei Anfrage %s: %s", anfrage_id, fehler)
@@ -1011,6 +1059,16 @@ class Kern:
             return {"id": anfrage_id, "error": {
                 "message": f"Unerwarteter Fehler im Analysekern ({type(fehler).__name__}: {fehler}).",
                 "typ": type(fehler).__name__}}
+
+
+def _aufrufen(methode: Callable[..., Any], params: Any) -> Any:
+    if params is None:
+        return methode()
+    if isinstance(params, dict):
+        return methode(**params)
+    if isinstance(params, list):
+        return methode(*params)
+    raise TypeError(f"params muss ein Objekt oder eine Liste sein, nicht {type(params).__name__}.")
 
 
 def serve(db_pfad: Path | None = None, archiv: Path | None = None) -> None:

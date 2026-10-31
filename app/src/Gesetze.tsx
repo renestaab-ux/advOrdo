@@ -11,6 +11,7 @@ import {
   istDesktop,
   istZitat,
   kern,
+  kernImHintergrund,
 } from "./kern";
 
 export default function Gesetze() {
@@ -52,7 +53,7 @@ export default function Gesetze() {
 
   async function importieren(abk: string[]) {
     await ausfuehren(`Lade ${abk.join(", ")} von gesetze-im-internet.de bzw. EUR-Lex …`, async () => {
-      const ergebnisse = await kern<ImportErgebnis[]>("gesetze.importieren", { gesetze: abk });
+      const ergebnisse = await kernImHintergrund<ImportErgebnis[]>("gesetze.importieren", { gesetze: abk });
       await ladeListe();
       const fehler = ergebnisse.filter((e) => e.fehler).map((e) => `${e.abk}: ${e.fehler}`);
       if (fehler.length > 0) throw new Error(fehler.join("\n"));

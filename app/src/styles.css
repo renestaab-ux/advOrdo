@@ -1581,3 +1581,13 @@ button.lz-titel:disabled { color: var(--text-leise); }
 .pdf-kopie { margin-top: 10px; }
 .pdf-kopie p { margin: 4px 0 0; font-size: 12.5px; }
 .anm-leiste .pdf-kopie .link { padding: 0; }
+
+/* Warteanzeige für lange Befehle im Hintergrund (Hintergrund.tsx) */
+.hintergrund-anzeige { position: fixed; right: 16px; bottom: 16px; z-index: 900; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+.hintergrund-auftrag { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--flaeche); color: var(--text); border: 1px solid var(--linie); border-radius: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / 18%); }
+.hintergrund-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.hintergrund-text .leise { color: var(--text-leise); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+.hintergrund-anzeige .fehler { margin: 0; padding: 6px 10px; background: var(--flaeche); border-radius: 6px; }
+.hintergrund-drehen { width: 14px; height: 14px; flex: none; border: 2px solid var(--linie); border-top-color: var(--akzent); border-radius: 50%; animation: hintergrund-drehen 0.9s linear infinite; }
+@keyframes hintergrund-drehen { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .hintergrund-drehen { animation: none; } }

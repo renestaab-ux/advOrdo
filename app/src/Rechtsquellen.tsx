@@ -6,6 +6,7 @@ import {
   UrteilQuelle,
   istDesktop,
   kern,
+  kernImHintergrund,
   rechtsprechungUmfang,
   zeitpunkt,
 } from "./kern";
@@ -45,7 +46,7 @@ export default function Rechtsquellen({ onAkte }: { onAkte: () => void }) {
 
   async function laden() {
     await ausfuehren("Lade das Verzeichnis der Bundesrechtsprechung von rechtsprechung-im-internet.de …", async () => {
-      setStand(await kern<RechtsprechungStand>("rechtsprechung.laden"));
+      setStand(await kernImHintergrund<RechtsprechungStand>("rechtsprechung.laden"));
     });
   }
 
