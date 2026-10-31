@@ -21,7 +21,7 @@ function fehlendText(f: Fehlend[]): string | null {
   return `${f.length === 1 ? "Eine Markierung fehlt" : `${f.length} Markierungen fehlen`} in der Kopie: ${liste}${f.length > 3 ? " …" : ""}. Diese bitte in der Textansicht prüfen.`;
 }
 
-function useAblauf() {
+function useAblauf(arbeit: string) {
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [hinweis, setHinweis] = useState<string | null>(null);
@@ -41,6 +41,7 @@ function useAblauf() {
   }
   const anzeige = (
     <>
+      {laeuft && <p className="status">{arbeit}</p>}
       {meldung && <p className="status">{meldung}</p>}
       {hinweis && <p className="hinweis">{hinweis}</p>}
       {fehler && <p className="fehler">{fehler}</p>}
@@ -51,7 +52,7 @@ function useAblauf() {
 
 /** Ein Dokument: Speichern-Dialog, dann die Kopie. */
 export function PdfKopieKnopf({ dokumentId }: { dokumentId: number }) {
-  const a = useAblauf();
+  const a = useAblauf("PDF wird erstellt …");
   const speichern = () =>
     a.ausfuehren(async () => {
       const { name } = await kern<{ name: string }>("anmerkungen.pdf_name", { dokument_id: dokumentId });
@@ -62,7 +63,7 @@ export function PdfKopieKnopf({ dokumentId }: { dokumentId: number }) {
       });
       if (!ziel) return;
       const r = await kern<{ pfad: string; eingezeichnet: number; fehlend: Fehlend[] }>("anmerkungen.pdf", { dokument_id: dokumentId, pfad: ziel });
-      a.setMeldung(`${r.eingezeichnet} ${r.eingezeichnet === 1 ? "Markierung" : "Markierungen"} eingezeichnet: ${r.pfad}`);
+      a.setMeldung(`${r.eingezeichnet} ${r.eingezeichnet === 1 ? "Markierung" : "Markierungen"} eingezeichnet. Gespeichert unter ${r.pfad}; der Dateimanager zeigt die Datei.`);
       a.setHinweis(fehlendText(r.fehlend));
     });
   return (
@@ -82,17 +83,20 @@ export function PdfKopieKnopf({ dokumentId }: { dokumentId: number }) {
 
 /** Ganze Akte: Ordner wählen, je PDF mit ausgewählten Markierungen eine Kopie. */
 export function PdfKopienAkte({ akteId, ids }: { akteId: number; ids: number[] }) {
-  const a = useAblauf();
+  const a = useAblauf("PDF-Kopien werden erstellt …");
   const speichern = () =>
     a.ausfuehren(async () => {
       const ordner = await open({ directory: true, title: "Ordner für die PDF-Kopien mit Markierungen" });
-      if (!ordner || Array.isArray(ordner)) return;
+      if (!ordner || Array.isArray(ordner)) {
+        a.setMeldung("Kein Ordner gewählt, nichts gespeichert.");
+        return;
+      }
       const r = await kern<{ ordner: string; dateien: { dokument: string; eingezeichnet: number }[]; kein_pdf: string[]; fehlend: Fehlend[] }>(
         "anmerkungen.pdf_akte",
         { akte_id: akteId, ordner, ids },
       );
       const n = r.dateien.length;
-      a.setMeldung(n ? `${n} ${n === 1 ? "PDF" : "PDFs"} mit Markierungen gespeichert in ${r.ordner}` : "Kein PDF gespeichert.");
+      a.setMeldung(n ? `${n} ${n === 1 ? "PDF" : "PDFs"} mit Markierungen gespeichert in ${r.ordner}; der Dateimanager zeigt den Ordner.` : "Kein PDF gespeichert.");
       const teile = [
         r.kein_pdf.length ? `Keine PDFs, daher ohne Kopie: ${r.kein_pdf.join(", ")}. Für diese bitte Word oder PDF oben nutzen.` : null,
         fehlendText(r.fehlend),
