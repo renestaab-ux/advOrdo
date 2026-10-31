@@ -5,7 +5,7 @@ import AktenEinstellungen from "./AktenEinstellungen";
 import { BedeutungenKarte } from "./Anmerkungen";
 import Diagnose from "./Diagnose";
 import Nachrichten from "./Nachrichten";
-import Gerichtsverzeichnis from "./Gerichtsverzeichnis";
+import Gerichtsverzeichnis, { GerichtssucheKarte } from "./Gerichtsverzeichnis";
 import Programme from "./Programme";
 import Rechtsquellen from "./Rechtsquellen";
 import SchriftVorlagenEinstellungen from "./SchriftVorlagen";
@@ -199,6 +199,7 @@ export default function Einstellungen({
         <AktenEinstellungen umgebungen={umgebungen} />
         <BedeutungenKarte key={umgebungen?.aktiv} />
         <Gerichtsverzeichnis />
+        <GerichtssucheKarte />
       </>
     );
   } else if (reiter === "schriftstuecke") {

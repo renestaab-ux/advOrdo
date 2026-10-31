@@ -110,6 +110,7 @@ class Kern:
         self.auftraege = Auftraege()
         self.basiszins_datei = Path(db_pfad).parent / "basiszins.json"
         self.quellen_datei = Path(db_pfad).parent / "rechtsprechung-quellen.json"
+        self.gerichtssuche_datei = Path(db_pfad).parent / justizadressen.EINSTELLUNGEN
         # Nachrichten-Feeds der Startseite gelten für das Gerät; geladen wird im Hintergrund.
         self.nachrichten = nachrichten.Nachrichten(
             Path(db_pfad).parent / "nachrichten.json", Path(db_pfad).parent / "nachrichten-cache.json")
@@ -361,8 +362,10 @@ class Kern:
             "gerichte.laden_datei": self.gerichte_laden_datei,
             "gerichte.namen": lambda: gerichte.namen(self.con),
             "gerichte.verzeichnis_oeffnen": lambda: gerichte.verzeichnis_oeffnen(),
-            "gerichte.zustaendig": lambda plz, ort: justizadressen.zustaendig(
-                self.con, plz, ort, self.archiv, self.diagnose_oeffnen),
+            "gerichte.zustaendig": self.gerichte_zustaendig,
+            "gerichte.suche_einstellungen": lambda: justizadressen.einstellungen(self.gerichtssuche_datei),
+            "gerichte.suche_einstellungen_setzen": lambda aktiv: justizadressen.einstellungen_setzen(
+                self.gerichtssuche_datei, aktiv),
             # Schriftstücke aus der Akte: Grundvorlagen und eigene Word-Vorlagen der Umgebung mit Platzhaltern.
             "schriftstuecke.vorlagen": lambda: schrift_vorlagen.liste(self.umgebungen.ordner()),
             "schriftstuecke.katalog": schrift_platzhalter.katalog,
@@ -1041,6 +1044,14 @@ class Kern:
         daten = Path(pfad).read_bytes()
         sha, archivpfad = gerichte.archiviere(daten, self.archiv)
         return gerichte.importiere(self.con, daten, str(pfad), sha, archivpfad)
+
+    def gerichte_zustaendig(self, plz: str, ort: str, ang: str = "zivil") -> dict:
+        """Zuständigkeitssuche; abgeschaltete Gerichtsbarkeiten gehen nicht ins Netz."""
+        if ang in justizadressen.GERICHTSBARKEITEN and ang not in justizadressen.einstellungen(
+                self.gerichtssuche_datei)["aktiv"]:
+            raise ValueError(f"Die Suche nach {justizadressen.GERICHTSBARKEITEN[ang]} ist in den Einstellungen "
+                             "ausgeschaltet.")
+        return justizadressen.zustaendig(self.con, plz, ort, self.archiv, self.diagnose_oeffnen, ang=ang)
 
     def importieren_datei(self, pfad: str) -> dict:
         roh = quelle.lies_datei(Path(pfad), self.archiv, gesetze=quelle.voreinstellung(self.eigene_liste))

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { OrtsverzeichnisKnopf, ZustaendigesGericht } from "./Gerichtsverzeichnis";
 import { AktenOptionen, INSTANZ_VORGABE, Verfahren, datumLang, kern } from "./kern";
 import VerfahrenAusDokument from "./VerfahrenAusDokument";
+import Zeichen from "./Symbole";
 
 interface Entwurf {
   art: string;
@@ -41,12 +42,15 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
   const [laeuft, setLaeuft] = useState(false);
   const [ausDokument, setAusDokument] = useState(false);
   const [suche, setSuche] = useState(false);
+  // Ohne eingeschaltete Gerichtsbarkeit (Einstellungen → Akten) gibt es die Zuständigkeitssuche nicht.
+  const [sucheMoeglich, setSucheMoeglich] = useState(true);
   // Anschrift des übernommenen Gerichts; geht beim Speichern ins Beteiligtenverzeichnis (füllt nur leere Felder).
   const [gerichtDaten, setGerichtDaten] = useState<{ name: string; daten: Record<string, string> } | null>(null);
 
   useEffect(() => {
     void kern<Verfahren[]>("akten.verfahren", { akte_id: akteId }).then(setVerfahren, (e) => setFehler(String(e)));
     void kern<AktenOptionen>("akten.optionen").then(setOptionen, () => undefined);
+    void kern<{ aktiv: string[] }>("gerichte.suche_einstellungen").then((g) => setSucheMoeglich(g.aktiv.length > 0), () => undefined);
     // Vorschläge für das Eingabefeld: zuerst die Gerichte aus dem Beteiligtenverzeichnis, dann das Gerichtsverzeichnis.
     void Promise.all([
       kern<{ name: string; daten: Record<string, string> }[]>("beteiligte.liste", { suche: "", art: "organisation" }).catch(
@@ -246,16 +250,17 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
                   <option key={g} value={g} />
                 ))}
               </datalist>
+              {!suche && sucheMoeglich && (
+                <span className="gericht-suchen">
+                  <button type="button" className="zweitrangig" onClick={() => setSuche(true)}>
+                    <Zeichen name="suche" groesse={15} />
+                    Zuständiges Gericht suchen
+                  </button>
+                  <span className="leise klein">nach Postleitzahl und Ort, mit Anschrift</span>
+                </span>
+              )}
               <span className="leise klein">
                 {!verzeichnisGeladen && "Alle Gerichte schlägt das Feld vor, wenn unter Einstellungen → Akten das Gerichtsverzeichnis geladen ist. "}
-                {!suche && (
-                  <>
-                    <button type="button" className="link" onClick={() => setSuche(true)}>
-                      Zuständiges Gericht suchen
-                    </button>{" "}
-                    (nach Postleitzahl und Ort, mit Anschrift) ·{" "}
-                  </>
-                )}
                 <OrtsverzeichnisKnopf onFehler={setFehler} />
               </span>
               {gerichtDaten?.name === e.gericht && gerichtDaten.daten.strasse && (
@@ -268,6 +273,7 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
               <div className="feld-breit">
                 <ZustaendigesGericht
                   akteId={akteId}
+                  verfahrensArt={e.art}
                   onSchliessen={() => setSuche(false)}
                   onUebernehmen={(s) => {
                     setze({ gericht: s.name });
