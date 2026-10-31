@@ -41,6 +41,9 @@ export interface Anmerkung {
   geaendert_am: string;
   dokument?: string;
   dateiname?: string;
+  /** Ordner der Akte (gemeinsam mit den Lesezeichen) und Platz in der gemeinsamen Ordnung. */
+  ordner_id?: number | null;
+  reihenfolge?: number;
   akte_id?: number;
   akte?: string;
 }

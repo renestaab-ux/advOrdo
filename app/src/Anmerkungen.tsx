@@ -19,7 +19,8 @@ import {
   STILE,
 } from "./anmerkungLogik";
 import { istDesktop, kern } from "./kern";
-import Zeichen, { LeerHinweis } from "./Symbole";
+import type { LesezeichenStelle } from "./Lesezeichen";
+import Zeichen from "./Symbole";
 
 // --- Bedeutung der Farben (je Arbeitsumgebung, im Kern gespeichert) ----------------------------------------------------
 
@@ -195,11 +196,13 @@ function AuswahlMenue({
   bedeutungen,
   onMarkieren,
   onKommentar,
+  onLesezeichen,
 }: {
   lage: Lage;
   bedeutungen: Bedeutungen;
   onMarkieren: (farbe: AnmerkFarbe, stil: AnmerkStil) => void;
   onKommentar: () => void;
+  onLesezeichen?: () => void;
 }) {
   const { ref, stil } = useSchwebend(lage, true);
   // Sofort sichtbare Erklärung unter den Knöpfen; der Tooltip des Systems kommt spät oder gar nicht.
@@ -236,6 +239,11 @@ function AuswahlMenue({
       <button className="anm-menue-knopf" title="Markieren und kommentieren" {...zeige("Gelb markieren und Kommentar schreiben")} onClick={onKommentar}>
         <Zeichen name="kommentar" groesse={15} /> Kommentar
       </button>
+      {onLesezeichen && (
+        <button className="anm-menue-knopf" title="Lesezeichen an dieser Stelle" {...zeige("Lesezeichen an dieser Stelle setzen")} onClick={onLesezeichen}>
+          <Zeichen name="lesezeichen" groesse={15} />
+        </button>
+      )}
       <span className="anm-menue-hinweis">{hinweis ?? legende}</span>
     </div>
   );
@@ -440,7 +448,12 @@ export interface AnmerkungsEreignisse {
  * Markierungen und Kommentare eines Dokuments: Liste, Menü über der Auswahl, Vorschau und Editor.
  * ``schicht`` gehört einmal in die Ansicht; Text- und Originalansicht melden Auswahl und Mausereignisse.
  */
-export function useAnmerkungen(dokumentId: number | null, onGeaendert?: () => void) {
+export function useAnmerkungen(
+  dokumentId: number | null,
+  onGeaendert?: () => void,
+  /** Menüpunkt „Lesezeichen“ über der Auswahl (Lesezeichen.tsx). */
+  onLesezeichen?: (s: LesezeichenStelle) => void,
+) {
   const bedeutungen = useBedeutungen();
   const [liste, setListe] = useState<Anmerkung[]>([]);
   // Zählt jede Änderung; die Originalansicht lädt damit ihre Rechtecke neu.
@@ -594,6 +607,17 @@ export function useAnmerkungen(dokumentId: number | null, onGeaendert?: () => vo
           bedeutungen={bedeutungen}
           onMarkieren={(f, s) => void anlegen(f, s, false)}
           onKommentar={() => void anlegen("gelb", "flaeche", true)}
+          onLesezeichen={
+            onLesezeichen &&
+            (() => {
+              const m = menue;
+              setMenue(null);
+              window.getSelection()?.removeAllRanges();
+              onLesezeichen(
+                "seite" in m ? { seite: m.seite.seite, wort_von: m.seite.von, wort_bis: m.seite.bis } : { start: m.start, ende: m.ende },
+              );
+            })
+          }
         />
       )}
       {inVorschau && vorschau && !editor && <Vorschau anmerkung={inVorschau} bedeutungen={bedeutungen} lage={vorschau.lage} />}
@@ -673,7 +697,7 @@ export function anmerkungsHandler(e: AnmerkungsEreignisse) {
 
 // --- Liste neben dem Dokument und Reiter der Akte -----------------------------------------------------------------------
 
-function FilterLeiste({
+export function FilterLeiste({
   liste,
   filter,
   onFilter,
@@ -724,7 +748,7 @@ function FilterLeiste({
   );
 }
 
-function Eintrag({
+export function AnmerkungsEintrag({
   a,
   bedeutungen,
   aktiv,
@@ -769,6 +793,8 @@ export function AnmerkungsLeiste({
   onWaehle,
   onAkte,
   onSchliessen,
+  lesezeichen,
+  lesezeichenAnzahl = 0,
 }: {
   liste: Anmerkung[];
   bedeutungen: Bedeutungen;
@@ -776,21 +802,54 @@ export function AnmerkungsLeiste({
   onWaehle: (a: Anmerkung, el: Element) => void;
   onAkte: () => void;
   onSchliessen: () => void;
+  /** Inhalt des Reiters „Lesezeichen“ (Lesezeichen.tsx). */
+  lesezeichen?: ReactNode;
+  lesezeichenAnzahl?: number;
 }) {
   const [filter, setFilter] = useState<AnmerkFilter>(KEIN_ANMERK_FILTER);
+  const [teil, setTeil] = useState<"anmerkungen" | "lesezeichen">(() => {
+    try {
+      return localStorage.getItem("akte.leiste.teil") === "lesezeichen" ? "lesezeichen" : "anmerkungen";
+    } catch {
+      return "anmerkungen";
+    }
+  });
+  function waehleTeil(t: typeof teil) {
+    setTeil(t);
+    try {
+      localStorage.setItem("akte.leiste.teil", t);
+    } catch {
+      // Ohne Speicher gilt die Wahl bis zum Neustart.
+    }
+  }
   const sichtbar = filtereAnmerkungen(liste, filter, bedeutungen);
   return (
-    <aside className="akte-seite anm-leiste" aria-label="Anmerkungen">
+    <aside className="akte-seite anm-leiste" aria-label="Anmerkungen und Lesezeichen">
       <div className="anm-leiste-kopf">
-        <h3>Anmerkungen</h3>
-        <button className="link" onClick={onAkte} title="Alle Anmerkungen der Akte, mit Suche">
-          Ganze Akte
-        </button>
-        <button className="leisten-knopf" onClick={onSchliessen} title="Anmerkungen ausblenden" aria-label="Anmerkungen ausblenden">
+        {lesezeichen ? (
+          <div className="anm-leiste-reiter" role="tablist">
+            <button role="tab" aria-selected={teil === "anmerkungen"} className={teil === "anmerkungen" ? "aktiv" : ""} onClick={() => waehleTeil("anmerkungen")}>
+              Anmerkungen{liste.length > 0 && <span className="anzahl">{liste.length}</span>}
+            </button>
+            <button role="tab" aria-selected={teil === "lesezeichen"} className={teil === "lesezeichen" ? "aktiv" : ""} onClick={() => waehleTeil("lesezeichen")}>
+              Lesezeichen{lesezeichenAnzahl > 0 && <span className="anzahl">{lesezeichenAnzahl}</span>}
+            </button>
+          </div>
+        ) : (
+          <h3>Anmerkungen</h3>
+        )}
+        {teil === "anmerkungen" && (
+          <button className="link" onClick={onAkte} title="Alle Anmerkungen der Akte, mit Suche">
+            Ganze Akte
+          </button>
+        )}
+        <button className="leisten-knopf" onClick={onSchliessen} title="Seitenleiste ausblenden" aria-label="Seitenleiste ausblenden">
           ×
         </button>
       </div>
-      {liste.length === 0 ? (
+      {lesezeichen && teil === "lesezeichen" ? (
+        lesezeichen
+      ) : liste.length === 0 ? (
         <p className="leise anm-leer">
           Text auswählen, dann im Menü über der Auswahl eine Farbe oder „Kommentar“ wählen.
         </p>
@@ -799,73 +858,13 @@ export function AnmerkungsLeiste({
           <FilterLeiste liste={liste} filter={filter} onFilter={setFilter} bedeutungen={bedeutungen} suchtext="In diesem Dokument suchen" />
           <ul className="anm-liste">
             {sichtbar.map((a) => (
-              <Eintrag key={a.id} a={a} bedeutungen={bedeutungen} aktiv={a.id === aktiv} onWaehle={onWaehle} />
+              <AnmerkungsEintrag key={a.id} a={a} bedeutungen={bedeutungen} aktiv={a.id === aktiv} onWaehle={onWaehle} />
             ))}
             {sichtbar.length === 0 && <li className="leise">Keine passende Anmerkung.</li>}
           </ul>
         </>
       )}
     </aside>
-  );
-}
-
-/** Reiter „Anmerkungen“ der Akte: alle Markierungen und Kommentare, durchsuchbar, nach Bedeutung gefiltert. */
-export function AnmerkungenReiter({
-  akteId,
-  onOeffnen,
-}: {
-  akteId: number;
-  onOeffnen: (a: Anmerkung) => void;
-}) {
-  const bedeutungen = useBedeutungen();
-  const [liste, setListe] = useState<Anmerkung[] | null>(null);
-  const [filter, setFilter] = useState<AnmerkFilter>(KEIN_ANMERK_FILTER);
-  const [fehler, setFehler] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!istDesktop) return;
-    kern<Anmerkung[]>("anmerkungen.liste", { akte_id: akteId })
-      .then(setListe)
-      .catch((e) => setFehler(String(e)));
-  }, [akteId]);
-
-  if (fehler) return <p className="fehler">{fehler}</p>;
-  if (!liste) return <p className="status">Lade Anmerkungen …</p>;
-  if (liste.length === 0)
-    return (
-      <LeerHinweis symbol="markieren">
-        Noch keine Anmerkungen in dieser Akte. Öffne ein Dokument, wähle Text aus und markiere ihn im Menü über der
-        Auswahl; dort lässt sich auch ein Kommentar anfügen.
-      </LeerHinweis>
-    );
-  const sichtbar = filtereAnmerkungen(liste, filter, bedeutungen);
-  // Nach Dokument gruppiert, in der Reihenfolge der Liste (Datum des Dokuments, dann Lage).
-  const gruppen: { dokument: string; eintraege: Anmerkung[] }[] = [];
-  for (const a of sichtbar) {
-    const g = gruppen[gruppen.length - 1];
-    if (g && g.eintraege[0].dokument_id === a.dokument_id) g.eintraege.push(a);
-    else gruppen.push({ dokument: a.dokument ?? "", eintraege: [a] });
-  }
-  return (
-    <div className="anm-reiter">
-      <FilterLeiste liste={liste} filter={filter} onFilter={setFilter} bedeutungen={bedeutungen} suchtext="In Anmerkungen der Akte suchen (Wortlaut, Kommentar, Bedeutung)" />
-      <p className="leise">
-        {sichtbar.length === liste.length
-          ? `${liste.length} ${liste.length === 1 ? "Anmerkung" : "Anmerkungen"}`
-          : `${sichtbar.length} von ${liste.length} Anmerkungen`}{" "}
-        in {gruppen.length} {gruppen.length === 1 ? "Dokument" : "Dokumenten"}
-      </p>
-      {gruppen.map((g) => (
-        <section key={g.eintraege[0].dokument_id} className="anm-gruppe">
-          <h3>{g.dokument}</h3>
-          <ul className="anm-liste">
-            {g.eintraege.map((a) => (
-              <Eintrag key={a.id} a={a} bedeutungen={bedeutungen} aktiv={false} onWaehle={() => onOeffnen(a)} />
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
   );
 }
 

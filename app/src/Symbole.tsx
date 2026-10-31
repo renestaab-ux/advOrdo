@@ -172,6 +172,17 @@ const PFADE = {
       <path d="m6.3 12.8-1.8 4.6 1.6 1.6 4.6-1.8M4 20.5h16" />
     </>
   ),
+  lesezeichen: <path d="M7 3.5h10a1 1 0 0 1 1 1V21l-6-4.2L6 21V4.5a1 1 0 0 1 1-1z" />,
+  griff: (
+    <>
+      <circle cx="9" cy="6" r="1.1" />
+      <circle cx="15" cy="6" r="1.1" />
+      <circle cx="9" cy="12" r="1.1" />
+      <circle cx="15" cy="12" r="1.1" />
+      <circle cx="9" cy="18" r="1.1" />
+      <circle cx="15" cy="18" r="1.1" />
+    </>
+  ),
   kommentar: <path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 19 17h-7.5L7 20.5V17H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z" />,
 } satisfies Record<string, ReactNode>;
 
