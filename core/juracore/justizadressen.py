@@ -3,8 +3,10 @@
 Das Justizportal des Bundes und der Länder (justiz.de) führt sein Orts- und Gerichtsverzeichnis unter
 justizadressen.nrw.de. Für eine Postleitzahl mit Ort nennt es die Gerichte des allgemeinen Gerichtsstands
 (Amtsgericht, Landgericht, Oberlandesgericht) und die Staatsanwaltschaften, jeweils mit Liefer- und Postanschrift,
-Telefon, Fax und XJustiz-ID. Die XJustiz-ID ist derselbe Schlüssel wie in der Codeliste GDS.Gerichte
-(``gerichte.py``).
+Telefon, Fax und XJustiz-ID. Dieselbe Abfrage gibt es für die Fachgerichtsbarkeiten (Arbeits-, Verwaltungs- und
+Sozialgerichte, jeweils mit den Rechtsmittelgerichten) und für das zentrale Mahngericht; welche davon die App anbietet,
+lässt sich in den Einstellungen ein- und ausschalten. Die XJustiz-ID ist derselbe Schlüssel wie in der Codeliste
+GDS.Gerichte (``gerichte.py``).
 
 Abgefragt wird nur auf Wunsch und nur einzeln; gesendet werden Postleitzahl und Ort, sonst nichts aus der Akte. Die
 Antwort wird unverändert unter ihrer SHA-256-Prüfsumme archiviert, damit sich jede übernommene Anschrift belegen
@@ -30,6 +32,16 @@ BASIS = "https://www.justizadressen.nrw.de/de/justiz/gericht"
 SUCHSEITE = "https://www.justizadressen.nrw.de/de/justiz/suche"
 USER_AGENT = "JuraBox/0.1 (Gerichtsanschriften)"
 
+# Gerichtsbarkeiten der Zuständigkeitssuche: Schlüssel ``ang`` des Verzeichnisses → Bezeichnung in der App.
+GERICHTSBARKEITEN = {
+    "zivil": "Ordentliche Gerichte",
+    "arbeit": "Arbeitsgerichte",
+    "verwaltung": "Verwaltungsgerichte",
+    "sozial": "Sozialgerichte",
+    "mahn": "Mahngericht",
+}
+EINSTELLUNGEN = "gerichtssuche.json"
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS gericht_anschrift (
     name            TEXT PRIMARY KEY,   -- Abteilungen (Register, Insolvenz) teilen sich die XJustiz-ID
@@ -47,8 +59,33 @@ def einrichten(con: sqlite3.Connection) -> None:
 
 
 def adresse(plz: str, ort: str, ang: str = "zivil") -> str:
-    """Abfrage des allgemeinen Gerichtsstands (``ang=zivil``) für Postleitzahl und Ort."""
+    """Abfrage für Postleitzahl und Ort; ``ang=zivil`` ist der allgemeine Gerichtsstand, sonst die Gerichtsbarkeit."""
     return f"{BASIS}?{urllib.parse.urlencode({'plz': plz.strip(), 'ort': ort.strip(), 'ang': ang})}"
+
+
+# --- Einstellungen ---------------------------------------------------------------------------------
+
+
+def einstellungen(datei: Path) -> dict:
+    """Welche Gerichtsbarkeiten die Suche anbietet; ohne gespeicherte Wahl alle."""
+    try:
+        roh = json.loads(Path(datei).read_text(encoding="utf-8"))
+        aktiv = [a for a in roh.get("aktiv", []) if a in GERICHTSBARKEITEN]
+    except (OSError, ValueError, AttributeError, TypeError):
+        aktiv = list(GERICHTSBARKEITEN)
+    return {"aktiv": [a for a in GERICHTSBARKEITEN if a in aktiv],
+            "gerichtsbarkeiten": [{"id": k, "name": v} for k, v in GERICHTSBARKEITEN.items()]}
+
+
+def einstellungen_setzen(datei: Path, aktiv: list[str]) -> dict:
+    unbekannt = [a for a in aktiv if a not in GERICHTSBARKEITEN]
+    if unbekannt:
+        raise ValueError(f"Unbekannte Gerichtsbarkeit: {', '.join(unbekannt)}")
+    datei = Path(datei)
+    datei.parent.mkdir(parents=True, exist_ok=True)
+    datei.write_text(json.dumps({"aktiv": [a for a in GERICHTSBARKEITEN if a in aktiv]}, ensure_ascii=False, indent=2),
+                     encoding="utf-8")
+    return einstellungen(datei)
 
 
 # --- Lesen -----------------------------------------------------------------------------------------
@@ -158,16 +195,23 @@ def archiviere(daten: bytes, archiv: Path | None) -> tuple[str, str]:
 
 
 def zustaendig(con: sqlite3.Connection, plz: str, ort: str, archiv: Path | None,
-               oeffnen: Callable[..., object] = urllib.request.urlopen, timeout: float = 20) -> dict:
-    """Fragt die Gerichte des allgemeinen Gerichtsstands für Postleitzahl und Ort ab und merkt sich die Anschriften."""
+               oeffnen: Callable[..., object] = urllib.request.urlopen, timeout: float = 20,
+               ang: str = "zivil") -> dict:
+    """Fragt die zuständigen Gerichte der Gerichtsbarkeit ``ang`` für Postleitzahl und Ort ab und merkt sich die
+    Anschriften. ``zivil`` ist der allgemeine Gerichtsstand (Amts-, Land-, Oberlandesgericht)."""
+    if ang not in GERICHTSBARKEITEN:
+        raise ValueError(f"Unbekannte Gerichtsbarkeit: {ang}")
     if not re.fullmatch(r"\d{5}", plz.strip()):
         raise ValueError("Bitte eine fünfstellige Postleitzahl angeben.")
     if not ort.strip():
         raise ValueError("Bitte den Ort angeben.")
-    url = adresse(plz, ort)
+    url = adresse(plz, ort, ang)
+    gesendet = f"PLZ {plz.strip()}, Ort {ort.strip()}"
+    if ang != "zivil":
+        gesendet += f", {GERICHTSBARKEITEN[ang]}"
     anfrage = netzprotokoll.kennzeichnen(
         urllib.request.Request(url, headers={"User-Agent": USER_AGENT}),
-        "Zuständiges Gericht suchen (justizadressen.nrw.de)", f"PLZ {plz.strip()}, Ort {ort.strip()}")
+        "Zuständiges Gericht suchen (justizadressen.nrw.de)", gesendet)
     with oeffnen(anfrage, timeout=timeout) as antwort:
         daten = antwort.read()
     sha, archivpfad = archiviere(daten, archiv)
@@ -183,4 +227,5 @@ def zustaendig(con: sqlite3.Connection, plz: str, ort: str, archiv: Path | None,
                     (s["name"], s["xjustiz_id"], json.dumps(s, ensure_ascii=False), url, sha, jetzt))
     for s in ergebnis["stellen"]:
         s["beteiligter"] = beteiligten_daten(s, url, jetzt)
-    return {**ergebnis, "quelle": url, "sha256": sha, "archiv": archivpfad, "abgerufen_am": jetzt}
+    return {**ergebnis, "gerichtsbarkeit": ang, "quelle": url, "sha256": sha, "archiv": archivpfad,
+            "abgerufen_am": jetzt}

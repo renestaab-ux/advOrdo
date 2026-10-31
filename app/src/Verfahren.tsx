@@ -41,12 +41,15 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
   const [laeuft, setLaeuft] = useState(false);
   const [ausDokument, setAusDokument] = useState(false);
   const [suche, setSuche] = useState(false);
+  // Ohne eingeschaltete Gerichtsbarkeit (Einstellungen → Akten) gibt es die Zuständigkeitssuche nicht.
+  const [sucheMoeglich, setSucheMoeglich] = useState(true);
   // Anschrift des übernommenen Gerichts; geht beim Speichern ins Beteiligtenverzeichnis (füllt nur leere Felder).
   const [gerichtDaten, setGerichtDaten] = useState<{ name: string; daten: Record<string, string> } | null>(null);
 
   useEffect(() => {
     void kern<Verfahren[]>("akten.verfahren", { akte_id: akteId }).then(setVerfahren, (e) => setFehler(String(e)));
     void kern<AktenOptionen>("akten.optionen").then(setOptionen, () => undefined);
+    void kern<{ aktiv: string[] }>("gerichte.suche_einstellungen").then((g) => setSucheMoeglich(g.aktiv.length > 0), () => undefined);
     // Vorschläge für das Eingabefeld: zuerst die Gerichte aus dem Beteiligtenverzeichnis, dann das Gerichtsverzeichnis.
     void Promise.all([
       kern<{ name: string; daten: Record<string, string> }[]>("beteiligte.liste", { suche: "", art: "organisation" }).catch(
@@ -248,7 +251,7 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
               </datalist>
               <span className="leise klein">
                 {!verzeichnisGeladen && "Alle Gerichte schlägt das Feld vor, wenn unter Einstellungen → Akten das Gerichtsverzeichnis geladen ist. "}
-                {!suche && (
+                {!suche && sucheMoeglich && (
                   <>
                     <button type="button" className="link" onClick={() => setSuche(true)}>
                       Zuständiges Gericht suchen
@@ -268,6 +271,7 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
               <div className="feld-breit">
                 <ZustaendigesGericht
                   akteId={akteId}
+                  verfahrensArt={e.art}
                   onSchliessen={() => setSuche(false)}
                   onUebernehmen={(s) => {
                     setze({ gericht: s.name });

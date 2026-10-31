@@ -90,3 +90,44 @@ def test_uebernommenes_gericht_kommt_mit_anschrift_in_die_akte(tmp_path):
     daten = json.loads(k.akten.execute("SELECT daten FROM beteiligter WHERE id = ?", (bid,)).fetchone()["daten"])
     assert daten["strasse"] == "Konrad-Goldmann-Straße 8" and daten["plz"] == "79100"
     assert daten["kategorie"] == "Gericht" and "XJustiz-ID: B1200" in daten["notiz"]
+
+
+def test_fachgerichtsbarkeit_fragt_mit_ang_ab_und_nennt_sie_im_protokoll(tmp_path):
+    abrufe = []
+
+    def oeffnen(anfrage, timeout):
+        abrufe.append(anfrage)
+        return _Antwort(AUSZUG)
+
+    k = Kern(tmp_path / "wb.sqlite", tmp_path / "archiv")
+    k.diagnose_oeffnen = oeffnen
+    r = k.methoden["gerichte.zustaendig"]("79098", "Freiburg im Breisgau", "arbeit")
+    assert abrufe[0].full_url.endswith("&ang=arbeit")
+    assert abrufe[0].jurabox_gesendet == "PLZ 79098, Ort Freiburg im Breisgau, Arbeitsgerichte"
+    assert r["gerichtsbarkeit"] == "arbeit"
+    with pytest.raises(ValueError):
+        k.methoden["gerichte.zustaendig"]("79098", "Freiburg im Breisgau", "unbekannt")
+    assert len(abrufe) == 1
+
+
+def test_gerichtsbarkeiten_lassen_sich_abschalten(tmp_path):
+    def oeffnen(*a, **k):
+        raise AssertionError("kein Abruf erwartet")
+
+    k = Kern(tmp_path / "wb.sqlite", tmp_path / "archiv")
+    k.diagnose_oeffnen = oeffnen
+    e = k.methoden["gerichte.suche_einstellungen"]()
+    assert e["aktiv"] == ["zivil", "arbeit", "verwaltung", "sozial", "mahn"]
+    e = k.methoden["gerichte.suche_einstellungen_setzen"](["sozial", "zivil"])
+    assert e["aktiv"] == ["zivil", "sozial"]
+    assert k.methoden["gerichte.suche_einstellungen"]()["aktiv"] == ["zivil", "sozial"]
+    with pytest.raises(ValueError, match="ausgeschaltet"):
+        k.methoden["gerichte.zustaendig"]("79098", "Freiburg im Breisgau", "verwaltung")
+    with pytest.raises(ValueError):
+        k.methoden["gerichte.suche_einstellungen_setzen"](["strafe"])
+
+
+def test_unlesbare_einstellung_bietet_alle_an(tmp_path):
+    datei = tmp_path / justizadressen.EINSTELLUNGEN
+    datei.write_text("kaputt", encoding="utf-8")
+    assert justizadressen.einstellungen(datei)["aktiv"] == list(justizadressen.GERICHTSBARKEITEN)

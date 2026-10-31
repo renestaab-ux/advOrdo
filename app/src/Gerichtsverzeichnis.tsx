@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { GerichtsverzeichnisStand, datumLang, istDesktop, kern, kernImHintergrund, zeitpunkt } from "./kern";
+import {
+  Gerichtsbarkeit,
+  GerichtssucheEinstellungen,
+  ZUSTAENDIGKEIT_HINWEIS,
+  startGerichtsbarkeit,
+  vorbelegungAus,
+} from "./gerichtssuche";
 
 /** Öffnet das Orts- und Gerichtsverzeichnis der Justiz im Browser, für Anschrift und Zuständigkeit. */
 export function OrtsverzeichnisKnopf({ onFehler }: { onFehler?: (text: string) => void }) {
@@ -119,30 +126,50 @@ export interface ZustaendigeStelle {
 
 interface Zustaendigkeit {
   gesucht: string;
+  gerichtsbarkeit: Gerichtsbarkeit;
   stellen: ZustaendigeStelle[];
   quelle: string;
   abgerufen_am: string;
 }
 
+type Partei = { name: string; plz: string; ort: string };
+
 /**
- * Zuständige Gerichte für Postleitzahl und Ort aus dem Orts- und Gerichtsverzeichnis der Justiz (allgemeiner
- * Gerichtsstand). Gesendet werden nur Postleitzahl und Ort; vorbelegt mit der Anschrift des ersten Gegners.
+ * Zuständige Gerichte für Postleitzahl und Ort aus dem Orts- und Gerichtsverzeichnis der Justiz: ordentliche
+ * Gerichte (allgemeiner Gerichtsstand), Arbeits-, Verwaltungs- und Sozialgerichte und das zentrale Mahngericht, je
+ * nachdem, welche unter Einstellungen → Akten eingeschaltet sind. Gesendet werden nur Postleitzahl und Ort;
+ * vorbelegt mit der Anschrift des Gegners, beim Sozial- und Mahngericht mit der des Mandanten.
  */
 export function ZustaendigesGericht({
   akteId,
+  verfahrensArt,
   onUebernehmen,
   onSchliessen,
 }: {
   akteId: number;
+  verfahrensArt?: string;
   onUebernehmen: (stelle: ZustaendigeStelle) => void;
   onSchliessen: () => void;
 }) {
   const [plz, setPlz] = useState("");
   const [ort, setOrt] = useState("");
   const [vorbelegt, setVorbelegt] = useState("");
+  const [parteien, setParteien] = useState<{ mandant?: Partei; gegner?: Partei }>({});
+  const [einstellungen, setEinstellungen] = useState<GerichtssucheEinstellungen | null>(null);
+  const [ang, setAng] = useState<Gerichtsbarkeit | null>(null);
   const [ergebnis, setErgebnis] = useState<Zustaendigkeit | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+
+  useEffect(() => {
+    void kern<GerichtssucheEinstellungen>("gerichte.suche_einstellungen").then(
+      (e) => {
+        setEinstellungen(e);
+        setAng(startGerichtsbarkeit(e.aktiv, verfahrensArt));
+      },
+      (e) => setFehler(String(e)),
+    );
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -151,22 +178,38 @@ export function ZustaendigesGericht({
           "akten.stammdaten",
           { akte_id: akteId },
         );
-        const gegner = a.beteiligte.find((b) => b.rolle === "gegner" && b.beteiligter_id != null);
-        if (!gegner) return;
-        const d = (await kern<{ daten: Record<string, string> }>("beteiligte.eintrag", { beteiligter_id: gegner.beteiligter_id }))
-          .daten;
-        if (d.plz || d.ort) {
-          setPlz(d.plz ?? "");
-          setOrt(d.ort ?? "");
-          setVorbelegt(gegner.name);
+        const gefunden: { mandant?: Partei; gegner?: Partei } = {};
+        for (const rolle of ["mandant", "gegner"] as const) {
+          const b = a.beteiligte.find((x) => x.rolle === rolle && x.beteiligter_id != null);
+          if (!b) continue;
+          const d = (await kern<{ daten: Record<string, string> }>("beteiligte.eintrag", { beteiligter_id: b.beteiligter_id }))
+            .daten;
+          if (d.plz || d.ort) gefunden[rolle] = { name: b.name, plz: d.plz ?? "", ort: d.ort ?? "" };
         }
+        setParteien(gefunden);
       } catch {
-        // Ohne Gegneranschrift bleibt das Formular leer.
+        // Ohne Anschriften der Parteien bleibt das Formular leer.
       }
     })();
   }, [akteId]);
 
-  const bereit = /^\d{5}$/.test(plz.trim()) && ort.trim() !== "";
+  function uebernimm(p: Partei | undefined) {
+    if (!p) return;
+    setPlz(p.plz);
+    setOrt(p.ort);
+    setVorbelegt(p.name);
+  }
+
+  // Vorbelegung je Gerichtsbarkeit, solange von Hand nichts anderes eingetragen ist.
+  useEffect(() => {
+    if (!ang) return;
+    const p = parteien[vorbelegungAus(ang)] ?? parteien.gegner ?? parteien.mandant;
+    if (!p) return;
+    const vorher = [parteien.mandant, parteien.gegner].some((x) => x && x.plz === plz && x.ort === ort);
+    if (vorher || (!plz && !ort)) uebernimm(p);
+  }, [ang, parteien]);
+
+  const bereit = /^\d{5}$/.test(plz.trim()) && ort.trim() !== "" && ang != null;
 
   // Steht im Formular des Verfahrens, darf also selbst kein <form> sein; Enter startet trotzdem die Suche.
   async function suchen() {
@@ -174,7 +217,7 @@ export function ZustaendigesGericht({
     setLaeuft(true);
     setFehler(null);
     try {
-      setErgebnis(await kern<Zustaendigkeit>("gerichte.zustaendig", { plz: plz.trim(), ort: ort.trim() }));
+      setErgebnis(await kern<Zustaendigkeit>("gerichte.zustaendig", { plz: plz.trim(), ort: ort.trim(), ang }));
     } catch (e) {
       setFehler(String(e));
     } finally {
@@ -182,9 +225,30 @@ export function ZustaendigesGericht({
     }
   }
 
-  const gerichte = ergebnis?.stellen.filter((s) => s.art === "gericht") ?? [];
+  const aktiv = einstellungen?.gerichtsbarkeiten.filter((g) => einstellungen.aktiv.includes(g.id)) ?? [];
+  const gerichte = ergebnis?.gerichtsbarkeit === ang ? ergebnis.stellen.filter((s) => s.art === "gericht") : [];
+  const andere = ang ? (vorbelegungAus(ang) === "mandant" ? parteien.gegner : parteien.mandant) : undefined;
   return (
     <div className="zustaendiges-gericht">
+      {einstellungen && aktiv.length === 0 && (
+        <p className="hinweis">Die Gerichtssuche ist unter Einstellungen → Akten für alle Gerichtsbarkeiten ausgeschaltet.</p>
+      )}
+      {aktiv.length > 1 && (
+        <div className="segment" role="tablist" aria-label="Gerichtsbarkeit">
+          {aktiv.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              role="tab"
+              aria-selected={ang === g.id}
+              className={`segment-knopf${ang === g.id ? " aktiv" : ""}`}
+              onClick={() => setAng(g.id)}
+            >
+              {g.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div
         className="zeile"
         onKeyDown={(ev) => {
@@ -211,11 +275,18 @@ export function ZustaendigesGericht({
       </div>
       <p className="leise klein">
         {vorbelegt && `Vorbelegt mit der Anschrift von ${vorbelegt}. `}
-        Allgemeiner Gerichtsstand (Wohnsitz oder Sitz). Ob Amts- oder Landgericht zuständig ist, richtet sich nach dem
-        Streitwert; das bitte selbst prüfen. Gesendet werden nur Postleitzahl und Ort.
+        {andere && andere.name !== vorbelegt && (
+          <>
+            <button type="button" className="link" onClick={() => uebernimm(andere)}>
+              Anschrift von {andere.name} nehmen
+            </button>
+            {". "}
+          </>
+        )}
+        {ang && ZUSTAENDIGKEIT_HINWEIS[ang]} Gesendet werden nur Postleitzahl und Ort.
       </p>
       {fehler && <p className="fehler">{fehler}</p>}
-      {ergebnis && gerichte.length === 0 && (
+      {ergebnis?.gerichtsbarkeit === ang && gerichte.length === 0 && (
         <p className="hinweis">
           Kein Gericht gefunden. Der Ort muss so geschrieben sein wie im Verzeichnis (etwa „Freiburg im Breisgau“) und
           zur Postleitzahl passen.
@@ -245,11 +316,58 @@ export function ZustaendigesGericht({
           })}
         </ul>
       )}
-      {ergebnis && (
+      {ergebnis?.gerichtsbarkeit === ang && (
         <p className="leise klein">
           Quelle: Orts- und Gerichtsverzeichnis der Justiz ({ergebnis.gesucht}), abgerufen am {datumLang(ergebnis.abgerufen_am.slice(0, 10))}.
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Einstellungen → Akten: welche Gerichtsbarkeiten die Suche „Zuständiges Gericht“ im Verfahren anbietet. Sind alle
+ * aus, verschwindet die Suche aus dem Verfahren.
+ */
+export function GerichtssucheKarte() {
+  const [e, setE] = useState<GerichtssucheEinstellungen | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (istDesktop) void kern<GerichtssucheEinstellungen>("gerichte.suche_einstellungen").then(setE, (x) => setFehler(String(x)));
+  }, []);
+
+  async function umschalten(id: Gerichtsbarkeit) {
+    if (!e) return;
+    const aktiv = e.aktiv.includes(id) ? e.aktiv.filter((a) => a !== id) : [...e.aktiv, id];
+    setFehler(null);
+    try {
+      setE(await kern<GerichtssucheEinstellungen>("gerichte.suche_einstellungen_setzen", { aktiv }));
+    } catch (x) {
+      setFehler(String(x));
+    }
+  }
+
+  if (!e) return fehler ? <p className="fehler">{fehler}</p> : null;
+  return (
+    <section className="karte">
+      <h2>Zuständiges Gericht suchen</h2>
+      <p className="fundort">Orts- und Gerichtsverzeichnis der Justiz (justizadressen.nrw.de)</p>
+      <p className="erklaerung">
+        Im Verfahren sucht „Zuständiges Gericht suchen“ nach Postleitzahl und Ort das zuständige Gericht mit Anschrift.
+        Hier lässt sich wählen, für welche Gerichtsbarkeiten die Suche angeboten wird. Arbeits-, Verwaltungs- und
+        Sozialgerichte erscheinen mit ihren Rechtsmittelgerichten.
+      </p>
+      {e.gerichtsbarkeiten.map((g) => (
+        <label key={g.id} className="schalter-zeile">
+          <input type="checkbox" checked={e.aktiv.includes(g.id)} onChange={() => void umschalten(g.id)} />
+          {g.name}
+          {g.id === "zivil" && " (Amts-, Land- und Oberlandesgericht)"}
+          {g.id === "mahn" && " (zentrales Mahngericht des Landes)"}
+        </label>
+      ))}
+      {e.aktiv.length === 0 && <p className="hinweis">Alle aus: Die Suche erscheint im Verfahren nicht mehr.</p>}
+      {fehler && <p className="fehler">{fehler}</p>}
+    </section>
   );
 }
