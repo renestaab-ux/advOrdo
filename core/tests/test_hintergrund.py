@@ -130,3 +130,49 @@ def test_import_meldet_fortschritt_je_gesetz(kern, monkeypatch):
     assert stand["status"] == "fertig"
     assert [e["fehler"] for e in stand["ergebnis"]] == ["offline", "offline"]
     assert staende == ["Lade BGB (1 von 2) …", "Lade ZPO (2 von 2) …"]
+
+
+def test_dokumente_einlesen_im_hintergrund(kern, tmp_path):
+    """Dokumente werden als Hintergrundauftrag eingelesen; eine unlesbare Datei hält die übrigen nicht auf."""
+    akte_id = kern.akte_anlegen("Testakte", ohne_aktenzeichen=True)["id"]
+    a = tmp_path / "a.txt"
+    a.write_text("Erster Schriftsatz.\n\nZweiter Absatz.", encoding="utf-8")
+    b = tmp_path / "b.md"
+    b.write_text("# Antwort\n\nText.", encoding="utf-8")
+    dateien = [{"pfad": str(a), "name": "a.txt"}, {"pfad": str(tmp_path / "fehlt.pdf"), "name": "fehlt.pdf"},
+               {"pfad": str(b), "name": "unter/b.md", "tags": ["Gegner"], "herkunft": "unter"},
+               {"pfad": str(a), "name": "a.txt"}]
+    auftrag = rufe(kern, "hintergrund.starten", methode="akten.importieren_dateien",
+                   params={"akte_id": akte_id, "dateien": dateien})
+    assert rufe(kern, "ping")["version"]  # der Kern bleibt ansprechbar
+    stand = warte(kern, auftrag["auftrag_id"])
+    assert stand["status"] == "fertig", stand
+    ergebnisse = stand["ergebnis"]["ergebnisse"]
+    assert [e["name"] for e in ergebnisse] == ["a.txt", "fehlt.pdf", "unter/b.md", "a.txt"]
+    assert ergebnisse[0]["neu"] is True and "fehler" not in ergebnisse[0]
+    assert "nicht gefunden" in ergebnisse[1]["fehler"]
+    assert ergebnisse[3]["neu"] is False and ergebnisse[3]["dokument_id"] == ergebnisse[0]["dokument_id"]
+    assert len(rufe(kern, "akten.dokumente", akte_id=akte_id)) == 2
+
+
+def test_dokumente_einlesen_abbrechen_behaelt_eingelesene(kern, tmp_path, monkeypatch):
+    akte_id = kern.akte_anlegen("Testakte", ohne_aktenzeichen=True)["id"]
+    dateien = []
+    for n in range(3):
+        p = tmp_path / f"d{n}.txt"
+        p.write_text(f"Dokument {n}.", encoding="utf-8")
+        dateien.append({"pfad": str(p), "name": p.name})
+    from juracore.dokumente import akte
+
+    echt = akte.importiere
+
+    def importiere(*args, **kwargs):
+        r = echt(*args, **kwargs)
+        kern.hintergrund.abbrechen(kern.hintergrund.laufend()[0]["auftrag_id"])  # nach der ersten Datei
+        return r
+
+    monkeypatch.setattr(akte, "importiere", importiere)
+    a = kern.hintergrund_starten("akten.importieren_dateien", {"akte_id": akte_id, "dateien": dateien})
+    stand = warte(kern, a["auftrag_id"])
+    assert stand["status"] == "abgebrochen"
+    assert len(rufe(kern, "akten.dokumente", akte_id=akte_id)) == 1

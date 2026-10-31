@@ -41,6 +41,7 @@ BEFEHLE = {
     "akten.volltexte_laden": "Volltexte laden",
     "akten.online_pruefen": "Zitate online prüfen",
     "anmerkungen.pdf_akte": "PDF-Kopien mit Markierungen erstellen",
+    "akten.importieren_dateien": "Dokumente einlesen",
 }
 
 _BEHALTEN = 20  # beendete Aufträge, deren Ergebnis noch abgeholt werden kann
