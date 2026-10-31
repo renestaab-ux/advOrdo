@@ -86,11 +86,30 @@ def oeffne(pfad: str | Path) -> sqlite3.Connection:
     return con
 
 
+def schreibweise(abk: str) -> str:
+    """Vergleichsform einer Gesetzesabkürzung: ohne Groß-/Kleinschreibung, Bindestriche, Leerzeichen und Punkte,
+    Umlaute umschrieben. So treffen „AVB-FernwärmeV“, „AVBFernwärmeV“ und „AVBFERNWAERMEV“ dasselbe Gesetz."""
+    s = abk.upper().replace("Ä", "AE").replace("Ö", "OE").replace("Ü", "UE").replace("ẞ", "SS")
+    return "".join(c for c in s if c not in " -.\u00a0")
+
+
+def gesetz_abk(con: sqlite3.Connection, abk: str) -> str:
+    """Gespeicherte Abkürzung eines Gesetzes, auch bei abweichender Schreibweise; sonst ``abk`` großgeschrieben."""
+    genau = abk.upper()
+    if con.execute("SELECT 1 FROM gesetz WHERE abk = ?", (genau,)).fetchone():
+        return genau
+    gesucht = schreibweise(abk)
+    for (gespeichert,) in con.execute("SELECT abk FROM gesetz ORDER BY abk"):
+        if schreibweise(gespeichert) == gesucht:
+            return gespeichert
+    return genau
+
+
 def aktuelle_fassung(con: sqlite3.Connection, abk: str) -> sqlite3.Row | None:
     return con.execute(
         """SELECT f.*, g.abk, g.langtitel FROM fassung f JOIN gesetz g ON g.id = f.gesetz_id
            WHERE g.abk = ? ORDER BY f.id DESC LIMIT 1""",
-        (abk.upper(),),
+        (gesetz_abk(con, abk),),
     ).fetchone()
 
 

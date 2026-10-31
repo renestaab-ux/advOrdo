@@ -6,6 +6,7 @@ import zipfile
 
 import pytest
 
+from juracore import db
 from juracore.gesetze import quelle, wissensbasis
 from juracore.rpc import Kern
 
@@ -142,3 +143,21 @@ def test_unbekanntes_kuerzel_auch_nicht_im_verzeichnis(monkeypatch, tmp_path):
     monkeypatch.setattr(quelle.urllib.request, "urlopen", urlopen)
     with pytest.raises(ValueError, match="nicht gefunden"):
         quelle.lade_gesetz("GIBTSNICHT", tmp_path, gesetze=[])
+
+
+def test_kuerzel_mit_umlaut_und_bindestrich():
+    """gesetze-im-internet.de schreibt Umlaute im Pfad als „_“."""
+    assert quelle.pfadkuerzel("AVBFernwärmeV", gesetze=[]) == ("AVBFERNWÄRMEV", "avbfernw_rmev")
+    assert quelle.pfadkuerzel("AVB-FernwärmeV", gesetze=[]) == ("AVB-FERNWÄRMEV", "avbfernw_rmev")
+    with pytest.raises(ValueError):
+        quelle.pfadkuerzel("AVB.FernwärmeV", gesetze=[])
+
+
+def test_schreibweisen_treffen_dasselbe_gesetz(con):
+    roh = quelle.Rohdatei("AVBFERNWÄRMEV", "test", "abc", (FIXTURES / "hgb_auszug.xml").read_bytes(), None)
+    wissensbasis.importiere(con, roh, "AVBFernwärmeV")
+    for zitat in ("§ 1 AVB-FernwärmeV", "§ 1 AVBFernwärmeV", "§ 1 AVBFERNWÄRMEV", "§ 1 AVBFernwaermeV"):
+        assert wissensbasis.loese_zitat(con, zitat)["status"] == "belegt", zitat
+    # Erneuter Import unter anderer Schreibweise legt kein zweites Gesetz an.
+    wissensbasis.importiere(con, roh, "AVB-FernwärmeV")
+    assert [g["abk"] for g in db.gesetze(con) if "FERNW" in g["abk"]] == ["AVBFERNWÄRMEV"]

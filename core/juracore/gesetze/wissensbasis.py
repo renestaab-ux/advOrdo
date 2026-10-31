@@ -29,7 +29,8 @@ def importiere(con: sqlite3.Connection, roh: Rohdatei, abk: str | None = None) -
     else:
         dokument = parse_gii_xml(roh.xml)
     datei_abk = dokument.abk.upper()
-    abk = (abk or datei_abk).upper()
+    # Eine andere Schreibweise desselben Kürzels („AVB-FernwärmeV“) ergänzt das schon geladene Gesetz.
+    abk = db.gesetz_abk(con, abk or datei_abk)
     with con:
         if abk != datei_abk:
             # Frühere Importe legten das Gesetz unter der Datei-Abkürzung ab; samt Fassungen übernehmen.
@@ -221,7 +222,7 @@ def _fassung(con: sqlite3.Connection, abk: str, fassung_id: int | None) -> sqlit
     return con.execute(
         """SELECT f.*, g.abk, g.langtitel FROM fassung f JOIN gesetz g ON g.id = f.gesetz_id
            WHERE f.id = ? AND g.abk = ?""",
-        (fassung_id, abk.upper()),
+        (fassung_id, db.gesetz_abk(con, abk)),
     ).fetchone()
 
 
