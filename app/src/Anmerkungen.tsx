@@ -852,7 +852,10 @@ export function AnmerkungsLeiste({
         </button>
       </div>
       {lesezeichen && teil === "lesezeichen" ? (
-        lesezeichen
+        <>
+          {lesezeichen}
+          {pdfDokument != null && liste.length > 0 && <PdfKopieKnopf key={pdfDokument} dokumentId={pdfDokument} />}
+        </>
       ) : liste.length === 0 ? (
         <p className="leise anm-leer">
           Text auswählen, dann im Menü über der Auswahl eine Farbe oder „Kommentar“ wählen.
