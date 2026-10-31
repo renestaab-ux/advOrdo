@@ -8,7 +8,9 @@ export async function kern<T>(methode: string, params: Record<string, unknown> =
   if (!istDesktop) {
     throw new Error("Der Analysekern ist nur in der Desktop-App verfügbar (npm run tauri dev).");
   }
-  return invoke<T>("kern_aufruf", { methode, params });
+  const ergebnis = await invoke<T>("kern_aufruf", { methode, params });
+  if (methode.startsWith("ki.") || methode === "akten.metadaten_ki") kiPruefen(ergebnis);
+  return ergebnis;
 }
 
 // --- Lange Befehle im Hintergrund ---------------------------------------------------------------
@@ -20,6 +22,8 @@ export interface HintergrundAuftrag {
   auftrag_id: number;
   aufgabe: string;
   titel: string;
+  /** KI-Auftrag (ki.auftrag, abbrechen mit ki.abbrechen) statt Befehl des Kerns (hintergrund.auftrag). */
+  ki?: boolean;
   status: "laeuft" | "fertig" | "fehler" | "abgebrochen";
   text: string;
   schritt: number | null;
@@ -32,8 +36,45 @@ export interface HintergrundAuftrag {
 const hintergrundLaufend = new Map<number, HintergrundAuftrag>();
 const hintergrundBeobachter = new Set<(liste: HintergrundAuftrag[]) => void>();
 
+// Läuft eine KI-Aufgabe (Analyse, Chat, Vorschläge für Details), zeigt die Warteanzeige sie ebenfalls. Sie startet
+// in verschiedenen Bereichen; deshalb schaut jede Antwort eines ki.*-Aufrufs, ob ein Auftrag läuft, und solange
+// einer läuft, fragt `kiBeobachten` jede Sekunde mit ki.laufend nach (es läuft höchstens einer zugleich).
+let kiLaufend: HintergrundAuftrag | null = null;
+let kiSchleife = false;
+
+export function laeuftKi(wert: unknown): boolean {
+  const w = wert as { status?: unknown; auftrag_id?: unknown; auftrag?: { status?: unknown } } | null;
+  return !!w && typeof w === "object" && ((w.status === "laeuft" && "auftrag_id" in w) || w.auftrag?.status === "laeuft");
+}
+
+function kiPruefen(ergebnis: unknown) {
+  if (laeuftKi(ergebnis)) void kiBeobachten();
+}
+
+/** Fragt, solange ein KI-Auftrag läuft, nach seinem Stand; beim Start der App einmal aufrufen. */
+export async function kiBeobachten(): Promise<void> {
+  if (kiSchleife || !istDesktop) return;
+  kiSchleife = true;
+  try {
+    for (;;) {
+      let a: HintergrundAuftrag | null = null;
+      try {
+        a = await invoke<HintergrundAuftrag | null>("kern_aufruf", { methode: "ki.laufend", params: {} });
+      } catch {
+        a = null; // Kern nicht erreichbar: Anzeige ausblenden, der nächste ki.*-Aufruf schaut wieder
+      }
+      kiLaufend = a && a.status === "laeuft" ? { ...a, ki: true } : null;
+      hintergrundMelden();
+      if (!kiLaufend) return;
+      await new Promise((weiter) => setTimeout(weiter, 1000));
+    }
+  } finally {
+    kiSchleife = false;
+  }
+}
+
 function hintergrundMelden() {
-  const liste = [...hintergrundLaufend.values()];
+  const liste = [...(kiLaufend ? [kiLaufend] : []), ...hintergrundLaufend.values()];
   hintergrundBeobachter.forEach((f) => f(liste));
 }
 
@@ -46,13 +87,19 @@ function hintergrundSetzen(a: HintergrundAuftrag) {
 /** Meldet die laufenden Hintergrundaufträge dieses Fensters; gibt die Abmeldung zurück. */
 export function beobachteHintergrund(f: (liste: HintergrundAuftrag[]) => void): () => void {
   hintergrundBeobachter.add(f);
-  f([...hintergrundLaufend.values()]);
+  f([...(kiLaufend ? [kiLaufend] : []), ...hintergrundLaufend.values()]);
   return () => {
     hintergrundBeobachter.delete(f);
   };
 }
 
-export async function hintergrundAbbrechen(auftragId: number): Promise<void> {
+export async function hintergrundAbbrechen(auftragId: number, ki = false): Promise<void> {
+  if (ki) {
+    const a = await kern<HintergrundAuftrag>("ki.abbrechen", { auftrag_id: auftragId });
+    if (kiLaufend?.auftrag_id === auftragId) kiLaufend = { ...a, ki: true };
+    hintergrundMelden();
+    return;
+  }
   const a = await kern<HintergrundAuftrag>("hintergrund.abbrechen", { auftrag_id: auftragId });
   if (hintergrundLaufend.has(auftragId)) hintergrundSetzen(a);
 }
@@ -1788,6 +1835,7 @@ export const EREIGNIS_ART_TEXT: Record<KiEreignis["art"], string> = {
 export interface KiAuftrag {
   auftrag_id: number;
   aufgabe: KiAufgabe;
+  titel?: string;
   status: "laeuft" | "fertig" | "fehler" | "abgebrochen";
   text: string;
   schritt: number | null;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type HintergrundAuftrag, hintergrundErgebnis, hintergrundPause } from "./kern";
+import { type HintergrundAuftrag, hintergrundErgebnis, hintergrundPause, laeuftKi } from "./kern";
 
 const auftrag = (teil: Partial<HintergrundAuftrag>): HintergrundAuftrag => ({
   auftrag_id: 1,
@@ -30,5 +30,14 @@ describe("Hintergrundaufträge", () => {
     expect(hintergrundPause(0)).toBe(250);
     expect(hintergrundPause(1)).toBe(375);
     expect(hintergrundPause(10)).toBe(1000);
+  });
+
+  it("erkennt einen laufenden KI-Auftrag in der Antwort eines ki.*-Aufrufs", () => {
+    expect(laeuftKi(auftrag({ status: "laeuft" }))).toBe(true);
+    expect(laeuftKi({ status: "laeuft", auftrag: auftrag({ status: "laeuft" }) })).toBe(true);
+    expect(laeuftKi(auftrag({ status: "fertig" }))).toBe(false);
+    expect(laeuftKi({ status: "aus" })).toBe(false);
+    expect(laeuftKi(null)).toBe(false);
+    expect(laeuftKi([1, 2])).toBe(false);
   });
 });

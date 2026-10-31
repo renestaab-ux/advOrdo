@@ -73,6 +73,7 @@ class Auftrag:
             return {
                 "auftrag_id": self.nr,
                 "aufgabe": self.aufgabe,
+                "titel": AUFGABEN.get(self.aufgabe, self.aufgabe),
                 "status": self.status,
                 "text": self.text,
                 "schritt": self.schritt,
