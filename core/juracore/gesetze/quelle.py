@@ -1,4 +1,5 @@
-"""Abruf von Bundesrecht aus "Gesetze im Internet", Unionsrecht aus EUR-Lex und revisionssicheres Roharchiv.
+"""Abruf von Bundesrecht aus "Gesetze im Internet", Unionsrecht aus EUR-Lex, Landesrecht Bayern aus
+gesetze-bayern.de und revisionssicheres Roharchiv.
 
 Jede Quelldatei wird unverändert unter ihrer SHA-256-Prüfsumme abgelegt.
 Der Abruf ist bedingt (ETag / Last-Modified), damit unveränderte Gesetze
@@ -18,26 +19,108 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import eurlex
+from . import bayern, eurlex
 
 BASIS_URL = "https://www.gesetze-im-internet.de"
 USER_AGENT = "JuraBox/0.1 (Wissensbasis-Import)"
 
-# Voreingestellte Gesetze (Zivilrecht) stehen in voreinstellung.json. Jedes andere
-# Bundesgesetz lässt sich über sein Kürzel laden (meist die kleingeschriebene
-# Abkürzung, z. B. "GmbHG" -> "gmbhg"). Einträge, deren Kürzel eine CELEX-Nummer ist
-# (DSGVO: 32016R0679), kommen aus EUR-Lex.
+# Voreingestellte Gesetze stehen in voreinstellung.json, gegliedert in Pakete (Zivilrecht, Strafrecht,
+# Verwaltungsrecht, Landesrecht Bayern), die sich einzeln ein- und ausschalten lassen. Jedes andere
+# Bundesgesetz lässt sich über sein Kürzel laden (meist die kleingeschriebene Abkürzung, z. B. "GmbHG" ->
+# "gmbhg"). Einträge, deren Kürzel eine CELEX-Nummer ist (DSGVO: 32016R0679), kommen aus EUR-Lex, Einträge
+# mit "quelle": "bayern" aus gesetze-bayern.de.
 _VOREINSTELLUNG = Path(__file__).with_name("voreinstellung.json")
+EIGENES_PAKET = "eigene"
+
+
+def _liste_lesen(eigene_liste: Path | None) -> tuple[Path, dict]:
+    pfad = eigene_liste if eigene_liste is not None and eigene_liste.exists() else _VOREINSTELLUNG
+    return pfad, json.loads(pfad.read_text(encoding="utf-8"))
 
 
 def voreinstellung(eigene_liste: Path | None = None) -> list[dict]:
-    """Gesetzesliste; eine eigene Datei (gleiches Format) ersetzt die mitgelieferte."""
-    pfad = eigene_liste if eigene_liste is not None and eigene_liste.exists() else _VOREINSTELLUNG
-    gesetze = json.loads(pfad.read_text(encoding="utf-8"))["gesetze"]
+    """Gesetzesliste aller Pakete; eine eigene Datei (gleiches Format) ersetzt die mitgelieferte.
+
+    Jeder Eintrag trägt unter "pakete" die Pakete, zu denen er gehört."""
+    pfad, daten = _liste_lesen(eigene_liste)
+    gesetze = daten["gesetze"]
+    standard = EIGENES_PAKET if "pakete" not in daten else "zivilrecht"
     for g in gesetze:
         if not _ABK.match(g["abk"]) or not _KUERZEL.match(g["kuerzel"]):
             raise ValueError(f"Ungültiger Eintrag in {pfad.name}: {g}")
+        if g.get("quelle") not in (None, bayern.QUELLE):
+            raise ValueError(f"Unbekannte Quelle in {pfad.name}: {g}")
+        paket = g.get("paket", standard)
+        g["pakete"] = [paket] if isinstance(paket, str) else list(paket)
+        g.pop("paket", None)
     return gesetze
+
+
+def pakete(eigene_liste: Path | None = None, schalter: Path | None = None) -> list[dict]:
+    """Die Pakete der Gesetzesliste mit Schalterstand.
+
+    ``aktiv`` ist der gesetzte Schalter, ``wirksam`` berücksichtigt das übergeordnete Paket (Landesrecht
+    Bayern gilt nur zusammen mit Verwaltungsrecht). Eine eigene Liste ohne Pakete bildet ein Paket „Eigene
+    Liste“, das immer an ist."""
+    _pfad, daten = _liste_lesen(eigene_liste)
+    gesetze = voreinstellung(eigene_liste)
+    liste = [dict(p) for p in daten.get("pakete", [])] or [
+        {"id": EIGENES_PAKET, "titel": "Eigene Liste", "beschreibung": "Gesetze aus der eigenen gesetze.json.",
+         "standard": True}]
+    an = _schalter_lesen(schalter, liste)
+    for p in liste:
+        p["aktiv"] = p["id"] in an
+        p["gesetze"] = sum(p["id"] in g["pakete"] for g in gesetze)
+    nach_id = {p["id"]: p for p in liste}
+    for p in liste:
+        ober = nach_id.get(p.get("teil_von") or "")
+        p["wirksam"] = p["aktiv"] and (ober is None or ober["aktiv"])
+    return liste
+
+
+def _schalter_lesen(schalter: Path | None, liste: list[dict]) -> set[str]:
+    if schalter is not None and schalter.exists():
+        try:
+            gespeichert = json.loads(schalter.read_text(encoding="utf-8"))
+            return set(gespeichert.get("aktiv", [])) | {
+                p["id"] for p in liste if p.get("standard") and p["id"] not in gespeichert.get("bekannt", [])}
+        except (ValueError, AttributeError):
+            pass
+    return {p["id"] for p in liste if p.get("standard")}
+
+
+def paket_schalten(paket: str, aktiv: bool, eigene_liste: Path | None, schalter: Path) -> list[dict]:
+    """Schaltet ein Paket ein oder aus. Geladene Gesetze bleiben in der Wissensbasis."""
+    liste = pakete(eigene_liste, schalter)
+    if paket not in {p["id"] for p in liste}:
+        raise ValueError(f"Unbekanntes Gesetzespaket: {paket!r}")
+    an = {p["id"] for p in liste if p["aktiv"]}
+    an = an | {paket} if aktiv else an - {paket}
+    schalter.parent.mkdir(parents=True, exist_ok=True)
+    tmp = schalter.with_suffix(".tmp")
+    # "bekannt": Pakete, die es beim Speichern schon gab; neue Standardpakete späterer Versionen sind dann an.
+    tmp.write_text(json.dumps({"aktiv": sorted(an), "bekannt": sorted(p["id"] for p in liste)}, ensure_ascii=False),
+                   encoding="utf-8")
+    tmp.replace(schalter)
+    return pakete(eigene_liste, schalter)
+
+
+def verfuegbar(eigene_liste: Path | None = None, schalter: Path | None = None) -> list[dict]:
+    """Gesetze der eingeschalteten Pakete, jedes einmal (Grundlage für „fehlende laden“)."""
+    an = {p["id"] for p in pakete(eigene_liste, schalter) if p["wirksam"]}
+    gesehen: set[str] = set()
+    ergebnis = []
+    for g in voreinstellung(eigene_liste):
+        if set(g["pakete"]) & an and g["abk"].upper() not in gesehen:
+            gesehen.add(g["abk"].upper())
+            ergebnis.append(g)
+    return ergebnis
+
+
+def eintrag(abk: str, gesetze: list[dict] | None = None) -> dict | None:
+    """Der Eintrag der Gesetzesliste zu einer Abkürzung (ohne Rücksicht auf Groß- und Kleinschreibung)."""
+    abk = abk.strip().upper()
+    return next((g for g in (gesetze if gesetze is not None else voreinstellung()) if g["abk"].upper() == abk), None)
 
 
 _KUERZEL = re.compile(r"^[A-Za-z0-9_]{1,40}$")
@@ -61,6 +144,8 @@ class NichtGeaendert(Exception):
 def lade_gesetz(abk: str, archiv: Path, timeout: float = 60, gesetze: list[dict] | None = None) -> Rohdatei:
     """Lädt die XML-Fassung eines Gesetzes und legt das ZIP im Roharchiv ab."""
     abk, kuerzel = pfadkuerzel(abk, gesetze)
+    if (e := eintrag(abk, gesetze)) is not None and e.get("quelle") == bayern.QUELLE:
+        return _lade_bayern(abk, kuerzel, archiv, timeout)
     if eurlex.ist_celex(kuerzel):
         daten, url = eurlex.lade(kuerzel, timeout)
         return archiviere(abk, daten, url, archiv)
@@ -95,6 +180,21 @@ def lade_gesetz(abk: str, archiv: Path, timeout: float = 60, gesetze: list[dict]
     return roh
 
 
+def _lade_bayern(abk: str, kennung: str, archiv: Path, timeout: float) -> Rohdatei:
+    """Gesamtansicht einer bayerischen Vorschrift. Die Seite ändert sich bei jedem Abruf ein wenig (Sitzung),
+    deshalb zählt als „unverändert“ derselbe Stand (gilt ab, Vollzitat, Zahl der Artikel)."""
+    daten, url = bayern.lade(kennung, timeout)
+    meta_pfad = archiv / abk / "abruf.json"
+    meta = json.loads(meta_pfad.read_text(encoding="utf-8")) if meta_pfad.exists() else {}
+    kennzeichen = bayern.kennzeichen(daten)
+    if meta.get("kennzeichen") == kennzeichen:
+        raise NichtGeaendert(abk)
+    roh = archiviere(abk, daten, url, archiv)
+    meta_pfad.write_text(json.dumps({"kennzeichen": kennzeichen, "sha256": roh.sha256}, ensure_ascii=False),
+                         encoding="utf-8")
+    return roh
+
+
 def pfadkuerzel(abk: str, gesetze: list[dict] | None = None) -> tuple[str, str]:
     """Normalisierte Abkürzung und Pfadkürzel; lehnt alles ab, was kein Kürzel sein kann."""
     abk = abk.strip()
@@ -108,11 +208,13 @@ def pfadkuerzel(abk: str, gesetze: list[dict] | None = None) -> tuple[str, str]:
 
 
 def lies_datei(pfad: Path, archiv: Path | None, abk: str | None = None, gesetze: list[dict] | None = None) -> Rohdatei:
-    """Liest eine lokal vorliegende GII-Datei (.xml oder .zip) oder eine aus EUR-Lex gespeicherte
-    HTML-Seite, z. B. für Offline-Importe."""
+    """Liest eine lokal vorliegende GII-Datei (.xml oder .zip) oder eine aus EUR-Lex bzw. gesetze-bayern.de
+    gespeicherte HTML-Seite, z. B. für Offline-Importe."""
     daten = pfad.read_bytes()
     if abk is None and eurlex.ist_eurlex(daten):
         abk = _abk_zu_celex(daten, gesetze)
+    elif abk is None and bayern.ist_bayern(daten):
+        abk = _abk_zu_bayern(daten, gesetze)
     return archiviere(abk or pfad.stem.upper(), daten, str(pfad), archiv)
 
 
@@ -125,10 +227,22 @@ def _abk_zu_celex(daten: bytes, gesetze: list[dict] | None) -> str | None:
     return None
 
 
+def _abk_zu_bayern(daten: bytes, gesetze: list[dict] | None) -> str | None:
+    """Abkürzung einer gespeicherten Seite aus gesetze-bayern.de: aus dem Seitentitel („BayBO: …“), die Kennung
+    der Voreinstellung („BayPAG“) wird in deren Abkürzung („PAG“) übersetzt."""
+    titel = bayern.abk_aus_titel(daten)
+    if not titel or not _ABK.match(titel):
+        return None
+    for g in gesetze if gesetze is not None else voreinstellung():
+        if g.get("quelle") == bayern.QUELLE and titel.upper() in (g["kuerzel"].upper(), g["abk"].upper()):
+            return g["abk"].upper()
+    return titel.upper()
+
+
 def archiviere(abk: str, daten: bytes, quelle: str, archiv: Path | None) -> Rohdatei:
     sha = hashlib.sha256(daten).hexdigest()
     ist_zip = daten[:2] == b"PK"
-    endung = "zip" if ist_zip else "html" if eurlex.ist_eurlex(daten) else "xml"
+    endung = "zip" if ist_zip else "html" if eurlex.ist_eurlex(daten) or bayern.ist_bayern(daten) else "xml"
     archivpfad = None
     if archiv is not None:
         archivpfad = archiv / abk.upper() / f"{sha}.{endung}"

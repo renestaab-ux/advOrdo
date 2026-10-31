@@ -125,7 +125,18 @@ button.link { background: none; border: none; padding: 0; color: var(--akzent); 
 .voreinstellung h3 { font-size: 12px; margin: 0 0 4px; color: var(--text); }
 .voreinstellung ul { list-style: none; padding: 0; margin: 0; }
 .voreinstellung li.geladen strong { color: var(--gut); }
-.weiteres { display: flex; gap: 8px; margin: 12px 0 0; max-width: 480px; }
+.weiteres { display: flex; gap: 8px; margin: 12px 0 0; max-width: 640px; }
+.gesetzespakete { margin: 16px 0 0; }
+.gesetzespakete h2 { font-size: 15px; margin: 0 0 4px; }
+.gesetzespakete > .leise { margin: 0 0 8px; }
+.paket { padding: 8px 12px; margin: 6px 0; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; }
+.paket.unterpaket { margin-left: 28px; }
+.paket.aus .paket-kopf > .leise, .paket.aus .voreinstellung { opacity: 0.7; }
+.paket-kopf { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.paket-kopf .schalter { margin: 0; }
+.paket-kopf button { margin-left: auto; }
+.paket > p.leise { margin: 2px 0 0; }
+.paket .voreinstellung { margin-top: 4px; }
 .weiteres input { flex: 1; font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
 .fehler { white-space: pre-line; }
 .suche { display: flex; gap: 8px; margin: 16px 0; }

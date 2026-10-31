@@ -96,6 +96,7 @@ class Kern:
         self.db_pfad = Path(db_pfad)
         self.archiv = archiv
         self.eigene_liste = Path(db_pfad).parent / "gesetze.json"
+        self.pakete_datei = Path(db_pfad).parent / "gesetzespakete.json"
         # Akten getrennt von der Wissensbasis: eigene Datenbank, Originale je Akte in einem eigenen Ordner.
         # Beides gehört zur aktiven Arbeitsumgebung; die Wissensbasis teilen sich alle Umgebungen.
         self.umgebungen = Umgebungen(Path(db_pfad).parent)
@@ -151,7 +152,11 @@ class Kern:
             "marke.druckbild_setzen": lambda png: marke.druckbild_setzen(self.umgebungen.ordner(), self.akten, png),
             "marke.kurz_setzen": lambda text: marke.kurz_setzen(self.umgebungen.ordner(), self.akten, text),
             "gesetze.liste": lambda: db.gesetze(self.con),
-            "gesetze.verfuegbar": lambda: quelle.voreinstellung(self.eigene_liste),
+            "gesetze.verfuegbar": lambda: quelle.verfuegbar(self.eigene_liste, self.pakete_datei),
+            "gesetze.voreinstellung": lambda: quelle.voreinstellung(self.eigene_liste),
+            "gesetze.pakete": lambda: quelle.pakete(self.eigene_liste, self.pakete_datei),
+            "gesetze.paket_schalten": lambda paket, aktiv: quelle.paket_schalten(
+                paket, bool(aktiv), self.eigene_liste, self.pakete_datei),
             "gesetze.importieren": self.importieren,
             "gesetze.importieren_datei": self.importieren_datei,
             "gesetze.suche": lambda text, gesetz=None, limit=20: wissensbasis.suche(self.con, text, gesetz, limit),

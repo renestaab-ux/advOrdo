@@ -161,6 +161,30 @@ export interface Voreinstellung {
   kuerzel: string;
   titel: string;
   gruppe: string;
+  pakete: string[];
+  quelle?: "bayern";
+}
+
+export interface GesetzesPaket {
+  id: string;
+  titel: string;
+  beschreibung: string;
+  teil_von?: string;
+  /** Schalter gesetzt */
+  aktiv: boolean;
+  /** an und, falls Teil eines anderen Pakets, dieses auch an */
+  wirksam: boolean;
+  gesetze: number;
+}
+
+/** Gesetze eines Pakets, nach Gruppen in der Reihenfolge der Liste. */
+export function paketGruppen(gesetze: Voreinstellung[], paket: string): [string, Voreinstellung[]][] {
+  const gruppen = new Map<string, Voreinstellung[]>();
+  for (const g of gesetze) {
+    if (!g.pakete.includes(paket)) continue;
+    gruppen.set(g.gruppe, [...(gruppen.get(g.gruppe) ?? []), g]);
+  }
+  return [...gruppen];
 }
 
 export interface ImportErgebnis {

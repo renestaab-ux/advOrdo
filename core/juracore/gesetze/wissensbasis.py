@@ -7,7 +7,7 @@ import sqlite3
 from datetime import UTC, datetime
 
 from .. import db
-from . import eurlex
+from . import bayern, eurlex
 from .gii import parse_gii_xml
 from .quelle import Rohdatei
 from .zitate import Zitat, parse_zitat
@@ -24,6 +24,8 @@ def importiere(con: sqlite3.Connection, roh: Rohdatei, abk: str | None = None) -
     """
     if eurlex.ist_eurlex(roh.xml):
         dokument = eurlex.parse_eurlex_html(roh.xml, abk or roh.abk)
+    elif bayern.ist_bayern(roh.xml):
+        dokument = bayern.parse_bayern_html(roh.xml, abk or roh.abk)
     else:
         dokument = parse_gii_xml(roh.xml)
     datei_abk = dokument.abk.upper()
@@ -231,8 +233,13 @@ def _fassung_info(f: sqlite3.Row) -> dict:
         "builddate": f["builddate"],
         "stand": json.loads(f["stand"] or "[]"),
         "sha256": f["sha256"],
-        "hinweis": eurlex.HINWEIS if _ist_amtsblatt(f) else GII_HINWEIS,
+        "hinweis": eurlex.HINWEIS if _ist_amtsblatt(f) else bayern.HINWEIS if _ist_bayern(f) else GII_HINWEIS,
     }
+
+
+def _ist_bayern(f: sqlite3.Row) -> bool:
+    """Landesrecht aus gesetze-bayern.de, geladen oder als gespeicherte Seite importiert (Vollzitat mit GVBl.)."""
+    return bayern.HERKUNFT in (f["quelle"] or "") or any("GVBl" in s for s in json.loads(f["stand"] or "[]"))
 
 
 def _ist_amtsblatt(f: sqlite3.Row) -> bool:
