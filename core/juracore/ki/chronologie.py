@@ -11,16 +11,23 @@ es im Kopf des Dokuments steht, und verweist genau auf diese Stelle.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 
 from ..abgleich.angaben import DATUM, MONAT, Wert, anzeige, finde_werte
 from . import belege
+from .anbieter import KiFehler
+
+log = logging.getLogger("juracore.ki")
 
 ARTEN = ("ereignis", "frist", "dokument")
 BELEGT = "belegt"
 OHNE_BELEG = "ohne_beleg"
 KOPF_ZEICHEN = 700  # so viel Text vom Anfang eines Dokuments
 SCHLUSS_ZEICHEN = 400  # und so viel vom Schluss
+# Zeichen Angaben je Anfrage. Die Antwort nennt fast jede Angabe als Ereignis und wird so lang wie die Eingabe;
+# mehr passt nicht sicher in die Antwortgrenze (8192 Token, rund 20.000 Zeichen), auch bei großem Kontext.
+BLOCK_ZEICHEN = 9000
 
 SCHEMA = {
     "type": "object",
@@ -124,12 +131,18 @@ def _herkunft(a: dict) -> str:
 
 
 def erstelle(
-    frage: Callable[[int, list[int], str, dict], dict | None],
+    frage: Callable[[str, dict], dict],
     budget: int,
     je_dokument: list[dict],
     texte: dict[int, belege.Text],
     melde: Callable[[str], None] = lambda text: None,
 ) -> dict:
+    """Ordnet die datierten Angaben zu Ereignissen.
+
+    ``frage`` stellt eine Anfrage und löst bei unbrauchbarer Antwort KiFehler aus. Ist eine Antwort abgeschnitten,
+    wird der Block halbiert und jede Hälfte einzeln gefragt. Andere unbrauchbare Antworten und eine abgeschnittene
+    zu einer einzelnen Angabe werden als Lücke vermerkt.
+    """
     alle = [a for e in je_dokument for a in e["angaben"] if datiert(a)]
     alle.sort(key=lambda a: _daten(a["text"])[0].wert)  # Blöcke enthalten dann benachbarte Daten
     zeilen = [f"[A{i}] {_herkunft(a)}: {a['text']}" for i, a in enumerate(alle, 1)]
@@ -139,10 +152,11 @@ def erstelle(
     )
 
     # Alle Angaben in einer Anfrage, wenn sie passen; sonst Blöcke, die Dokumentköpfe nur im ersten.
+    grenze = min(budget, BLOCK_ZEICHEN)
     bloecke: list[list[int]] = [[]]
-    groesse = len(kopf_text)
+    groesse = 0
     for i, z in enumerate(zeilen):
-        if bloecke[-1] and groesse + len(z) + 1 > budget:
+        if bloecke[-1] and groesse + len(z) + 1 > grenze:
             bloecke.append([])
             groesse = 0
         bloecke[-1].append(i)
@@ -151,20 +165,35 @@ def erstelle(
     ereignisse: list[dict] = []
     verworfen = 0
     luecken: list[int] = []  # Teile, für die das Modell auch beim zweiten Versuch unbrauchbar antwortete
-    for b, block in enumerate(bloecke):
-        if len(bloecke) > 1:
-            melde(f"Ordne die Ereignisse (Teil {b + 1} von {len(bloecke)})")
-        mit_koepfen = b == 0
-        antwort = frage(
-            b + 1, luecken,
-            ANWEISUNG.format(
-                koepfe=(" Danach folgen Anfang und Schluss jedes Dokuments (Kennung D…)." if mit_koepfen else ""),
-                dokumente=ANWEISUNG_DOKUMENTE if mit_koepfen else "- dokumente: leere Liste.\n",
-                zeilen="\n".join(zeilen[i] for i in block)
-                + (f"\n\nDokumentköpfe:\n{kopf_text}" if mit_koepfen else ""),
-            ),
-            SCHEMA,
-        ) or {}
+    offen = [(block, b == 0) for b, block in enumerate(bloecke)]
+    offen.reverse()
+    teil = 0
+    while offen:
+        block, mit_koepfen = offen.pop()
+        teil += 1
+        if len(bloecke) > 1 or offen:
+            melde(f"Ordne die Ereignisse (Teil {teil} von {teil + len(offen)})")
+        anweisung = ANWEISUNG.format(
+            koepfe=(" Danach folgen Anfang und Schluss jedes Dokuments (Kennung D…)." if mit_koepfen else ""),
+            dokumente=ANWEISUNG_DOKUMENTE if mit_koepfen else "- dokumente: leere Liste.\n",
+            zeilen="\n".join(zeilen[i] for i in block)
+            + (f"\n\nDokumentköpfe:\n{kopf_text}" if mit_koepfen else ""),
+        )
+        try:
+            antwort = frage(anweisung, SCHEMA) or {}
+        except KiFehler as fehler:
+            if "JSON" not in str(fehler):
+                raise
+            if len(block) > 1 and "abgeschnitten" in str(fehler):
+                # Weniger Angaben, kürzere Antwort: den Block halbieren, die Köpfe bleiben bei der ersten Hälfte.
+                log.warning("Teile die Chronologie und frage erneut: %s", fehler)
+                mitte = len(block) // 2
+                offen += [(block[mitte:], False), (block[:mitte], mit_koepfen)]
+                teil -= 1
+                continue
+            log.warning("Teil %d der Chronologie übersprungen: %s", teil, fehler)
+            luecken.append(teil)
+            continue
         for e in antwort.get("ereignisse") or []:
             neu = _ereignis(e, block, alle, texte)
             if neu is None:
@@ -189,7 +218,7 @@ def erstelle(
                               for e in je_dokument if e.get("luecken")],  # wie analyse._luecken_dokumente
         "angaben": len(alle),
         "verworfen": verworfen,
-        "teile": len(bloecke),
+        "teile": teil,
         "luecken": luecken,
         "ereignisse": ergebnis,
     }

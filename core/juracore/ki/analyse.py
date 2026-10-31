@@ -488,7 +488,7 @@ class Analyse:
                    + [belege.zeilen(chronologie.kopf(t)) for t in texte.values()])
         return self._gespeichert(
             "chronologie", eingabe,
-            lambda: chronologie.erstelle(self._frage_oder_luecke, self.budget, je_dokument, texte,
+            lambda: chronologie.erstelle(self._frage, self.budget, je_dokument, texte,
                                          self.fortschritt.melde),
             akte_id,
         )
