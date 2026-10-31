@@ -1,14 +1,17 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   Beleg,
   Fassung,
   GesetzEintrag,
+  GesetzesPaket,
   ImportErgebnis,
   Norm,
   Voreinstellung,
   Treffer,
   formatiereBuilddate,
   istDesktop,
+  paketGruppen,
   istZitat,
   kern,
   kernImHintergrund,
@@ -17,6 +20,8 @@ import {
 export default function Gesetze() {
   const [gesetze, setGesetze] = useState<GesetzEintrag[]>([]);
   const [verfuegbar, setVerfuegbar] = useState<Voreinstellung[]>([]);
+  const [alle, setAlle] = useState<Voreinstellung[]>([]);
+  const [pakete, setPakete] = useState<GesetzesPaket[]>([]);
   const [eingabe, setEingabe] = useState("");
   const [weiteres, setWeiteres] = useState("");
   const [treffer, setTreffer] = useState<Treffer[] | null>(null);
@@ -39,12 +44,16 @@ export default function Gesetze() {
   }, []);
 
   const ladeListe = useCallback(async () => {
-    const [liste, verf] = await Promise.all([
+    const [liste, verf, voll, pak] = await Promise.all([
       kern<GesetzEintrag[]>("gesetze.liste"),
       kern<Voreinstellung[]>("gesetze.verfuegbar"),
+      kern<Voreinstellung[]>("gesetze.voreinstellung"),
+      kern<GesetzesPaket[]>("gesetze.pakete"),
     ]);
     setGesetze(liste);
     setVerfuegbar(verf);
+    setAlle(voll);
+    setPakete(pak);
   }, []);
 
   useEffect(() => {
@@ -52,11 +61,30 @@ export default function Gesetze() {
   }, [ausfuehren, ladeListe]);
 
   async function importieren(abk: string[]) {
-    await ausfuehren(`Lade ${abk.join(", ")} von gesetze-im-internet.de bzw. EUR-Lex …`, async () => {
+    await ausfuehren(`Lade ${abk.join(", ")} …`, async () => {
       const ergebnisse = await kernImHintergrund<ImportErgebnis[]>("gesetze.importieren", { gesetze: abk });
       await ladeListe();
       const fehler = ergebnisse.filter((e) => e.fehler).map((e) => `${e.abk}: ${e.fehler}`);
       if (fehler.length > 0) throw new Error(fehler.join("\n"));
+    });
+  }
+
+  async function paketSchalten(paket: string, aktiv: boolean) {
+    await ausfuehren(aktiv ? "Schalte das Paket ein …" : "Schalte das Paket aus …", async () => {
+      await kern<GesetzesPaket[]>("gesetze.paket_schalten", { paket, aktiv });
+      await ladeListe();
+    });
+  }
+
+  async function dateiImportieren() {
+    const pfad = await open({
+      title: "Gesetz aus Datei importieren",
+      filters: [{ name: "Gesetzestext (XML, ZIP, gespeicherte Webseite)", extensions: ["xml", "zip", "html", "htm"] }],
+    });
+    if (typeof pfad !== "string") return;
+    await ausfuehren("Lese die Datei …", async () => {
+      await kernImHintergrund<ImportErgebnis>("gesetze.importieren_datei", { pfad });
+      await ladeListe();
     });
   }
 
@@ -105,7 +133,6 @@ export default function Gesetze() {
 
   const geladen = new Set(gesetze.map((g) => g.abk.toUpperCase()));
   const fehlend = verfuegbar.filter((v) => !geladen.has(v.abk.toUpperCase())).map((v) => v.abk);
-  const gruppen = [...new Set(verfuegbar.map((v) => v.gruppe))];
 
   return (
     <div className="gesetze">
@@ -114,7 +141,7 @@ export default function Gesetze() {
         <div className="aktionen">
           {fehlend.length > 0 && (
             <button onClick={() => importieren(fehlend)} disabled={!!laeuft}>
-              {fehlend.length === verfuegbar.length ? "Voreinstellung laden" : `${fehlend.length} fehlende laden`}
+              {fehlend.length === verfuegbar.length ? "Eingeschaltete Pakete laden" : `${fehlend.length} fehlende laden`}
             </button>
           )}
           {gesetze.length > 0 && (
@@ -125,25 +152,66 @@ export default function Gesetze() {
         </div>
       </header>
 
-      <details className="voreinstellung">
-        <summary>
-          Voreinstellung Zivilrecht: {verfuegbar.length} Gesetze, davon {verfuegbar.length - fehlend.length} geladen
-        </summary>
-        {gruppen.map((gruppe) => (
-          <div key={gruppe} className="gruppe">
-            <h3>{gruppe}</h3>
-            <ul>
-              {verfuegbar
-                .filter((v) => v.gruppe === gruppe)
-                .map((v) => (
-                  <li key={v.abk} className={geladen.has(v.abk.toUpperCase()) ? "geladen" : undefined}>
-                    <strong>{v.abk}</strong> {v.titel}
-                  </li>
-                ))}
-            </ul>
-          </div>
-        ))}
-      </details>
+      <section className="gesetzespakete">
+        <h2>Gesetzespakete</h2>
+        <p className="leise">
+          Eingeschaltete Pakete erscheinen in der Voreinstellung und werden mit „fehlende laden“ geholt. Ausschalten
+          löscht nichts: Bereits geladene Gesetze bleiben in der Wissensbasis.
+        </p>
+        {pakete
+          .filter((p) => !p.teil_von)
+          .flatMap((p) => [p, ...pakete.filter((u) => u.teil_von === p.id)])
+          .map((p) => {
+            const imPaket = alle.filter((g) => g.pakete.includes(p.id));
+            const fehlendImPaket = imPaket.filter((g) => !geladen.has(g.abk.toUpperCase())).map((g) => g.abk);
+            const ober = pakete.find((o) => o.id === p.teil_von);
+            return (
+              <div
+                key={p.id}
+                className={["paket", p.teil_von ? "unterpaket" : "", p.wirksam ? "" : "aus"].filter(Boolean).join(" ")}
+              >
+                <div className="paket-kopf">
+                  <label className="schalter">
+                    <input
+                      type="checkbox"
+                      checked={p.aktiv}
+                      disabled={!!laeuft}
+                      onChange={(e) => void paketSchalten(p.id, e.target.checked)}
+                    />
+                    <span>{p.titel}</span>
+                  </label>
+                  <span className="leise">
+                    {imPaket.length - fehlendImPaket.length} von {p.gesetze} geladen
+                  </span>
+                  {p.wirksam && fehlendImPaket.length > 0 && (
+                    <button className="zweitrangig" onClick={() => importieren(fehlendImPaket)} disabled={!!laeuft}>
+                      {fehlendImPaket.length === imPaket.length ? "Paket laden" : `${fehlendImPaket.length} fehlende laden`}
+                    </button>
+                  )}
+                </div>
+                <p className="leise">
+                  {p.beschreibung}
+                  {p.aktiv && !p.wirksam && ober && <> Wirkt erst, wenn „{ober.titel}“ eingeschaltet ist.</>}
+                </p>
+                <details className="voreinstellung">
+                  <summary>Gesetze anzeigen</summary>
+                  {paketGruppen(alle, p.id).map(([gruppe, liste]) => (
+                    <div key={gruppe} className="gruppe">
+                      <h3>{gruppe}</h3>
+                      <ul>
+                        {liste.map((v) => (
+                          <li key={v.abk} className={geladen.has(v.abk.toUpperCase()) ? "geladen" : undefined}>
+                            <strong>{v.abk}</strong> {v.titel}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </details>
+              </div>
+            );
+          })}
+      </section>
 
       <form className="weiteres" onSubmit={weiteresLaden}>
         <input
@@ -155,18 +223,33 @@ export default function Gesetze() {
         <button type="submit" className="zweitrangig" disabled={!!laeuft || !weiteres.trim()}>
           Laden
         </button>
+        <button
+          type="button"
+          className="zweitrangig"
+          onClick={() => void dateiImportieren()}
+          disabled={!!laeuft}
+          title="XML oder ZIP von gesetze-im-internet.de, gespeicherte Seite von EUR-Lex oder gesetze-bayern.de"
+        >
+          Datei importieren …
+        </button>
       </form>
 
       {gesetze.length > 0 ? (
-        <ul className="bestand">
-          {gesetze.map((g) => (
-            <li key={g.abk}>
-              <strong>{g.abk}</strong> {g.langtitel} · {g.normen} Normen · Stand der Quelle{" "}
-              {formatiereBuilddate(g.builddate)}
-              {g.fassungen > 1 && <> · {g.fassungen} Fassungen gespeichert</>}
-            </li>
-          ))}
-        </ul>
+        <details className="bestand-klappe">
+          <summary>
+            Geladene Gesetze: {gesetze.length}, zusammen {gesetze.reduce((s, g) => s + g.normen, 0).toLocaleString("de-DE")}{" "}
+            Normen
+          </summary>
+          <ul className="bestand">
+            {gesetze.map((g) => (
+              <li key={g.abk}>
+                <strong>{g.abk}</strong> {g.langtitel} · {g.normen} Normen · Stand der Quelle{" "}
+                {formatiereBuilddate(g.builddate)}
+                {g.fassungen > 1 && <> · {g.fassungen} Fassungen gespeichert</>}
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : (
         <p className="leer">Noch keine Gesetze in der Wissensbasis. Lade die Voreinstellung, um zu beginnen.</p>
       )}

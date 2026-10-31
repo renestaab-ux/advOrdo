@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   stundenText,
+  paketGruppen,
   uhrText,
   timerSeitText,
   netzErgebnis,
@@ -833,5 +834,23 @@ describe("Zeiterfassung", () => {
   it("nennt den Beginn des laufenden Timers mit „heute“ oder Datum", () => {
     expect(timerSeitText("2026-10-29T12:03:00", "2026-10-29")).toBe("heute, 12:03 Uhr");
     expect(timerSeitText("2026-10-28T17:40:00", "2026-10-29")).toBe("28.10.2026, 17:40 Uhr");
+  });
+});
+
+describe("paketGruppen", () => {
+  const g = (abk: string, gruppe: string, pakete: string[]) => ({ abk, kuerzel: abk.toLowerCase(), titel: abk, gruppe, pakete });
+  it("ordnet die Gesetze eines Pakets nach Gruppen in Listenreihenfolge", () => {
+    const liste = [
+      g("StGB", "Materielles Strafrecht", ["strafrecht"]),
+      g("BGB", "Materielles Zivilrecht", ["zivilrecht"]),
+      g("GVG", "Verfahren", ["zivilrecht", "strafrecht"]),
+      g("StPO", "Strafverfahren", ["strafrecht"]),
+    ];
+    expect(paketGruppen(liste, "strafrecht").map(([gr, l]) => [gr, l.map((x) => x.abk)])).toEqual([
+      ["Materielles Strafrecht", ["StGB"]],
+      ["Verfahren", ["GVG"]],
+      ["Strafverfahren", ["StPO"]],
+    ]);
+    expect(paketGruppen(liste, "verwaltungsrecht")).toEqual([]);
   });
 });
