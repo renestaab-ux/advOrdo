@@ -138,3 +138,40 @@ def test_lesezeichen_nach_neuer_fassung(akten, con, tmp_path):
     akten.commit()
     assert lesezeichen.liste(akten, dokument_id=d)["lesezeichen"][0]["status"] == "nicht_gefunden"
     assert z["id"]
+
+
+def test_gemeinsame_ordner_mit_markierungen(akten, con, tmp_path):
+    d, a = _dokument(akten, con, tmp_path, "Klage\n\nDer Beklagte schuldet 500 EUR.\n\nBegründung folgt.")
+    text = _text(akten, d)
+    m = anmerkungen.anlegen(akten, d, text.index("schuldet"), text.index("schuldet") + 8, "rot")
+    z = lesezeichen.anlegen(akten, d, text.index("Begründung"))
+    assert z["reihenfolge"] > m["reihenfolge"]  # gemeinsame Ordnung: das Neue kommt ans Ende
+    o = lesezeichen.ordner_anlegen(akten, a, "Streitig")
+    lesezeichen.anordnen(akten, a, [
+        {"id": o["id"], "eintraege": [{"art": "lesezeichen", "id": z["id"]}, {"art": "markierung", "id": m["id"]}]},
+        {"id": None, "eintraege": []},
+    ])
+    neu = anmerkungen.liste(akten, akte_id=a)[0]
+    assert (neu["ordner_id"], neu["reihenfolge"]) == (o["id"], 1)
+    assert lesezeichen.liste(akten, akte_id=a)["lesezeichen"][0]["reihenfolge"] == 0
+    with pytest.raises(ValueError):
+        lesezeichen.anordnen(akten, a, [{"id": None, "eintraege": [{"art": "markierung", "id": 999}]}])
+    lesezeichen.ordner_loeschen(akten, o["id"])
+    assert anmerkungen.liste(akten, akte_id=a)[0]["ordner_id"] is None
+
+
+def test_alte_tabelle_wird_ergaenzt(tmp_path):
+    import sqlite3
+    pfad = tmp_path / "alt.sqlite"
+    alt = sqlite3.connect(pfad)
+    alt.execute("CREATE TABLE anmerkung (id INTEGER PRIMARY KEY, dokument_id INTEGER, art TEXT, farbe TEXT, "
+                "stil TEXT, start INTEGER, ende INTEGER, zitat TEXT, davor TEXT, danach TEXT, seite INTEGER, "
+                "form TEXT, kommentar TEXT, status TEXT, textstand TEXT, angelegt_am TEXT, geaendert_am TEXT)")
+    alt.commit()
+    alt.close()
+    con = akte.oeffne(pfad)
+    anmerkungen.einrichten(con)
+    anmerkungen.einrichten(con)  # zweimal: nichts doppelt
+    spalten = {z[1] for z in con.execute("PRAGMA table_info(anmerkung)")}
+    assert {"ordner_id", "reihenfolge"} <= spalten
+    con.close()

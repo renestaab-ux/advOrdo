@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   lesezeichenGruppen,
+  ordnerGruppen,
   ordnung,
+  schluessel,
   verdichteMarken,
-  verschiebeLesezeichen,
+  verschiebeEintrag,
   verschiebeOrdner,
   type Lesezeichen,
   type LesezeichenListe,
@@ -32,16 +34,20 @@ describe("Lesezeichen in Ordnern", () => {
     expect(lesezeichenGruppen(liste, false).map((x) => x.id)).toEqual([10, null]);
   });
 
-  it("verschiebt Lesezeichen und Ordner", () => {
-    const g = lesezeichenGruppen(liste);
-    const neu = verschiebeLesezeichen(g, 3, 11);
-    expect(ordnung(neu)).toEqual([
-      { id: 10, lesezeichen: [1] },
-      { id: 11, lesezeichen: [3] },
-      { id: null, lesezeichen: [2, 4] },
+  it("Markierungen und Lesezeichen in gemeinsamen Ordnern", () => {
+    const m = (id: number, ordner_id: number | null, reihenfolge: number) =>
+      ({ id, ordner_id, reihenfolge, dokument_id: 1, art: "markierung", farbe: "gelb", stil: "flaeche", start: 0, ende: 1,
+        zitat: "x", seite: 1, abschnitt: 1, rn: null, kommentar: null, status: "gefunden", angelegt_am: "", geaendert_am: "" }) as const;
+    const g = ordnerGruppen(liste.ordner, liste.lesezeichen, [m(7, 10, 2), m(8, null, 0), m(9, null, 0)]);
+    expect(g.map((x) => [x.id, x.eintraege.map(schluessel)])).toEqual([
+      [10, ["l1", "m7", "l3"]],
+      [11, []],
+      [null, ["m8", "m9", "l2", "l4"]],
     ]);
-    expect(neu[1].eintraege[0].ordner_id).toBe(11);
-    expect(ordnung(verschiebeLesezeichen(g, 2, 10, 0))[0].lesezeichen).toEqual([2, 1, 3]);
+    const neu = verschiebeEintrag(g, "m9", 11, null);
+    expect(ordnung(neu)[1]).toEqual({ id: 11, eintraege: [{ art: "markierung", id: 9 }] });
+    expect(neu[1].eintraege[0].art === "markierung" && neu[1].eintraege[0].a.ordner_id).toBe(11);
+    expect(ordnung(verschiebeEintrag(g, "l2", 10, "m7"))[0].eintraege.map((e) => e.id)).toEqual([1, 2, 7, 3]);
     expect(verschiebeOrdner(g, 11, 10).map((x) => x.id)).toEqual([11, 10, null]);
     expect(verschiebeOrdner(g, 10, null).map((x) => x.id)).toEqual([11, 10, null]);
   });

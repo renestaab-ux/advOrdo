@@ -20,7 +20,7 @@ import {
 } from "./anmerkungLogik";
 import { istDesktop, kern } from "./kern";
 import type { LesezeichenStelle } from "./Lesezeichen";
-import Zeichen, { LeerHinweis } from "./Symbole";
+import Zeichen from "./Symbole";
 
 // --- Bedeutung der Farben (je Arbeitsumgebung, im Kern gespeichert) ----------------------------------------------------
 
@@ -697,7 +697,7 @@ export function anmerkungsHandler(e: AnmerkungsEreignisse) {
 
 // --- Liste neben dem Dokument und Reiter der Akte -----------------------------------------------------------------------
 
-function FilterLeiste({
+export function FilterLeiste({
   liste,
   filter,
   onFilter,
@@ -748,7 +748,7 @@ function FilterLeiste({
   );
 }
 
-function Eintrag({
+export function AnmerkungsEintrag({
   a,
   bedeutungen,
   aktiv,
@@ -858,73 +858,13 @@ export function AnmerkungsLeiste({
           <FilterLeiste liste={liste} filter={filter} onFilter={setFilter} bedeutungen={bedeutungen} suchtext="In diesem Dokument suchen" />
           <ul className="anm-liste">
             {sichtbar.map((a) => (
-              <Eintrag key={a.id} a={a} bedeutungen={bedeutungen} aktiv={a.id === aktiv} onWaehle={onWaehle} />
+              <AnmerkungsEintrag key={a.id} a={a} bedeutungen={bedeutungen} aktiv={a.id === aktiv} onWaehle={onWaehle} />
             ))}
             {sichtbar.length === 0 && <li className="leise">Keine passende Anmerkung.</li>}
           </ul>
         </>
       )}
     </aside>
-  );
-}
-
-/** Reiter „Anmerkungen“ der Akte: alle Markierungen und Kommentare, durchsuchbar, nach Bedeutung gefiltert. */
-export function AnmerkungenReiter({
-  akteId,
-  onOeffnen,
-}: {
-  akteId: number;
-  onOeffnen: (a: Anmerkung) => void;
-}) {
-  const bedeutungen = useBedeutungen();
-  const [liste, setListe] = useState<Anmerkung[] | null>(null);
-  const [filter, setFilter] = useState<AnmerkFilter>(KEIN_ANMERK_FILTER);
-  const [fehler, setFehler] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!istDesktop) return;
-    kern<Anmerkung[]>("anmerkungen.liste", { akte_id: akteId })
-      .then(setListe)
-      .catch((e) => setFehler(String(e)));
-  }, [akteId]);
-
-  if (fehler) return <p className="fehler">{fehler}</p>;
-  if (!liste) return <p className="status">Lade Anmerkungen …</p>;
-  if (liste.length === 0)
-    return (
-      <LeerHinweis symbol="markieren">
-        Noch keine Anmerkungen in dieser Akte. Öffne ein Dokument, wähle Text aus und markiere ihn im Menü über der
-        Auswahl; dort lässt sich auch ein Kommentar anfügen.
-      </LeerHinweis>
-    );
-  const sichtbar = filtereAnmerkungen(liste, filter, bedeutungen);
-  // Nach Dokument gruppiert, in der Reihenfolge der Liste (Datum des Dokuments, dann Lage).
-  const gruppen: { dokument: string; eintraege: Anmerkung[] }[] = [];
-  for (const a of sichtbar) {
-    const g = gruppen[gruppen.length - 1];
-    if (g && g.eintraege[0].dokument_id === a.dokument_id) g.eintraege.push(a);
-    else gruppen.push({ dokument: a.dokument ?? "", eintraege: [a] });
-  }
-  return (
-    <div className="anm-reiter">
-      <FilterLeiste liste={liste} filter={filter} onFilter={setFilter} bedeutungen={bedeutungen} suchtext="In Anmerkungen der Akte suchen (Wortlaut, Kommentar, Bedeutung)" />
-      <p className="leise">
-        {sichtbar.length === liste.length
-          ? `${liste.length} ${liste.length === 1 ? "Anmerkung" : "Anmerkungen"}`
-          : `${sichtbar.length} von ${liste.length} Anmerkungen`}{" "}
-        in {gruppen.length} {gruppen.length === 1 ? "Dokument" : "Dokumenten"}
-      </p>
-      {gruppen.map((g) => (
-        <section key={g.eintraege[0].dokument_id} className="anm-gruppe">
-          <h3>{g.dokument}</h3>
-          <ul className="anm-liste">
-            {g.eintraege.map((a) => (
-              <Eintrag key={a.id} a={a} bedeutungen={bedeutungen} aktiv={false} onWaehle={() => onOeffnen(a)} />
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
   );
 }
 

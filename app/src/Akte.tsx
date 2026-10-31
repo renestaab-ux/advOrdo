@@ -11,7 +11,6 @@ import {
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  AnmerkungenReiter,
   AnmerkungsLeiste,
   anmerkungsHandler,
   OriginalAnmerkungen,
@@ -36,7 +35,7 @@ import { useKiAn } from "./kiSchalter";
 import { BelegAnsicht } from "./Gesetze";
 import { gemerkt, merke } from "./merken";
 import Zeichen, { LeerHinweis } from "./Symbole";
-import { Bildlaufmarken, LesezeichenLeiste, LesezeichenVerwaltung, useLesezeichen } from "./Lesezeichen";
+import { Bildlaufmarken, LesezeichenLeiste, OrdnerAnsicht, OrdnerAnsichtArt, useLesezeichen } from "./Lesezeichen";
 import { Lesezeichen, LesezeichenAufSeite } from "./lesezeichenLogik";
 import {
   Abschnitt,
@@ -230,7 +229,7 @@ export default function Akte({
   const lz = useLesezeichen(inhalt?.dokument.id ?? null);
   const anm = useAnmerkungen(inhalt?.dokument.id ?? null, () => void ladeDokumente(), (s) => void lz.anlegen(s));
   // Reiter „Anmerkungen“ der Akte: Markierungen und Kommentare oder Lesezeichen.
-  const [anmTeil, setAnmTeil] = useState<"markierungen" | "lesezeichen">("markierungen");
+  const [anmTeil, setAnmTeil] = useState<OrdnerAnsichtArt>("markierungen");
   // Wo die Marken an der Bildlaufleiste gemessen werden: Text oder Original des geöffneten Dokuments.
   const [markenWurzel, setMarkenWurzel] = useState<HTMLElement | null>(null);
   // Seitenleiste mit den Anmerkungen: zunächst zu, damit der Text Platz hat; der Zustand wird je Gerät gemerkt.
@@ -990,19 +989,20 @@ export default function Akte({
         {kiAn && reiter === "chat" && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
         {reiter === "anmerkungen" && (
           <div className="anm-reiter-rahmen">
-            <div className="segment anm-teil-wahl" role="tablist" aria-label="Anmerkungen oder Lesezeichen">
-              <button role="tab" aria-selected={anmTeil === "markierungen"} className={`segment-knopf${anmTeil === "markierungen" ? " aktiv" : ""}`} onClick={() => setAnmTeil("markierungen")}>
-                Markierungen und Kommentare
-              </button>
-              <button role="tab" aria-selected={anmTeil === "lesezeichen"} className={`segment-knopf${anmTeil === "lesezeichen" ? " aktiv" : ""}`} onClick={() => setAnmTeil("lesezeichen")}>
-                Lesezeichen
-              </button>
+            <div className="segment anm-teil-wahl" role="tablist" aria-label="Was angezeigt wird">
+              {(
+                [
+                  ["markierungen", "Markierungen und Kommentare"],
+                  ["lesezeichen", "Lesezeichen"],
+                  ["alle", "Alle"],
+                ] as const
+              ).map(([id, titel]) => (
+                <button key={id} role="tab" aria-selected={anmTeil === id} className={`segment-knopf${anmTeil === id ? " aktiv" : ""}`} onClick={() => setAnmTeil(id)}>
+                  {titel}
+                </button>
+              ))}
             </div>
-            {anmTeil === "markierungen" ? (
-              <AnmerkungenReiter akteId={akteId} onOeffnen={(a) => void oeffneAnmerkung(a)} />
-            ) : (
-              <LesezeichenVerwaltung akteId={akteId} onOeffnen={(z) => void oeffneLesezeichen(z)} />
-            )}
+            <OrdnerAnsicht akteId={akteId} ansicht={anmTeil} onLesezeichen={(z) => void oeffneLesezeichen(z)} onAnmerkung={(a) => void oeffneAnmerkung(a)} />
           </div>
         )}
       </div>

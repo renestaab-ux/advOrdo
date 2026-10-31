@@ -1,15 +1,20 @@
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { istDesktop, kern } from "./kern";
+import { AnmerkungsEintrag, FilterLeiste, useBedeutungen } from "./Anmerkungen";
+import { AnmerkFilter, Anmerkung, filtereAnmerkungen, KEIN_ANMERK_FILTER, vergleichbar } from "./anmerkungLogik";
 import {
   InhaltEintrag,
   Lesezeichen,
-  LesezeichenGruppe,
   LesezeichenListe,
   Marke,
+  OrdnerEintrag,
+  OrdnerGruppe,
   lesezeichenGruppen,
+  ordnerGruppen,
   ordnung,
+  schluessel,
   verdichteMarken,
-  verschiebeLesezeichen,
+  verschiebeEintrag,
   verschiebeOrdner,
 } from "./lesezeichenLogik";
 import Zeichen, { LeerHinweis } from "./Symbole";
@@ -234,20 +239,44 @@ export function LesezeichenLeiste({
   );
 }
 
-/** Reiter „Anmerkungen“ → „Lesezeichen“: Ordner anlegen, Lesezeichen per Ziehen sortieren und einordnen. */
-export function LesezeichenVerwaltung({ akteId, onOeffnen }: { akteId: number; onOeffnen: (z: Lesezeichen) => void }) {
-  const [gruppen, setGruppen] = useState<LesezeichenGruppe[] | null>(null);
+/** Was der Reiter „Anmerkungen“ der Akte zeigt; die Ordner sind für alle drei Ansichten dieselben. */
+export type OrdnerAnsichtArt = "markierungen" | "lesezeichen" | "alle";
+
+/**
+ * Reiter „Anmerkungen“ der Akte: Markierungen und Kommentare, Lesezeichen oder beides in den Ordnern der Akte.
+ * Ordner anlegen, Einträge per Ziehen sortieren und einordnen.
+ */
+export function OrdnerAnsicht({
+  akteId,
+  ansicht,
+  onLesezeichen,
+  onAnmerkung,
+}: {
+  akteId: number;
+  ansicht: OrdnerAnsichtArt;
+  onLesezeichen: (z: Lesezeichen) => void;
+  onAnmerkung: (a: Anmerkung) => void;
+}) {
+  const bedeutungen = useBedeutungen();
+  const [gruppen, setGruppen] = useState<OrdnerGruppe[] | null>(null);
+  const [markierungen, setMarkierungen] = useState<Anmerkung[]>([]);
+  const [filter, setFilter] = useState<AnmerkFilter>(KEIN_ANMERK_FILTER);
   const [neuerOrdner, setNeuerOrdner] = useState("");
   const [umbenennen, setUmbenennen] = useState<{ id: number; name: string } | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   // Ziehen mit Zeiger statt HTML-Drag-and-Drop: Das funktioniert in den Fenstern aller drei Systeme gleich.
-  const zug = useRef<{ art: "lz" | "ordner"; id: number } | null>(null);
-  const [ziel, setZiel] = useState<{ gruppe: number | null; index: number | null; art: "lz" | "ordner" } | null>(null);
-  const [gezogen, setGezogen] = useState<number | null>(null);
+  const zug = useRef<{ art: "eintrag"; key: string } | { art: "ordner"; id: number } | null>(null);
+  const [ziel, setZiel] = useState<{ gruppe: number | null; vor: string | null; ordner: boolean } | null>(null);
+  const [gezogen, setGezogen] = useState<string | null>(null);
 
   const laden = useCallback(async () => {
     try {
-      setGruppen(lesezeichenGruppen(await kern<LesezeichenListe>("lesezeichen.liste", { akte_id: akteId })));
+      const [l, m] = await Promise.all([
+        kern<LesezeichenListe>("lesezeichen.liste", { akte_id: akteId }),
+        kern<Anmerkung[]>("anmerkungen.liste", { akte_id: akteId }),
+      ]);
+      setMarkierungen(m);
+      setGruppen(ordnerGruppen(l.ordner, l.lesezeichen, m));
       setFehler(null);
     } catch (e) {
       setFehler(String(e));
@@ -266,66 +295,213 @@ export function LesezeichenVerwaltung({ akteId, onOeffnen }: { akteId: number; o
     }
   }
 
-  async function speichern(neu: LesezeichenGruppe[]) {
+  async function speichern(neu: OrdnerGruppe[]) {
     setGruppen(neu);
     try {
-      setGruppen(lesezeichenGruppen(await kern<LesezeichenListe>("lesezeichen.anordnen", { akte_id: akteId, ordner: ordnung(neu) })));
+      await kern("lesezeichen.anordnen", { akte_id: akteId, ordner: ordnung(neu) });
+      await laden();
     } catch (e) {
       setFehler(String(e));
       await laden();
     }
   }
 
-  function zielUnter(x: number, y: number, art: "lz" | "ordner") {
+  // Sichtbar je Ansicht und Filter; verschoben wird in der vollständigen Ordnung (vor dem nächsten sichtbaren Eintrag).
+  const passendeMarkierungen = new Set(filtereAnmerkungen(markierungen, filter, bedeutungen).map((a) => a.id));
+  const woerter = vergleichbar(filter.suche).split(/\s+/).filter(Boolean);
+  const sichtbar = (e: OrdnerEintrag) =>
+    e.art === "markierung"
+      ? ansicht !== "lesezeichen" && passendeMarkierungen.has(e.a.id)
+      : ansicht !== "markierungen" &&
+        filter.farben.length === 0 &&
+        !filter.nurKommentar &&
+        woerter.every((w) => vergleichbar(`${e.z.titel} ${e.z.zitat} ${e.z.dokument}`).includes(w));
+
+  function zielUnter(x: number, y: number, ordner: boolean) {
     const el = document.elementFromPoint(x, y);
     const gruppe = el?.closest<HTMLElement>("[data-lz-gruppe]");
     if (!gruppe) return null;
     const gid = gruppe.dataset.lzGruppe === "ohne" ? null : Number(gruppe.dataset.lzGruppe);
-    if (art === "ordner") return { gruppe: gid, index: null, art };
-    const eintrag = el?.closest<HTMLElement>("[data-lz-index]");
-    if (!eintrag) return { gruppe: gid, index: null, art };
-    const r = eintrag.getBoundingClientRect();
-    return { gruppe: gid, index: Number(eintrag.dataset.lzIndex) + (y > r.top + r.height / 2 ? 1 : 0), art };
+    if (ordner) return { gruppe: gid, vor: null, ordner };
+    const zeile = el?.closest<HTMLElement>("[data-lz-key]");
+    if (!zeile) return { gruppe: gid, vor: null, ordner };
+    const r = zeile.getBoundingClientRect();
+    if (y <= r.top + r.height / 2) return { gruppe: gid, vor: zeile.dataset.lzKey!, ordner };
+    const naechste = zeile.nextElementSibling as HTMLElement | null;
+    return { gruppe: gid, vor: naechste?.dataset.lzKey ?? null, ordner };
   }
 
-  const ziehen = (art: "lz" | "ordner", id: number) => ({
+  const ziehen = (was: { art: "eintrag"; key: string } | { art: "ordner"; id: number }) => ({
     onPointerDown: (e: ReactPointerEvent<HTMLElement>) => {
       if (e.button !== 0) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
-      zug.current = { art, id };
-      setGezogen(id);
+      zug.current = was;
+      setGezogen(was.art === "eintrag" ? was.key : `o${was.id}`);
     },
     onPointerMove: (e: ReactPointerEvent<HTMLElement>) => {
-      if (zug.current) setZiel(zielUnter(e.clientX, e.clientY, zug.current.art));
+      if (zug.current) setZiel(zielUnter(e.clientX, e.clientY, zug.current.art === "ordner"));
     },
     onPointerUp: (e: ReactPointerEvent<HTMLElement>) => {
       const z = zug.current;
       zug.current = null;
       setGezogen(null);
       setZiel(null);
-      const wohin = z && zielUnter(e.clientX, e.clientY, z.art);
+      const wohin = z && zielUnter(e.clientX, e.clientY, z.art === "ordner");
       if (!z || !wohin || !gruppen) return;
       if (z.art === "ordner") {
         if (wohin.gruppe !== z.id) void speichern(verschiebeOrdner(gruppen, z.id, wohin.gruppe));
         return;
       }
-      // Index im Zielordner ohne das gezogene Lesezeichen selbst.
-      const g = gruppen.find((x) => x.id === wohin.gruppe);
-      const alt = g?.eintraege.findIndex((x) => x.id === z.id) ?? -1;
-      const index = wohin.index == null ? undefined : alt >= 0 && alt < wohin.index ? wohin.index - 1 : wohin.index;
-      void speichern(verschiebeLesezeichen(gruppen, z.id, wohin.gruppe, index));
+      if (wohin.vor === z.key) return;
+      void speichern(verschiebeEintrag(gruppen, z.key, wohin.gruppe, wohin.vor));
     },
   });
 
   if (fehler && !gruppen) return <p className="fehler">{fehler}</p>;
-  if (!gruppen) return <p className="status">Lade Lesezeichen …</p>;
-  const anzahl = gruppen.reduce((n, g) => n + g.eintraege.length, 0);
+  if (!gruppen) return <p className="status">Lade …</p>;
   const ordner = gruppen.filter((g) => g.id != null);
+  const vorhanden = gruppen.flatMap((g) => g.eintraege).filter(
+    (e) => ansicht === "alle" || (ansicht === "lesezeichen") === (e.art === "lesezeichen"),
+  );
+  const anzahlSichtbar = gruppen.reduce((n, g) => n + g.eintraege.filter(sichtbar).length, 0);
+  const mitMarkierungen = ansicht !== "lesezeichen" && markierungen.length > 0;
 
   return (
     <div className="lz-verwaltung">
       {fehler && <p className="fehler">{fehler}</p>}
+      {mitMarkierungen && (
+        <FilterLeiste
+          liste={markierungen}
+          filter={filter}
+          onFilter={setFilter}
+          bedeutungen={bedeutungen}
+          suchtext={ansicht === "alle" ? "Suchen in Markierungen, Kommentaren und Lesezeichen" : "Suchen in Wortlaut, Kommentar und Bedeutung"}
+        />
+      )}
+      {vorhanden.length === 0 ? (
+        <LeerHinweis symbol={ansicht === "lesezeichen" ? "lesezeichen" : "markieren"}>
+          {ansicht === "lesezeichen"
+            ? "Noch keine Lesezeichen in dieser Akte. Öffne ein Dokument, blende rechts „Anmerkungen“ ein und wähle dort den Reiter „Lesezeichen“ – oder wähle Text aus und klicke im Menü auf das Lesezeichen."
+            : "Noch nichts markiert. Öffne ein Dokument, wähle Text aus und markiere ihn im Menü über der Auswahl; dort lassen sich auch ein Kommentar oder ein Lesezeichen anfügen."}
+        </LeerHinweis>
+      ) : (
+        <p className="leise">
+          {anzahlSichtbar === vorhanden.length ? `${vorhanden.length} Einträge` : `${anzahlSichtbar} von ${vorhanden.length} Einträgen`}. Am Griff
+          ziehen: Einträge in einen Ordner oder an eine andere Stelle, Ordner in eine andere Reihenfolge. Die Ordner gelten für
+          Markierungen und Lesezeichen gemeinsam.
+        </p>
+      )}
+      {gruppen.map((g) => {
+        const zeilen = g.eintraege.filter(sichtbar);
+        if (g.id == null && zeilen.length === 0 && ordner.length > 0) return null;
+        return (
+          <section
+            key={g.id ?? "ohne"}
+            data-lz-gruppe={g.id ?? "ohne"}
+            className={`lz-ordner${ziel && ziel.gruppe === g.id && (ziel.ordner || ziel.vor == null) ? " lz-ziel" : ""}${gezogen === `o${g.id}` ? " gezogen" : ""}`}
+          >
+            <div className="lz-ordner-kopf">
+              {g.id != null && (
+                <span className="lz-griff" title="Ordner verschieben" {...ziehen({ art: "ordner", id: g.id })}>
+                  <Zeichen name="griff" groesse={14} />
+                </span>
+              )}
+              <Zeichen name="ordner" groesse={15} />
+              {umbenennen && umbenennen.id === g.id ? (
+                <input
+                  autoFocus
+                  className="lz-titel-feld"
+                  value={umbenennen.name}
+                  onChange={(e) => setUmbenennen({ id: g.id!, name: e.target.value })}
+                  onBlur={() => {
+                    const n = umbenennen.name;
+                    setUmbenennen(null);
+                    if (n.trim() && n !== g.name) void aufruf(() => kern("lesezeichen.ordner_umbenennen", { ordner_id: g.id, name: n }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    if (e.key === "Escape") setUmbenennen(null);
+                  }}
+                  aria-label="Name des Ordners"
+                />
+              ) : (
+                <h3>{g.name}</h3>
+              )}
+              <span className="leise">{zeilen.length}</span>
+              {g.id != null && (
+                <>
+                  <button className="lz-knopf" title="Ordner umbenennen" aria-label="Ordner umbenennen" onClick={() => setUmbenennen({ id: g.id!, name: g.name })}>
+                    <Zeichen name="bearbeiten" groesse={13} />
+                  </button>
+                  <button
+                    className="lz-knopf"
+                    title="Ordner löschen (der Inhalt bleibt erhalten, ohne Ordner)"
+                    aria-label="Ordner löschen"
+                    onClick={() => void aufruf(() => kern("lesezeichen.ordner_loeschen", { ordner_id: g.id }))}
+                  >
+                    ×
+                  </button>
+                </>
+              )}
+            </div>
+            <div className="lz-ordner-inhalt">
+              {zeilen.length === 0 && <p className="leise lz-leer">Hierher ziehen</p>}
+              {zeilen.map((e) => {
+                const key = schluessel(e);
+                const griff = (
+                  <span className="lz-griff" title="Ziehen zum Verschieben" {...ziehen({ art: "eintrag", key })}>
+                    <Zeichen name="griff" groesse={14} />
+                  </span>
+                );
+                const wahl = ordner.length > 0 && (
+                  <select
+                    className="lz-ordner-wahl"
+                    value={g.id ?? ""}
+                    aria-label="In Ordner verschieben"
+                    title="In Ordner verschieben"
+                    onChange={(ev) => void speichern(verschiebeEintrag(gruppen, key, ev.target.value ? Number(ev.target.value) : null, null))}
+                  >
+                    {ordner.map((o) => (
+                      <option key={o.id} value={o.id!}>
+                        {o.name}
+                      </option>
+                    ))}
+                    <option value="">Ohne Ordner</option>
+                  </select>
+                );
+                return (
+                  <div
+                    key={key}
+                    data-lz-key={key}
+                    className={`lz-zeile${ziel && !ziel.ordner && ziel.gruppe === g.id && ziel.vor === key ? " lz-ziel-vor" : ""}${gezogen === key ? " gezogen" : ""}`}
+                  >
+                    {e.art === "lesezeichen" ? (
+                      <Eintrag
+                        z={e.z}
+                        mitDokument
+                        onWaehle={onLesezeichen}
+                        onUmbenennen={(t) => void aufruf(() => kern("lesezeichen.aendern", { lesezeichen_id: e.z.id, titel: t }))}
+                        onLoeschen={() => void aufruf(() => kern("lesezeichen.loeschen", { lesezeichen_id: e.z.id }))}
+                        griff={griff}
+                        extra={wahl}
+                      />
+                    ) : (
+                      <div className="lz-markierung">
+                        {griff}
+                        <ul className="anm-liste">
+                          <AnmerkungsEintrag a={e.a} bedeutungen={bedeutungen} aktiv={false} mitDokument onWaehle={() => onAnmerkung(e.a)} />
+                        </ul>
+                        {wahl}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
       <form
         className="lz-neuer-ordner"
         onSubmit={(e) => {
@@ -342,106 +518,6 @@ export function LesezeichenVerwaltung({ akteId, onOeffnen }: { akteId: number; o
           Ordner anlegen
         </button>
       </form>
-      {anzahl === 0 && (
-        <LeerHinweis symbol="lesezeichen">
-          Noch keine Lesezeichen in dieser Akte. Öffne ein Dokument, blende rechts „Anmerkungen“ ein und wähle dort den
-          Reiter „Lesezeichen“ – oder wähle Text aus und klicke im Menü auf „Lesezeichen“.
-        </LeerHinweis>
-      )}
-      <p className="leise">Am Griff ziehen: Lesezeichen in einen Ordner oder an eine andere Stelle, Ordner in eine andere Reihenfolge.</p>
-      {gruppen.map((g) => (
-        <section
-          key={g.id ?? "ohne"}
-          data-lz-gruppe={g.id ?? "ohne"}
-          className={`lz-ordner${ziel && ziel.gruppe === g.id && (ziel.art === "ordner" || ziel.index == null) ? " lz-ziel" : ""}${gezogen === g.id && g.id != null ? " gezogen" : ""}`}
-        >
-          <div className="lz-ordner-kopf">
-            {g.id != null && (
-              <span className="lz-griff" title="Ordner verschieben" {...ziehen("ordner", g.id)}>
-                <Zeichen name="griff" groesse={14} />
-              </span>
-            )}
-            <Zeichen name="ordner" groesse={15} />
-            {umbenennen && umbenennen.id === g.id ? (
-              <input
-                autoFocus
-                className="lz-titel-feld"
-                value={umbenennen.name}
-                onChange={(e) => setUmbenennen({ id: g.id!, name: e.target.value })}
-                onBlur={() => {
-                  const n = umbenennen.name;
-                  setUmbenennen(null);
-                  if (n.trim() && n !== g.name) void aufruf(() => kern("lesezeichen.ordner_umbenennen", { ordner_id: g.id, name: n }));
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                  if (e.key === "Escape") setUmbenennen(null);
-                }}
-                aria-label="Name des Ordners"
-              />
-            ) : (
-              <h3>{g.name}</h3>
-            )}
-            <span className="leise">{g.eintraege.length}</span>
-            {g.id != null && (
-              <>
-                <button className="lz-knopf" title="Ordner umbenennen" aria-label="Ordner umbenennen" onClick={() => setUmbenennen({ id: g.id!, name: g.name })}>
-                  <Zeichen name="bearbeiten" groesse={13} />
-                </button>
-                <button
-                  className="lz-knopf"
-                  title="Ordner löschen (die Lesezeichen bleiben, ohne Ordner)"
-                  aria-label="Ordner löschen"
-                  onClick={() => void aufruf(() => kern("lesezeichen.ordner_loeschen", { ordner_id: g.id }))}
-                >
-                  ×
-                </button>
-              </>
-            )}
-          </div>
-          <div className="lz-ordner-inhalt">
-            {g.eintraege.length === 0 && <p className="leise lz-leer">Hierher ziehen</p>}
-            {g.eintraege.map((z, i) => (
-              <div
-                key={z.id}
-                data-lz-index={i}
-                className={`lz-zeile${ziel?.art === "lz" && ziel.gruppe === g.id && ziel.index === i ? " lz-ziel-vor" : ""}${ziel?.art === "lz" && ziel.gruppe === g.id && ziel.index === i + 1 && i === g.eintraege.length - 1 ? " lz-ziel-nach" : ""}${gezogen === z.id ? " gezogen" : ""}`}
-              >
-                <Eintrag
-                  z={z}
-                  mitDokument
-                  onWaehle={onOeffnen}
-                  onUmbenennen={(t) => void aufruf(() => kern("lesezeichen.aendern", { lesezeichen_id: z.id, titel: t }))}
-                  onLoeschen={() => void aufruf(() => kern("lesezeichen.loeschen", { lesezeichen_id: z.id }))}
-                  griff={
-                    <span className="lz-griff" title="Ziehen zum Verschieben" {...ziehen("lz", z.id)}>
-                      <Zeichen name="griff" groesse={14} />
-                    </span>
-                  }
-                  extra={
-                    ordner.length > 0 && (
-                      <select
-                        className="lz-ordner-wahl"
-                        value={g.id ?? ""}
-                        aria-label="In Ordner verschieben"
-                        title="In Ordner verschieben"
-                        onChange={(e) => void speichern(verschiebeLesezeichen(gruppen, z.id, e.target.value ? Number(e.target.value) : null))}
-                      >
-                        {ordner.map((o) => (
-                          <option key={o.id} value={o.id!}>
-                            {o.name}
-                          </option>
-                        ))}
-                        <option value="">Ohne Ordner</option>
-                      </select>
-                    )
-                  }
-                />
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
     </div>
   );
 }

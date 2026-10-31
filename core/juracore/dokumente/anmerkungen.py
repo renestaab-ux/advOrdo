@@ -62,7 +62,28 @@ MAX_KOMMENTAR = 20000
 
 def einrichten(con: sqlite3.Connection) -> None:
     con.executescript(_SCHEMA)
+    # Ordner (gemeinsam mit den Lesezeichen, Tabelle lesezeichen_ordner) und Reihenfolge darin; seit Stufe 2.
+    spalten = {z[1] for z in con.execute("PRAGMA table_info(anmerkung)")}
+    if "ordner_id" not in spalten:
+        con.execute("ALTER TABLE anmerkung ADD COLUMN ordner_id INTEGER")
+    if "reihenfolge" not in spalten:
+        con.execute("ALTER TABLE anmerkung ADD COLUMN reihenfolge INTEGER NOT NULL DEFAULT 0")
     con.commit()
+    # Die Ordner und die gemeinsame Reihenfolge brauchen die Tabellen der Lesezeichen.
+    from . import lesezeichen
+
+    lesezeichen.einrichten(con)
+
+
+def naechste_reihenfolge(con: sqlite3.Connection, akte_id: int) -> int:
+    """Platz am Ende der gemeinsamen Ordnung von Markierungen und Lesezeichen einer Akte."""
+    z = con.execute(
+        """SELECT MAX(r) FROM (
+               SELECT a.reihenfolge AS r FROM anmerkung a JOIN dokument d ON d.id = a.dokument_id WHERE d.akte_id = ?
+               UNION ALL
+               SELECT l.reihenfolge FROM lesezeichen l JOIN dokument d ON d.id = l.dokument_id WHERE d.akte_id = ?)""",
+        (akte_id, akte_id)).fetchone()
+    return (z[0] if z[0] is not None else -1) + 1
 
 
 def _jetzt() -> str:
@@ -232,7 +253,7 @@ def _pruefen(con: sqlite3.Connection, dokument_id: int, t: _Text | None = None) 
 
 def _info(z: sqlite3.Row, t: _Text | None) -> dict:
     d = {k: z[k] for k in ("id", "dokument_id", "art", "farbe", "stil", "start", "ende", "zitat", "seite",
-                           "kommentar", "status", "angelegt_am", "geaendert_am")}
+                           "kommentar", "status", "angelegt_am", "geaendert_am", "ordner_id", "reihenfolge")}
     ort = t.ort(z["start"]) if t is not None and z["start"] is not None and z["status"] == "gefunden" else {}
     d["abschnitt"] = ort.get("abschnitt")
     d["rn"] = ort.get("rn")
@@ -282,12 +303,13 @@ def anlegen(con: sqlite3.Connection, dokument_id: int, start: int, ende: int, fa
         ende += 1
     davor, danach = _umgebung(t.text, start, ende)
     jetzt = _jetzt()
+    akte_id = con.execute("SELECT akte_id FROM dokument WHERE id = ?", (dokument_id,)).fetchone()["akte_id"]
     with con:
         cur = con.execute(
             "INSERT INTO anmerkung (dokument_id, farbe, stil, start, ende, zitat, davor, danach, seite, kommentar, "
-            "textstand, angelegt_am, geaendert_am) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "textstand, angelegt_am, geaendert_am, reihenfolge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (dokument_id, farbe, stil, start, ende, t.text[start:ende], davor, danach, t.ort(start)["seite"],
-             _kommentar(kommentar), t.stand, jetzt, jetzt))
+             _kommentar(kommentar), t.stand, jetzt, jetzt, naechste_reihenfolge(con, akte_id)))
     return _eine(con, cur.lastrowid)
 
 

@@ -1568,3 +1568,6 @@ button.lz-titel:disabled { color: var(--text-leise); }
 .bildlaufmarke.marke-rot { background: #d64545; }
 .bildlaufmarke.marke-lesezeichen { background: var(--akzent); height: 5px; width: 10px; right: 0; }
 @media print { .bildlaufmarken, .lz-fahne { display: none; } }
+.lz-markierung { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+.lz-markierung .anm-liste { flex: 1; min-width: 0; }
+.lz-markierung button.anm-eintrag { padding: 5px 8px; gap: 2px; }

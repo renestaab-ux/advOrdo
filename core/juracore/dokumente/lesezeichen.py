@@ -2,6 +2,9 @@
 
 Das Inhaltsverzeichnis (Gliederung, „Outline“) eines PDFs wird nur gelesen, nie verändert.
 
+Die Ordner (Tabelle ``lesezeichen_ordner``) sind die Ordner der Akte für Lesezeichen und für Markierungen mit
+Kommentaren gleichermaßen; beide teilen sich eine Reihenfolge, damit sie in einer gemeinsamen Ansicht sortierbar sind.
+
 Eigene Lesezeichen hängen an einer Stelle im gelesenen Text wie Markierungen: Lage, Wortlaut und Umgebung. Nach einer
 neuen Fassung wird die Stelle neu gesucht; findet sie sich nicht, bleibt das Lesezeichen mit „nicht_gefunden“
 erhalten. Ordner gehören zur Akte; Lesezeichen und Ordner haben eine eigene Reihenfolge zum Sortieren.
@@ -146,12 +149,10 @@ def _titel(titel: str | None, vorgabe: str) -> str:
 
 
 def _naechste(con: sqlite3.Connection, tabelle: str, wert: int) -> int:
-    # Neue Einträge kommen ans Ende; die Reihenfolge zählt je Akte bzw. je Ordner.
-    if tabelle == "lesezeichen_ordner":
-        z = con.execute("SELECT MAX(reihenfolge) FROM lesezeichen_ordner WHERE akte_id = ?", (wert,)).fetchone()
-    else:
-        z = con.execute("SELECT MAX(l.reihenfolge) FROM lesezeichen l JOIN dokument d ON d.id = l.dokument_id "
-                        "WHERE d.akte_id = ?", (wert,)).fetchone()
+    # Neue Einträge kommen ans Ende: Ordner je Akte, Lesezeichen in der gemeinsamen Ordnung mit den Markierungen.
+    if tabelle != "lesezeichen_ordner":
+        return anmerkungen.naechste_reihenfolge(con, wert)
+    z = con.execute("SELECT MAX(reihenfolge) FROM lesezeichen_ordner WHERE akte_id = ?", (wert,)).fetchone()
     return (z[0] if z[0] is not None else -1) + 1
 
 
@@ -242,12 +243,17 @@ def loeschen(con: sqlite3.Connection, lesezeichen_id: int) -> dict:
     return {"geloescht": lesezeichen_id, "dokument_id": z["dokument_id"]}
 
 
+_TABELLE = {"lesezeichen": "lesezeichen", "markierung": "anmerkung"}
+
+
 def anordnen(con: sqlite3.Connection, akte_id: int, ordner: list[dict]) -> dict:
-    """Neue Ordnung nach Ziehen und Ablegen: ``ordner`` ist die vollständige Folge
-    ``[{"id": Ordner-ID oder None für „Ohne Ordner“, "lesezeichen": [IDs]}]``; die Ordner in dieser Reihenfolge."""
+    """Neue Ordnung nach Ziehen und Ablegen: ``ordner`` ist die vollständige Folge der Ordner
+    ``[{"id": Ordner-ID oder None für „Ohne Ordner“, "eintraege": [{"art": "lesezeichen"|"markierung", "id": …}]}]``.
+    Lesezeichen und Markierungen teilen sich eine Reihenfolge. ``"lesezeichen": [IDs]`` gilt weiter als Kurzform."""
     eigene = {r[0] for r in con.execute("SELECT id FROM lesezeichen_ordner WHERE akte_id = ?", (akte_id,))}
-    zeichen = {r[0] for r in con.execute(
-        "SELECT l.id FROM lesezeichen l JOIN dokument d ON d.id = l.dokument_id WHERE d.akte_id = ?", (akte_id,))}
+    erlaubt = {art: {r[0] for r in con.execute(
+        f"SELECT x.id FROM {tabelle} x JOIN dokument d ON d.id = x.dokument_id WHERE d.akte_id = ?", (akte_id,))}
+        for art, tabelle in _TABELLE.items()}
     with con:
         nr_ordner = 0
         nr = 0
@@ -258,10 +264,12 @@ def anordnen(con: sqlite3.Connection, akte_id: int, ordner: list[dict]) -> dict:
                     raise ValueError("Der Ordner gehört nicht zu dieser Akte.")
                 con.execute("UPDATE lesezeichen_ordner SET reihenfolge = ? WHERE id = ?", (nr_ordner, oid))
                 nr_ordner += 1
-            for lid in o.get("lesezeichen", []):
-                if lid not in zeichen:
-                    raise ValueError("Das Lesezeichen gehört nicht zu dieser Akte.")
-                con.execute("UPDATE lesezeichen SET ordner_id = ?, reihenfolge = ? WHERE id = ?", (oid, nr, lid))
+            eintraege = o.get("eintraege") or [{"art": "lesezeichen", "id": i} for i in o.get("lesezeichen", [])]
+            for e in eintraege:
+                art, eid = e.get("art"), e.get("id")
+                if art not in _TABELLE or eid not in erlaubt[art]:
+                    raise ValueError("Der Eintrag gehört nicht zu dieser Akte.")
+                con.execute(f"UPDATE {_TABELLE[art]} SET ordner_id = ?, reihenfolge = ? WHERE id = ?", (oid, nr, eid))
                 nr += 1
     return liste(con, akte_id=akte_id)
 
@@ -289,9 +297,10 @@ def ordner_umbenennen(con: sqlite3.Connection, ordner_id: int, name: str) -> dic
 
 
 def ordner_loeschen(con: sqlite3.Connection, ordner_id: int) -> dict:
-    """Löscht den Ordner; seine Lesezeichen bleiben erhalten und stehen danach „Ohne Ordner“."""
+    """Löscht den Ordner; seine Lesezeichen und Markierungen bleiben erhalten und stehen danach „Ohne Ordner“."""
     with con:
         con.execute("UPDATE lesezeichen SET ordner_id = NULL WHERE ordner_id = ?", (ordner_id,))
+        con.execute("UPDATE anmerkung SET ordner_id = NULL WHERE ordner_id = ?", (ordner_id,))
         if con.execute("DELETE FROM lesezeichen_ordner WHERE id = ?", (ordner_id,)).rowcount == 0:
             raise LookupError(f"Ordner {ordner_id} gibt es nicht.")
     return {"geloescht": ordner_id}

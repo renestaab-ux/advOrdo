@@ -1,3 +1,5 @@
+import type { Anmerkung } from "./anmerkungLogik";
+
 /** Lesezeichen: Inhaltsverzeichnis des PDFs und eigene Lesezeichen in Ordnern; dazu die Marken an der Bildlaufleiste. */
 
 export interface Lesezeichen {
@@ -53,26 +55,52 @@ export function lesezeichenGruppen(l: LesezeichenListe, mitLeeren = true): Lesez
   return [...gruppen, ohne].filter((g) => mitLeeren || g.eintraege.length > 0);
 }
 
-/** Lesezeichen ``id`` in Ordner ``ziel`` an Stelle ``index`` legen (ohne Index: ans Ende). */
-export function verschiebeLesezeichen(
-  gruppen: LesezeichenGruppe[],
-  id: number,
-  ziel: number | null,
-  index?: number,
-): LesezeichenGruppe[] {
-  const z = gruppen.flatMap((g) => g.eintraege).find((x) => x.id === id);
-  if (!z) return gruppen;
-  const ohne = gruppen.map((g) => ({ ...g, eintraege: g.eintraege.filter((x) => x.id !== id) }));
-  return ohne.map((g) => {
-    if (g.id !== ziel) return g;
-    const e = [...g.eintraege];
-    e.splice(index == null ? e.length : Math.min(index, e.length), 0, { ...z, ordner_id: ziel });
-    return { ...g, eintraege: e };
+// --- Gemeinsame Ordner für Lesezeichen und Markierungen ---------------------------------------------------------------
+
+/** Ein Eintrag in den Ordnern der Akte: Lesezeichen oder Markierung (mit oder ohne Kommentar). */
+export type OrdnerEintrag = { art: "lesezeichen"; z: Lesezeichen } | { art: "markierung"; a: Anmerkung };
+
+export interface OrdnerGruppe {
+  id: number | null;
+  name: string;
+  eintraege: OrdnerEintrag[];
+}
+
+export const schluessel = (e: OrdnerEintrag) => (e.art === "lesezeichen" ? `l${e.z.id}` : `m${e.a.id}`);
+const eintragId = (e: OrdnerEintrag) => (e.art === "lesezeichen" ? e.z.id : e.a.id);
+const eintragOrdner = (e: OrdnerEintrag) => (e.art === "lesezeichen" ? e.z.ordner_id : (e.a.ordner_id ?? null));
+const eintragPlatz = (e: OrdnerEintrag) => (e.art === "lesezeichen" ? e.z.reihenfolge : (e.a.reihenfolge ?? 0));
+
+/** Ordner in ihrer Reihenfolge, darunter „Ohne Ordner“; darin Markierungen und Lesezeichen in der gemeinsamen Ordnung. */
+export function ordnerGruppen(ordner: LesezeichenOrdner[], lesezeichen: Lesezeichen[], markierungen: Anmerkung[]): OrdnerGruppe[] {
+  const alle: OrdnerEintrag[] = [
+    ...markierungen.map((a) => ({ art: "markierung" as const, a })),
+    ...lesezeichen.map((z) => ({ art: "lesezeichen" as const, z })),
+  ];
+  // Stabil sortieren: Gleiche Plätze (ältere Markierungen ohne Ordnung) bleiben in Lesereihenfolge.
+  const sortiert = alle.map((e, i) => [e, i] as const).sort((x, y) => eintragPlatz(x[0]) - eintragPlatz(y[0]) || x[1] - y[1]).map((x) => x[0]);
+  const gruppen: OrdnerGruppe[] = ordner.map((o) => ({ id: o.id, name: o.name, eintraege: [] }));
+  const ohne: OrdnerGruppe = { id: null, name: "Ohne Ordner", eintraege: [] };
+  for (const e of sortiert) (gruppen.find((g) => g.id === eintragOrdner(e)) ?? ohne).eintraege.push(e);
+  return [...gruppen, ohne];
+}
+
+/** Eintrag ``key`` in Ordner ``ziel`` legen, vor den Eintrag ``vor`` (null: ans Ende des Ordners). */
+export function verschiebeEintrag(gruppen: OrdnerGruppe[], key: string, ziel: number | null, vor: string | null): OrdnerGruppe[] {
+  const e = gruppen.flatMap((g) => g.eintraege).find((x) => schluessel(x) === key);
+  if (!e || key === vor) return gruppen;
+  const neu: OrdnerEintrag = e.art === "lesezeichen" ? { art: e.art, z: { ...e.z, ordner_id: ziel } } : { art: e.art, a: { ...e.a, ordner_id: ziel } };
+  return gruppen.map((g) => {
+    const rest = g.eintraege.filter((x) => schluessel(x) !== key);
+    if (g.id !== ziel) return { ...g, eintraege: rest };
+    const stelle = vor == null ? -1 : rest.findIndex((x) => schluessel(x) === vor);
+    rest.splice(stelle < 0 ? rest.length : stelle, 0, neu);
+    return { ...g, eintraege: rest };
   });
 }
 
 /** Ordner ``id`` vor den Ordner ``vor`` schieben (null: ans Ende der Ordner, vor „Ohne Ordner“). */
-export function verschiebeOrdner(gruppen: LesezeichenGruppe[], id: number, vor: number | null): LesezeichenGruppe[] {
+export function verschiebeOrdner<G extends { id: number | null }>(gruppen: G[], id: number, vor: number | null): G[] {
   const g = gruppen.find((x) => x.id === id);
   if (!g || id === vor) return gruppen;
   const rest = gruppen.filter((x) => x.id !== id);
@@ -82,8 +110,8 @@ export function verschiebeOrdner(gruppen: LesezeichenGruppe[], id: number, vor: 
 }
 
 /** Was der Kern zum Speichern einer neuen Ordnung braucht. */
-export function ordnung(gruppen: LesezeichenGruppe[]) {
-  return gruppen.map((g) => ({ id: g.id, lesezeichen: g.eintraege.map((z) => z.id) }));
+export function ordnung(gruppen: OrdnerGruppe[]) {
+  return gruppen.map((g) => ({ id: g.id, eintraege: g.eintraege.map((e) => ({ art: e.art, id: eintragId(e) })) }));
 }
 
 // --- Bildlaufleiste --------------------------------------------------------------------------------------------------
