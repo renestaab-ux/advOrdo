@@ -3,6 +3,7 @@ import { Druckansicht, istDesktop, kern } from "./kern";
 import { AusgabeKnoepfe } from "./Export";
 import { PdfKopienAkte } from "./PdfMarkiert";
 import { AnmerkungsEintrag, FilterLeiste, useBedeutungen } from "./Anmerkungen";
+import { bewegungVermeiden } from "./darstellung";
 import { AnmerkFilter, Anmerkung, filtereAnmerkungen, KEIN_ANMERK_FILTER, vergleichbar } from "./anmerkungLogik";
 import {
   InhaltEintrag,
@@ -647,7 +648,7 @@ export function Bildlaufmarken({ wurzel }: { wurzel: HTMLElement | null }) {
           className={`bildlaufmarke marke-${m.art}`}
           style={{ top: `${m.lage * 100}%` }}
           title={m.art === "lesezeichen" ? `Lesezeichen: ${m.titel}` : m.titel}
-          onClick={() => rahmen.current?.scrollTo({ top: Math.max(0, m.ziel - (rahmen.current.clientHeight || 0) / 3), behavior: "smooth" })}
+          onClick={() => rahmen.current?.scrollTo({ top: Math.max(0, m.ziel - (rahmen.current.clientHeight || 0) / 3), behavior: bewegungVermeiden() ? "auto" : "smooth" })}
         />
       ))}
     </div>

@@ -13,11 +13,14 @@ import Umgebungen from "./Umgebungen";
 import {
   AKZENTE,
   Darstellung,
+  HILFEN,
   SCHRIFTGROESSEN,
   THEMEN,
   darstellungLesen,
   darstellungSpeichern,
   istDunkel,
+  modusAn,
+  modusSetzen,
 } from "./darstellung";
 import { KiStatus, Marke, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
 
@@ -414,6 +417,7 @@ function Allgemeines() {
   const dunkel = istDunkel(d);
 
   return (
+    <>
     <section className="karte">
       <h2>Darstellung</h2>
       <p className="erklaerung">Gilt für dieses Gerät, sofort und für alle Arbeitsumgebungen.</p>
@@ -471,6 +475,50 @@ function Allgemeines() {
         <button tabIndex={-1}>Knopf</button>
       </div>
     </section>
+
+    <section className="karte" aria-labelledby="barrierefreiheit">
+      <h2 id="barrierefreiheit">Barrierefreiheit</h2>
+      <p className="erklaerung">
+        Der barrierefreie Modus schaltet alle Hilfen unten ein und stellt die Schrift mindestens auf „Sehr groß“. Jede Hilfe
+        lässt sich auch einzeln an- oder abschalten. Gilt wie die Darstellung für dieses Gerät.
+      </p>
+      <label className="schalter barrierefrei-schalter">
+        <input
+          type="checkbox"
+          checked={modusAn(d.barrierefrei)}
+          onChange={(e) => {
+            const neu = modusSetzen(d, e.target.checked);
+            setD(neu);
+            darstellungSpeichern(neu);
+          }}
+        />
+        <span>Barrierefreier Modus</span>
+        <span className="leise">{modusAn(d.barrierefrei) ? "an" : HILFEN.some((h) => d.barrierefrei[h.id]) ? "teilweise an" : "aus"}</span>
+      </label>
+      <ul className="hilfen-liste" aria-label="Einzelne Hilfen">
+        {HILFEN.map((h) => (
+          <li key={h.id}>
+            <label>
+              <input
+                type="checkbox"
+                checked={d.barrierefrei[h.id]}
+                aria-describedby={`hilfe-${h.id}`}
+                onChange={(e) => setze({ barrierefrei: { ...d.barrierefrei, [h.id]: e.target.checked } })}
+              />
+              <span>{h.titel}</span>
+            </label>
+            <p className="leise" id={`hilfe-${h.id}`}>
+              {h.erklaerung}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <p className="leise">
+        Unter Windows wirkt auch der Kontrastmodus des Systems (Einstellungen → Barrierefreiheit → Kontrastdesigns), unter
+        macOS „Kontrast erhöhen“. JuraBox übernimmt dann die Systemfarben.
+      </p>
+    </section>
+    </>
   );
 }
 
