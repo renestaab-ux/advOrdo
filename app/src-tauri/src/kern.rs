@@ -2,7 +2,9 @@
 //!
 //! Der Kern läuft als Kindprozess und spricht zeilenweises JSON über
 //! stdin/stdout. Es wird kein Netzwerkport geöffnet. Stirbt der Prozess,
-//! wird er beim nächsten Aufruf neu gestartet.
+//! wird er beim nächsten Aufruf neu gestartet. Eine Anfrage, die der Kern
+//! schon erhalten hat, wird nie ein zweites Mal gesendet: Sie könnte den
+//! Absturz verursacht haben oder schon teilweise ausgeführt sein.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -41,7 +43,14 @@ impl Kern {
         let anfrage = json!({ "id": id, "method": methode, "params": params });
         let mut sperre = self.prozess.lock().map_err(|_| "Kern-Sperre beschädigt".to_string())?;
 
-        // Ein Wiederholungsversuch, falls der Prozess inzwischen beendet wurde.
+        // Ein schon beendeter Prozess wird vor dem Senden ersetzt.
+        if let Some(p) = sperre.as_mut() {
+            if !matches!(p.kind.try_wait(), Ok(None)) {
+                eprintln!("Kern beendet, starte neu");
+                *sperre = None;
+            }
+        }
+        // Ein zweiter Versuch nur, wenn das Senden scheiterte, der Kern die Anfrage also nicht erhalten hat.
         for versuch in 0..2 {
             if sperre.is_none() {
                 *sperre = Some(self.starte()?);
@@ -49,11 +58,15 @@ impl Kern {
             let p = sperre.as_mut().expect("Prozess gerade gestartet");
             match austausch(p, &anfrage, id) {
                 Ok(antwort) => return auswerten(antwort),
-                Err(e) if versuch == 0 => {
+                Err(Fehler::Senden(e)) if versuch == 0 => {
                     eprintln!("Kern nicht erreichbar ({e}), starte neu");
                     *sperre = None;
                 }
-                Err(e) => return Err(e),
+                Err(fehler) => {
+                    // Der Austausch ist aus dem Takt; der nächste Aufruf beginnt mit einem neuen Prozess.
+                    *sperre = None;
+                    return Err(fehler.text());
+                }
             }
         }
         unreachable!()
@@ -117,31 +130,54 @@ fn venv_python(projekt: &Path) -> PathBuf {
     }
 }
 
-fn austausch(p: &mut Prozess, anfrage: &Value, id: u64) -> Result<Value, String> {
-    let zeile = serde_json::to_string(anfrage).map_err(|e| e.to_string())?;
+/// Fehler im Austausch: beim Senden (der Kern hat die Anfrage nicht) oder danach (er hat sie vielleicht).
+#[derive(Debug)]
+enum Fehler {
+    Senden(String),
+    Antwort(String),
+}
+
+impl Fehler {
+    fn text(self) -> String {
+        match self {
+            Fehler::Senden(t) | Fehler::Antwort(t) => t,
+        }
+    }
+}
+
+fn austausch(p: &mut Prozess, anfrage: &Value, id: u64) -> Result<Value, Fehler> {
+    let zeile = serde_json::to_string(anfrage).map_err(|e| Fehler::Senden(e.to_string()))?;
     p.stdin
         .write_all(zeile.as_bytes())
         .and_then(|_| p.stdin.write_all(b"\n"))
         .and_then(|_| p.stdin.flush())
-        .map_err(|e| format!("Senden an den Kern fehlgeschlagen: {e}"))?;
+        .map_err(|e| Fehler::Senden(format!("Senden an den Kern fehlgeschlagen: {e}")))?;
     // Der Kern sendet nur Antworten auf Anfragen. Zeilen mit einer anderen Kennung deuten auf einen
     // Fehler hin (etwa eine Ausgabe auf stdout); ohne Grenze würde hier endlos gelesen.
     let mut fremde_zeilen = 0u32;
     loop {
         let mut antwort = String::new();
-        let n = p.stdout.read_line(&mut antwort).map_err(|e| format!("Lesen vom Kern fehlgeschlagen: {e}"))?;
+        let n = p
+            .stdout
+            .read_line(&mut antwort)
+            .map_err(|e| Fehler::Antwort(format!("Lesen vom Kern fehlgeschlagen: {e}")))?;
         if n == 0 {
-            return Err("Der Analysekern wurde unerwartet beendet".into());
+            return Err(Fehler::Antwort(
+                "Der Analysekern wurde während der Bearbeitung unerwartet beendet. Bitte den Vorgang erneut \
+                 starten; der Kern wird dabei neu gestartet."
+                    .into(),
+            ));
         }
-        let wert: Value = serde_json::from_str(&antwort).map_err(|e| format!("Ungültige Antwort des Kerns: {e}"))?;
+        let wert: Value = serde_json::from_str(&antwort)
+            .map_err(|e| Fehler::Antwort(format!("Ungültige Antwort des Kerns: {e}")))?;
         if wert.get("id").and_then(Value::as_u64) == Some(id) {
             return Ok(wert);
         }
         fremde_zeilen += 1;
         if fremde_zeilen >= 64 {
-            return Err(
+            return Err(Fehler::Antwort(
                 "Der Kern antwortet nicht mit der erwarteten Kennung (64 Zeilen ohne Treffer)".into(),
-            );
+            ));
         }
     }
 }
@@ -174,6 +210,22 @@ mod tests {
         let p = venv_python(Path::new("projekt"));
         let erwartet = if cfg!(windows) { "projekt/.venv/Scripts/python.exe" } else { "projekt/.venv/bin/python" };
         assert_eq!(p, PathBuf::from(erwartet.replace('/', std::path::MAIN_SEPARATOR_STR)));
+    }
+
+    #[test]
+    fn startet_nach_absturz_neu() {
+        let daten = std::env::temp_dir().join(format!("jda-absturz-{}", std::process::id()));
+        let kern = Kern::new(daten.clone());
+        kern.aufruf("ping", json!({})).expect("ping");
+        {
+            let mut sperre = kern.prozess.lock().unwrap();
+            let p = sperre.as_mut().unwrap();
+            p.kind.kill().unwrap();
+            p.kind.wait().unwrap();
+        }
+        // Der beendete Prozess wird vor dem Senden erkannt und ersetzt.
+        assert!(kern.aufruf("ping", json!({})).is_ok());
+        let _ = std::fs::remove_dir_all(daten);
     }
 
     #[test]
