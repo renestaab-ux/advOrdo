@@ -29,6 +29,7 @@ import stat
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ..db import SPERRE_SEKUNDEN
 from ..gesetze import wissensbasis
 from ..gesetze.zitate import finde_zitate
 from ..rechtsprechung import online, verzeichnis
@@ -247,7 +248,9 @@ _SCHEMA = _SCHEMA.replace("{urteil}", _URTEIL.format(name="urteil"))
 def oeffne(pfad: str | Path) -> sqlite3.Connection:
     pfad = Path(pfad)
     pfad.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(pfad)
+    # Hintergrundaufträge schreiben über eigene Verbindungen; ein langer Import darf die Oberfläche nicht nach
+    # 5 Sekunden (Vorgabe von sqlite3) mit „database is locked“ abweisen.
+    con = sqlite3.connect(pfad, timeout=SPERRE_SEKUNDEN)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     # Gelöschte Akteninhalte nicht als Reste in freien Seiten der Datei stehen lassen.

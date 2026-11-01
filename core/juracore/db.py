@@ -14,6 +14,7 @@ import sqlite3
 from pathlib import Path
 
 SCHEMA_VERSION = 1
+SPERRE_SEKUNDEN = 30  # so lange wartet eine Verbindung, bis eine andere ihre Schreibsperre freigibt
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS gesetz (
@@ -77,7 +78,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS norm_fts USING fts5(
 def oeffne(pfad: str | Path) -> sqlite3.Connection:
     pfad = Path(pfad)
     pfad.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(pfad)
+    # Hintergrundaufträge schreiben über eigene Verbindungen; ein langer Import darf die Oberfläche nicht nach
+    # 5 Sekunden (Vorgabe von sqlite3) mit „database is locked“ abweisen.
+    con = sqlite3.connect(pfad, timeout=SPERRE_SEKUNDEN)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     con.execute("PRAGMA journal_mode = WAL")
