@@ -1098,7 +1098,7 @@ export interface Abschnitt {
   seite: number | null;
   seite_bis: number | null;
   rn: number | null;
-  art: "absatz" | "tabelle" | "fussnote";
+  art: "absatz" | "tabelle" | "fussnote" | "kopfzeile";
   text: string;
   zitate: NormZitat[];
 }
