@@ -139,7 +139,7 @@ export default function AkteStammdaten({
   }
 
   if (!daten || !entwurf || !optionen) {
-    return <section className="karte stammdaten">{fehler ? <p className="fehler">{fehler}</p> : <p className="status">Lade Stammdaten …</p>}</section>;
+    return <section className="karte stammdaten">{fehler ? <p className="fehler" role="alert">{fehler}</p> : <p className="status" role="status">Lade Stammdaten …</p>}</section>;
   }
   const feld = (k: keyof Entwurf) => ({
     value: entwurf[k],
@@ -148,9 +148,9 @@ export default function AkteStammdaten({
 
   const meldungen = (
     <>
-      {laeuft && <p className="status">Einen Moment …</p>}
+      {laeuft && <p className="status" role="status">Einen Moment …</p>}
       {meldung && !laeuft && <p className="meldung">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </>
   );
 

@@ -115,8 +115,8 @@ export default function Fristenbuch({
         iCloud oder Microsoft 365) eingelesen, liegen diese Angaben beim Anbieter. Einen laufenden Abgleich gibt es
         nicht; nach Änderungen die Datei neu speichern und einlesen, die Einträge werden dann aktualisiert.
       </p>
-      {meldung && <p className="status">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {meldung && <p className="status" role="status">{meldung}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {druck &&
         createPortal(
           <div id="druckbereich">

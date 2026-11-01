@@ -17,6 +17,7 @@ import { useLaufenderTimer } from "./zeitTimer";
 import TimerHinweise from "./TimerHinweise";
 import Hintergrund from "./Hintergrund";
 import { KiAn } from "./kiSchalter";
+import { bereichAusTaste } from "./barrierefrei";
 import {
   KiModus,
   Marke,
@@ -94,6 +95,28 @@ export default function App() {
     setBereich("einstellungen");
   }
 
+  // Leiste aufrufen wie ein Klick darauf; auch für die Tastenkürzel Alt + 1 … 8.
+  function bereichWaehlen(b: Bereich) {
+    // „Akten“ in der Leiste führt immer zur Übersicht, auch aus einer geöffneten Akte.
+    if (b === "akten") {
+      setAkteId(null);
+      setAnlegen(false);
+    }
+    setBereich(b);
+  }
+  useEffect(() => {
+    function taste(e: KeyboardEvent) {
+      const i = bereichAusTaste(e, BEREICHE.length);
+      if (i == null) return;
+      e.preventDefault();
+      bereichWaehlen(BEREICHE[i].id);
+      // Danach liest der Bildschirmleser die neue Seite ab ihrem Anfang.
+      requestAnimationFrame(() => document.getElementById("inhalt")?.focus());
+    }
+    window.addEventListener("keydown", taste);
+    return () => window.removeEventListener("keydown", taste);
+  }, []);
+
   function einklappen() {
     setEingeklappt(!eingeklappt);
     merke(EINGEKLAPPT_SCHLUESSEL, !eingeklappt);
@@ -127,6 +150,12 @@ export default function App() {
 
   return (
     <div className={eingeklappt ? "rahmen eingeklappt" : "rahmen"}>
+      <a className="zum-inhalt" href="#inhalt" onClick={(e) => {
+        e.preventDefault();
+        document.getElementById("inhalt")?.focus();
+      }}>
+        Zum Inhalt springen
+      </a>
       <nav className="navigation" aria-label="Bereiche">
         {/* Auf der Startseite stehen Logo und Name groß im Kopfband; die Leiste zeigt dort nur JuraBox. */}
         {bereich === "start" ? (
@@ -140,20 +169,14 @@ export default function App() {
             <span className="nav-text">{marke?.kurzbezeichnung || "JuraBox"}</span>
           </div>
         )}
-        {BEREICHE.map((b) => (
+        {BEREICHE.map((b, i) => (
           <button
             key={b.id}
             className={b.id === bereich ? "nav-eintrag aktiv" : "nav-eintrag"}
             aria-current={b.id === bereich ? "page" : undefined}
-            onClick={() => {
-              // „Akten“ in der Leiste führt immer zur Übersicht, auch aus einer geöffneten Akte.
-              if (b.id === "akten") {
-                setAkteId(null);
-                setAnlegen(false);
-              }
-              setBereich(b.id);
-            }}
-            title={eingeklappt ? b.titel : undefined}
+            aria-keyshortcuts={`Alt+${i + 1}`}
+            onClick={() => bereichWaehlen(b.id)}
+            title={`${b.titel} (Alt + ${i + 1})`}
           >
             <Zeichen name={b.symbol} />
             <span className="nav-text">{b.titel}</span>
@@ -241,7 +264,12 @@ export default function App() {
       <TimerHinweise onAkte={(id) => oeffneAkte(id, "zeiten")} />
       <Hintergrund />
       <KiAn.Provider value={!modus?.aus}>
-        <main className={bereich === "akten" && (akteId != null || anlegen) ? "inhalt ohne-rand" : "inhalt"} key={stand}>
+        <main
+          id="inhalt"
+          tabIndex={-1}
+          className={bereich === "akten" && (akteId != null || anlegen) ? "inhalt ohne-rand" : "inhalt"}
+          key={stand}
+        >
           {bereich === "start" && (
             <Start
               onWahl={(z) => void starte(z)}

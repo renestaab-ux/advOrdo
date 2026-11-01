@@ -138,8 +138,8 @@ export default function Vergleich({ akteId }: { akteId: number }) {
         </div>
       )}
 
-      {laeuft && <p className="status">{laeuft}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {laeuft && <p className="status" role="status">{laeuft}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {akteId != null && dokumente.length === 0 && !laeuft && (
         <p className="leer">Diese Akte enthält noch keine Dokumente.</p>
       )}

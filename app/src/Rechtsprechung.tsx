@@ -375,8 +375,8 @@ export default function Rechtsprechung({
           </p>
         )}
 
-        {laeuft && <p className="status">{laeuft}</p>}
-        {fehler && <p className="fehler">{fehler}</p>}
+        {laeuft && <p className="status" role="status">{laeuft}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
         {meldung && !laeuft && <p className="hinweis">{meldung}</p>}
 
         {/* Beide Ansichten bleiben bestehen, damit Suche und Filter beim Umschalten erhalten bleiben. */}

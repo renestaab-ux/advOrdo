@@ -6,7 +6,7 @@
   --linie: #e2e1dc;
   --akzent: #24476b;
   --gut: #2f6b3a;
-  --warnung: #8a5a00;
+  --warnung: #774d00;
   --fehler: #9b2c2c;
   /* Gefüllte Knöpfe, Eingabefelder und das dunkle Kopfband; im Dunkelmodus eigene Werte für guten Kontrast. */
   --knopf: #24476b;
@@ -134,7 +134,7 @@ button.link { background: none; border: none; padding: 0; color: var(--akzent); 
 .gesetzespakete > .leise { margin: 0 0 8px; }
 .paket { padding: 8px 12px; margin: 6px 0; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; }
 .paket.unterpaket { margin-left: 28px; }
-.paket.aus .paket-kopf > .leise, .paket.aus .voreinstellung { opacity: 0.7; }
+.paket.aus .paket-kopf > .leise, .paket.aus .voreinstellung { font-style: italic; }
 .paket-kopf { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .paket-kopf .schalter { margin: 0; }
 .paket-kopf button { margin-left: auto; }
@@ -1341,7 +1341,7 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 .kalender-tag { background: var(--flaeche); min-height: 96px; padding: 4px 5px 6px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-width: 0; overflow: hidden; }
 .kalender-tag:hover { background: color-mix(in srgb, var(--akzent) 4%, var(--flaeche)); }
 .kalender-tag.frei { background: color-mix(in srgb, var(--text-leise) 7%, var(--flaeche)); }
-.kalender-tag.fremd .tag-zahl { color: var(--text-leise); opacity: .6; }
+.kalender-tag.fremd .tag-zahl { color: var(--text-leise); }
 .kalender-tag.heute .tag-zahl { background: var(--knopf); color: var(--knopf-text); border-radius: 999px; padding: 0 7px; }
 .tag-kopf { display: flex; align-items: baseline; gap: 6px; font-size: 12px; min-width: 0; }
 .feiertag { font-size: 11px; color: var(--text-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1669,7 +1669,7 @@ button.lz-titel:disabled { color: var(--text-leise); }
 :root { --fokus: #b34700; --fokus-saum: #ffffff; }
 :root[data-thema="dunkel"] { --fokus: #ffcc33; --fokus-saum: #000000; }
 .navigation { --fokus: #ffcc33; --fokus-saum: #000000; }
-:root[data-fokus="an"] :focus-visible {
+:root[data-fokus="an"] :focus-visible:not(main) {
   outline: 3px solid var(--fokus) !important;
   outline-offset: 2px !important;
   box-shadow: 0 0 0 6px var(--fokus-saum) !important;
@@ -1694,7 +1694,7 @@ button.lz-titel:disabled { color: var(--text-leise); }
 /* Kontrastdesign von Windows (erzwungene Farben): gewählte Knöpfe und Reiter bleiben erkennbar, Farbmuster behalten ihre Farbe. */
 @media (forced-colors: active) {
   button.segment-knopf.aktiv, [aria-pressed="true"], [aria-selected="true"], .nav-eintrag.aktiv { outline: 2px solid Highlight; outline-offset: -2px; }
-  :focus-visible { outline: 3px solid Highlight !important; outline-offset: 2px; }
+  :focus-visible:not(main) { outline: 3px solid Highlight !important; outline-offset: 2px; }
   .ampel-punkt, .modus-punkt, .farbmuster { forced-color-adjust: none; }
 }
 
@@ -1703,4 +1703,17 @@ button.lz-titel:disabled { color: var(--text-leise); }
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 :root[data-kontrast="an"] .frist-lage-text { position: static; width: auto; height: auto; margin: 0 0 0 4px; clip: auto; overflow: visible; font-size: 0.85em; font-weight: 600; }
-:root[data-kontrast="an"] button[aria-pressed="true"]:not(.segment-knopf) { box-shadow: inset 0 0 0 2px var(--text); }
+:root[data-kontrast="an"] button[aria-pressed="true"]:not(.segment-knopf):not(.link) { box-shadow: inset 0 0 0 2px var(--text); }
+
+/* „Zum Inhalt springen“: erster Halt der Tabulatortaste, nur sichtbar, solange er den Fokus hat. */
+.zum-inhalt { position: absolute; left: 8px; top: -60px; z-index: 2000; padding: 8px 14px; border-radius: 6px; background: var(--knopf); color: var(--knopf-text); font-weight: 600; text-decoration: none; }
+.zum-inhalt:focus { top: 8px; outline: 3px solid var(--fokus); outline-offset: 2px; }
+main.inhalt:focus { outline: none; }
+.raster-zeile { display: contents; }
+/* Kleine Pfeilknöpfe mindestens 24 × 24 px (WCAG 2.5.8), im Abstandsmodus auch Verweisknöpfe. */
+button.link.klein[aria-label] { min-width: 24px; min-height: 24px; }
+:root[data-abstaende="an"] button.link { min-height: 24px; }
+/* Reiterliste der Dokumentansicht nur als Rolle; die Knöpfe stehen weiter in der Reihe von .dok-modi. */
+.dok-modi-reiter { display: contents; }
+/* Leise Angaben in der gewählten Zeile kräftiger, damit sie auf dem getönten Grund 4,5 : 1 erreichen. */
+.dokumente tr.aktiv .herkunft { color: color-mix(in srgb, var(--text-leise) 65%, var(--text)); }

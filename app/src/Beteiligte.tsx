@@ -148,7 +148,7 @@ export default function Beteiligte({ onAkte }: { onAkte: (akteId: number) => voi
         )}
       </div>
 
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {meldung && !fehler && <p className="meldung">{meldung}</p>}
 
       {formular && optionen && (

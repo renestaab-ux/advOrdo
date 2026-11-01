@@ -121,7 +121,7 @@ export default function VerfahrenAusDokument({
           Abbrechen
         </button>
       </span>
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </div>
   );
 }
@@ -431,7 +431,7 @@ function Pruefansicht({
         </button>
         {seiteFehlt && <span className="leise">Bitte zuerst wählen, welche Seite wir vertreten.</span>}
       </span>
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </div>
   );
 }

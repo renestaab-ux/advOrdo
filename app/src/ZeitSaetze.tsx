@@ -38,7 +38,7 @@ export default function ZeitSaetze({ onEigeneDaten }: { onEigeneDaten: () => voi
     return (
       <section className="karte">
         <h2>Zeiterfassung</h2>
-        {fehler ? <p className="fehler">{fehler}</p> : <p className="status">Lade …</p>}
+        {fehler ? <p className="fehler" role="alert">{fehler}</p> : <p className="status" role="status">Lade …</p>}
       </section>
     );
   }
@@ -232,7 +232,7 @@ export default function ZeitSaetze({ onEigeneDaten }: { onEigeneDaten: () => voi
           </button>
         )}
       </section>
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </>
   );
 }

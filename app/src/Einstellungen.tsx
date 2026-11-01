@@ -237,7 +237,7 @@ export default function Einstellungen({
     inhalt = abgeschaltet ? (
       <>
         {schalter}
-        {fehler && <p className="fehler">{fehler}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
       </>
     ) : (
       <>
@@ -315,8 +315,8 @@ export default function Einstellungen({
             </div>
           </form>
 
-          {laeuft && <p className="status">Prüfe …</p>}
-          {fehler && <p className="fehler">{fehler}</p>}
+          {laeuft && <p className="status" role="status">Prüfe …</p>}
+          {fehler && <p className="fehler" role="alert">{fehler}</p>}
           {lokal && !laeuft && (
             <p className={lokal.bereit ? "ki-zeile bereit" : "ki-zeile"}>
               {lokal.bereit
@@ -369,7 +369,7 @@ export default function Einstellungen({
         {status ? (
           <ExterneKi status={status} onStatus={setStatus} onGeaendert={onGeaendert} />
         ) : (
-          <p className="status">{fehler ?? "Prüfe …"}</p>
+          <p className="status" role="status">{fehler ?? "Prüfe …"}</p>
         )}
       </>
     );
@@ -602,7 +602,7 @@ function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke
         <p className="leise">Leer lassen, dann steht dort „JuraBox“.</p>
       </form>
 
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </section>
   );
 }
@@ -841,8 +841,8 @@ function ExterneKi({
             Der Schlüssel liegt in der Datei ki-schluessel.json im Datenverzeichnis der App, getrennt von den übrigen
             Einstellungen, und wird nicht wieder angezeigt.
           </p>
-          {laeuft && <p className="status">{laeuft}</p>}
-          {fehler && <p className="fehler">{fehler}</p>}
+          {laeuft && <p className="status" role="status">{laeuft}</p>}
+          {fehler && <p className="fehler" role="alert">{fehler}</p>}
           {!laeuft && (
             <p className={x.bereit ? "ki-zeile bereit" : "ki-zeile"}>
               {x.bereit

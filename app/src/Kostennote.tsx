@@ -150,7 +150,7 @@ export default function Kostennote({
     return (
       <section className="karte kostennote">
         <h2>Kostennote</h2>
-        {fehler ? <p className="fehler">{fehler}</p> : <p className="leise">Wird geladen …</p>}
+        {fehler ? <p className="fehler" role="alert">{fehler}</p> : <p className="leise">Wird geladen …</p>}
       </section>
     );
   }
@@ -577,7 +577,7 @@ export default function Kostennote({
         </div>
       </fieldset>
 
-      {rechenfehler && <p className="fehler">{rechenfehler}</p>}
+      {rechenfehler && <p className="fehler" role="alert">{rechenfehler}</p>}
       {ergebnis && <KostenVorschau r={ergebnis} />}
 
       <div className="aktionen">
@@ -611,7 +611,7 @@ export default function Kostennote({
           {erzeugt.leer.length > 0 && <p className="hinweis">Noch leer: {erzeugt.leer.join(", ")}.</p>}
         </div>
       )}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
 
       {vorschlag.kostennoten.length > 0 && (
         <>
@@ -653,7 +653,7 @@ function KostenVorschau({ r }: { r: KostennoteErgebnis }) {
         </p>
       ))}
       {r.vergleich && (
-        <p className="status">
+        <p className="status" role="status">
           Mindestvergütung, Vergleich netto: Zeithonorar {euro(r.vergleich.zeithonorar)}, gesetzliche Vergütung{" "}
           {euro(r.vergleich.gesetzlich)}. Berechnet ist{" "}
           <strong>{r.vergleich.gewaehlt === "gesetzlich" ? "die gesetzliche Vergütung" : "das Zeithonorar"}</strong>.

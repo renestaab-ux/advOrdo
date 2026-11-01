@@ -281,7 +281,7 @@ function AkteAnlegen({
               Abbrechen
             </button>
           </span>
-          {fehler && <p className="fehler">{fehler}</p>}
+          {fehler && <p className="fehler" role="alert">{fehler}</p>}
         </form>
         <div className="anlegen-seite">
           <ol className="anlegen-schritte">
@@ -483,8 +483,8 @@ function AktenUebersicht({
         </section>
       )}
 
-      {fehler && <p className="fehler">{fehler}</p>}
-      {akten == null && !fehler && <p className="status">Lade Akten …</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
+      {akten == null && !fehler && <p className="status" role="status">Lade Akten …</p>}
 
       {sichtbar.length > 0 && (
         <table className="dokumente akten-tabelle">
@@ -722,7 +722,7 @@ function AkteRahmen({
       </nav>
 
       <div className="akte-reiterflaeche">
-        {fehler && <p className="fehler">{fehler}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
         {loeschfrage && (
           <Rueckfrage
             frage={`Akte „${akte.name}“ mit ${akte.dokumente} Dokumenten entfernen?`}

@@ -83,7 +83,7 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
         </div>
       </form>
 
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {notizen && notizen.length === 0 && (
         <LeerHinweis symbol="notizen">
           {festesDokument == null ? "Noch keine Notizen." : "Noch keine Notiz zu diesem Dokument."}

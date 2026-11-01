@@ -890,9 +890,9 @@ export default function Akte({
           onAbbrechen={() => setOrdnerFrage(null)}
         />
       )}
-      {laeuft && <p className="status">{laeuft}</p>}
+      {laeuft && <p className="status" role="status">{laeuft}</p>}
       {meldung && !laeuft && <p className="meldung">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </>
   );
 
@@ -978,7 +978,7 @@ export default function Akte({
       {zeigeBelegSeite && auswahl && (
         <aside className="akte-seite">
           <p className="fundort">Zitiert in {auswahl.ort}</p>
-          {auswahl.beleg ? <BelegAnsicht beleg={auswahl.beleg} /> : <p className="status">Lade Wortlaut …</p>}
+          {auswahl.beleg ? <BelegAnsicht beleg={auswahl.beleg} /> : <p className="status" role="status">Lade Wortlaut …</p>}
         </aside>
       )}
     </div>
@@ -1725,7 +1725,7 @@ function DokModusLeiste({
   // Ohne KI (Einstellungen) kein Chat mit dem Dokument.
   const kiAn = useKiAn();
   return (
-    <div className="dok-modi" role="tablist" aria-label={`Darstellung von ${dokument.dateiname}`}>
+    <div className="dok-modi">
       <div className="dok-modi-kopf">
         <span className="dok-modi-name" title={dokument.titel ? dokument.dateiname : undefined}>
           {dokumentName(dokument)}
@@ -1742,6 +1742,7 @@ function DokModusLeiste({
             .join(" · ")}
         </span>
       </div>
+      <div className="dok-modi-reiter" role="tablist" aria-label={`Darstellung von ${dokument.dateiname}`}>
       {DOK_MODI.filter((m) => kiAn || m.modus !== "chat").map((m) => (
         <button
           key={m.modus}
@@ -1755,6 +1756,7 @@ function DokModusLeiste({
           {m.text}
         </button>
       ))}
+      </div>
       {anmerkungen && (
         <button
           className={`anm-umschalter${anmerkungen.offen ? " aktiv" : ""}`}
@@ -1995,7 +1997,7 @@ export function OriginalAnsicht({
                 )}
               </div>
             ) : typeof b === "string" ? (
-              <p className="fehler">Seite {s} lässt sich nicht anzeigen: {b}</p>
+              <p className="fehler" role="alert">Seite {s} lässt sich nicht anzeigen: {b}</p>
             ) : (
               <div className="original-platzhalter">Seite {s} wird geladen …</div>
             )}

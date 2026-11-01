@@ -149,13 +149,13 @@ export default function EigeneDaten({ onZurueck }: { onZurueck: () => void }) {
     );
   }
   if (!felder || !stand) {
-    return <p className="status">{fehler ?? "Lade Eigene Daten …"}</p>;
+    return <p className="status" role="status">{fehler ?? "Lade Eigene Daten …"}</p>;
   }
 
   const meldungen = (
     <>
-      {meldung && <p className="status">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {meldung && <p className="status" role="status">{meldung}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {importFrage && (
         <Rueckfrage
           frage="Vorhandene Eigene Daten ersetzen?"
@@ -623,7 +623,7 @@ function Uebersicht({
       >
         <summary>Änderungsprotokoll</summary>
         {aenderungen === null ? (
-          <p className="status">Lade …</p>
+          <p className="status" role="status">Lade …</p>
         ) : aenderungen.length === 0 ? (
           <p className="leer">Noch keine Änderungen.</p>
         ) : (

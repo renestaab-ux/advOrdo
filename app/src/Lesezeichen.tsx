@@ -185,7 +185,7 @@ export function LesezeichenLeiste({
   const ordnerDa = lz.ordner.length > 0;
   return (
     <div className="lz-leiste">
-      {lz.fehler && <p className="fehler">{lz.fehler}</p>}
+      {lz.fehler && <p className="fehler" role="alert">{lz.fehler}</p>}
       <section>
         <div className="lz-kopf">
           <h4>Eigene Lesezeichen</h4>
@@ -366,8 +366,8 @@ export function OrdnerAnsicht({
     },
   });
 
-  if (fehler && !gruppen) return <p className="fehler">{fehler}</p>;
-  if (!gruppen) return <p className="status">Lade …</p>;
+  if (fehler && !gruppen) return <p className="fehler" role="alert">{fehler}</p>;
+  if (!gruppen) return <p className="status" role="status">Lade …</p>;
   const ordner = gruppen.filter((g) => g.id != null);
   const vorhanden = gruppen.flatMap((g) => g.eintraege).filter(
     (e) => ansicht === "alle" || (ansicht === "lesezeichen") === (e.art === "lesezeichen"),
@@ -377,7 +377,7 @@ export function OrdnerAnsicht({
 
   return (
     <div className="lz-verwaltung">
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {mitMarkierungen && (
         <FilterLeiste
           liste={markierungen}
