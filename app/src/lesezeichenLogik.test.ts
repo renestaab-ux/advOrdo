@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { BEDEUTUNG_VORGABE, KEIN_ANMERK_FILTER } from "./anmerkungLogik";
 import {
   auswahlText,
+  eintragSchritt,
+  ordnerSchritt,
   lesezeichenGruppen,
   ordnerGruppen,
   ordnung,
@@ -53,6 +55,17 @@ describe("Lesezeichen in Ordnern", () => {
     expect(ordnung(verschiebeEintrag(g, "l2", 10, "m7"))[0].eintraege.map((e) => e.id)).toEqual([1, 2, 7, 3]);
     expect(verschiebeOrdner(g, 11, 10).map((x) => x.id)).toEqual([11, 10, null]);
     expect(verschiebeOrdner(g, 10, null).map((x) => x.id)).toEqual([11, 10, null]);
+  });
+
+  it("verschiebt schrittweise ohne Ziehen (Pfeiltasten und Knöpfe)", () => {
+    const g = ordnerGruppen(liste.ordner, liste.lesezeichen, []);
+    expect(eintragSchritt(g, "l3", -1)[0].eintraege.map(schluessel)).toEqual(["l3", "l1"]);
+    expect(eintragSchritt(g, "l1", 1)[0].eintraege.map(schluessel)).toEqual(["l3", "l1"]);
+    expect(eintragSchritt(g, "l1", -1)).toBe(g);
+    expect(eintragSchritt(g, "l3", 1)).toBe(g);
+    expect(ordnerSchritt(g, 11, -1).map((x) => x.id)).toEqual([11, 10, null]);
+    expect(ordnerSchritt(g, 10, 1).map((x) => x.id)).toEqual([11, 10, null]);
+    expect(ordnerSchritt(g, 11, 1)).toBe(g);
   });
 });
 

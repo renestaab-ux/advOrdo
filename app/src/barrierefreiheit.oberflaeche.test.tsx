@@ -6,7 +6,7 @@ import axe from "axe-core";
 import App from "./App";
 
 /**
- * Automatische Prüfung auf Barrieren (axe-core, Regeln nach WCAG 2.1 A/AA) in der Vorschau ohne Kern:
+ * Automatische Prüfung auf Barrieren (axe-core, Regeln nach WCAG 2.2 A/AA) in der Vorschau ohne Kern:
  * jeder Bereich der Leiste und jeder Reiter der Einstellungen, einmal normal und einmal im barrierefreien Modus.
  * Farbkontraste kann jsdom nicht berechnen; die stehen fest in styles.css.
  */
@@ -32,7 +32,7 @@ afterAll(() => {
 
 async function pruefe(): Promise<string[]> {
   const ergebnis = await axe.run(behaelter, {
-    runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+    runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
     rules: { "color-contrast": { enabled: false } },
   });
   return ergebnis.violations.map(

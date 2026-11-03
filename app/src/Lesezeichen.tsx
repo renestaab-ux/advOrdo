@@ -6,6 +6,8 @@ import { AnmerkungsEintrag, FilterLeiste, useBedeutungen } from "./Anmerkungen";
 import { bewegungVermeiden } from "./darstellung";
 import { AnmerkFilter, Anmerkung, filtereAnmerkungen, KEIN_ANMERK_FILTER, vergleichbar } from "./anmerkungLogik";
 import {
+  eintragSchritt,
+  ordnerSchritt,
   InhaltEintrag,
   Lesezeichen,
   LesezeichenListe,
@@ -397,8 +399,8 @@ export function OrdnerAnsicht({
         <div className="lz-hinweis-zeile">
           <p className="leise">
             {anzahlSichtbar === vorhanden.length ? `${vorhanden.length} Einträge` : `${anzahlSichtbar} von ${vorhanden.length} Einträgen`}. Am Griff
-            ziehen: Einträge in einen Ordner oder an eine andere Stelle, Ordner in eine andere Reihenfolge. Die Ordner gelten für
-            Markierungen und Lesezeichen gemeinsam.
+            ziehen: Einträge in einen Ordner oder an eine andere Stelle, Ordner in eine andere Reihenfolge. Ohne Ziehen: ▲ ▼,
+            Pfeil hoch/runter auf dem Griff oder die Ordnerauswahl. Die Ordner gelten für Markierungen und Lesezeichen gemeinsam.
           </p>
           <button className="zweitrangig" aria-expanded={ausgabe} onClick={() => setAusgabe(!ausgabe)}>
             Exportieren / Drucken …
@@ -461,9 +463,11 @@ export function OrdnerAnsicht({
           >
             <div className="lz-ordner-kopf">
               {g.id != null && (
-                <span className="lz-griff" title="Ordner verschieben" {...ziehen({ art: "ordner", id: g.id })}>
-                  <Zeichen name="griff" groesse={14} />
-                </span>
+                <Schieber
+                  titel={`Ordner „${g.name}“`}
+                  ziehen={ziehen({ art: "ordner", id: g.id })}
+                  onSchritt={(r) => void speichern(ordnerSchritt(gruppen, g.id!, r))}
+                />
               )}
               <Zeichen name="ordner" groesse={15} />
               {umbenennen && umbenennen.id === g.id ? (
@@ -508,9 +512,11 @@ export function OrdnerAnsicht({
               {zeilen.map((e) => {
                 const key = schluessel(e);
                 const griff = (
-                  <span className="lz-griff" title="Ziehen zum Verschieben" {...ziehen({ art: "eintrag", key })}>
-                    <Zeichen name="griff" groesse={14} />
-                  </span>
+                  <Schieber
+                    titel={e.art === "lesezeichen" ? `Lesezeichen „${e.z.titel}“` : "Markierung"}
+                    ziehen={ziehen({ art: "eintrag", key })}
+                    onSchritt={(r) => void speichern(eintragSchritt(gruppen, key, r))}
+                  />
                 );
                 const wahl = ordner.length > 0 && (
                   <select
@@ -652,5 +658,45 @@ export function Bildlaufmarken({ wurzel }: { wurzel: HTMLElement | null }) {
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * Griff zum Verschieben: Ziehen mit der Maus, Pfeil hoch/runter mit der Tastatur und die Knöpfe ▲ ▼ für einen
+ * einzelnen Klick (WCAG 2.2, 2.5.7 Ziehbewegungen; 2.1.1 Tastatur).
+ */
+function Schieber({
+  titel,
+  ziehen,
+  onSchritt,
+}: {
+  titel: string;
+  ziehen: Record<string, unknown>;
+  onSchritt: (richtung: -1 | 1) => void;
+}) {
+  return (
+    <span className="lz-schieber">
+      <button
+        type="button"
+        className="lz-griff"
+        title="Ziehen oder mit Pfeil hoch/runter verschieben"
+        aria-label={`${titel} verschieben, Pfeil hoch oder runter`}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault();
+            onSchritt(e.key === "ArrowUp" ? -1 : 1);
+          }
+        }}
+        {...ziehen}
+      >
+        <Zeichen name="griff" groesse={14} />
+      </button>
+      <button type="button" className="lz-knopf lz-schritt" aria-label={`${titel} nach oben`} title="Nach oben" onClick={() => onSchritt(-1)}>
+        ▲
+      </button>
+      <button type="button" className="lz-knopf lz-schritt" aria-label={`${titel} nach unten`} title="Nach unten" onClick={() => onSchritt(1)}>
+        ▼
+      </button>
+    </span>
   );
 }

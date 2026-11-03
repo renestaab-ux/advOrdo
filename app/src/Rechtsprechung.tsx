@@ -1,3 +1,4 @@
+import Trenner from "./Trenner";
 import {
   CSSProperties,
   FormEvent,
@@ -613,14 +614,16 @@ export default function Rechtsprechung({
         </div>
       </div>
       {volltext && (
-        <div
-          className="trenner"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Aufteilung zwischen Liste und Volltext"
-          title="Ziehen: nach links mehr Platz für den Volltext, nach rechts für die Liste; Doppelklick setzt zurück"
-          onPointerDown={breiteZiehen}
-          onDoubleClick={() => setzeBreite(VOLLTEXT_STANDARD)}
+        <Trenner
+          label="Aufteilung zwischen Liste und Volltext"
+          titel="Ziehen: nach links mehr Platz für den Volltext, nach rechts für die Liste"
+          breite={breite}
+          min={VOLLTEXT_MIN}
+          standard={VOLLTEXT_STANDARD}
+          rahmen={flaeche}
+          rest={LISTE_MIN}
+          onZiehen={breiteZiehen}
+          onSetze={setzeBreite}
         />
       )}
       {volltext && (

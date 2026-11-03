@@ -21,6 +21,7 @@ import {
   istDunkel,
   modusAn,
   modusSetzen,
+  systemWillKontrast,
 } from "./darstellung";
 import { KiStatus, Marke, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
 
@@ -514,8 +515,10 @@ function Allgemeines() {
         ))}
       </ul>
       <p className="leise">
-        Unter Windows wirkt auch der Kontrastmodus des Systems (Einstellungen → Barrierefreiheit → Kontrastdesigns), unter
-        macOS „Kontrast erhöhen“. JuraBox übernimmt dann die Systemfarben.
+        JuraBox folgt auch den Einstellungen des Systems: Unter Windows übernimmt es die Farben eines Kontrastdesigns
+        (Einstellungen → Barrierefreiheit → Kontrastdesigns), unter macOS schaltet „Kontrast erhöhen“ den hohen Kontrast
+        ein, und „Animationen aus“ bzw. „Bewegung reduzieren“ hält die Oberfläche ruhig.
+        {systemWillKontrast() && " Das System verlangt gerade mehr Kontrast; der hohe Kontrast ist deshalb an."}
       </p>
     </section>
     </>

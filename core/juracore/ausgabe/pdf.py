@@ -132,11 +132,16 @@ class Satz:
     def __init__(self, schriften: _Standard | _Eingebettet | None = None) -> None:
         self.schriften = schriften or _Standard()
         self.seiten: list[list[bytes]] = []
+        # Struktur für Bildschirmleser (Tagged PDF, PDF/UA-Grundlagen): je Seite die Elemente ihrer MCIDs in
+        # Reihenfolge, und je Strukturelement (Absatz, Überschrift) Rolle und seine (Seite, MCID).
+        self.mcids: list[list[int]] = []
+        self.elemente: list[tuple[str, list[tuple[int, int]]]] = []
         self.y = 0.0
         self.neue_seite()
 
     def neue_seite(self) -> None:
         self.seiten.append([])
+        self.mcids.append([])
         self.y = HOEHE - OBEN
 
     def platz(self, hoehe: float) -> None:
@@ -179,7 +184,7 @@ class Satz:
         return [z for z in zeilen if z]
 
     def absatz(self, laeufe: list[Lauf], einzug: float = 0.0, vor: float = 0.0, nach: float = 3.0,
-               zusammen: float = 0.0, vorne: Lauf | None = None, vorne_x: float = 0.0) -> None:
+               zusammen: float = 0.0, vorne: Lauf | None = None, vorne_x: float = 0.0, rolle: str = "P") -> None:
         """Ein Absatz, alle Zeilen um ``einzug`` eingerückt; ``vorne`` (Bezeichnung, Spiegelstrich, Nummer) steht in
         der ersten Zeile bei ``vorne_x``. ``zusammen`` hält so viel Folgendes mit dem Anfang auf einer Seite."""
         groesse = max(lauf.groesse for lauf in laeufe)
@@ -189,9 +194,17 @@ class Satz:
             return
         self.y -= vor
         self.platz(zeilenhoehe * min(len(zeilen), 2) + zusammen)
+        element = len(self.elemente)
+        self.elemente.append((rolle, []))
         for i, zeile in enumerate(zeilen):
             self.platz(zeilenhoehe)
             self.y -= groesse
+            # Jede Zeile ist ein markierter Inhalt des Absatzes; so darf ein Absatz über eine Seite laufen.
+            seite = len(self.seiten) - 1
+            mcid = len(self.mcids[seite])
+            self.mcids[seite].append(element)
+            self.elemente[element][1].append((seite, mcid))
+            self.seiten[-1].append(b"/%s <</MCID %d>> BDC" % (rolle.encode(), mcid))
             x = LINKS + einzug
             if vorne and i == 0:
                 zeile = [(vorne, vorne.text, LINKS + vorne_x), *((lauf, text, None) for lauf, text in zeile)]
@@ -203,6 +216,7 @@ class Satz:
                     continue
                 self.seiten[-1].append(self._text(lauf, text, x))
                 x += self.breite(text, lauf.schrift, lauf.groesse)
+            self.seiten[-1].append(b"EMC")
             self.y -= zeilenhoehe - groesse
         self.y -= nach
 
@@ -212,7 +226,8 @@ class Satz:
             self.schriften.zeichenkette(text, lauf.schrift))
 
     def linie(self) -> None:
-        self.seiten[-1].append(b"0.6 0.6 0.6 RG 0.5 w %.2f %.2f m %.2f %.2f l S" % (
+        # Schmuck, kein Inhalt: Bildschirmleser übergehen ihn.
+        self.seiten[-1].append(b"/Artifact BMC 0.6 0.6 0.6 RG 0.5 w %.2f %.2f m %.2f %.2f l S EMC" % (
             LINKS, self.y + 2, BREITE - RECHTS, self.y + 2))
         self.y -= 4
 
@@ -228,7 +243,7 @@ def nummernspalte(bericht: Bericht) -> float:
 def _setze(bericht: Bericht) -> Satz:
     s = Satz(_schriften(bericht))
     nr_spalte = nummernspalte(bericht)
-    s.absatz([Lauf(bericht.titel, FETT, 16)], nach=8)
+    s.absatz([Lauf(bericht.titel, FETT, 16)], nach=8, rolle="H1")
     for b in bericht.bausteine:
         if isinstance(b, Kopf):
             spalte = min(130.0, max((s.breite(k, FETT, 9.5) for k, _ in b.zeilen), default=0.0) + 14)
@@ -237,10 +252,10 @@ def _setze(bericht: Bericht) -> Satz:
             s.y -= 6
         elif isinstance(b, Ueberschrift):
             if b.ebene == 1:
-                s.absatz([Lauf(b.text, FETT, 13)], vor=12, nach=2, zusammen=40)
+                s.absatz([Lauf(b.text, FETT, 13)], vor=12, nach=2, zusammen=40, rolle="H2")
                 s.linie()
             else:
-                s.absatz([Lauf(b.text, FETT, 11.5)], vor=8, nach=3, zusammen=30)
+                s.absatz([Lauf(b.text, FETT, 11.5)], vor=8, nach=3, zusammen=30, rolle="H3")
         elif isinstance(b, Absatz):
             if b.leise:
                 s.absatz([Lauf(b.text, NORMAL, 8.5, GRAU)], nach=4)
@@ -280,7 +295,10 @@ def _eintrag(s: Satz, e: Eintrag, nummernspalte: float = 0.0) -> None:
 
 def schreiben(bericht: Bericht) -> bytes:
     satz = _setze(bericht)
-    seiten = [s for s in satz.seiten if s] or [[]]
+    # Leere Seiten fallen weg; ihre Struktur-Nummern rücken entsprechend auf.
+    behalten = [i for i, s in enumerate(satz.seiten) if s] or [0]
+    neu_index = {alt: neu for neu, alt in enumerate(behalten)}
+    seiten = [satz.seiten[i] if i < len(satz.seiten) else [] for i in behalten]
     gesamt = len(seiten)
 
     inhalte = []
@@ -290,8 +308,9 @@ def schreiben(bericht: Bericht) -> bytes:
         while satz.breite(fuss, NORMAL, 8) > SATZ and len(titel) > 10:
             titel = titel[:-2]
             fuss = f"{titel} … · Seite {nr} von {gesamt}"
-        befehle = [*befehle, b"BT /F1 8 Tf %s rg %.2f %.2f Td %s Tj ET" % (
-            GRAU.encode(), LINKS, UNTEN - 30, satz.schriften.zeichenkette(fuss, NORMAL))]
+        befehle = [*befehle, b"/Artifact <</Type /Pagination /Subtype /Footer>> BDC "
+                   b"BT /F1 8 Tf %s rg %.2f %.2f Td %s Tj ET EMC" % (
+                       GRAU.encode(), LINKS, UNTEN - 30, satz.schriften.zeichenkette(fuss, NORMAL))]
         inhalte.append(zlib.compress(b"\n".join(befehle)))
 
     # Schriften erst jetzt: Eine eingebettete Teilmenge braucht alle Zeichen, auch die der Fußzeilen.
@@ -301,18 +320,49 @@ def schreiben(bericht: Bericht) -> bytes:
     ressourcen = b"<< /Font << /F1 %d 0 R /F2 %d 0 R /F3 %d 0 R >> >>" % (nummern[NORMAL], nummern[FETT],
                                                                          nummern[KURSIV])
     kinder = []
-    for inhalt in inhalte:
+    seiten_nr: list[int] = []
+    for i, inhalt in enumerate(inhalte):
         objekte.append(b"<< /Length %d /Filter /FlateDecode >>\nstream\n" % len(inhalt) + inhalt + b"\nendstream")
-        objekte.append(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2f %.2f] /Resources %s /Contents %d 0 R >>" % (
-            BREITE, HOEHE, ressourcen, len(objekte)))
+        # /Tabs /S: Tabulatorreihenfolge folgt der Struktur; /StructParents verbindet die Seite mit dem ParentTree.
+        objekte.append(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2f %.2f] /Resources %s /Contents %d 0 R "
+                       b"/StructParents %d /Tabs /S >>" % (BREITE, HOEHE, ressourcen, len(objekte), i))
         kinder.append(b"%d 0 R" % len(objekte))
+        seiten_nr.append(len(objekte))
     objekte[1] = b"<< /Type /Pages /Kids [" + b" ".join(kinder) + b"] /Count %d >>" % gesamt
+
+    # Strukturbaum: StructTreeRoot → Document → je Absatz/Überschrift ein Element mit seinen markierten Inhalten.
+    wurzel = len(objekte) + 1
+    dokument = wurzel + 1
+    eltern = wurzel + 2
+    erstes = wurzel + 3
+    element_nr = {}
+    teile = []
+    for e, (rolle, stellen) in enumerate(satz.elemente):
+        mcr = [(neu_index[seite], mcid) for seite, mcid in stellen if seite in neu_index]
+        if not mcr:
+            continue
+        element_nr[e] = erstes + len(teile)
+        teile.append(b"<< /Type /StructElem /S /%s /P %d 0 R /K [%s] >>" % (
+            rolle.encode(), dokument,
+            b" ".join(b"<< /Type /MCR /Pg %d 0 R /MCID %d >>" % (seiten_nr[s], m) for s, m in mcr)))
+    objekte.append(b"<< /Type /StructTreeRoot /K %d 0 R /ParentTree %d 0 R /ParentTreeNextKey %d >>" % (
+        dokument, eltern, gesamt))
+    objekte.append(b"<< /Type /StructElem /S /Document /P %d 0 R /K [%s] >>" % (
+        wurzel, b" ".join(b"%d 0 R" % n for n in element_nr.values())))
+    nums = []
+    for neu, alt in enumerate(behalten):
+        liste = satz.mcids[alt] if alt < len(satz.mcids) else []
+        nums.append(b"%d [%s]" % (neu, b" ".join(b"%d 0 R" % element_nr[e] for e in liste)))
+    objekte.append(b"<< /Nums [" + b" ".join(nums) + b"] >>")
+    objekte += teile
+    objekte[0] = (b"<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /MarkInfo << /Marked true >> /StructTreeRoot %d 0 R "
+                  b"/ViewerPreferences << /DisplayDocTitle true >> >>" % wurzel)
     titel = "".join(c if ord(c) < 0x10000 else "?" for c in bericht.titel)
     objekte.append(b"<< /Title <FEFF%s> /Creator (JuraBox) /Producer (JuraBox) >>" % titel.encode("utf-16-be").hex()
                    .upper().encode())
     info = len(objekte)
 
-    daten = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"
+    daten = b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n"
     versaetze = []
     for i, obj in enumerate(objekte, start=1):
         versaetze.append(len(daten))

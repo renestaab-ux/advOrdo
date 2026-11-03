@@ -71,3 +71,17 @@ export function useDialog(ref: RefObject<HTMLElement | null>, onSchliessen?: () 
     // Nur beim Öffnen und Schließen; das jeweils aktuelle onSchliessen steht in `schliessen`.
   }, [ref]);
 }
+
+/**
+ * Trennlinie per Tastatur: Pfeil links macht die Seitenleiste rechts breiter, Pfeil rechts schmaler, je 20 px
+ * (mit Umschalt 80 px); Pos1 setzt den Standard. null = keine Trenner-Taste.
+ */
+export function trennerSchritt(taste: string, gross: boolean, breite: number, min: number, max: number, standard: number): number | null {
+  const schritt = gross ? 80 : 20;
+  let neu: number;
+  if (taste === "ArrowLeft") neu = breite + schritt;
+  else if (taste === "ArrowRight") neu = breite - schritt;
+  else if (taste === "Home") neu = standard;
+  else return null;
+  return Math.min(Math.max(neu, min), max);
+}

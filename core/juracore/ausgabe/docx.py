@@ -131,7 +131,7 @@ STILE = (
     '<w:pPrDefault><w:pPr><w:spacing w:after="80" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault>'
     "</w:docDefaults>"
     '<w:style w:type="paragraph" w:default="1" w:styleId="Standard"><w:name w:val="Normal"/><w:qFormat/></w:style>'
-    + _stil("Titel", "Titel", 32, fett=True, nach=160)
+    + _stil("Titel", "Title", 32, fett=True, nach=160)
     + _stil("Ueberschrift1", "heading 1", 26, fett=True, vor=320, nach=80, gliederung=0)
     + _stil("Ueberschrift2", "heading 2", 23, fett=True, vor=240, nach=60, gliederung=1)
     + _stil("Ueberschrift3", "heading 3", 21, fett=True, vor=180, nach=40, gliederung=2)

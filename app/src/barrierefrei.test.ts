@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bereichAusTaste, naechsterImKreis } from "./barrierefrei";
+import { bereichAusTaste, naechsterImKreis, trennerSchritt } from "./barrierefrei";
 
 const taste = (code: string, mehr: Partial<{ altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }> = {}) => ({
   altKey: true,
@@ -41,5 +41,16 @@ describe("naechsterImKreis", () => {
     expect(naechsterImKreis(-1, 3, false)).toBe(0);
     expect(naechsterImKreis(-1, 3, true)).toBe(2);
     expect(naechsterImKreis(-1, 0, false)).toBeNull();
+  });
+});
+
+describe("trennerSchritt", () => {
+  it("Pfeiltasten ändern die Breite in Grenzen, Pos1 setzt zurück", () => {
+    expect(trennerSchritt("ArrowLeft", false, 360, 260, 900, 360)).toBe(380);
+    expect(trennerSchritt("ArrowRight", true, 360, 260, 900, 360)).toBe(280);
+    expect(trennerSchritt("ArrowRight", true, 300, 260, 900, 360)).toBe(260);
+    expect(trennerSchritt("ArrowLeft", true, 880, 260, 900, 360)).toBe(900);
+    expect(trennerSchritt("Home", false, 700, 260, 900, 360)).toBe(360);
+    expect(trennerSchritt("Enter", false, 700, 260, 900, 360)).toBeNull();
   });
 });

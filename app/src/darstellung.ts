@@ -90,6 +90,8 @@ export const SCHRIFTGROESSEN: { wert: number; titel: string }[] = [
   { wert: 1.1, titel: "Groß" },
   { wert: 1.25, titel: "Sehr groß" },
   { wert: 1.5, titel: "Extra groß" },
+  // WCAG 1.4.4: Text bis 200 % vergrößerbar, ohne dass Inhalt oder Funktion verloren geht.
+  { wert: 2, titel: "Doppelt" },
 ];
 
 export const VORGABE: Darstellung = { thema: "system", akzent: "blau", schrift: 1, barrierefrei: BARRIEREFREI_AUS };
@@ -129,6 +131,13 @@ export function darstellungSpeichern(d: Darstellung) {
 }
 
 const systemDunkel = typeof window !== "undefined" ? window.matchMedia?.("(prefers-color-scheme: dark)") : undefined;
+// Benutzereinstellungen des Systems übernehmen (EN 301 549, 11.7): „Kontrast erhöhen“ (macOS) bzw. Kontrastdesign.
+const systemKontrast = typeof window !== "undefined" ? window.matchMedia?.("(prefers-contrast: more)") : undefined;
+
+/** Ob das Betriebssystem mehr Kontrast verlangt; dann gilt „Hoher Kontrast“ auch ohne Schalter. */
+export function systemWillKontrast(): boolean {
+  return !!systemKontrast?.matches;
+}
 let aktuell: Darstellung = VORGABE;
 
 /** Ob die Oberfläche gerade dunkel ist; bei „Systemstandard“ nach der Einstellung des Betriebssystems. */
@@ -144,7 +153,7 @@ export function darstellungAnwenden(d: Darstellung) {
   wurzel.dataset.akzent = d.akzent;
   // Jede Hilfe als eigenes Merkmal an <html>; styles.css hängt die Regeln daran.
   for (const h of HILFEN) {
-    if (d.barrierefrei[h.id]) wurzel.dataset[h.id] = "an";
+    if (d.barrierefrei[h.id] || (h.id === "kontrast" && systemWillKontrast())) wurzel.dataset[h.id] = "an";
     else delete wurzel.dataset[h.id];
   }
   if (istDesktop) {
@@ -168,6 +177,7 @@ export function darstellungStarten() {
     if (e.key === SCHLUESSEL) darstellungAnwenden(darstellungLesen(e.newValue));
   });
   systemDunkel?.addEventListener?.("change", () => darstellungAnwenden(aktuell));
+  systemKontrast?.addEventListener?.("change", () => darstellungAnwenden(aktuell));
 }
 
 /** Ob Bewegung vermieden werden soll: Schalter in JuraBox oder Einstellung des Betriebssystems. */

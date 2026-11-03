@@ -1717,3 +1717,28 @@ button.link.klein[aria-label] { min-width: 24px; min-height: 24px; }
 .dok-modi-reiter { display: contents; }
 /* Leise Angaben in der gewählten Zeile kräftiger, damit sie auf dem getönten Grund 4,5 : 1 erreichen. */
 .dokumente tr.aktiv .herkunft { color: color-mix(in srgb, var(--text-leise) 65%, var(--text)); }
+/* Verschieben ohne Ziehen: Griff ist ein Knopf (Pfeiltasten), ▲ ▼ erscheinen beim Überfahren oder mit der Tastatur. */
+.lz-schieber { display: inline-flex; align-items: center; }
+button.lz-griff { background: none; border: none; padding: 2px; color: var(--text-leise); border-radius: 4px; }
+.lz-schritt { font-size: 10px !important; min-width: 24px; min-height: 24px; }
+.lz-zeile:hover .lz-schritt, .lz-ordner-kopf:hover .lz-schritt, .lz-schieber:focus-within .lz-schritt { opacity: 1; }
+
+/* WCAG 2.2, 2.4.11 Fokus nicht verdeckt: Beim Ansteuern mit der Tastatur bleibt Abstand zu klebenden Kopfzeilen
+   (Dokumentansicht, Volltext) und zu Leisten unten (Warteanzeige, Knopfleiste „Aus Dokument“). */
+:where(a, button, input, select, textarea, summary, [tabindex]) { scroll-margin-block: 96px 96px; }
+.trenner:focus-visible { opacity: 1; background: var(--akzent); outline: 2px solid var(--akzent); outline-offset: 2px; }
+:root[data-kontrast="an"] .trenner { opacity: 1; background: var(--text-leise); }
+/* Greiffläche der Trennlinie 24 px breit (2.5.8), sichtbar bleibt die schmale Linie. */
+.trenner { position: relative; }
+.trenner::before { content: ""; position: absolute; inset: 0 -9px; }
+li button.link:not(.klein), td button.link { min-height: 24px; }
+
+/* WCAG 1.4.4/1.4.10: Bei „Doppelt“ (200 %) bleibt das Fenster schmal; Leiste schmaler, Kopfband und Reiter brechen um,
+   statt seitlich abgeschnitten zu werden. Tabellen dürfen weiter seitlich rollen (Ausnahme in 1.4.10). */
+@media (max-width: 760px) {
+  .rahmen:not(.eingeklappt) { grid-template-columns: 170px minmax(0, 1fr); }
+  .kopfband { flex-wrap: wrap; gap: 10px 16px; padding: 14px 16px; }
+  .akte-reiter { flex-wrap: wrap; overflow-x: visible; padding-left: 12px; padding-right: 12px; }
+  .inhalt { padding: 16px; }
+  .nav-eintrag, .modus { white-space: normal; }
+}

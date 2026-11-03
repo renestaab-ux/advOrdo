@@ -1,3 +1,4 @@
+import Trenner from "./Trenner";
 import {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
@@ -937,14 +938,16 @@ export default function Akte({
     <div className={`akte-arbeitsflaeche${zeigeAnmerkSeite ? " mit-anmerkungen" : ""}`} ref={flaeche} style={{ "--seite-breite": `${seitenbreite}px` } as CSSProperties}>
       <div className="akte-haupt">{haupt}</div>
       {(zeigeVolltextSeite || zeigeBelegSeite || zeigeAnmerkSeite) && (
-        <div
-          className="trenner"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Breite der Seitenleiste"
-          title="Ziehen, um die Breite zu ändern; Doppelklick setzt sie zurück"
-          onPointerDown={breiteZiehen}
-          onDoubleClick={() => setzeSeitenbreite(SEITE_STANDARD)}
+        <Trenner
+          label="Breite der Seitenleiste"
+          titel="Ziehen, um die Breite zu ändern"
+          breite={seitenbreite}
+          min={SEITE_MIN}
+          standard={SEITE_STANDARD}
+          rahmen={flaeche}
+          rest={320}
+          onZiehen={breiteZiehen}
+          onSetze={setzeSeitenbreite}
         />
       )}
       {zeigeVolltextSeite && volltext && (
