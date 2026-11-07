@@ -250,8 +250,9 @@ def speichere_einstellungen(pfad: Path, e: KiEinstellungen) -> dict:
 
 
 # --- API-Schlüssel externer Anbieter ----------------------------------------------------------------
-# Im Schlüsselbund des Systems (schluesselbund.py), je Arbeitsumgebung. Nur ohne nutzbaren Schlüsselbund in einer
-# eigenen Datei neben ki.json, unter Linux und macOS nur für den Benutzer lesbar. Ein Schlüssel aus der Datei
+# Im Schlüsselbund des Systems (schluesselbund.py), einmal für alle Arbeitsumgebungen (gemeinsamer Datenordner,
+# wie ki.json). Nur ohne nutzbaren Schlüsselbund in einer eigenen Datei neben ki.json, unter Linux und macOS nur
+# für den Benutzer lesbar. Ein Schlüssel aus der Datei
 # (ältere Fassungen) zieht beim ersten Lesen in den Schlüsselbund um und verschwindet aus der Datei.
 
 
