@@ -1,3 +1,7 @@
+import sys
+
+import pytest
+
 from juracore import verschluesselung as v
 
 MOUNTINFO = (
@@ -26,12 +30,17 @@ def _sys(tmp_path):
 GERAETE = {"/dev/mapper/vgzorin-root": (253, 1), "/dev/nvme0n1p2": (259, 2)}
 
 
+NUR_UNIX = pytest.mark.skipif(sys.platform == "win32", reason="Ordnernamen wie 253:1 (sysfs) sind unter Windows unzulässig")
+
+
+@NUR_UNIX
 def test_linux_luks_unter_lvm(tmp_path):
     b = v._linux(tmp_path / "x", _sys(tmp_path), MOUNTINFO.replace(" / / ", f" / {tmp_path} ", 1),
                  GERAETE.__getitem__)
     assert b.stand == v.AN and "LUKS" in b.verfahren
 
 
+@NUR_UNIX
 def test_linux_unverschluesselt_und_ecryptfs(tmp_path):
     block = _sys(tmp_path)
     from pathlib import Path
