@@ -648,3 +648,15 @@ juracore zitat "Art. 6 Abs. 1 lit. f DSGVO"
 
 Die Testdaten unter `core/tests/fixtures/` sind von Hand gekürzte Auszüge im
 GII-Format und keine Rechtsquelle.
+
+## Lizenz
+
+JuraBox steht unter der **Europäischen Union Public Licence, Version 1.2** (EUPL-1.2), siehe
+[`LICENSE`](LICENSE). Die EUPL ist in allen Amtssprachen der EU gleichermaßen verbindlich. Die deutsche
+Fassung steht im Amtsblatt der EU, Durchführungsbeschluss (EU) 2017/863 der Kommission vom 18. Mai 2017
+(ABl. L 128 vom 19.5.2017, S. 59), <https://eur-lex.europa.eu/eli/dec_impl/2017/863/oj>.
+
+Bestandteile Dritter behalten ihre eigenen Lizenzen, etwa die Schrift Liberation Sans (SIL Open Font
+License 1.1, `core/juracore/ausgabe/schriften/OFL.txt`) und die eingebundenen Bibliotheken (MIT, BSD,
+Apache-2.0, MPL-2.0).
+
