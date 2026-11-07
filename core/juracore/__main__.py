@@ -57,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
     kp.add_argument("--erwartungen", type=Path, help="erwartungen.json der Testakte zum Abgleich")
     kp.add_argument("--zusammenfassung", action="store_true", help="auch die Akte zusammenfassen")
     kp.add_argument("--chronologie", action="store_true", help="auch die Chronologie der Akte erstellen")
+    kp.add_argument("--vergleich", action="store_true",
+                    help="auch den Vergleich mit KI (Zahlen und Daten mit Bezug) wie im Bereich „Vergleich“")
     for k in (ks, kp):
         k.add_argument("--anbieter", choices=["ollama", "lmstudio"], help="Programm statt des gespeicherten")
         k.add_argument("--endpunkt", help="Adresse, Voreinstellung je Programm (Ollama :11434, LM Studio :1234)")
@@ -84,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         from .ki import pruefen
 
         e = _ki_einstellungen(a, db_pfad)
-        return pruefen.main(a.ordner, e, a.erwartungen, a.zusammenfassung, a.chronologie)
+        return pruefen.main(a.ordner, e, a.erwartungen, a.zusammenfassung, a.chronologie, a.vergleich)
 
     con = db.oeffne(db_pfad)
     if a.befehl == "import":

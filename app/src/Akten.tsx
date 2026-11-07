@@ -769,7 +769,7 @@ function AkteRahmen({
         {reiter === "beteiligte" && (
           <AkteStammdaten key={`b${akte.id}`} akteId={akte.id} teil="beteiligte" onGeaendert={onGeaendert} />
         )}
-        {reiter === "vergleich" && <Vergleich key={akte.id} akteId={akte.id} />}
+        {reiter === "vergleich" && <Vergleich key={akte.id} akteId={akte.id} onEinstellungen={() => onEinstellungen()} />}
         {kiAn && reiter === "analyse" && <Analyse key={akte.id} akteId={akte.id} onEinstellungen={() => onEinstellungen()} />}
         <div hidden={!istAkteReiter(reiter)} className="akte-reiter-halter">
           <Akte

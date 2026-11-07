@@ -290,6 +290,10 @@ button.gefahr-voll { background: #b3261e; border-color: #b3261e; color: #fff; }
 .merkmal { background: var(--flaeche); border: 1px solid var(--linie); border-left: 4px solid var(--linie); border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
 .merkmal.abweichend { border-left-color: var(--warnung); }
 .merkmal.uebereinstimmend { border-left-color: var(--gut); }
+.merkmal.verschieden { border-left-color: color-mix(in srgb, var(--warnung) 40%, var(--linie)); }
+.quelle-art { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--linie); color: var(--text-leise); }
+.quelle-art.ki { border-color: color-mix(in srgb, var(--akzent) 50%, var(--linie)); color: var(--akzent); }
+.vergleich-inhaltlich h3 { font-size: 15px; margin: 20px 0 4px; }
 .merkmal header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
 .merkmal header strong { margin-right: 6px; }
 .einordnung { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--warnung) 15%, transparent); color: var(--warnung); }

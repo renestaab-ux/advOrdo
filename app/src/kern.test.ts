@@ -145,6 +145,11 @@ describe("abgleichZusammenfassung", () => {
       "1 mögliche Abweichung, 1 Übereinstimmung in 1 Dokument",
     );
   });
+  it("nennt beim Vergleich mit KI, was laut KI Verschiedenes meint", () => {
+    expect(
+      abgleichZusammenfassung({ dokumente: 3, zaehlung: { abweichend: 2, verschieden: 1, uebereinstimmend: 0, einzeln: 4 } }),
+    ).toBe("2 mögliche Abweichungen, 1 Abweichung laut KI zu Verschiedenem, 0 Übereinstimmungen in 3 Dokumenten");
+  });
 });
 
 describe("Sprachmodell", () => {

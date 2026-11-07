@@ -73,6 +73,7 @@ from .ki import export as ki_export
 from .ki import gegenueberstellung as ki_gegenueberstellung
 from .ki import metadaten as ki_metadaten
 from .ki import speicher as ki_speicher
+from .ki import vergleich as ki_vergleich
 from .ki import wissen as ki_wissen
 from .ki.analyse import Analyse
 from .ki.auftraege import Auftraege
@@ -451,6 +452,7 @@ class Kern:
             "ki.chat_verlauf": lambda akte_id, dokument_id=None: ki_chat.verlauf(self.akten, akte_id, dokument_id),
             "ki.chat_fragen": self.ki_chat_fragen,
             "ki.gegenueberstellung": self.ki_gegenueberstellung,
+            "ki.vergleich": self.ki_vergleich,
             "rechner.verzugszinsen": lambda **p: verzugszinsen.berechne(
                 verzugszinsen.aus_params(p), basiszins.lade(self.basiszins_datei)),
             "rechner.frist": lambda **p: fristen.aus_params(p),
@@ -987,6 +989,48 @@ class Kern:
         try:
             return {"status": "laeuft",
                     "auftrag": self.auftraege.starte(ki_metadaten.AUFGABE, arbeit, bezug=int(dokument_id))}
+        except RuntimeError:  # gerade eben ein anderer Auftrag gestartet
+            laufend = self.auftraege.laufend()
+            return {"status": "belegt", "aufgabe": laufend.aufgabe if laufend else None}
+
+    def ki_vergleich(self, akte_id: int, dokument_ids: list[int] | None = None, neu: bool = False,
+                     automatisch: bool = False) -> dict:
+        """Vergleich der Akte mit dem Sprachmodell (Zahlen und Daten mit Bezug, inhaltliche Widersprüche).
+
+        Wie ``akten.metadaten_ki``: Status "aus" (KI ausgeschaltet oder kein Modell; es gilt der regelbasierte
+        ``akten.abgleich``), "fertig" mit Ergebnis (auch aus dem Speicher), "laeuft" mit Auftrag (Ergebnis über
+        ``ki.auftrag``), "belegt" (das Modell arbeitet an etwas anderem) oder "extern" (``automatisch`` bei einem
+        externen Anbieter: Der Text geht erst auf Knopfdruck hinaus).
+        """
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        if e.abgeschaltet or not e.aktives_modell:
+            return {"status": "aus", "abgeschaltet": e.abgeschaltet}
+        try:
+            _, modell = self._ki_modell()
+        except ValueError as fehler:
+            return {"status": "aus", "abgeschaltet": False, "hinweis": str(fehler)}
+        ids = [int(i) for i in dokument_ids] if dokument_ids else None
+        if not neu and (alt := ki_vergleich.gespeichert(Analyse(self.akten, modell, e.aktiver_kontext),
+                                                        int(akte_id), ids)) is not None:
+            return {"status": "fertig", "ergebnis": alt}
+        if automatisch and e.extern:
+            return {"status": "extern"}
+        bezug = (int(akte_id), tuple(sorted(ids)) if ids else None)
+        if (laufend := self.auftraege.laufend()) is not None:
+            if laufend.aufgabe == ki_vergleich.AUFGABE and laufend.bezug == bezug and not neu:
+                return {"status": "laeuft", "auftrag": laufend.als_dict()}
+            return {"status": "belegt", "aufgabe": laufend.aufgabe}
+
+        def arbeit(auftrag) -> dict:
+            con = akte.oeffne(self.akten_pfad)
+            try:
+                return ki_vergleich.vergleiche(Analyse(con, modell, e.aktiver_kontext, auftrag, neu=bool(neu)),
+                                               int(akte_id), ids)
+            finally:
+                con.close()
+
+        try:
+            return {"status": "laeuft", "auftrag": self.auftraege.starte(ki_vergleich.AUFGABE, arbeit, bezug=bezug)}
         except RuntimeError:  # gerade eben ein anderer Auftrag gestartet
             laufend = self.auftraege.laufend()
             return {"status": "belegt", "aufgabe": laufend.aufgabe if laufend else None}
