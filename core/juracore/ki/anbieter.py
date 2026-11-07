@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
-from .. import netzprotokoll
+from .. import netzprotokoll, schluesselbund
 
 log = logging.getLogger("juracore.ki")
 
@@ -250,34 +250,54 @@ def speichere_einstellungen(pfad: Path, e: KiEinstellungen) -> dict:
 
 
 # --- API-Schlüssel externer Anbieter ----------------------------------------------------------------
-# Eine eigene Datei neben ki.json, damit Einstellungen ohne Schlüssel weitergegeben werden können. Unter Linux und
-# macOS nur für den Benutzer lesbar; unter Windows liegt sie im Benutzerprofil (AppData).
+# Im Schlüsselbund des Systems (schluesselbund.py), je Arbeitsumgebung. Nur ohne nutzbaren Schlüsselbund in einer
+# eigenen Datei neben ki.json, unter Linux und macOS nur für den Benutzer lesbar. Ein Schlüssel aus der Datei
+# (ältere Fassungen) zieht beim ersten Lesen in den Schlüsselbund um und verschwindet aus der Datei.
 
 
-def lade_schluessel(pfad: Path, anbieter: str) -> str | None:
-    try:
-        wert = json.loads(pfad.read_text(encoding="utf-8")).get(anbieter)
-    except (OSError, ValueError, AttributeError):
-        return None
-    return wert if isinstance(wert, str) and wert.strip() else None
-
-
-def speichere_schluessel(pfad: Path, anbieter: str, wert: str | None) -> None:
-    """Hinterlegt den Schlüssel eines Anbieters; ``None`` oder leer löscht ihn."""
+def _datei_lesen(pfad: Path) -> dict:
     try:
         alle = json.loads(pfad.read_text(encoding="utf-8"))
-        alle = alle if isinstance(alle, dict) else {}
     except (OSError, ValueError):
-        alle = {}
-    if wert and wert.strip():
-        alle[anbieter] = wert.strip()
-    else:
-        alle.pop(anbieter, None)
+        return {}
+    return alle if isinstance(alle, dict) else {}
+
+
+def _datei_schreiben(pfad: Path, alle: dict) -> None:
+    if not alle:
+        pfad.unlink(missing_ok=True)
+        return
     pfad.parent.mkdir(parents=True, exist_ok=True)
     neu = pfad.with_suffix(".tmp")
     with open(os.open(neu, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
         json.dump(alle, f, ensure_ascii=False, indent=2)
     os.replace(neu, pfad)
+
+
+def lade_schluessel(pfad: Path, anbieter: str) -> str | None:
+    name = f"ki-{anbieter}"
+    if wert := schluesselbund.lies(pfad.parent, name):
+        return wert
+    alle = _datei_lesen(pfad)
+    wert = alle.get(anbieter)
+    if not (isinstance(wert, str) and wert.strip()):
+        return None
+    if schluesselbund.schreibe(pfad.parent, name, wert.strip()):
+        alle.pop(anbieter)
+        _datei_schreiben(pfad, alle)
+    return wert.strip()
+
+
+def speichere_schluessel(pfad: Path, anbieter: str, wert: str | None) -> None:
+    """Hinterlegt den Schlüssel eines Anbieters; ``None`` oder leer löscht ihn."""
+    wert = wert.strip() if wert and wert.strip() else None
+    im_bund = schluesselbund.schreibe(pfad.parent, f"ki-{anbieter}", wert)
+    alle = _datei_lesen(pfad)
+    if wert and not im_bund:
+        alle[anbieter] = wert
+    else:
+        alle.pop(anbieter, None)  # im Schlüsselbund oder gelöscht: kein Rest in der Datei
+    _datei_schreiben(pfad, alle)
 
 
 class Anbieter(Protocol):
@@ -797,6 +817,7 @@ def status_extern(e: KiEinstellungen, schluessel: str | None, verbindung: bool =
         "modell": e.extern_modell,
         "kontext": e.extern_kontext,
         "schluessel_hinterlegt": bool(schluessel),
+        "schluessel_ort": schluesselbund.ort(),
         "schluessel_ende": ende,
         "geprueft": False,
         "erreichbar": False,

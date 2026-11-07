@@ -1685,6 +1685,7 @@ export interface KiExternStatus {
   kontext: number;
   schluessel_hinterlegt: boolean;
   schluessel_ende: string | null;
+  schluessel_ort?: "schluesselbund" | "datei";
   /** Ob der Anbieter bei dieser Abfrage angefragt wurde (nur die Modellliste, keine Inhalte). */
   geprueft: boolean;
   erreichbar: boolean;
