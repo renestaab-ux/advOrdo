@@ -746,9 +746,15 @@ button.akte-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--
 .gefahrenzone { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--linie); }
 
 /* Reiter Dokumente: Filter | Liste | geöffnetes Dokument, jede Spalte scrollt für sich */
-.akte-dokumente { position: absolute; inset: 0; display: grid; grid-template-columns: 210px minmax(360px, 1fr) minmax(0, 1.3fr); }
-.akte-dokumente.filter-zu { grid-template-columns: 40px minmax(340px, 1fr) minmax(0, 1.5fr); }
+.akte-dokumente { position: absolute; inset: 0; display: grid; grid-template-columns: 210px minmax(360px, 1fr) auto minmax(0, 1.3fr); }
+.akte-dokumente.filter-zu { grid-template-columns: 40px minmax(340px, 1fr) auto minmax(0, 1.5fr); }
 .akte-dokumente > * { overflow: auto; min-height: 0; padding: 12px 16px; }
+/* Trennlinie zwischen Liste und geöffnetem Dokument; mit eigener Breite steht die Dokumentansicht fest. */
+.akte-dokumente > .trenner { padding: 0; overflow: visible; min-height: 0; width: 4px; margin: 0 -2px; z-index: 2; }
+@media (min-width: 1201px) {
+  .akte-dokumente.feste-breite { grid-template-columns: 210px minmax(340px, 1fr) auto var(--dok-breite); }
+  .akte-dokumente.filter-zu.feste-breite { grid-template-columns: 40px minmax(340px, 1fr) auto var(--dok-breite); }
+}
 .akte-filter { border-right: 1px solid var(--linie); display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; }
 .filter-zu .akte-filter { padding: 8px 4px; align-items: center; }
 .akte-filter h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-leise); margin: 12px 0 4px; }
@@ -797,6 +803,7 @@ button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, 
     grid-template-areas: "filter liste" "filter offen"; align-items: start; }
   .akte-dokumente.filter-zu { grid-template-columns: 40px minmax(0, 1fr); }
   .akte-dokumente > * { overflow: visible; }
+  .akte-dokumente > .trenner { display: none; }
   .akte-filter { grid-area: filter; align-self: stretch; }
   .akte-liste { grid-area: liste; border-right: none; border-bottom: 1px solid var(--linie); }
   .akte-offen { grid-area: offen; }

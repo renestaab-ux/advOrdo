@@ -16,6 +16,7 @@ export default function Trenner({
   rest,
   onZiehen,
   onSetze,
+  wertText,
 }: {
   label: string;
   titel: string;
@@ -28,6 +29,8 @@ export default function Trenner({
   rest: number;
   onZiehen: (e: ReactPointerEvent<HTMLDivElement>) => void;
   onSetze: (breite: number) => void;
+  /** Vorgelesener Wert, z. B. „Dokumentansicht 640 Pixel breit“; sonst die Breite der Seitenleiste. */
+  wertText?: string;
 }) {
   const start = useRef<number | null>(null);
   const max = () => Math.max(min, Math.round((rahmen.current?.getBoundingClientRect().width ?? 1200) - rest));
@@ -41,7 +44,7 @@ export default function Trenner({
       aria-valuenow={breite}
       aria-valuemin={min}
       aria-valuemax={max()}
-      aria-valuetext={`Seitenleiste ${breite} Pixel breit`}
+      aria-valuetext={wertText ?? `Seitenleiste ${breite} Pixel breit`}
       title={`${titel}. Klick: breit oder Standard; Doppelklick setzt zurück; Tastatur: Pfeil links/rechts`}
       onPointerDown={(e) => {
         start.current = e.clientX;
