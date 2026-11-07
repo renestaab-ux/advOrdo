@@ -39,7 +39,7 @@ log = logging.getLogger("juracore.ki")
 
 # Fassung der Anweisungen je Aufgabe; eine Änderung macht gespeicherte Ergebnisse ungültig.
 FASSUNG = {"zusammenfassung_dokument": 1, "zusammenfassung_akte": 1, "angaben": 4, "widersprueche": 3,
-           "chronologie": 2, "metadaten": 2}
+           "chronologie": 2, "metadaten": 2, "vergleich_werte": 3, "vergleich": 3}
 
 # Zeichen Angaben je Vergleichsanfrage. Mittelgroße Modelle (12–14 B) übersehen in langen Listen viel; kleinere
 # Blöcke, je zwei gemeinsam geprüft, kosten mehr Anfragen, finden aber mehr.
@@ -253,6 +253,12 @@ class Analyse:
         speicher.schreibe(self.con, key, aufgabe, self.modell, ergebnis, akte_id, dokument_id, bezug)
         ergebnis["gespeichert"] = False
         return ergebnis
+
+    def nur_gespeichert(self, aufgabe: str, eingabe: object) -> dict | None:
+        """Das gespeicherte Ergebnis zu dieser Eingabe, ohne zu rechnen; ``None``, wenn es keines gibt."""
+        key = speicher.schluessel(aufgabe, FASSUNG[aufgabe], type(self.anbieter).__name__, self.modell,
+                                  self.kontext, eingabe)
+        return speicher.lies(self.con, key)
 
     def _text(self, dokument_id: int) -> belege.Text:
         return belege.lade_text(self.con, dokument_id, PARTEIEN)

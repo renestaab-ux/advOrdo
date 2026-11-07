@@ -19,7 +19,7 @@ from pathlib import Path
 from .. import db
 from ..abgleich import abgleich
 from ..dokumente import akte
-from . import anbieter, belege
+from . import anbieter, belege, vergleich
 from .analyse import Analyse
 
 # Eingelesene Testakte und gespeicherte Antworten des Modells, im aktuellen Verzeichnis. Ein abgebrochener Lauf
@@ -92,7 +92,7 @@ def _luecken(was: str, ergebnis: dict) -> None:
 
 
 def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zusammenfassung: bool,
-         chronologie: bool = False) -> int:
+         chronologie: bool = False, mit_vergleich: bool = False) -> int:
     # Pfade vor dem langen Lauf prüfen, nicht erst danach.
     if not Path(ordner).is_dir():
         print(f"Ordner nicht gefunden: {ordner}", file=sys.stderr)
@@ -136,13 +136,14 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
         analyse = Analyse(akten, anbieter.erzeuge(e), e.kontext, _Ausgabe())
         ergebnis = analyse.widersprueche(akte_id)
         chrono = analyse.chronologie(akte_id) if chronologie else None
+        ki_vergleich = vergleich.vergleiche(analyse, akte_id) if mit_vergleich else None
         # Protokoll mit allen Tatsachenangaben je Dokument (gespeichert, keine neue Anfrage) zum Auswerten.
         ids = [z[0] for z in akten.execute("SELECT id FROM dokument WHERE akte_id = ? ORDER BY id", (akte_id,))]
         protokoll = Path.cwd() / "ki-pruefen-protokoll.json"
         protokoll.write_text(json.dumps(
             {"modell": e.modell, "anbieter": e.anbieter, "kontext": e.kontext,
              "angaben": [analyse.angaben(i, ziel=False) for i in ids], "ergebnis": ergebnis,
-             "chronologie": chrono},
+             "chronologie": chrono, "vergleich": ki_vergleich},
             ensure_ascii=False, indent=1), encoding="utf-8")
         _luecken("Widerspruchssuche", ergebnis)
         print(f"\n{ergebnis['angaben']} Tatsachenangaben mit Beleg, {ergebnis['verworfen']} ohne auffindbares "
@@ -169,6 +170,18 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
                 print(f"- {c['anzeige']:>16}  [{c['art']}] {c['ereignis']}"
                       f"{' (' + ', '.join(merk) + ')' if merk else ''}  – {orte}")
             print()
+        if ki_vergleich:
+            _luecken("Vergleich mit KI", ki_vergleich)
+            abw = [m for m in ki_vergleich["merkmale"] if m["status"] in ("abweichend", "verschieden")]
+            print(f"Vergleich mit KI: {len(abw)} abweichende Zahlen und Daten:")
+            for m in abw:
+                merk = "laut KI Verschiedenes, " if m["status"] == "verschieden" else ""
+                print(f"- {m['titel']} ({merk}{m['quelle']})" + (f"\n  {m['erklaerung']}" if m["erklaerung"] else ""))
+                for w in m["werte"]:
+                    for f in w["fundstellen"]:
+                        print(f"   {w['anzeige']:>16}  {_ort(f)}" + (f" [{f['bezug']}]" if f.get("bezug") else "")
+                              + (" (Regel)" if f.get("quelle") == "regel" else ""))
+            print()
         if erwartungen:
             soll = json.loads(Path(erwartungen).read_text(encoding="utf-8"))
             texte = {(z["dokument_id"], z["nr"]): z["text"] for z in akten.execute(
@@ -180,9 +193,19 @@ def main(ordner: Path, e: anbieter.KiEinstellungen, erwartungen: Path | None, zu
             soll_w = soll.get("widersprueche", [])
             vom_modell = [w["id"] for w in soll_w if _getroffen(w, modell, texte)]
             vom_abgleich = [w["id"] for w in soll_w if _getroffen(w, regeln, texte)]
-            fehlend = [w["id"] for w in soll_w if w["id"] not in vom_modell + vom_abgleich]
+            vom_vergleich: list[str] = []
+            if ki_vergleich:
+                zahlen = [[f for wert in m["werte"] for f in wert["fundstellen"]]
+                          for m in ki_vergleich["merkmale"] if m["status"] in ("abweichend", "verschieden")]
+                vom_vergleich = [w["id"] for w in soll_w if _getroffen(w, zahlen, texte)]
+            fehlend = [w["id"] for w in soll_w if w["id"] not in vom_modell + vom_abgleich + vom_vergleich]
             print(f"Erwartete Widersprüche vom Sprachmodell gefunden: {', '.join(vom_modell) or 'keiner'}")
             print(f"Vom regelbasierten Abgleich gefunden: {', '.join(vom_abgleich) or 'keiner'}")
+            if ki_vergleich:
+                gesamt = [w["id"] for w in soll_w if w["id"] in vom_vergleich + vom_modell]
+                print(f"Vom Vergleich mit KI (Zahlen und Daten) gefunden: {', '.join(vom_vergleich) or 'keiner'}")
+                print(f"Bereich „Vergleich“ mit KI insgesamt (Zahlen, Daten und inhaltlich): "
+                      f"{', '.join(gesamt) or 'keiner'}")
             print(f"Von keinem gefunden: {', '.join(fehlend) or 'keiner'}")
             for w in soll_w:
                 if w["id"] in fehlend:

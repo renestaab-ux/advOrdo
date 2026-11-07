@@ -36,7 +36,8 @@ ABGEBROCHEN = "abgebrochen"
 AUFGABEN = {"chat": "KI-Chat", "widersprueche": "KI-Analyse Widersprüche", "chronologie": "KI-Analyse Chronologie",
             "zusammenfassung_akte": "KI-Zusammenfassung der Akte",
             "zusammenfassung_dokument": "KI-Zusammenfassung eines Dokuments",
-            "gegenueberstellung": "KI-Gegenüberstellung Schriftsatz und Urteil", "metadaten": "KI-Vorschläge Details"}
+            "gegenueberstellung": "KI-Gegenüberstellung Schriftsatz und Urteil", "metadaten": "KI-Vorschläge Details",
+            "vergleich": "KI-Vergleich"}
 
 _BEHALTEN = 20  # beendete Aufträge, deren Ergebnis noch abgeholt werden kann
 

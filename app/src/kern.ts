@@ -1595,7 +1595,8 @@ export const BETEILIGTE = ["Kläger", "Beklagter", "Gericht", "Streitverkündete
 
 // --- Abgleich ------------------------------------------------------------------------------------
 
-export type AbgleichStatus = "abweichend" | "uebereinstimmend" | "einzeln";
+/** "verschieden": Die Werte weichen ab, meinen laut KI aber Verschiedenes (nur beim Vergleich mit KI). */
+export type AbgleichStatus = "abweichend" | "verschieden" | "uebereinstimmend" | "einzeln";
 export type Einordnung = "im_dokument" | "innerhalb_partei" | "zwischen_parteien" | "partei_unbekannt";
 
 export interface AbgleichFundstelle {
@@ -1608,6 +1609,10 @@ export interface AbgleichFundstelle {
   parteien: string[];
   /** Der Satz um den Wert, zum Hervorheben getrennt. */
   ausschnitt: { davor: string; wert: string; danach: string };
+  /** Nur beim Vergleich mit KI: worauf sich der Wert laut KI bezieht, Haltung des Verfassers, wer ihn fand. */
+  bezug?: string;
+  haltung?: string;
+  quelle?: "ki" | "regel";
 }
 
 export interface AbgleichWert {
@@ -1624,13 +1629,37 @@ export interface AbgleichMerkmal {
   einordnung: Einordnung[];
   dokumente: number;
   werte: AbgleichWert[];
+  /** Nur beim Vergleich mit KI: Merkmal von der KI gebildet oder nur von den Regeln gefunden. */
+  quelle?: "ki" | "regel";
+  /** Nur beim Vergleich mit KI: Einschätzung der Abweichung durch das Modell. */
+  erklaerung?: string;
 }
 
 export interface Abgleich {
   dokumente: number;
   merkmale: AbgleichMerkmal[];
-  zaehlung: Record<AbgleichStatus, number>;
+  zaehlung: Partial<Record<AbgleichStatus, number>> & Record<"abweichend" | "uebereinstimmend" | "einzeln", number>;
 }
+
+/** Vergleich mit KI: Aufbau wie der regelbasierte Abgleich, dazu Herkunft und inhaltliche Widersprüche. */
+export interface KiVergleich extends Abgleich {
+  quelle: "ki";
+  modell: string;
+  erstellt_am: string;
+  gespeichert: boolean;
+  unvollstaendig: boolean;
+  luecken_dokumente: { dateiname: string; absaetze: string[] }[];
+  ki_dokumente: { dokument_id: number; dateiname: string; werte: number; verworfen: number; bestritten: number }[];
+  inhaltlich: KiWidersprueche;
+}
+
+/** Antwort von ki.vergleich. */
+export type KiVergleichStand =
+  | { status: "aus"; abgeschaltet: boolean; hinweis?: string }
+  | { status: "fertig"; ergebnis: KiVergleich }
+  | { status: "laeuft"; auftrag: KiAuftrag }
+  | { status: "belegt"; aufgabe: string | null }
+  | { status: "extern" };
 
 export const EINORDNUNG_TEXT: Record<Einordnung, string> = {
   im_dokument: "im selben Dokument",
@@ -1642,8 +1671,12 @@ export const EINORDNUNG_TEXT: Record<Einordnung, string> = {
 /** Kurzfassung des Ergebnisses, z. B. "7 mögliche Abweichungen, 4 Übereinstimmungen in 9 Dokumenten". */
 export function abgleichZusammenfassung(a: Pick<Abgleich, "dokumente" | "zaehlung">): string {
   const n = (zahl: number, eins: string, mehr: string) => `${zahl} ${zahl === 1 ? eins : mehr}`;
+  const verschieden = a.zaehlung.verschieden
+    ? `${n(a.zaehlung.verschieden, "Abweichung", "Abweichungen")} laut KI zu Verschiedenem, `
+    : "";
   return (
     `${n(a.zaehlung.abweichend, "mögliche Abweichung", "mögliche Abweichungen")}, ` +
+    verschieden +
     `${n(a.zaehlung.uebereinstimmend, "Übereinstimmung", "Übereinstimmungen")} ` +
     `in ${n(a.dokumente, "Dokument", "Dokumenten")}`
   );
@@ -1735,7 +1768,8 @@ export type KiAufgabe =
   | "chronologie"
   | "gegenueberstellung"
   | "chat"
-  | "metadaten";
+  | "metadaten"
+  | "vergleich";
 
 export type GegenueberstellungErgebnis =
   | "traegt"

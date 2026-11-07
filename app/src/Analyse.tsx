@@ -25,18 +25,18 @@ import {
   zeitpunkt,
 } from "./kern";
 
-type Ansicht = "widersprueche" | "chronologie" | "akte" | "dokumente";
+type Ansicht = "chronologie" | "akte" | "dokumente";
 export type Offen = { inhalt: DokumentInhalt; abschnitt: number } | null;
 
 const LEER: KiErgebnisse = { zusammenfassung_akte: null, widersprueche: null, chronologie: null, dokumente: {} };
 
-/** Zusammenfassungen und inhaltliche Widersprüche mit dem lokalen Sprachmodell, jede Aussage mit Fundstelle. */
+/** Zusammenfassungen und Chronologie mit dem Sprachmodell, jede Aussage mit Fundstelle. Widersprüche zeigt der Vergleich. */
 export default function Analyse({ akteId, onEinstellungen }: { akteId: number; onEinstellungen: () => void }) {
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [status, setStatus] = useState<KiStatus | null>(null);
   const [ergebnisse, setErgebnisse] = useState<KiErgebnisse>(LEER);
   const [auftrag, setAuftrag] = useState<KiAuftrag | null>(null);
-  const [ansicht, setAnsicht] = useState<Ansicht>("widersprueche");
+  const [ansicht, setAnsicht] = useState<Ansicht>("chronologie");
   const [offen, setOffen] = useState<Offen>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [ausgeben, setAusgeben] = useState(false);
@@ -97,7 +97,6 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
     setFehler(null);
     try {
       setAuftrag(await kern<KiAuftrag>("ki.starten", { aufgabe, ...params }));
-      if (aufgabe === "widersprueche") setAnsicht("widersprueche");
       if (aufgabe === "zusammenfassung_akte") setAnsicht("akte");
       if (aufgabe === "chronologie") setAnsicht("chronologie");
     } catch (e) {
@@ -143,8 +142,8 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
   return (
     <div className="analyse">
       <p className="erklaerung">
-        Fasst Dokumente und die Akte zusammen, sucht inhaltliche Widersprüche und erstellt eine Chronologie mit dem
-        gewählten Sprachmodell. Jede
+        Fasst Dokumente und die Akte zusammen und erstellt eine Chronologie mit dem gewählten Sprachmodell.
+        Widersprüche zwischen den Dokumenten zeigt der Bereich „Vergleich“. Jede
         Aussage verweist auf ihre Fundstelle; ob das Zitat dort wirklich steht, prüft die App am Originaltext. Aussagen
         ohne auffindbares Zitat sind als „ohne Beleg“ markiert. Die Einschätzungen des Modells sind Hinweise, keine
         Bewertung.
@@ -164,11 +163,7 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
       </p>
 
       <div className="akten-wahl">
-        <button onClick={() => starte("widersprueche", { akte_id: akteId, neu: w != null })} disabled={!kannStarten}>
-          {w ? "Widersprüche neu suchen" : "Widersprüche suchen"}
-        </button>
         <button
-          className="zweitrangig"
           onClick={() => starte("chronologie", { akte_id: akteId, neu: c != null })}
           disabled={!kannStarten}
         >
@@ -202,7 +197,6 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
       <nav className="reiter" aria-label="Ansicht">
         {(
           [
-            ["widersprueche", `Widersprüche${w ? ` (${w.widersprueche.length})` : ""}`],
             ["chronologie", `Chronologie${c ? ` (${c.ereignisse.length})` : ""}`],
             ["akte", "Zusammenfassung der Akte"],
             ["dokumente", "Dokumente"],
@@ -222,30 +216,6 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
       <div className="akte-arbeitsflaeche">
         <div className="akte-haupt">
           <Zitatbereich>
-          {ansicht === "widersprueche" &&
-            (w ? (
-              <>
-                <ErgebnisKopf
-                  ergebnis={w}
-                  veraltet={veraltet(w, ids)}
-                  text={`${w.widersprueche.length} ${w.widersprueche.length === 1 ? "möglicher Widerspruch" : "mögliche Widersprüche"} aus ${w.angaben} belegten Tatsachenangaben${
-                    w.verworfen ? ` (${w.verworfen} Angaben ohne auffindbares Zitat verworfen)` : ""
-                  }`}
-                />
-                {w.widersprueche.length === 0 && <p className="leer">Keine inhaltlichen Widersprüche gefunden.</p>}
-                {w.widersprueche.map((x, i) => (
-                  <WiderspruchKarte key={i} w={x} offen={offen} onFundstelle={oeffne} />
-                ))}
-                <p className="grenze">
-                  Daten, Beträge und Kilometerstände gleicht der Bereich „Vergleich“ regelbasiert ab. Hier stehen
-                  zusätzlich Widersprüche, die sich nicht in Zahlen zeigen. Das Modell kann Widersprüche übersehen oder
-                  Angaben falsch verstehen; maßgeblich sind die Fundstellen.
-                </p>
-              </>
-            ) : (
-              <p className="leer">Noch keine Suche für diese Akte mit diesem Modell. „Widersprüche suchen“ startet sie.</p>
-            ))}
-
           {ansicht === "chronologie" &&
             (c ? (
               <>
@@ -517,7 +487,7 @@ function AussagenListe({
   );
 }
 
-function WiderspruchKarte({
+export function WiderspruchKarte({
   w,
   offen,
   onFundstelle,

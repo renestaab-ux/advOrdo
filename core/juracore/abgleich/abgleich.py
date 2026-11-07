@@ -136,8 +136,10 @@ def _vertraege_trennen(angaben: list[dict]) -> None:
             a["titel"] += f" (Anlage {a['anlage']})" if a["anlage"] else " (ohne Anlagenangabe)"
 
 
-def abgleich(con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | None = None) -> dict:
-    """Gleicht die Angaben aller (oder der gewählten) Dokumente einer Akte ab."""
+def angaben_der_akte(
+    con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | None = None
+) -> tuple[int, list[dict]]:
+    """Alle regelbasiert erkannten Angaben der (gewählten) Dokumente einer Akte und die Zahl der Dokumente."""
     if con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")
     dokumente = con.execute(
@@ -154,41 +156,45 @@ def abgleich(con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | No
         parteien = [t["name"] for t in akte._tags(con, dok["id"]) if t["name"] in PARTEIEN]
         angaben.extend(_angaben_im_dokument(con, dok, parteien))
     _vertraege_trennen(angaben)
+    return len(dokumente), angaben
+
+
+def bewerte(merkmal: dict) -> dict:
+    """Status (abweichend, übereinstimmend, nur in einem Dokument) und Einordnung eines Merkmals mit seinen Werten."""
+    werte = merkmal["werte"]
+    unvereinbar = any(not vereinbar(a["art"], a["wert"], b["art"], b["wert"]) for a, b in combinations(werte, 2))
+    dokumente_mit = {f["dokument_id"] for w in werte for f in w["fundstellen"]}
+    merkmal["status"] = ABWEICHEND if unvereinbar else UEBEREINSTIMMEND if len(dokumente_mit) > 1 else EINZELN
+    merkmal["einordnung"] = _einordnung(werte) if unvereinbar else []
+    merkmal["dokumente"] = len(dokumente_mit)
+    return merkmal
+
+
+def wert_eintrag(werte: dict, art: str, wert: str) -> dict:
+    """Der Eintrag für einen (normalisierten) Wert in einem Merkmal; neu angelegt, wenn es ihn noch nicht gibt."""
+    return werte.setdefault(wert, {"wert": wert, "art": art, "anzeige": anzeige(art, wert), "fundstellen": []})
+
+
+STATUS_RANG = {ABWEICHEND: 0, UEBEREINSTIMMEND: 1, EINZELN: 2}
+
+
+def abgleich(con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | None = None) -> dict:
+    """Gleicht die Angaben aller (oder der gewählten) Dokumente einer Akte ab."""
+    anzahl, angaben = angaben_der_akte(con, akte_id, dokument_ids)
 
     merkmale: dict[str, dict] = {}
     for angabe in angaben:
         m = merkmale.setdefault(
             angabe["merkmal"], {"merkmal": angabe["merkmal"], "titel": angabe["titel"], "werte": {}}
         )
-        w = m["werte"].setdefault(
-            angabe["wert"],
-            {"wert": angabe["wert"], "art": angabe["art"], "anzeige": anzeige(angabe["art"], angabe["wert"]),
-             "fundstellen": []},
-        )
-        w["fundstellen"].append(angabe["fundstelle"])
+        wert_eintrag(m["werte"], angabe["art"], angabe["wert"])["fundstellen"].append(angabe["fundstelle"])
 
-    ergebnis = []
-    for m in merkmale.values():
-        werte = list(m["werte"].values())
-        unvereinbar = any(not vereinbar(a["art"], a["wert"], b["art"], b["wert"]) for a, b in combinations(werte, 2))
-        dokumente_mit = {f["dokument_id"] for w in werte for f in w["fundstellen"]}
-        status = ABWEICHEND if unvereinbar else UEBEREINSTIMMEND if len(dokumente_mit) > 1 else EINZELN
-        ergebnis.append(
-            {
-                "merkmal": m["merkmal"],
-                "titel": m["titel"],
-                "status": status,
-                "einordnung": _einordnung(werte) if unvereinbar else [],
-                "dokumente": len(dokumente_mit),
-                "werte": werte,
-            }
-        )
-
+    ergebnis = [bewerte({**m, "werte": list(m["werte"].values())}) for m in merkmale.values()]
+    ergebnis = [{k: m[k] for k in ("merkmal", "titel", "status", "einordnung", "dokumente", "werte")} for m in ergebnis]
     rang = {m.schluessel: i for i, m in enumerate(MERKMALE)}
-    status_rang = {ABWEICHEND: 0, UEBEREINSTIMMEND: 1, EINZELN: 2}
-    ergebnis.sort(key=lambda m: (status_rang[m["status"]], rang.get(m["merkmal"], len(rang)), m["titel"]))
+    ergebnis.sort(key=lambda m: (STATUS_RANG[m["status"]], rang.get(m["merkmal"], len(rang)), m["titel"]))
     return {
-        "dokumente": len(dokumente),
+        "dokumente": anzahl,
         "merkmale": ergebnis,
-        "zaehlung": {s: sum(1 for m in ergebnis if m["status"] == s) for s in status_rang},
+        "zaehlung": {s: sum(1 for m in ergebnis if m["status"] == s) for s in STATUS_RANG},
     }
