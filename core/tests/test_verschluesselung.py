@@ -1,5 +1,3 @@
-import os
-
 from juracore import verschluesselung as v
 
 MOUNTINFO = (
@@ -10,21 +8,22 @@ MOUNTINFO = (
 
 
 def _sys(tmp_path):
-    """/sys/dev/block mit LVM (253:1) auf LUKS (253:0) auf nvme0n1p3 und einer unverschlüsselten Partition."""
+    """/sys/dev/block mit LVM (253:1) auf LUKS (dm-0) auf nvme0n1p3 und einer unverschlüsselten Partition.
+
+    Im echten sysfs sind die Einträge unter slaves Verweise auf das Gerät; hier sind es gleich die Ordner
+    (Verweise braucht unter Windows Sonderrechte)."""
     block = tmp_path / "block"
-    for name, uuid in (("253:0", "CRYPT-LUKS2-abc-luks"), ("253:1", "LVM-xyz"), ("259:2", None), ("259:3", None)):
-        (block / name).mkdir(parents=True)
-        if uuid:
-            (block / name / "dm").mkdir()
-            (block / name / "dm" / "uuid").write_text(uuid + "\n")
-    (block / "253:1" / "slaves").mkdir()
-    os.symlink(block / "253:0", block / "253:1" / "slaves" / "dm-0")
-    (block / "253:0" / "slaves").mkdir()
-    os.symlink(block / "259:3", block / "253:0" / "slaves" / "nvme0n1p3")
+    lvm = block / "253:1"
+    luks = lvm / "slaves" / "dm-0"
+    for ordner, uuid in ((lvm, "LVM-xyz"), (luks, "CRYPT-LUKS2-abc-luks")):
+        (ordner / "dm").mkdir(parents=True)
+        (ordner / "dm" / "uuid").write_text(uuid + "\n")
+    (luks / "slaves" / "nvme0n1p3").mkdir(parents=True)
+    (block / "259:2").mkdir()
     return block
 
 
-GERAETE = {"/dev/mapper/vgzorin-root": os.makedev(253, 1), "/dev/nvme0n1p2": os.makedev(259, 2)}
+GERAETE = {"/dev/mapper/vgzorin-root": (253, 1), "/dev/nvme0n1p2": (259, 2)}
 
 
 def test_linux_luks_unter_lvm(tmp_path):

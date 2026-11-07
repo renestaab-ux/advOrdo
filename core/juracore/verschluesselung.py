@@ -17,6 +17,7 @@ import ntpath
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -111,8 +112,13 @@ def _verschluesselt(block: Path, tiefe: int = 0) -> bool:
     return any(_verschluesselt(s.resolve(), tiefe + 1) for s in unten)
 
 
+def _geraetenummer(quelle: str) -> tuple[int, int]:
+    nummer = os.stat(quelle).st_rdev
+    return os.major(nummer), os.minor(nummer)  # nur unter Linux aufgerufen
+
+
 def _linux(ordner: Path, sys_block: Path = Path("/sys/dev/block"), mountinfo: str | None = None,
-           geraet_von=lambda quelle: os.stat(quelle).st_rdev) -> Befund:  # noqa: B008
+           geraet_von: Callable[[str], tuple[int, int]] | None = None) -> Befund:
     if mountinfo is None:
         mountinfo = Path("/proc/self/mountinfo").read_text(encoding="utf-8")
     eintrag = _einhaengepunkt(ordner.resolve(), mountinfo)
@@ -125,10 +131,10 @@ def _linux(ordner: Path, sys_block: Path = Path("/sys/dev/block"), mountinfo: st
     if not quelle.startswith("/dev/"):
         return Befund(UNBEKANNT, "LUKS", details + ["Kein Blockgerät; Verschlüsselung nicht prüfbar."])
     try:
-        geraet = geraet_von(quelle)
+        haupt, neben = (geraet_von or _geraetenummer)(quelle)
     except OSError as fehler:
         return Befund(UNBEKANNT, "LUKS", details + [str(fehler)])
-    block = sys_block / f"{os.major(geraet)}:{os.minor(geraet)}"
+    block = sys_block / f"{haupt}:{neben}"
     if _verschluesselt(block):
         return Befund(AN, "LUKS (dm-crypt)", details)
     return Befund(AUS, "LUKS (dm-crypt)", details + ["Kein dm-crypt-Gerät unter dem Datenordner gefunden."])
