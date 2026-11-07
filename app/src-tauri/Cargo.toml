@@ -3,6 +3,7 @@ name = "juristischer-datenabgleich"
 version = "0.1.0"
 description = "Desktop-App für Analyse, Vergleich und Zusammenfassung juristischer Dokumente"
 edition = "2021"
+license = "EUPL-1.2"
 rust-version = "1.77"
 # Programmdatei heißt „jurabox“: macOS zeigt im Entwicklungsmodus (Dock, Mouseover) den Dateinamen an.
 # Der Paketname bleibt bewusst „juristischer-datenabgleich“ (siehe README).

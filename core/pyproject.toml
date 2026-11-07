@@ -3,6 +3,8 @@ name = "juracore"
 version = "0.1.0"
 description = "Analysekern von JuraBox"
 requires-python = ">=3.11"
+license = {text = "EUPL-1.2"}
+classifiers = ["License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)"]
 # pypdfium2: PDF-Text und Seitenbilder für die Texterkennung; fertige Pakete für Windows, macOS und Linux.
 # keyring: API-Schlüssel im Schlüsselbund des Systems (Windows, macOS, Linux Secret Service).
 dependencies = ["pypdfium2>=4.30,<6", "truststore>=0.9", "keyring>=24"]
