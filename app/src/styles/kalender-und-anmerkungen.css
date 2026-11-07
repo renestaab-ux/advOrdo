@@ -1,0 +1,298 @@
+/* Kalender, Markierungen, Kommentare, Lesezeichen und Warteanzeige. */
+
+/* Kalender (Bereich in der linken Leiste) */
+.kalender { display: grid; gap: 12px; }
+.kalender-kopf { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.kalender-kopf h1 { margin: 0; font-size: 22px; }
+.kalender-steuerung { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.kalender-blaettern { display: inline-flex; gap: 4px; }
+.kalender-blaettern button { padding: 4px 10px; }
+.kalender-zeitraum { min-width: 170px; font-size: 15px; }
+.kalender-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--linie); border-radius: 999px; background: var(--flaeche); cursor: pointer; }
+.filter-chip.frist { border-color: color-mix(in srgb, var(--akzent) 45%, var(--linie)); }
+.filter-chip.vorfrist { border-color: color-mix(in srgb, var(--warnung) 45%, var(--linie)); }
+.filter-chip.termin { border-color: color-mix(in srgb, var(--gut) 45%, var(--linie)); }
+.kalender-ueberfaellig { border: 1px solid color-mix(in srgb, var(--fehler) 40%, var(--linie)); border-radius: 8px; padding: 8px 12px; background: color-mix(in srgb, var(--fehler) 6%, var(--flaeche)); }
+.kalender-ueberfaellig summary { cursor: pointer; color: var(--fehler); font-weight: 600; }
+.kalender-ueberfaellig ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.kalender-flaeche { display: grid; gap: 12px; align-items: start; }
+.kalender-flaeche.mit-detail { grid-template-columns: minmax(0, 1fr) 300px; }
+.kalender-detail { position: sticky; top: 8px; display: grid; gap: 6px; }
+.kalender-detail h3 { margin: 2px 0; font-size: 16px; }
+.kalender-detail p { margin: 0; }
+.kalender-detail button.link { text-align: left; padding: 0; }
+.kalender-filter .akten-wahl-feld { width: auto; min-width: 220px; max-width: 360px; }
+.kalender-detail .aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.durchgestrichen { text-decoration: line-through; }
+.monats-raster { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--linie); border-radius: 8px; overflow: hidden; background: var(--linie); gap: 1px; }
+.kalender-wochentag { background: var(--flaeche); padding: 6px 8px; font-size: 12px; font-weight: 600; color: var(--text-leise); }
+.kalender-tag { background: var(--flaeche); min-height: 96px; padding: 4px 5px 6px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-width: 0; overflow: hidden; }
+.kalender-tag:hover { background: color-mix(in srgb, var(--akzent) 4%, var(--flaeche)); }
+.kalender-tag.frei { background: color-mix(in srgb, var(--text-leise) 7%, var(--flaeche)); }
+.kalender-tag.fremd .tag-zahl { color: var(--text-leise); }
+.kalender-tag.heute .tag-zahl { background: var(--knopf); color: var(--knopf-text); border-radius: 999px; padding: 0 7px; }
+.tag-kopf { display: flex; align-items: baseline; gap: 6px; font-size: 12px; min-width: 0; }
+.feiertag { font-size: 11px; color: var(--text-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.kal-posten { display: flex; flex-wrap: nowrap; overflow: hidden; box-sizing: border-box; max-width: 100%; gap: 4px; align-items: baseline; width: 100%; min-width: 0; text-align: left; font-size: 12px; line-height: 1.3; padding: 2px 6px; border-radius: 4px; border: none; border-left: 3px solid var(--akzent); background: color-mix(in srgb, var(--akzent) 10%, var(--flaeche)); color: var(--text); cursor: pointer; }
+button.kal-posten .posten-titel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.posten-zeit { font-variant-numeric: tabular-nums; color: var(--text-leise); }
+.posten-akte { color: var(--text-leise); font-size: 11px; white-space: nowrap; }
+button.kal-posten.frist.abgelaufen, button.kal-posten.frist.heute, button.kal-posten.wiedervorlage.abgelaufen { border-left-color: var(--fehler); background: color-mix(in srgb, var(--fehler) 12%, var(--flaeche)); }
+button.kal-posten.frist.bald, button.kal-posten.frist.vorfrist { border-left-color: var(--warnung); }
+button.kal-posten.vorfrist { border-left-color: var(--warnung); background: color-mix(in srgb, var(--warnung) 12%, var(--flaeche)); }
+button.kal-posten.termin { border-left-color: var(--gut); background: color-mix(in srgb, var(--gut) 11%, var(--flaeche)); }
+button.kal-posten.wiedervorlage { border-left-color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 11%, var(--flaeche)); }
+button.kal-posten.abgeschlossen { opacity: .6; }
+button.kal-posten.aufgehoben .posten-titel, button.kal-posten.verlegt .posten-titel { text-decoration: line-through; }
+button.kal-posten.gewaehlt { outline: 2px solid var(--akzent); outline-offset: 1px; }
+.wochen-spalten { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--linie); border: 1px solid var(--linie); border-radius: 8px; overflow: hidden; }
+.wochen-spalten .kalender-tag { min-height: 320px; padding: 8px 6px; gap: 5px; }
+.wochen-spalten button.kal-posten { flex-wrap: wrap; }
+.wochen-spalten button.kal-posten .posten-titel { white-space: normal; flex-basis: 100%; }
+.wochen-spalten button.kal-posten .posten-akte { flex-basis: 100%; }
+.tages-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.tages-liste h3 { font-size: 14px; margin: 0 0 6px; }
+.tages-liste > li.heute h3 { color: var(--akzent); }
+.tages-liste ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+button.listen-posten { display: grid; grid-template-columns: 90px auto minmax(0, 1fr) auto auto auto; gap: 10px; align-items: baseline; font-size: 13px; padding: 7px 10px; }
+button.listen-posten .posten-titel { white-space: normal; }
+.kalender-neu { display: grid; gap: 10px; }
+.kalender-neu-wahl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.kalender-neu .kalender-formular { border: none; padding: 0; box-shadow: none; }
+@media (max-width: 900px) {
+  .kalender-flaeche.mit-detail { grid-template-columns: 1fr; }
+  .kalender-tag { min-height: 64px; }
+  button.kal-posten .posten-zeit { display: none; }
+  .wochen-spalten { grid-template-columns: 1fr; }
+  .wochen-spalten .kalender-tag { min-height: 0; }
+  button.listen-posten { grid-template-columns: 1fr; gap: 2px; }
+}
+.fristenbuch { display: grid; gap: 10px; max-width: 900px; }
+.fristenbuch .aktionen { display: flex; flex-wrap: wrap; gap: 8px; }
+.fristenbuch-zeitraum { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; }
+.fristenbuch-zeitraum p { flex-basis: 100%; margin: 0; }
+.gericht-suchen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 2px; }
+.gericht-suchen button.zweitrangig { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--akzent); font-weight: 600; }
+.zustaendiges-gericht { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--linie); border-radius: 6px; }
+.zustaendiges-gericht .zeile { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.zustaendiges-gericht .zeile .feld:first-child input { width: 10ch; }
+.zustaendig-liste { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.zustaendig-liste li { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 6px 10px; border: 1px solid var(--linie); border-radius: 6px; }
+
+/* Markierungen und Kommentare an Dokumenten (Anmerkungen.tsx). Farben hell und dunkel; Linien in kräftigerem Ton. */
+:root {
+  --anm-gelb: #fff0a0; --anm-gruen: #c9efc6; --anm-blau: #cfe3ff; --anm-rot: #ffd2cc;
+  --anm-linie-gelb: #d9b200; --anm-linie-gruen: #3f9a4c; --anm-linie-blau: #3d7fd6; --anm-linie-rot: #d0453a;
+}
+:root[data-thema="dunkel"] {
+  --anm-gelb: #5c5114; --anm-gruen: #234a2a; --anm-blau: #1f3a5e; --anm-rot: #5c2723;
+  --anm-linie-gelb: #e8c840; --anm-linie-gruen: #7cc08a; --anm-linie-blau: #7fb2f0; --anm-linie-rot: #f08a80;
+}
+.anm { border-radius: 2px; cursor: pointer; }
+.anm-gelb { background: var(--anm-gelb); }
+.anm-gruen { background: var(--anm-gruen); }
+.anm-blau { background: var(--anm-blau); }
+.anm-rot { background: var(--anm-rot); }
+.anm-linie-gelb { --anm-linie: var(--anm-linie-gelb); }
+.anm-linie-gruen { --anm-linie: var(--anm-linie-gruen); }
+.anm-linie-blau { --anm-linie: var(--anm-linie-blau); }
+.anm-linie-rot { --anm-linie: var(--anm-linie-rot); }
+.anm-unter { text-decoration: underline 2px var(--anm-linie); text-underline-offset: 3px; }
+.anm-durch { text-decoration: line-through 2px var(--anm-linie); }
+.anm-unter.anm-durch { text-decoration-line: underline line-through; }
+.anm-aktiv { outline: 2px solid var(--akzent); outline-offset: 1px; }
+.anm-blase { display: inline-grid; place-items: center; width: 18px; height: 16px; margin: 0 1px 0 2px; vertical-align: 2px; border-radius: 4px;
+  border: 1px solid var(--anm-linie, var(--linie)); background: var(--flaeche); color: var(--text); cursor: pointer; user-select: none; }
+.anm-blase-gelb { --anm-linie: var(--anm-linie-gelb); background: var(--anm-gelb); }
+.anm-blase-gruen { --anm-linie: var(--anm-linie-gruen); background: var(--anm-gruen); }
+.anm-blase-blau { --anm-linie: var(--anm-linie-blau); background: var(--anm-blau); }
+.anm-blase-rot { --anm-linie: var(--anm-linie-rot); background: var(--anm-rot); }
+.anm-rahmen .dokument { user-select: text; }
+
+/* Original-PDF: Rechtecke über dem Seitenbild; Unter-/Durchstreichen als Linie. */
+.anm-rechteck { position: absolute; border-radius: 2px; mix-blend-mode: multiply; cursor: pointer; }
+:root[data-thema="dunkel"] .anm-rechteck { mix-blend-mode: normal; opacity: 0.55; }
+.anm-rechteck.anm-unter, .anm-rechteck.anm-durch { text-decoration: none; }
+/* Je Rechteck genau eine Anmerkung: entweder Fläche oder Linie. */
+.anm-rechteck.anm-unter { border-bottom: 2px solid var(--anm-linie); mix-blend-mode: normal; }
+.anm-rechteck.anm-durch { mix-blend-mode: normal; background: linear-gradient(transparent calc(50% - 1px), var(--anm-linie) calc(50% - 1px), var(--anm-linie) calc(50% + 1px), transparent calc(50% + 1px)); }
+.anm-rechteck .anm-blase { position: absolute; right: -8px; top: -13px; width: 16px; height: 14px; margin: 0; }
+/* Markieren im Original: Wörter mit der Maus wählen. */
+.original-bild.anm-waehlbar { cursor: text; user-select: none; -webkit-user-select: none; touch-action: pan-y; }
+.anm-seitenauswahl { position: absolute; background: color-mix(in srgb, var(--akzent, #2f6fde) 30%, transparent); border-radius: 2px; pointer-events: none; }
+
+/* Menü über der Auswahl, Vorschau und Editor schweben über dem Text. */
+.anm-menue, .anm-vorschau, .anm-editor { position: fixed; z-index: 50; }
+.anm-menue { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; background: #2b2b2b; color: #fff;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 28%); font-size: 13px; }
+.anm-menue button { padding: 0; border: none; color: inherit; }
+.anm-menue .anm-menue-knopf { background: none; }
+.anm-farbknopf { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgb(255 255 255 / 60%) !important; }
+.anm-farbknopf:hover { transform: scale(1.15); }
+.anm-menue-knopf { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px !important; border-radius: 4px; }
+.anm-menue-knopf:hover { background: rgb(255 255 255 / 14%) !important; }
+.anm-menue-trenner { width: 1px; align-self: stretch; background: rgb(255 255 255 / 25%); }
+.anm-menue { flex-wrap: wrap; width: 370px; max-width: calc(100vw - 24px); }
+.anm-menue-hinweis { flex-basis: 100%; font-size: 11.5px; line-height: 1.3; color: rgb(255 255 255 / 75%); padding: 2px 2px 0; }
+.anm-punkt { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.anm-punkt-gelb { background: #f2cf2a; }
+.anm-punkt-gruen { background: #5cbf6a; }
+.anm-punkt-blau { background: #5b9cf0; }
+.anm-punkt-rot { background: #ec6b5f; }
+.anm-vorschau { width: 280px; max-height: 260px; overflow: hidden; padding: 10px 12px; border-radius: 8px; background: var(--flaeche);
+  border: 1px solid var(--linie); box-shadow: 0 8px 24px rgb(0 0 0 / 18%); font-size: 13px; line-height: 1.45; pointer-events: none; }
+.anm-vorschau-fuss { margin: 8px 0 0; font-size: 12px; color: var(--text-leise); }
+.anm-editor { width: 360px; max-width: calc(100vw - 16px); padding: 10px; border-radius: 8px; background: var(--flaeche); border: 1px solid var(--linie);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 22%); display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.anm-editor-zeile { display: flex; flex-wrap: wrap; gap: 4px; }
+.anm-editor button { padding: 3px 8px; font-size: 12px; }
+.anm-farbwahl, .anm-stilwahl, .anm-editor-werkzeug button { display: inline-flex; align-items: center; gap: 5px; background: none !important; color: var(--text) !important;
+  border: 1px solid var(--linie) !important; font-weight: 400; }
+.anm-farbwahl.aktiv, .anm-stilwahl.aktiv, .anm-editor-werkzeug button.aktiv { border-color: var(--akzent) !important; box-shadow: inset 0 0 0 1px var(--akzent); }
+.anm-stilprobe { padding: 0 3px; border-radius: 2px; }
+.anm-stilwahl u, .anm-stilwahl s { text-decoration-color: var(--anm-linie-rot); text-decoration-thickness: 2px; }
+.anm-editor-werkzeug { display: flex; flex-wrap: wrap; gap: 4px; }
+.anm-editor-werkzeug button:last-child { margin-left: auto; }
+.anm-editor textarea { font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; padding: 7px 9px; border-radius: 6px; border: 1px solid var(--linie);
+  background: var(--feld); color: var(--text); resize: vertical; min-height: 90px; }
+.anm-editor-vorschau { min-height: 90px; max-height: 240px; overflow-y: auto; padding: 4px 8px; border: 1px dashed var(--linie); border-radius: 6px; }
+.anm-editor-fuss { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.anm-zitat { display: block; margin: 0; padding: 1px 0 1px 8px; border-left: 4px solid var(--linie); font-size: 12.5px; color: var(--text);
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.anm-rand-gelb { border-left-color: var(--anm-linie-gelb); }
+.anm-rand-gruen { border-left-color: var(--anm-linie-gruen); }
+.anm-rand-blau { border-left-color: var(--anm-linie-blau); }
+.anm-rand-rot { border-left-color: var(--anm-linie-rot); }
+.anm-stil-unterstrichen { text-decoration: underline 1px; text-underline-offset: 2px; }
+.anm-stil-durchgestrichen { text-decoration: line-through 1px; }
+.markdown p, .markdown ul, .markdown ol { margin: 0 0 6px; }
+.markdown ul, .markdown ol { padding-left: 20px; }
+.markdown pre { margin: 0 0 6px; padding: 6px 8px; border-radius: 4px; background: var(--hintergrund); overflow-x: auto; font-size: 12px; }
+.markdown code { font: 12px ui-monospace, Menlo, Consolas, monospace; background: var(--hintergrund); padding: 0 3px; border-radius: 3px; }
+.markdown pre code { padding: 0; background: none; }
+.markdown > :last-child { margin-bottom: 0; }
+
+/* Seitenleiste und Reiter „Anmerkungen“. */
+.anm-umschalter { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 13px;
+  background: none; color: var(--text-leise); border: 1px solid var(--linie); }
+.anm-umschalter.aktiv { color: var(--akzent); border-color: var(--akzent); }
+.anm-umschalter .anzahl { font-size: 11px; }
+/* Ist neben dem Dokument wenig Platz (Dokumentliste offen), liegt die Leiste über dem Text statt ihn zu stauchen. */
+.akte-offen { container-type: inline-size; }
+.akte-arbeitsflaeche.mit-anmerkungen { position: relative; }
+@container (max-width: 900px) {
+  .akte-offen .akte-arbeitsflaeche.mit-anmerkungen { grid-template-columns: minmax(0, 1fr); }
+  .mit-anmerkungen > .trenner { display: none; }
+  .mit-anmerkungen > .anm-leiste { position: fixed; top: 210px; right: 20px; width: min(320px, 40vw); max-height: calc(100vh - 240px);
+    background: var(--hintergrund); padding: 10px; border: 1px solid var(--linie); border-radius: 8px; box-shadow: 0 10px 28px rgb(0 0 0 / 20%); z-index: 5; }
+}
+.anm-leiste { user-select: none; display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 40px); overflow-y: auto; }
+.anm-leiste-kopf { display: flex; align-items: center; gap: 10px; }
+.anm-leiste-kopf h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-leise); flex: 1; }
+.anm-leiste-kopf .leisten-knopf { align-self: center; font-size: 18px; line-height: 1; }
+.anm-leer { margin: 0; }
+.anm-suche { font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 6px; border: 1px solid var(--linie); background: var(--feld); color: var(--text); width: 100%; }
+.anm-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+button.anm-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 400;
+  background: none; color: var(--text); border: 1px solid var(--linie); }
+button.anm-chip.aktiv { border-color: var(--akzent); background: color-mix(in srgb, var(--akzent) 12%, transparent); }
+button.anm-chip .anzahl { color: var(--text-leise); font-size: 11px; }
+.anm-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+button.anm-eintrag { display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px;
+  background: var(--flaeche); color: var(--text); border: 1px solid var(--linie); font-weight: 400; }
+button.anm-eintrag:hover { border-color: color-mix(in srgb, var(--akzent) 50%, var(--linie)); }
+button.anm-eintrag.aktiv { border-color: var(--akzent); box-shadow: inset 0 0 0 1px var(--akzent); }
+button.anm-eintrag.verloren { opacity: 0.7; border-style: dashed; }
+.anm-eintrag-dok { font-size: 12px; font-weight: 600; }
+.anm-eintrag-kommentar { font-size: 12.5px; }
+.anm-eintrag-fuss { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--text-leise); }
+.anm-reiter { max-width: 980px; display: flex; flex-direction: column; gap: 8px; }
+.anm-gruppe h3 { font-size: 14px; margin: 10px 0 6px; }
+.anm-bedeutungen { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 14px; margin: 10px 0 12px; }
+.anm-bedeutungen label { display: flex; align-items: center; gap: 8px; }
+.anm-bedeutungen input { font: inherit; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--linie); background: var(--feld); color: var(--text); width: 100%; }
+@media print { .anm-blase, .anm-menue, .anm-vorschau, .anm-editor { display: none; } }
+
+/* Lesezeichen: Seitenleiste, Fähnchen im Text und im Original, Verwaltung im Reiter der Akte. */
+.anm-leiste-reiter { display: flex; gap: 2px; flex: 1; }
+.anm-leiste-reiter button { background: none; border: none; padding: 4px 8px; border-radius: 6px; font-size: 13px; color: var(--text-leise); display: inline-flex; gap: 5px; align-items: center; }
+.anm-leiste-reiter button.aktiv { color: var(--text); background: color-mix(in srgb, var(--akzent) 12%, transparent); font-weight: 600; }
+.anm-leiste-reiter .anzahl { font-size: 11px; background: var(--linie); border-radius: 8px; padding: 0 6px; }
+.lz-leiste { display: flex; flex-direction: column; gap: 14px; }
+.lz-leiste .link { align-self: flex-start; font-size: 12px; text-align: left; margin-top: 6px; }
+.lz-leiste section { display: flex; flex-direction: column; }
+.lz-leiste h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-leise); }
+.lz-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lz-gruppe h5 { margin: 8px 0 4px; font-size: 12.5px; display: flex; gap: 4px; align-items: center; }
+.lz-eintrag { display: flex; align-items: center; gap: 4px; padding: 3px 4px; border-radius: 6px; }
+.lz-eintrag:hover { background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+.lz-eintrag.verloren { opacity: 0.65; }
+.lz-fahne-symbol { color: var(--akzent); display: inline-flex; }
+button.lz-titel { flex: 1; min-width: 0; background: none; border: none; padding: 2px 0; text-align: left; display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; color: var(--text); font-size: 13px; }
+button.lz-titel:disabled { color: var(--text-leise); }
+.lz-titel > span:first-child { overflow-wrap: anywhere; }
+.lz-ort { font-size: 11.5px; color: var(--text-leise); font-variant-numeric: tabular-nums; }
+.lz-dokument { flex-basis: 100%; font-size: 11.5px; color: var(--text-leise); }
+.lz-knopf { background: none !important; border: none; padding: 2px 4px; color: var(--text-leise); opacity: 0; font-size: 15px; line-height: 1; }
+.lz-eintrag:hover .lz-knopf, .lz-knopf:focus-visible { opacity: 1; }
+.lz-titel-feld { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid var(--akzent); border-radius: 4px; background: var(--flaeche); color: var(--text); }
+.lz-inhalt { list-style: none; margin: 0; padding: 0; }
+.lz-inhalt li { border-left: 2px solid transparent; }
+.lz-inhalt button.lz-titel { padding: 3px 4px; border-radius: 4px; }
+.lz-inhalt button.lz-titel:hover:not(:disabled) { background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+/* Fähnchen: im Text am linken Rand des Absatzes, im Original am linken Seitenrand. */
+.lz-fahne { color: var(--akzent); user-select: none; -webkit-user-select: none; display: inline-flex; vertical-align: -2px; margin-right: 4px; }
+.lz-fahne-seite { position: absolute; left: 4px; margin: 0; transform: translateY(-15%); z-index: 2; pointer-events: auto; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 25%)); }
+/* Reiter der Akte: Umschalter Markierungen / Lesezeichen und die Ordner. */
+.anm-reiter-rahmen { display: flex; flex-direction: column; gap: 10px; max-width: 980px; }
+.anm-teil-wahl { align-self: flex-start; }
+.lz-verwaltung { display: flex; flex-direction: column; gap: 10px; }
+.lz-neuer-ordner { display: flex; gap: 8px; }
+.lz-neuer-ordner input { flex: 1; max-width: 420px; font: inherit; padding: 6px 10px; border: 1px solid var(--linie); border-radius: 6px; background: var(--flaeche); color: var(--text); }
+.lz-ordner { border: 1px solid var(--linie); border-radius: var(--rund, 8px); background: var(--flaeche); padding: 6px 10px 8px; }
+.lz-ordner.lz-ziel { border-color: var(--akzent); box-shadow: inset 0 0 0 1px var(--akzent); }
+.lz-ordner.gezogen, .lz-zeile.gezogen { opacity: 0.5; }
+.lz-ordner-kopf { display: flex; align-items: center; gap: 6px; }
+.lz-ordner-kopf h3 { margin: 0; font-size: 14px; flex: 1; }
+.lz-ordner-kopf:hover .lz-knopf { opacity: 1; }
+.lz-ordner-inhalt { display: flex; flex-direction: column; margin-top: 4px; }
+.lz-leer { margin: 4px 0 2px 24px; font-size: 12px; }
+.lz-zeile { border-top: 2px solid transparent; border-bottom: 2px solid transparent; }
+.lz-zeile.lz-ziel-vor { border-top-color: var(--akzent); }
+.lz-zeile.lz-ziel-nach { border-bottom-color: var(--akzent); }
+.lz-griff { cursor: grab; color: var(--text-leise); display: inline-flex; touch-action: none; padding: 2px; }
+.lz-griff:active { cursor: grabbing; }
+.lz-ordner-wahl { font: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid var(--linie); border-radius: 4px; background: var(--flaeche); color: var(--text-leise); max-width: 140px; }
+/* Marken an der Bildlaufleiste: Markierungen in ihrer Farbe, Lesezeichen im Akzent. */
+.bildlaufmarken { position: fixed; width: 10px; z-index: 5; pointer-events: none; }
+.bildlaufmarke { position: absolute; right: 1px; width: 8px; height: 3px; border-radius: 1px; pointer-events: auto; cursor: pointer; background: var(--anm-gelb-linie, #c9a400); }
+.bildlaufmarke.marke-gelb { background: #d6b000; }
+.bildlaufmarke.marke-gruen { background: #2e9b4f; }
+.bildlaufmarke.marke-blau { background: #2f6fde; }
+.bildlaufmarke.marke-rot { background: #d64545; }
+.bildlaufmarke.marke-lesezeichen { background: var(--akzent); height: 5px; width: 10px; right: 0; }
+@media print { .bildlaufmarken, .lz-fahne { display: none; } }
+.lz-markierung { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+.lz-markierung .anm-liste { flex: 1; min-width: 0; }
+.lz-markierung button.anm-eintrag { padding: 5px 8px; gap: 2px; }
+
+/* Anmerkungen ausgeben (Reiter „Anmerkungen“ der Akte) */
+.lz-hinweis-zeile { display: flex; align-items: flex-start; gap: 12px; }
+.lz-hinweis-zeile p { flex: 1; margin: 0; }
+.lz-hinweis-zeile button { flex: none; }
+.lz-ausgabe { margin-top: 8px; }
+.lz-ausgabe > p.leise { margin: 0 0 8px; }
+.pdf-kopie { margin-top: 10px; }
+.pdf-kopie p { margin: 4px 0 0; font-size: 12.5px; }
+.anm-leiste .pdf-kopie .link { padding: 0; }
+
+/* Warteanzeige für lange Befehle im Hintergrund (Hintergrund.tsx) */
+.hintergrund-anzeige { position: fixed; right: 16px; bottom: 16px; z-index: 900; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+.hintergrund-auftrag { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--flaeche); color: var(--text); border: 1px solid var(--linie); border-radius: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / 18%); }
+.hintergrund-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.hintergrund-text .leise { color: var(--text-leise); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+.hintergrund-anzeige .fehler { margin: 0; padding: 6px 10px; background: var(--flaeche); border-radius: 6px; }
+.hintergrund-drehen { width: 14px; height: 14px; flex: none; border: 2px solid var(--linie); border-top-color: var(--akzent); border-radius: 50%; animation: hintergrund-drehen 0.9s linear infinite; }
+@keyframes hintergrund-drehen { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .hintergrund-drehen { animation: none; } }

@@ -8,7 +8,7 @@ import App from "./App";
 /**
  * Automatische Prüfung auf Barrieren (axe-core, Regeln nach WCAG 2.2 A/AA) in der Vorschau ohne Kern:
  * jeder Bereich der Leiste und jeder Reiter der Einstellungen, einmal normal und einmal im barrierefreien Modus.
- * Farbkontraste kann jsdom nicht berechnen; die stehen fest in styles.css.
+ * Farbkontraste kann jsdom nicht berechnen; die stehen fest in styles/grundlagen.css und styles/barrierefreiheit.css.
  */
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

@@ -1,0 +1,183 @@
+/* Startbildschirm, Toolbox, Arbeitsumgebungen, Eigene Daten und Aktenverwaltung. */
+
+/* Startbildschirm */
+.start { margin: -22px -28px 0; }
+/* Kacheln links, „Ihr Arbeitsbereich“ als schmale Spalte rechts; auf kleineren Bildschirmen darunter. */
+.start-inhalt { display: grid; grid-template-columns: minmax(0, 1040px) 260px; gap: 24px; align-items: start; padding: 20px 28px 32px; }
+.start-haupt > .erklaerung { margin: 0 0 18px; }
+.start-inhalt > .kachel-info { margin-top: 37px; }
+@media (max-width: 1300px) {
+  .start-inhalt { grid-template-columns: minmax(0, 1040px); }
+  .start-inhalt > .kachel-info { margin-top: 0; }
+}
+.start-kopf { gap: 22px; padding-top: 14px; padding-bottom: 14px; }
+.start-kopf h1 { font-size: 24px; }
+.start-kopf > div { flex: 1; min-width: 0; }
+.start-logo { flex: none; height: 76px; max-width: 220px; object-fit: contain; background: #ffffff; border-radius: 8px; padding: 5px; }
+.kacheln { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 760px) { .kacheln { grid-template-columns: 1fr; } }
+.kachel { display: grid; grid-template-columns: 72px 1fr; grid-template-rows: auto auto; column-gap: 18px; align-items: center; text-align: left;
+  min-height: 132px; padding: 22px 24px; border-radius: 12px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.kachel:hover:not(:disabled) { border-color: var(--akzent); box-shadow: 0 0 0 1px var(--akzent); }
+.kachel-symbol { grid-row: 1 / 4; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 12px; color: var(--akzent);
+  background: color-mix(in srgb, var(--akzent) 12%, transparent); }
+.kachel-titel { font-size: 19px; font-weight: 600; align-self: end; }
+.kachel-text { font-size: 13px; color: var(--text-leise); align-self: start; margin-top: 4px; }
+
+/* Toolbox (eigenes Fenster) */
+.toolbox { padding: 20px 28px 40px; max-width: 1100px; margin: 0 auto; }
+.toolbox-kopf { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }
+.toolbox-kopf h1 { margin: 0; font-size: 22px; }
+.toolbox-reiter { display: flex; gap: 6px; flex-wrap: wrap; }
+.reiter { background: none; color: var(--text); border-color: var(--linie); }
+.reiter.aktiv { background: var(--flaeche); border-color: var(--akzent); color: var(--akzent); font-weight: 600; }
+.rechner-formular { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; align-items: end; }
+@media (max-width: 860px) { .rechner-formular { grid-template-columns: 1fr 1fr; } }
+.rechner-formular label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-leise); }
+.rechner-formular .breit { grid-column: 1 / -1; }
+.rechner input, .rechner select { font: inherit; font-size: 14px; color: var(--text); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); }
+.rechner input[type="radio"], .rechner input[type="checkbox"] { padding: 0; margin-right: 6px; }
+.posten { border: 1px solid var(--linie); border-radius: 8px; padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.posten legend { font-size: 13px; color: var(--text-leise); padding: 0 4px; }
+.posten-zeile { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.posten-zeile input:not([type="date"]) { width: 160px; }
+.wahl { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.wahl label { flex-direction: row; align-items: baseline; color: var(--text); font-size: 14px; }
+.rechner-ergebnis { margin-top: 24px; padding: 16px 20px; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 10px; }
+.rechner-ergebnis h2 { margin: 0; font-size: 18px; }
+.summen { display: grid; grid-template-columns: max-content max-content; gap: 4px 24px; margin: 14px 0; }
+.summen dt { color: var(--text-leise); }
+.summen dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.summen .gesamt { font-weight: 700; color: var(--text); }
+.staffel { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.staffel th, .staffel td { padding: 5px 8px; border-bottom: 1px solid var(--linie); text-align: left; vertical-align: top; }
+.staffel th { color: var(--text-leise); font-weight: 500; }
+.staffel .zahl { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.staffel tfoot td { font-weight: 600; border-bottom: none; }
+.staffel tr.ereignis td { font-size: 12px; color: var(--text-leise); border-bottom: none; padding-bottom: 0; font-style: italic; }
+.staffel.kosten { margin-top: 12px; }
+.staffel caption { text-align: left; font-weight: 600; padding: 4px 0; }
+.rechner-ergebnis h3 { margin: 20px 0 0; font-size: 15px; }
+.rechtszug { flex-direction: row !important; align-items: center; gap: 6px; color: var(--text) !important; font-size: 14px !important; min-width: 150px; }
+.posten-zeile .rechtszug input { width: auto; }
+.wahl input.satz { width: 64px; margin-left: 8px; }
+.gegner-zeile { padding-left: 24px; }
+.gegner-zeile input[type="number"] { width: 64px; margin-left: 6px; }
+.grundlagen { font-size: 12px; color: var(--text-leise); margin: 12px 0 0; }
+.basiszins { margin-top: 20px; font-size: 13px; }
+.basiszins summary { cursor: pointer; color: var(--text-leise); }
+.basiszins ul { margin: 6px 0; }
+
+@media print {
+  .nicht-drucken, .toolbox-kopf nav, .rechner-formular, .navigation { display: none !important; }
+  .rahmen { display: block; height: auto; }
+  .rechner-ergebnis { border: none; padding: 0; }
+}
+
+/* Arbeitsumgebungen */
+.umgebungen { list-style: none; padding: 0; margin: 12px 0; }
+.umgebungen li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--linie); }
+.umgebungen li.aktiv .umgebung-titel { font-weight: 600; }
+.umgebungen .aktionen { display: flex; gap: 8px; flex-wrap: wrap; }
+.umgebung-name, .umgebung-neu { display: flex; gap: 8px; align-items: center; flex: 1; }
+.umgebung-name input, .umgebung-neu input { flex: 1; min-width: 0; }
+.marke-aktiv { margin-left: 8px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; color: var(--gut); border: 1px solid var(--gut); }
+.umgebung-anzeige { font-size: 12px; color: var(--text-leise); text-align: left; background: none; border: none; padding: 0; margin-top: 6px; cursor: pointer; }
+.umgebung-anzeige strong { color: var(--text); }
+
+/* Eigene Daten */
+.eigene { max-width: 860px; }
+.eigene .karte { max-width: none; }
+.eigene .karte .kopf h2 { margin: 4px 0; }
+.frage-gross { font-size: 18px; margin: 16px 0; }
+.formkarten { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+@media (max-width: 760px) { .formkarten { grid-template-columns: 1fr; } }
+.formkarte { display: flex; flex-direction: column; gap: 8px; text-align: left; background: var(--flaeche); color: var(--text); border: 1px solid var(--linie); padding: 16px; border-radius: 8px; }
+.formkarte:hover:not(:disabled) { border-color: var(--akzent); }
+.formkarte.gewaehlt { border-color: var(--akzent); box-shadow: 0 0 0 1px var(--akzent); }
+.formkarte span { color: var(--text-leise); font-size: 13px; }
+.formular-raster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 12px 0; }
+@media (max-width: 760px) { .formular-raster { grid-template-columns: 1fr; } }
+.feld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.feld-breit { grid-column: 1 / -1; }
+.feld input, .feld select, .feld textarea { font: inherit; }
+.feld-ja-nein span { display: flex; align-items: center; gap: 6px; }
+.feld-hinweis { color: var(--text-leise); font-size: 12px; }
+.pflicht { color: var(--akzent); }
+.mehrfach { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.such-auswahl { position: relative; min-width: 0; }
+.such-auswahl-knopf { width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 10px; font: inherit; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); text-align: left; }
+.such-auswahl-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.such-auswahl-liste { position: absolute; left: 0; top: calc(100% + 4px); z-index: 20; width: max(100%, 380px); max-width: 80vw; box-sizing: border-box; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 8px; }
+.such-auswahl-liste input { width: 100%; box-sizing: border-box; padding: 7px 9px; }
+.such-auswahl-liste ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 50vh; overflow-y: auto; }
+.such-auswahl-zeile { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.such-auswahl-zeile[aria-selected="true"] { border-left: 3px solid var(--akzent); }
+.such-auswahl-zeile.markiert { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+.such-auswahl-titel { padding: 8px; color: var(--text-leise); }
+.assistent-navigation { margin: 16px 0; }
+.anzeige { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; margin: 8px 0 0; }
+.anzeige div { display: flex; flex-direction: column; }
+.anzeige dt { color: var(--text-leise); font-size: 12px; }
+.anzeige dd { margin: 0; white-space: pre-line; }
+.vollstaendigkeit h3 { font-size: 14px; margin: 4px 0; }
+.vollstaendigkeit ul { margin: 4px 0 8px; padding-left: 20px; }
+.eintraege { list-style: none; padding: 0; margin: 8px 0 0; }
+.eintraege > li { padding: 8px 0; border-bottom: 1px solid var(--linie); display: flex; flex-direction: column; gap: 4px; }
+.eintraege > li:not(:has(.eintrag-kopf)) { flex-direction: row; justify-content: space-between; align-items: center; gap: 12px; }
+.eintraege li.archiviert { opacity: 0.6; }
+.eintrag-kopf { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.eintrag-formular { border: 1px solid var(--linie); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+.anwaelte { margin-left: 16px; font-size: 13px; }
+.anwaelte ul { list-style: none; padding: 0; margin: 4px 0; }
+.schalter-zeile { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-leise); margin: 8px 0; }
+.kachel-stand { font-size: 12px; color: var(--warnung); }
+.kachel-stand.gut { color: var(--gut); }
+.eigene table.tabelle { width: 100%; border-collapse: collapse; font-size: 13px; }
+.eigene table.tabelle td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--linie); vertical-align: top; }
+
+/* Aktenverwaltung: Stammdaten, Beteiligte, Kollisionsprüfung */
+.stammdaten { max-width: 980px; }
+.stammdaten h3 { font-size: 15px; margin: 18px 0 6px; }
+.az-zeile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.az-zeile .az { font-size: 16px; font-weight: 600; }
+.beteiligte-akte .seite { margin: 8px 0; }
+.beteiligte-akte .seite-eigene > .leise { color: var(--akzent); }
+.beteiligte-akte .seite-gegen > .leise { color: var(--fehler); }
+.beteiligte-neu { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 16px; }
+@media (max-width: 760px) { .beteiligte-neu { grid-template-columns: 1fr; } }
+.beteiligter-formular { background: var(--hintergrund); }
+.beteiligter-formular h3 { margin-top: 4px; }
+.kollision { border-top: 1px solid var(--linie); margin-top: 16px; padding-top: 4px; }
+.ampel { display: flex; align-items: center; gap: 8px; font-weight: 600; margin: 8px 0; }
+.ampel-punkt { width: 12px; height: 12px; border-radius: 50%; background: currentColor; display: inline-block; }
+.ampel.ampel-gruen { color: var(--gut); }
+.ampel.ampel-gelb { color: var(--warnung); }
+.ampel.ampel-rot { color: var(--fehler); }
+.treffer { margin: 4px 0 8px; padding-left: 20px; }
+.treffer li { margin: 4px 0; }
+.treffer li.ampel-rot::marker { color: var(--fehler); }
+.treffer li.ampel-gelb::marker { color: var(--warnung); }
+.entscheidung { margin: 8px 0; }
+.akten-wahl .weiteres { max-width: 560px; }
+.akten-wahl .weiteres input { min-width: 0; }
+.akten-wahl .weiteres input + input { flex: 0 0 110px; }
+.beteiligte-akte .seite-gericht > .leise { color: var(--text); font-weight: 600; }
+.beteiligte-hinzufuegen { margin-top: 20px; padding: 10px 16px 14px; background: var(--hintergrund); border-left: 4px solid var(--akzent); }
+.beteiligte-hinzufuegen h4, .beziehungen h4 { margin: 2px 0 8px; font-size: 14px; }
+.hinweis-zeile { display: block; font-size: 13px; margin-top: 2px; }
+li.vorab-rot .hinweis-zeile .ampel-punkt { color: var(--fehler); }
+li.vorab-gelb .hinweis-zeile .ampel-punkt { color: var(--warnung); }
+li.vorab-rot .hinweis-zeile:last-child { color: var(--fehler); }
+.ampel-punkt.ampel-rot, .ampel-punkt.ampel-gelb { width: 9px; height: 9px; vertical-align: 1px; }
+.neuer-vertreter { margin-top: 8px; }
+input.betrag { text-align: right; }
+.kollision-kurz { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--linie); margin-top: 16px; padding-top: 10px; }
+.kollision-kurz .ampel { margin: 0; }
+input.funktion { font: inherit; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); width: 220px; margin-left: auto; margin-right: 8px; }
+.verzeichnis-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 12px; max-width: 1100px; }
+.verzeichnis-filter input { min-width: 240px; }
+.verzeichnis-filter input { flex: 1; font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.verzeichnis-filter select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+table.verzeichnis tr.gewaehlt td { background: var(--hintergrund); }
+.beteiligte-verzeichnis .karte { max-width: 980px; margin-bottom: 16px; }
