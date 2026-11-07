@@ -6,8 +6,8 @@ Seitenbild liegt dafür kurz im Temp-Ordner, der Text kommt über stdout zurück
 Es wird nichts übertragen.
 
 Der einzige plattformabhängige Teil ist die Suche nach dem Programm:
-``JURACORE_TESSERACT``, sonst ``tesseract`` im Suchpfad, sonst die üblichen
-Installationsorte unter Windows und macOS.
+``JURACORE_TESSERACT``, unter Windows dann die üblichen Installationsorte, danach
+``tesseract`` im Suchpfad und unter macOS die Homebrew-Orte.
 """
 
 from __future__ import annotations
@@ -31,14 +31,15 @@ def _kandidaten() -> list[Path]:
     pfade = []
     if env := os.environ.get("JURACORE_TESSERACT"):
         pfade.append(Path(env))
-    if gefunden := shutil.which("tesseract"):
-        pfade.append(Path(gefunden))
     if sys.platform == "win32":
+        # Erst die Installationsordner: shutil.which sucht unter Windows auch im aktuellen Ordner.
         for basis in (os.environ.get("ProgramFiles"), os.environ.get("LOCALAPPDATA")):
             if basis:
                 pfade.append(Path(basis) / "Tesseract-OCR" / "tesseract.exe")
                 pfade.append(Path(basis) / "Programs" / "Tesseract-OCR" / "tesseract.exe")
-    elif sys.platform == "darwin":
+    if gefunden := shutil.which("tesseract"):
+        pfade.append(Path(gefunden))
+    if sys.platform == "darwin":
         # Aus dem Finder gestartete Apps kennen den Homebrew-Pfad nicht.
         pfade += [Path("/opt/homebrew/bin/tesseract"), Path("/usr/local/bin/tesseract")]
     return pfade
