@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .. import grenzen
 from .zitate import UrteilsZitat, normalisiere_az
 
 URL = "https://www.rechtsprechung-im-internet.de/rii-toc.xml"
@@ -112,7 +113,7 @@ def lies_verzeichnis(daten: bytes) -> Iterator[Eintrag]:
             xmls = [n for n in z.namelist() if n.lower().endswith(".xml")]
             if len(xmls) != 1:
                 raise ValueError(f"Erwartet genau eine XML-Datei im Archiv, gefunden: {xmls}")
-            daten = z.read(xmls[0])
+            daten = grenzen.entpacke(z, xmls[0])
     for _, el in ET.iterparse(io.BytesIO(daten), events=("end",)):
         if _name(el.tag) != "item":
             continue

@@ -23,6 +23,7 @@ from datetime import date, datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from .. import grenzen
 from ..abgleich.angaben import MONATE
 
 DOKUMENT = "dokument"
@@ -67,9 +68,9 @@ def word_gespeichert(pfad: Path) -> str | None:
     """Letztes Speichern laut Word-Dokumenteigenschaften, als ISO-Zeitpunkt in Ortszeit."""
     try:
         with zipfile.ZipFile(pfad) as z:
-            xml = z.read("docProps/core.xml")
+            xml = grenzen.entpacke(z, "docProps/core.xml")
         wert = ET.fromstring(xml).findtext(f"{_CP}modified")
-    except (zipfile.BadZipFile, KeyError, ET.ParseError, OSError):
+    except (zipfile.BadZipFile, KeyError, ET.ParseError, OSError, grenzen.ZuGross):
         return None
     if not wert:
         return None

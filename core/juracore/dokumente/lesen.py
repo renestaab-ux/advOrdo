@@ -17,6 +17,7 @@ from collections.abc import Callable
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from .. import grenzen
 from .aufbereitung import abschnitte_bilden
 from .modell import DATEI, LEER, OCR, TEXTEBENE, Abschnitt, Dokument, Seite
 from .ocr import OcrNichtVerfuegbar, Tesseract
@@ -133,10 +134,10 @@ def _lies_docx(pfad: Path) -> Dokument:
     try:
         with zipfile.ZipFile(pfad) as z:
             namen = z.namelist()
-            dokument_xml = z.read("word/document.xml")
-            fussnoten_xml = z.read("word/footnotes.xml") if "word/footnotes.xml" in namen else None
+            dokument_xml = grenzen.entpacke(z, "word/document.xml")
+            fussnoten_xml = grenzen.entpacke(z, "word/footnotes.xml") if "word/footnotes.xml" in namen else None
             # Kopf- und Fußzeilen (Briefkopf, Aktenzeichen, Seitenfuß) in fester Reihenfolge.
-            rahmen_xml = [z.read(n) for n in sorted(namen, key=_rahmen_ordnung)
+            rahmen_xml = [grenzen.entpacke(z, n) for n in sorted(namen, key=_rahmen_ordnung)
                           if re.fullmatch(r"word/(header|footer)\d*\.xml", n)]
     except (zipfile.BadZipFile, KeyError) as fehler:
         raise ValueError(f"{pfad.name} ist keine lesbare Word-Datei (DOCX): {fehler}") from fehler

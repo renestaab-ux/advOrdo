@@ -19,6 +19,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import grenzen
 from . import bayern, eurlex
 
 BASIS_URL = "https://www.gesetze-im-internet.de"
@@ -310,4 +311,4 @@ def _xml_aus(zipdaten: bytes) -> bytes:
         xmls = [n for n in z.namelist() if n.lower().endswith(".xml") and "/" not in n.strip("/")]
         if len(xmls) != 1:
             raise ValueError(f"Erwartet genau eine XML-Datei im Archiv, gefunden: {xmls}")
-        return z.read(xmls[0])
+        return grenzen.entpacke(z, xmls[0])
