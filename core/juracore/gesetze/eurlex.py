@@ -25,9 +25,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from html.parser import HTMLParser
 
 from .. import netzprotokoll
+from ..htmlleser import HtmlLeser, leerraum
 from .gii import Absatz, GesetzDokument, Norm
 from .saetze import Liste, zerlege_in_saetze
 
@@ -148,14 +148,14 @@ class _El:
     kinder: list[_El | str] = field(default_factory=list)
 
 
-class _Baum(HTMLParser):
+class _Baum(HtmlLeser):
     def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
+        super().__init__()
         self.wurzel = _El("#wurzel", set(), {})
         self._stapel = [self.wurzel]
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        a = {k: v or "" for k, v in attrs}
+        a = self.attribute(attrs)
         # Klassen ohne "oj-", damit alte und neue Rechtsakte gleich gelesen werden.
         el = _El(tag, {k.removeprefix("oj-") for k in a.get("class", "").split()}, a)
         self._stapel[-1].kinder.append(el)
@@ -163,7 +163,7 @@ class _Baum(HTMLParser):
             self._stapel.append(el)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        self._stapel[-1].kinder.append(_El(tag, set(), {k: v or "" for k, v in attrs}))
+        self._stapel[-1].kinder.append(_El(tag, set(), self.attribute(attrs)))
 
     def handle_endtag(self, tag: str) -> None:
         for i in range(len(self._stapel) - 1, 0, -1):
@@ -189,7 +189,7 @@ def _text(el: _El | str) -> str:
 
 
 def _rein(t: str) -> str:
-    return re.sub(r"\s+", " ", t.replace("\xa0", " ")).strip()
+    return leerraum(t)
 
 
 def _zellen(tabelle: _El) -> list[list[_El]]:
@@ -348,9 +348,7 @@ class _Artikel:
 def parse_eurlex_html(daten: bytes | str, abk: str = "") -> GesetzDokument:
     """Parst die HTML-Fassung eines Rechtsakts aus EUR-Lex."""
     text = daten.decode("utf-8", "replace") if isinstance(daten, bytes) else daten
-    baum = _Baum()
-    baum.feed(text)
-    baum.close()
+    baum = _Baum.lies(text)
     bloecke = _bloecke(baum.wurzel)
 
     datum = next((b.text for b in bloecke if b.art == "kopf_datum"), None)

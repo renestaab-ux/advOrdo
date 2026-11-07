@@ -24,10 +24,10 @@ import re
 import sqlite3
 import urllib.parse
 import urllib.request
-from html.parser import HTMLParser
 from pathlib import Path
 
 from .. import netzprotokoll
+from ..htmlleser import HtmlLeser
 from .verzeichnis import USER_AGENT, dokument_link
 from .zitate import normalisiere_az
 
@@ -82,11 +82,11 @@ def lokal(con: sqlite3.Connection, gericht: str | None = None, aktenzeichen: str
 # --- Formulare -------------------------------------------------------------------------------------
 
 
-class _Formulare(HTMLParser):
+class _Formulare(HtmlLeser):
     """Liest ``<base href>`` und die Felder aller Formulare in ihrer Reihenfolge."""
 
     def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
+        super().__init__()
         self.base: str | None = None
         self.formulare: dict[str, dict] = {}
         self.alle: list[dict] = []
@@ -95,7 +95,7 @@ class _Formulare(HTMLParser):
         self._option: dict | None = None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        a = {k: v or "" for k, v in attrs}
+        a = self.attribute(attrs)
         if tag == "base" and self.base is None and a.get("href"):
             self.base = a["href"]
         elif tag == "form":
@@ -138,9 +138,7 @@ class _Formulare(HTMLParser):
 
 
 def lies_formulare(seite: str) -> _Formulare:
-    p = _Formulare()
-    p.feed(seite)
-    return p
+    return _Formulare.lies(seite)
 
 
 def _adresse(base: str, action: str, felder: list[tuple[str, str]]) -> str:
