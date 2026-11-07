@@ -1,6 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { NachrichtenEinstellungen, NachrichtenFeed, kern } from "./kern";
 
+/** Feeds laden nur Schlagzeilen, keine Akteninhalte; http ist daher erlaubt, aber benannt. */
+const HTTP_HINWEIS =
+  "Die Quelle bietet kein https an; der Feed wird unverschlüsselt geladen. Übertragen werden nur Schlagzeilen, keine Akteninhalte.";
+
 /**
  * Einstellungen, Reiter „Nachrichten“: RSS- und Atom-Feeds für die Startseite. Sobald einer eingetragen ist,
  * erscheint dort unter „Zuletzt geöffnet“ und „Nächste Fristen und Termine“ das Feld „Nachrichten“.
@@ -29,7 +33,8 @@ export default function Nachrichten() {
       setAdresse("");
       setMeldung(
         `„${r.neu.titel}“ hinzugefügt (${r.eintraege} ${r.eintraege === 1 ? "Eintrag" : "Einträge"}).` +
-          (r.neu.url !== url.trim() ? ` Gefunden unter ${r.neu.url}.` : ""),
+          (r.neu.url !== url.trim() ? ` Gefunden unter ${r.neu.url}.` : "") +
+          (r.neu.url.startsWith("http://") ? ` ${HTTP_HINWEIS}` : ""),
       );
     } catch (f) {
       setFehler(String(f));
@@ -151,6 +156,11 @@ function FeedZeile({
           onBlur={() => titel.trim() && titel !== feed.titel && onUmbenennen(titel)}
         />
         <code className="feed-url">{feed.url}</code>
+        {feed.url.startsWith("http://") && (
+          <span className="feld-hinweis warnhinweis" title={HTTP_HINWEIS}>
+            unverschlüsselt (http)
+          </span>
+        )}
       </div>
       <button className="zweitrangig" onClick={onEntfernen}>
         Entfernen

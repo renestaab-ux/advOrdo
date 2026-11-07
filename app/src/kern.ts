@@ -1754,6 +1754,19 @@ export interface KiModus {
   ort: "geraet" | "netzwerk" | null;
 }
 
+/** Lokales Modell auf einem anderen Rechner per http: Dokumentinhalte gehen unverschlüsselt durchs eigene Netz. */
+export function unverschluesseltImNetz(endpunkt: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpunkt.trim());
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:") return false;
+  const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  return !(host === "localhost" || host.endsWith(".localhost") || host === "::1" || /^127\./.test(host));
+}
+
 /** Kurzname des KI-Modus für Navigation und Startseite. */
 export function kiModusName(modus: KiModus | null): string {
   if (modus?.aus) return "Nicht aktiv";

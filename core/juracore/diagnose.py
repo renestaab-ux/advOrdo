@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from . import __version__, gerichte, programme, zertifikate
+from . import __version__, gerichte, programme, verschluesselung, zertifikate
 from .dokumente import ocr
 from .gesetze import quelle
 from .ki import anbieter as ki_anbieter
@@ -117,6 +117,27 @@ def _archiv(k: Any) -> dict:
                          "Das Gesetz unter „Gesetze“ neu laden, dann wird das Original wieder abgelegt.")
     return _ergebnis("ok", "Alle archivierten Rechtsquellen sind unverändert." if zeilen
                      else "Noch keine Rechtsquellen archiviert.", details)
+
+
+VERSCHLUESSELUNG_HILFE = (
+    "Akten und Originale liegen im Datenordner unverschlüsselt. Für Verschwiegenheit (§ 43a Abs. 2 BRAO, § 2 BORA) "
+    "und Datensicherheit (Art. 32 DSGVO) die Festplatte verschlüsseln: Windows BitLocker bzw. Geräteverschlüsselung "
+    "(Einstellungen → Datenschutz und Sicherheit), macOS FileVault (Systemeinstellungen → Datenschutz & Sicherheit), "
+    "Linux LUKS (bei der Installation wählen)."
+)
+
+
+def _verschluesselung(k: Any) -> dict:
+    ordner = Path(k.ki_datei).parent
+    b = verschluesselung.pruefe(ordner)
+    details = [*b.details, f"Datenordner: {ordner}"]
+    if b.stand == verschluesselung.AN:
+        return _ergebnis("ok", f"Der Datenordner liegt auf einem verschlüsselten Laufwerk ({b.verfahren}).", details)
+    if b.stand == verschluesselung.AUS:
+        return _ergebnis("warnung", "Das Laufwerk mit dem Datenordner ist nicht verschlüsselt.", details,
+                         VERSCHLUESSELUNG_HILFE)
+    return _ergebnis("warnung", "Ob das Laufwerk verschlüsselt ist, ließ sich nicht feststellen.", details,
+                     "Bitte selbst prüfen. " + VERSCHLUESSELUNG_HILFE)
 
 
 def _ocr(_k: Any) -> dict:
@@ -278,6 +299,7 @@ PRUEFUNGEN: list[tuple[str, str, str, Callable[[Any], dict]]] = [
     ("kern", "programm", "Kern und Datenordner", _kern),
     ("datenbanken", "programm", "Datenbanken", _datenbanken),
     ("archiv", "programm", "Archiv der Rechtsquellen (SHA-256)", _archiv),
+    ("verschluesselung", "programm", "Verschlüsselung der Festplatte", _verschluesselung),
     ("ocr", "programm", "Texterkennung (Tesseract)", _ocr),
     ("programme", "programm", "Externe Programme", _programme),
     ("ki_lokal", "ki", "Lokales Sprachmodell", _ki_lokal),

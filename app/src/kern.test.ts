@@ -859,3 +859,16 @@ describe("paketGruppen", () => {
     expect(paketGruppen(liste, "verwaltungsrecht")).toEqual([]);
   });
 });
+
+describe("unverschluesseltImNetz", () => {
+  it("warnt nur bei http zu einem anderen Rechner", async () => {
+    const { unverschluesseltImNetz } = await import("./kern");
+    expect(unverschluesseltImNetz("http://192.168.178.20:1234")).toBe(true);
+    expect(unverschluesseltImNetz("http://pc-buero.local:11434")).toBe(true);
+    expect(unverschluesseltImNetz("http://127.0.0.1:11434")).toBe(false);
+    expect(unverschluesseltImNetz("http://localhost:1234")).toBe(false);
+    expect(unverschluesseltImNetz("http://[::1]:1234")).toBe(false);
+    expect(unverschluesseltImNetz("https://192.168.178.20:1234")).toBe(false);
+    expect(unverschluesseltImNetz("kein url")).toBe(false);
+  });
+});

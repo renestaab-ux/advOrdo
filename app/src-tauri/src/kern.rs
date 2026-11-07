@@ -189,12 +189,34 @@ fn auswerten(antwort: Value) -> Result<Value, String> {
     Ok(antwort.get("result").cloned().unwrap_or(Value::Null))
 }
 
+/// Methoden, die die Oberfläche aufrufen darf (erzeugt mit `python core/kern_methoden.py`).
+const FREIGEGEBEN: &str = include_str!("../kern-methoden.txt");
+
+fn freigegeben_name(methode: &str) -> bool {
+    FREIGEGEBEN.lines().any(|z| !z.starts_with('#') && z.trim() == methode)
+}
+
+/// Nur Methoden aus der Liste; bei `hintergrund.starten` gilt das auch für die gestartete Methode.
+fn pruefe_freigabe(methode: &str, params: &Value) -> Result<(), String> {
+    if !freigegeben_name(methode) {
+        return Err(format!("Die Methode „{methode}“ ist für die Oberfläche nicht freigegeben."));
+    }
+    if methode == "hintergrund.starten" {
+        let innen = params.get("methode").and_then(Value::as_str).unwrap_or("");
+        if !freigegeben_name(innen) {
+            return Err(format!("Die Methode „{innen}“ ist für die Oberfläche nicht freigegeben."));
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn kern_aufruf(
     kern: tauri::State<'_, Arc<Kern>>,
     methode: String,
     params: Value,
 ) -> Result<Value, String> {
+    pruefe_freigabe(&methode, &params)?;
     let kern = Arc::clone(&kern);
     tauri::async_runtime::spawn_blocking(move || kern.aufruf(&methode, params))
         .await
@@ -210,6 +232,18 @@ mod tests {
         let p = venv_python(Path::new("projekt"));
         let erwartet = if cfg!(windows) { "projekt/.venv/Scripts/python.exe" } else { "projekt/.venv/bin/python" };
         assert_eq!(p, PathBuf::from(erwartet.replace('/', std::path::MAIN_SEPARATOR_STR)));
+    }
+
+    #[test]
+    fn nur_freigegebene_methoden() {
+        assert!(pruefe_freigabe("akten.liste", &json!({})).is_ok());
+        assert!(pruefe_freigabe("akten.beteiligung_aendern", &json!({})).is_err());
+        assert!(pruefe_freigabe("gibt.es.nicht", &json!({})).is_err());
+        assert!(pruefe_freigabe("# Kernmethoden", &json!({})).is_err());
+        let gut = json!({ "methode": "akten.importieren_dateien", "params": {} });
+        assert!(pruefe_freigabe("hintergrund.starten", &gut).is_ok());
+        let schlecht = json!({ "methode": "akten.importieren", "params": {} });
+        assert!(pruefe_freigabe("hintergrund.starten", &schlecht).is_err());
     }
 
     #[test]

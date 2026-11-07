@@ -301,7 +301,7 @@ class Nachrichten:
             raise ValueError("Bitte die Adresse des Feeds angeben.")
         if "://" not in url:
             url = "https://" + url
-        feed_url, inhalt = finde_feed(url, self.oeffnen)
+        feed_url, inhalt = self._finde_sicher(url)
         with self._sperre:
             feeds = _lade(self.datei)
             if any(f["url"] in (url, feed_url) for f in feeds):
@@ -317,6 +317,23 @@ class Nachrichten:
             stand["feeds"][neu["id"]] = self._feed_stand(neu, inhalt)
             self._schreibe_cache(stand)
         return {**self.einstellungen(), "neu": neu, "eintraege": len(inhalt["eintraege"])}
+
+    def _finde_sicher(self, url: str) -> tuple[str, dict]:
+        """Wie finde_feed, aber https bevorzugt: Eine http-Adresse wird zuerst verschlüsselt versucht, ebenso ein
+        Feed, auf den eine Seite per http verweist. Nur wenn es dort nichts gibt, bleibt es bei http."""
+        if url.startswith("http://"):
+            try:
+                return self._finde_sicher("https://" + url[len("http://"):])
+            except (KeinFeed, OSError, ValueError):
+                pass
+        feed_url, inhalt = finde_feed(url, self.oeffnen)
+        if feed_url.startswith("http://"):
+            sicher = "https://" + feed_url[len("http://"):]
+            try:
+                return sicher, lies_feed(abrufen(sicher, self.oeffnen), sicher)
+            except (KeinFeed, OSError, ValueError):
+                pass
+        return feed_url, inhalt
 
     def umbenennen(self, feed_id: str, titel: str) -> dict:
         titel = titel.strip()
