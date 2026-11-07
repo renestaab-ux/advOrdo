@@ -1,0 +1,235 @@
+{
+ "plan": {
+  "Akte": {
+   "./kern": [
+    "Abschnitt",
+    "Akte as AkteTyp",
+    "AktenDokument",
+    "Arbeitskopie",
+    "BETEILIGTE",
+    "Beleg",
+    "Beteiligung",
+    "DokumentInhalt",
+    "ImportErgebnisDatei",
+    "Loeschergebnis",
+    "NormEintrag",
+    "NormZitat",
+    "OcrStatus",
+    "OrdnerFunde",
+    "URTEIL_QUELLEN",
+    "UrteilEintrag",
+    "UrteilInfo",
+    "UrteilStatus",
+    "UrteilVolltext",
+    "dokumentName",
+    "fundstelle",
+    "istDesktop",
+    "kern",
+    "kernImHintergrund",
+    "kopieSchluessel",
+    "lesartText",
+    "offeneUebernahmen",
+    "sortiereTags",
+    "tagUebersicht",
+    "tagsAusText",
+    "urteilHerkunft",
+    "urteilTitel"
+   ],
+   "./DokumentAnsicht": [
+    "DokModusLeiste",
+    "DokumentAnsicht",
+    "ErgaenzungsFrage",
+    "NormenAnsicht",
+    "OriginalAnsicht",
+    "RechtsprechungAnsicht",
+    "VolltextAnsicht",
+    "ZugeordneteUrteile",
+    "scrollRahmen"
+   ],
+   "./Chat": [
+    "default:Chat"
+   ],
+   "./merken": [
+    "gemerkt",
+    "merke"
+   ],
+   "./lesezeichenLogik": [
+    "Lesezeichen"
+   ],
+   "./Symbole": [
+    "LeerHinweis",
+    "default:Zeichen"
+   ],
+   "./DokumentExtern": [
+    "UebernahmeFrage",
+    "default:DokumentExtern"
+   ],
+   "react": [
+    "CSSProperties",
+    "PointerEvent as ReactPointerEvent",
+    "ReactNode",
+    "useCallback",
+    "useEffect",
+    "useRef",
+    "useState"
+   ],
+   "./Lesezeichen": [
+    "Bildlaufmarken",
+    "LesezeichenLeiste",
+    "OrdnerAnsicht",
+    "OrdnerAnsichtArt",
+    "useLesezeichen"
+   ],
+   "./DokumentDetails": [
+    "DetailsGriff",
+    "default:DokumentDetails"
+   ],
+   "./Gegenueberstellung": [
+    "GegenueberstellungBereich"
+   ],
+   "./AkteTeile": [
+    "DokumentDatum",
+    "EinrichtungsHinweise",
+    "OrdnerRueckfrage",
+    "TagEditor",
+    "ZitatZaehlung"
+   ],
+   "./Gesetze": [
+    "BelegAnsicht"
+   ],
+   "./Trenner": [
+    "default:Trenner"
+   ],
+   "./Rueckfrage": [
+    "Rueckfrage"
+   ],
+   "./Anmerkungen": [
+    "AnmerkungsLeiste",
+    "anmerkungsHandler",
+    "useAnmerkungen"
+   ],
+   "./kiSchalter": [
+    "useKiAn"
+   ],
+   "./anmerkungLogik": [
+    "Anmerkung"
+   ],
+   "@tauri-apps/plugin-dialog": [
+    "open"
+   ]
+  },
+  "Rueckfrage": {},
+  "AkteTeile": {
+   "./kern": [
+    "AktenDokument",
+    "BETEILIGTE",
+    "STATUS_TEXT",
+    "ZitatStatus",
+    "dokumentDatum",
+    "tagsAusText"
+   ],
+   "./Akte": [
+    "OrdnerFrage"
+   ]
+  },
+  "DokumentAnsicht": {
+   "./Chat": [
+    "default:Chat"
+   ],
+   "./kern": [
+    "Abschnitt",
+    "AktenDokument",
+    "DokumentInhalt",
+    "NormEintrag",
+    "NormZitat",
+    "ONLINE_QUELLE",
+    "QUELLEN_HINWEIS",
+    "STATUS_TEXT",
+    "Seitenbild",
+    "URTEIL_QUELLEN",
+    "URTEIL_QUELLE_NAME",
+    "URTEIL_STATUS_TEXT",
+    "URTEIL_TEILE",
+    "UrteilEintrag",
+    "UrteilInfo",
+    "UrteilVolltext",
+    "dokumentDatum",
+    "dokumentName",
+    "fundstelle",
+    "kern",
+    "lesartText",
+    "markiereBegriffe",
+    "renderBreite",
+    "rnHinweis",
+    "segmente",
+    "sortiereTags",
+    "urteilHerkunft",
+    "urteilTitel"
+   ],
+   "./anmerkungLogik": [
+    "Anmerkung",
+    "AnmerkungAufSeite",
+    "SeitenWort",
+    "abschnittBeginne",
+    "auswahlRechtecke",
+    "stueckKlassen",
+    "stuecke",
+    "wortAn"
+   ],
+   "./lesezeichenLogik": [
+    "Lesezeichen",
+    "LesezeichenAufSeite"
+   ],
+   "./Symbole": [
+    "default:Zeichen"
+   ],
+   "./Akte": [
+    "Akte",
+    "Auswahl",
+    "DokModus",
+    "Ergaenzung"
+   ],
+   "./Anmerkungen": [
+    "OriginalAnmerkungen",
+    "SeitenAuswahl",
+    "anmerkungsHandler"
+   ],
+   "react": [
+    "MouseEvent as ReactMouseEvent",
+    "PointerEvent as ReactPointerEvent",
+    "ReactNode",
+    "useEffect",
+    "useMemo",
+    "useRef",
+    "useState"
+   ],
+   "./kiSchalter": [
+    "useKiAn"
+   ]
+  }
+ },
+ "exp": {
+  "Akte": [
+   "Auswahl",
+   "DokModus",
+   "Ergaenzung",
+   "OrdnerFrage"
+  ],
+  "Rueckfrage": [],
+  "AkteTeile": [
+   "DokumentDatum",
+   "EinrichtungsHinweise",
+   "OrdnerRueckfrage",
+   "TagEditor",
+   "ZitatZaehlung"
+  ],
+  "DokumentAnsicht": [
+   "DokModusLeiste",
+   "ErgaenzungsFrage",
+   "NormenAnsicht",
+   "RechtsprechungAnsicht",
+   "ZugeordneteUrteile",
+   "scrollRahmen"
+  ]
+ }
+}

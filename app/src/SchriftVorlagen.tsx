@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Rueckfrage } from "./Akte";
+import { Rueckfrage } from "./Rueckfrage";
 import { PlatzhalterEintrag, SchriftVorlage, SchriftVorlagen, kern } from "./kern";
 
 /**

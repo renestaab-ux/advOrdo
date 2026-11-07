@@ -1,5 +1,6 @@
 import { Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
-import Akte, { AkteReiter, Rueckfrage } from "./Akte";
+import Akte, { AkteReiter } from "./Akte";
+import { Rueckfrage } from "./Rueckfrage";
 import AkteStammdaten from "./AkteStammdaten";
 import Analyse from "./Analyse";
 import AusDokument from "./AusDokument";

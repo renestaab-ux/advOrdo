@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Rueckfrage } from "./Akte";
+import { Rueckfrage } from "./Rueckfrage";
 import SuchAuswahl, { SUCHE_AB } from "./SuchAuswahl";
 import {
   EigeneAenderung,

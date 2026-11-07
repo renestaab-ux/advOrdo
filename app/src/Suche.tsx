@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { DokumentAnsicht, OriginalAnsicht, VolltextAnsicht } from "./Akte";
+import { DokumentAnsicht, OriginalAnsicht, VolltextAnsicht } from "./DokumentAnsicht";
 import AktenWahl from "./AktenWahl";
 import { anmerkungsHandler, useAnmerkungen } from "./Anmerkungen";
 import { Anmerkung, anmerkungOrt, kommentarText } from "./anmerkungLogik";

@@ -1,5 +1,5 @@
 import { KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
-import { DokumentAnsicht } from "./Akte";
+import { DokumentAnsicht } from "./DokumentAnsicht";
 import { FundstelleZeile, Offen } from "./Analyse";
 import { Zitatbereich, ZitateSchalter, useZitateZeigen } from "./Belege";
 import { GegenueberstellungListe } from "./Gegenueberstellung";

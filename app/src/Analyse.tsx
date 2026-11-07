@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DokumentAnsicht } from "./Akte";
+import { DokumentAnsicht } from "./DokumentAnsicht";
 import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
 import KiExport from "./Export";
 import { useAuftrag } from "./useAuftrag";
