@@ -1696,6 +1696,12 @@ button.lz-titel:disabled { color: var(--text-leise); }
   button.segment-knopf.aktiv, [aria-pressed="true"], [aria-selected="true"], .nav-eintrag.aktiv { outline: 2px solid Highlight; outline-offset: -2px; }
   :focus-visible:not(main) { outline: 3px solid Highlight !important; outline-offset: 2px; }
   .ampel-punkt, .modus-punkt, .farbmuster { forced-color-adjust: none; }
+  /* Unsichtbare Platzhalter-Ränder (für den Strich am gewählten Eintrag) würden im Kontrastdesign als Linien
+     erscheinen: in Hintergrundfarbe zeichnen, nur am gewählten Eintrag bzw. Ablageziel in Markierungsfarbe. */
+  .nav-eintrag, button.akte-reiter-knopf, .dok-modi button.dok-modus, .lz-zeile { border-color: Canvas; }
+  .nav-eintrag.aktiv, button.akte-reiter-knopf.aktiv, .dok-modi button.dok-modus.aktiv { border-color: Highlight; }
+  .lz-zeile.lz-ziel-vor { border-top-color: Highlight; }
+  .lz-zeile.lz-ziel-nach { border-bottom-color: Highlight; }
 }
 
 /* Nur für Bildschirmleser: unsichtbar, aber vorgelesen. */

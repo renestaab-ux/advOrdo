@@ -231,6 +231,9 @@ def test_pdf_mit_zeichen_ausserhalb_von_winansi():
     assert len(daten) < 150_000  # nur die benutzten Glyphen
 
 
-def test_pdf_ohne_sonderzeichen_bleibt_bei_standardschriften():
+def test_pdf_bettet_schrift_auch_ohne_sonderzeichen_ein():
+    """PDF/A und PDF/UA verlangen eingebettete Schriften, auch wenn nur WinAnsi-Zeichen vorkommen."""
     daten = pdf.schreiben(Bericht("Brückner ./. Autohaus", [Ueberschrift("Fristen"), Eintrag("Frist § 276 ZPO", "1.")]))
-    assert b"/Helvetica" in daten and b"/FontFile2" not in daten
+    assert b"/FontFile2" in daten and b"/Helvetica" not in daten
+    assert "Brückner ./. Autohaus" in " ".join(_pdf_text(daten))
+    assert len(daten) < 150_000

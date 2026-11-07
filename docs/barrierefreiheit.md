@@ -26,7 +26,7 @@ Stand: 3. November 2026 · Maßstab: **WCAG 2.2, Konformitätsstufe AA**, und **
 | Automatisch, Tastaturlogik | `barrierefrei.test.ts`, `lesezeichenLogik.test.ts`: Kürzel, Fokus im Dialog, Trennlinie, Verschieben ohne Ziehen | bei jedem `npm test` |
 | Erzeugte PDFs | `core/tests/test_pdf_struktur.py`: Strukturbaum, Sprache, Titel, Artefakte (mit PDFium gelesen) | bei jedem `pytest` |
 | Mit echtem Kern und Testakte | axe-core im Browser über alle Bereiche, eine geöffnete Akte mit allen Reitern und alle Dokumentansichten, normal und barrierefrei, hell und dunkel, einschließlich Farbkontrast | einmalig am 1. und 3. November 2026; Ergebnis: keine Befunde |
-| Von Hand | Tastatur allein, Windows-Sprachausgabe bzw. NVDA, Kontrastdesign von Windows, Vergrößerung 200 % | **steht noch aus** (siehe „Offen“) |
+| Von Hand | Tastatur allein, Windows-Sprachausgabe bzw. NVDA, Kontrastdesign von Windows, Vergrößerung 200 % | 07.11.2026 unter Windows 11: Markieren per Tastatur (Tab), Pfeiltasten statt Ziehen, Schriftgrößen, Sprachausgabe und Kontrastdesign in Ordnung. Im Kontrastdesign sichtbare Platzhalter-Ränder an Leiste und Reitern danach behoben. Ein vollständiger Durchlauf des Ablaufs unter „Offen“ 1 steht noch aus |
 
 Automatische Prüfungen finden erfahrungsgemäß nur einen Teil der Barrieren. Eine Konformitätserklärung setzt deshalb
 die Prüfung von Hand voraus. Bis dahin beschreibt diese Seite den Stand und erklärt keine Konformität.
@@ -74,7 +74,7 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | 1.4.11 | Nicht-Text-Kontrast | AA | erfüllt | Ränder von Feldern und Knöpfen; bei hohem Kontrast mindestens 3 : 1 |
 | 1.4.12 | Textabstand | AA | umgesetzt | keine festen Höhen für Text; „Mehr Abstand“ setzt 1,6 Zeilenabstand |
 | 1.4.13 | Inhalt bei Hover oder Fokus | AA | umgesetzt | Hinweise sind `title`-Tooltips des Systems; die Vorschau einer Anmerkung schließt mit Escape |
-| 2.1.1 | Tastatur | A | umgesetzt | alle Funktionen per Tastatur; Trennlinien mit Pfeiltasten; Verschieben von Lesezeichen und Ordnern mit Pfeil hoch/runter. **Offen:** Markieren und Kommentieren setzen eine Textauswahl voraus; mit der Tastatur geht das nur über die Textcursor-Navigation der Webansicht (F7), im Original (PDF-Bild) gar nicht |
+| 2.1.1 | Tastatur | A | umgesetzt | alle Funktionen per Tastatur; Trennlinien mit Pfeiltasten; Verschieben von Lesezeichen und Ordnern mit Pfeil hoch/runter. Markieren und Kommentieren im Text-Modus per Tastatur von Hand bestätigt (07.11.2026). **Offen:** im Original (PDF-Bild) nur mit der Maus |
 | 2.1.2 | Keine Tastaturfalle | A | umgesetzt | Dialoge halten den Fokus, Escape gibt ihn frei |
 | 2.1.4 | Tastaturkürzel mit Zeichen | A | erfüllt | Kürzel nur mit Alt bzw. Strg/⌘, keine Einzelzeichen |
 | 2.2.1 | Zeitbegrenzungen anpassbar | A | erfüllt | keine Zeitgrenzen |
@@ -119,7 +119,7 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | 5.4 | Erhalt von Barrierefreiheitsinformationen bei Konvertierung | erfüllt | Export nach docx mit Überschriftenformaten, nach PDF mit Strukturbaum (siehe 10) |
 | 5.5–5.8 | Bedienteile, Tastenwiederholung, Doppelanschlag | n. a. | keine eigene Hardware; Tastatur des Systems |
 | 5.9 | Gleichzeitige Benutzeraktionen | erfüllt | Alt + Ziffer ist nur ein Kürzel; jede Funktion geht auch mit einem Klick |
-| 10.x | Erzeugte Dokumente | teilweise | **Word (docx):** Sprache de-DE, Titel in den Eigenschaften, echte Formatvorlagen „Title“ und „heading 1–3“. **PDF:** getaggt (`/MarkInfo`, Strukturbaum mit H1–H3 und P, Sprache, Titel, Fußzeile und Linien als Artefakt). **Offen:** PDF/UA ist nicht mit einem Validator (z. B. veraPDF, PAC) bestätigt; Excel ohne eigene Prüfung; die „PDF-Kopie mit Markierungen“ ändert das Original des Nutzers und erbt dessen Struktur |
+| 10.x | Erzeugte Dokumente | teilweise | **Word (docx):** Sprache de-DE, Titel in den Eigenschaften, echte Formatvorlagen „Title“ und „heading 1–3“. **PDF:** getaggt (`/MarkInfo`, Strukturbaum mit H1–H3 und P, Sprache, Titel, Fußzeile und Linien als Artefakt). Seit 07.11.2026 zusätzlich mit Kennung PDF/A-2a und PDF/UA-1: eingebettete Schrift (Liberation Sans, Teilmenge), XMP-Metadaten mit Titel und Erweiterungsschema für `pdfuaid`, Ausgabebedingung mit sRGB-Profil, Dateikennung. **Offen:** Bestätigung mit einem Validator (veraPDF, PAC) für die neue Fassung; die Fassung vorher scheiterte an PDF/A-2b (Schrift nicht eingebettet, kein Farbprofil, keine Kennung, kein XMP); Excel ohne eigene Prüfung; die „PDF-Kopie mit Markierungen“ ändert das Original des Nutzers und erbt dessen Struktur |
 | 11.5 | Zusammenarbeit mit Hilfsmitteln | umgesetzt | Webansicht des Systems stellt die Oberfläche über UI Automation (Windows), NSAccessibility (macOS), AT-SPI (Linux) bereit; von Hand mit NVDA/Sprachausgabe bestätigen |
 | 11.6 | Dokumentierte Hilfsmittelnutzung | n. a. | JuraBox ist selbst kein Hilfsmittel |
 | 11.7 | Benutzereinstellungen | erfüllt | folgt Hell/Dunkel, Kontrastdesign, „Kontrast erhöhen“, „Bewegung reduzieren“ des Systems. Die Textgröße des Systems wirkt je nach Webansicht; JuraBox hat zusätzlich eine eigene Schriftgröße |
@@ -133,8 +133,7 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 1. **Prüfung von Hand** (Voraussetzung für eine Konformitätserklärung): Ablauf „Akte anlegen → Dokumente einlesen →
    Dokument lesen → Frist eintragen → Schriftstück erzeugen“ allein mit der Tastatur und mit NVDA bzw. der Windows-
    Sprachausgabe; dasselbe im Kontrastdesign von Windows und bei 200 %.
-2. **Markieren und Kommentieren per Tastatur** (2.1.1): eine eigene Tastaturauswahl im Text-Modus (z. B. Absatz
-   wählen, dann Umschalt + Pfeil) und eine Alternative für das Original (PDF-Bild).
-3. **PDF/UA** mit veraPDF oder PAC bestätigen.
+2. **Markieren und Kommentieren per Tastatur** (2.1.1) im Original (PDF-Bild); im Text-Modus geht es (07.11.2026).
+3. **PDF/A-2a und PDF/UA-1** der neuen Fassung mit veraPDF oder PAC bestätigen.
 4. **Sprache von Teilen** (3.1.2) für fremdsprachige Normtexte aus EUR-Lex.
 5. **Reflow** (1.4.10) der dreispaltigen Akte bei 200 %: Spalten bei schmalem Fenster untereinander.

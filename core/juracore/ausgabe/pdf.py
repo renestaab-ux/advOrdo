@@ -1,20 +1,23 @@
 """Bericht als PDF, ohne Zusatzbibliothek.
 
-Gesetzt wird in den PDF-Standardschriften Helvetica, Helvetica-Bold und Helvetica-Oblique, die jeder PDF-Betrachter
-mitbringt; es wird keine Schrift eingebettet. Die Kodierung ist WinAnsi (cp1252): Umlaute, ß, §, „ “, – und €
-sind enthalten. Einige Zeichen werden ersetzt (z. B. „→“ durch „->“). Enthält der Bericht Zeichen außerhalb von
-WinAnsi (etwa „ş“, „ł“, „č“ in Namen), wird er ganz in der eingebetteten Liberation Sans gesetzt (``schrift.py``),
-die dieselben Zeichenbreiten hat. Zeilen werden mit den echten Zeichenbreiten umbrochen. Format A4, Fußzeile mit
-Titel und „Seite n von m“.
+Das PDF erfüllt PDF/A-2a (ISO 19005-2, Langzeitarchiv) und PDF/UA-1 (ISO 14289-1, barrierefrei): Gesetzt wird in
+der eingebetteten Liberation Sans (``schrift.py``, nur die benutzten Glyphen), die dieselben Zeichenbreiten wie
+Helvetica hat und auch Zeichen außerhalb von WinAnsi kennt (etwa „ş“, „ł“, „č“ in Namen). Dazu kommen Strukturbaum
+(Überschriften, Absätze, Schmuck und Fußzeile als Artefakt), Sprache, XMP-Metadaten mit Titel und den Kennungen
+beider Normen, eine Ausgabebedingung mit sRGB-Profil (``farbprofil.py``) und eine Dateikennung. Einige Zeichen werden
+ersetzt (z. B. „→“ durch „->“). Fehlen die Schriftdateien, wird ersatzweise in den nicht eingebetteten
+Standardschriften Helvetica gesetzt (dann ohne PDF/A- und PDF/UA-Kennung). Zeilen werden mit den echten
+Zeichenbreiten umbrochen. Format A4, Fußzeile mit Titel und „Seite n von m“.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 import zlib
 from dataclasses import dataclass
 
-from . import Absatz, Bericht, Eintrag, Kopf, Ueberschrift, _helvetica, schrift
+from . import Absatz, Bericht, Eintrag, Kopf, Ueberschrift, _helvetica, farbprofil, schrift
 
 BREITE, HOEHE = 595.28, 841.89
 LINKS, RECHTS, OBEN, UNTEN = 62.0, 62.0, 60.0, 64.0
@@ -39,14 +42,6 @@ def breite(text: str, schrift: str, groesse: float) -> float:
     """Breite in den Standardschriften (WinAnsi)."""
     tabelle = _BREITEN[schrift]
     return sum(tabelle[b - 32] if b >= 32 else 0 for b in _kodiere(text)) * groesse / 1000
-
-
-def _winansi(text: str) -> bool:
-    try:
-        text.translate(_ERSATZ).encode("cp1252")
-    except UnicodeEncodeError:
-        return False
-    return True
 
 
 class _Standard:
@@ -91,26 +86,10 @@ class _Eingebettet:
         return objekte, nummern
 
 
-def _texte(bericht: Bericht):
-    yield bericht.titel
-    for b in bericht.bausteine:
-        if isinstance(b, Kopf):
-            for k, v in b.zeilen:
-                yield k
-                yield v
-        elif isinstance(b, (Ueberschrift, Absatz)):
-            yield b.text
-        elif isinstance(b, Eintrag):
-            yield from (b.titel, b.nummer, *b.marken, *b.zeilen)
-            for beleg in b.belege:
-                yield from (beleg.ort, beleg.zitat or "", beleg.vorab or "")
-
-
 def _schriften(bericht: Bericht) -> _Standard | _Eingebettet:
-    """Standardschriften, solange alle Zeichen in WinAnsi liegen; sonst die eingebettete Schrift."""
-    if all(_winansi(t) for t in _texte(bericht)) or not schrift.verfuegbar():
-        return _Standard()
-    return _Eingebettet()
+    """Die eingebettete Schrift (PDF/A und PDF/UA verlangen eingebettete Schriften); nur wenn ihre Dateien fehlen,
+    die Standardschriften."""
+    return _Eingebettet() if schrift.verfuegbar() else _Standard()
 
 
 @dataclass
@@ -355,9 +334,19 @@ def schreiben(bericht: Bericht) -> bytes:
         nums.append(b"%d [%s]" % (neu, b" ".join(b"%d 0 R" % element_nr[e] for e in liste)))
     objekte.append(b"<< /Nums [" + b" ".join(nums) + b"] >>")
     objekte += teile
-    objekte[0] = (b"<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /MarkInfo << /Marked true >> /StructTreeRoot %d 0 R "
-                  b"/ViewerPreferences << /DisplayDocTitle true >> >>" % wurzel)
     titel = "".join(c if ord(c) < 0x10000 else "?" for c in bericht.titel)
+    normen = b""
+    if isinstance(satz.schriften, _Eingebettet):
+        objekte.append(_strom_roh(_xmp(titel), b"/Type /Metadata /Subtype /XML"))
+        metadaten = len(objekte)
+        icc = zlib.compress(farbprofil.srgb())
+        objekte.append(b"<< /N 3 /Length %d /Filter /FlateDecode >>\nstream\n" % len(icc) + icc + b"\nendstream")
+        objekte.append(b"<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (%s) /Info (%s) "
+                       b"/DestOutputProfile %d 0 R >>" % (farbprofil.BESCHREIBUNG.encode(),
+                                                          farbprofil.BESCHREIBUNG.encode(), len(objekte)))
+        normen = b"/Metadata %d 0 R /OutputIntents [%d 0 R] " % (metadaten, len(objekte))
+    objekte[0] = (b"<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /MarkInfo << /Marked true >> /StructTreeRoot %d 0 R "
+                  b"%s/ViewerPreferences << /DisplayDocTitle true >> >>" % (wurzel, normen))
     objekte.append(b"<< /Title <FEFF%s> /Creator (JuraBox) /Producer (JuraBox) >>" % titel.encode("utf-16-be").hex()
                    .upper().encode())
     info = len(objekte)
@@ -370,6 +359,54 @@ def schreiben(bericht: Bericht) -> bytes:
     xref = len(daten)
     daten += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objekte) + 1)
     daten += b"".join(b"%010d 00000 n \n" % v for v in versaetze)
-    daten += b"trailer\n<< /Size %d /Root 1 0 R /Info %d 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
-        len(objekte) + 1, info, xref)
+    # Dateikennung (ISO 32000-1, 14.4), aus dem Inhalt abgeleitet: gleiche Berichte ergeben gleiche Dateien.
+    kennung = hashlib.md5(daten).hexdigest().upper().encode()
+    daten += b"trailer\n<< /Size %d /Root 1 0 R /Info %d 0 R /ID [<%s> <%s>] >>\nstartxref\n%d\n%%%%EOF\n" % (
+        len(objekte) + 1, info, kennung, kennung, xref)
     return daten
+
+
+def _strom_roh(inhalt: bytes, schluessel: bytes) -> bytes:
+    """Ungepackter Datenstrom; XMP-Metadaten sollen auch ohne PDF-Programm lesbar bleiben."""
+    return b"<< %s /Length %d >>\nstream\n" % (schluessel, len(inhalt)) + inhalt + b"\nendstream"
+
+
+def _xml(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _xmp(titel: str) -> bytes:
+    """XMP-Metadaten: Titel, Programm und die Kennungen für PDF/A-2a und PDF/UA-1. Die Eigenschaft ``pdfuaid:part``
+    gehört nicht zu den in PDF/A-2 vordefinierten und wird deshalb als Erweiterungsschema beschrieben (6.6.2.3)."""
+    return f"""<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:pdf="http://ns.adobe.com/pdf/1.3/"
+ xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"
+ xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">{_xml(titel)}</rdf:li></rdf:Alt></dc:title>
+<dc:format>application/pdf</dc:format>
+<dc:language><rdf:Bag><rdf:li>de-DE</rdf:li></rdf:Bag></dc:language>
+<xmp:CreatorTool>JuraBox</xmp:CreatorTool>
+<pdf:Producer>JuraBox</pdf:Producer>
+<pdfaid:part>2</pdfaid:part>
+<pdfaid:conformance>A</pdfaid:conformance>
+<pdfuaid:part>1</pdfuaid:part>
+</rdf:Description>
+<rdf:Description rdf:about="" xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/"
+ xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#" xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#">
+<pdfaExtension:schemas><rdf:Bag><rdf:li rdf:parseType="Resource">
+<pdfaSchema:schema>PDF/UA Universal Accessibility Schema</pdfaSchema:schema>
+<pdfaSchema:namespaceURI>http://www.aiim.org/pdfua/ns/id/</pdfaSchema:namespaceURI>
+<pdfaSchema:prefix>pdfuaid</pdfaSchema:prefix>
+<pdfaSchema:property><rdf:Seq><rdf:li rdf:parseType="Resource">
+<pdfaProperty:name>part</pdfaProperty:name>
+<pdfaProperty:valueType>Integer</pdfaProperty:valueType>
+<pdfaProperty:category>internal</pdfaProperty:category>
+<pdfaProperty:description>Teil von ISO 14289, dem die Datei folgt</pdfaProperty:description>
+</rdf:li></rdf:Seq></pdfaSchema:property>
+</rdf:li></rdf:Bag></pdfaExtension:schemas>
+</rdf:Description>
+</rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>""".encode()

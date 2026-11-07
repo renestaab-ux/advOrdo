@@ -75,3 +75,41 @@ def test_absatz_ueber_mehrere_seiten_bleibt_ein_element():
     zweiseitig = [e for e in re.findall(rb"/S /P /P \d+ 0 R /K \[(.*?)\] >>", datei)
                   if len(set(re.findall(rb"/Pg (\d+) 0 R", e))) > 1]
     assert zweiseitig
+
+
+def test_pdf_a_und_ua_kennung_metadaten_und_farbprofil():
+    """PDF/A-2a und PDF/UA-1: XMP mit Titel und Kennungen, Ausgabebedingung mit sRGB-Profil, Dateikennung,
+    nur eingebettete Schriften."""
+    import xml.etree.ElementTree as ET
+
+    from juracore.ausgabe import farbprofil
+
+    datei = pdf.schreiben(Bericht(titel="Anmerkungen <Test> & Co. · Şahin", bausteine=[Absatz("Text")]))
+    xmp = re.search(rb"/Type /Metadata /Subtype /XML /Length (\d+) >>\nstream\n", datei)
+    assert xmp
+    paket = datei[xmp.end(): xmp.end() + int(xmp.group(1))]
+    wurzel = ET.fromstring(paket[paket.index(b"<x:xmpmeta"): paket.index(b"</x:xmpmeta>") + 12])
+    ns = {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#", "dc": "http://purl.org/dc/elements/1.1/",
+          "pdfaid": "http://www.aiim.org/pdfa/ns/id/", "pdfuaid": "http://www.aiim.org/pdfua/ns/id/"}
+    assert wurzel.find(".//dc:title/rdf:Alt/rdf:li", ns).text == "Anmerkungen <Test> & Co. · Şahin"
+    assert wurzel.find(".//pdfaid:part", ns).text == "2"
+    assert wurzel.find(".//pdfaid:conformance", ns).text == "A"
+    assert wurzel.find(".//pdfuaid:part", ns).text == "1"
+    # Titel im Info-Verzeichnis gleich dem in XMP (PDF/A 6.6.3)
+    info = re.search(rb"/Title <FEFF([0-9A-F]+)>", datei).group(1)
+    assert bytes.fromhex(info.decode()).decode("utf-16-be") == "Anmerkungen <Test> & Co. · Şahin"
+    assert b"/OutputIntents [" in datei and b"/S /GTS_PDFA1" in datei
+    assert re.search(rb"/ID \[<[0-9A-F]{32}> <[0-9A-F]{32}>\]", datei)
+    assert b"/Helvetica" not in datei and datei.count(b"/FontFile2") == 3
+    icc = farbprofil.srgb()
+    assert int.from_bytes(icc[:4], "big") == len(icc) and icc[36:40] == b"acsp" and icc[12:24] == b"mntrRGB XYZ "
+    # Gleicher Bericht, gleiche Datei (keine Zeitstempel)
+    assert pdf.schreiben(Bericht(titel="Anmerkungen <Test> & Co. · Şahin", bausteine=[Absatz("Text")])) == datei
+
+
+def test_ohne_schriftdateien_keine_normkennung(monkeypatch):
+    from juracore.ausgabe import schrift
+
+    monkeypatch.setattr(schrift, "verfuegbar", lambda: False)
+    datei = pdf.schreiben(_bericht())
+    assert b"/Helvetica" in datei and b"pdfaid" not in datei and b"/OutputIntents" not in datei
