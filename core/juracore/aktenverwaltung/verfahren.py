@@ -91,6 +91,14 @@ def liste(con: sqlite3.Connection, akte_id: int) -> list[dict]:
     return verfahren
 
 
+def aktuelle_je_akte(con: sqlite3.Connection) -> dict[int, dict]:
+    """Das aktuelle Verfahren jeder Akte mit einer einzigen Abfrage (für die Aktenübersicht)."""
+    je_akte: dict[int, list[dict]] = {}
+    for z in con.execute("SELECT * FROM verfahren ORDER BY akte_id, COALESCE(beginn, ende, angelegt_am), id"):
+        je_akte.setdefault(z["akte_id"], []).append(_zeile(z))
+    return {akte_id: v for akte_id, liste_ in je_akte.items() if (v := aktuelles(liste_)) is not None}
+
+
 def aktuelles(verfahren: list[dict]) -> dict | None:
     """Das jüngste laufende Verfahren, sonst das jüngste überhaupt."""
     laufend = [v for v in verfahren if v["status"] == "laufend"]

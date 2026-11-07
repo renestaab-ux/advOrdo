@@ -620,8 +620,9 @@ class Kern:
         """Aktenübersicht mit aktuellem Verfahren und nächster offener Frist bzw. nächstem Termin."""
         akten = stammdaten.uebersicht(self.akten)
         naechste = kalender.naechste_je_akte(self.akten)
+        aktuelle = verfahren.aktuelle_je_akte(self.akten)
         for a in akten:
-            a["verfahren"] = (verfahren.aktuelles(verfahren.liste(self.akten, a["id"])) or {}).get("bezeichnung")
+            a["verfahren"] = (aktuelle.get(a["id"]) or {}).get("bezeichnung")
             a["naechste"] = naechste.get(a["id"])
         return akten
 
