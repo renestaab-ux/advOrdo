@@ -113,6 +113,18 @@ def test_hinzufuegen_findet_feed_auf_webseite(tmp_path):
         n.hinzufuegen("https://www.lto.de/rss/feed.xml")
 
 
+def test_https_wird_bevorzugt(tmp_path):
+    aufrufe: list[str] = []
+    n = nachrichten.Nachrichten(tmp_path / "n.json", tmp_path / "c.json", oeffner({
+        "http://alt.example/rss": RSS, "https://alt.example/rss": RSS,  # beides da: https gewinnt
+        "http://nur-http.example/rss": ATOM,
+    }, aufrufe), im_hintergrund=False)
+    assert n.hinzufuegen("http://alt.example/rss")["neu"]["url"] == "https://alt.example/rss"
+    assert aufrufe == ["https://alt.example/rss"]
+    # Ohne https bleibt es bei http.
+    assert n.hinzufuegen("http://nur-http.example/rss")["neu"]["url"] == "http://nur-http.example/rss"
+
+
 def test_ungueltige_adresse(tmp_path):
     n = nachrichten.Nachrichten(tmp_path / "n.json", tmp_path / "c.json", oeffner({}), im_hintergrund=False)
     with pytest.raises(ValueError):
