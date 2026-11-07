@@ -1759,3 +1759,4 @@ li button.link:not(.klein), td button.link { min-height: 24px; }
   .inhalt { padding: 16px; }
   .nav-eintrag, .modus { white-space: normal; }
 }
+.feld-hinweis.warnhinweis { color: var(--warnung); }

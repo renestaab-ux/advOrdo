@@ -23,7 +23,7 @@ import {
   modusSetzen,
   systemWillKontrast,
 } from "./darstellung";
-import { KiStatus, Marke, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
+import { KiStatus, Marke, UmgebungsListe, groesseText, istDesktop, kern, unverschluesseltImNetz } from "./kern";
 
 const KONTEXTE = [8192, 16384, 32768];
 const KONTEXTE_EXTERN = [32768, 131072];
@@ -277,6 +277,13 @@ export default function Einstellungen({
                 Anderer Rechner im Netzwerk: dessen IP-Adresse oder Namen eintragen, z. B. http://192.168.178.20:1234
                 oder http://pc-buero.local:11434.
               </span>
+              {unverschluesseltImNetz(endpunkt) && (
+                <span className="feld-hinweis warnhinweis" role="note">
+                  Die Verbindung zu diesem Rechner ist unverschlüsselt (http). Dokumentinhalte gehen dann lesbar durch
+                  dein Netzwerk. Nur im eigenen, geschützten Kanzlei- oder Heimnetz nutzen, nicht im Gäste-WLAN oder
+                  in fremden Netzen.
+                </span>
+              )}
             </label>
             <label>
               Modell
