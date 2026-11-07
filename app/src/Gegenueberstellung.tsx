@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Beleg, Zitatbereich } from "./Belege";
+import { useAuftrag } from "./useAuftrag";
 import {
   Gegenueberstellung,
   GegenueberstellungErgebnis,
@@ -135,23 +136,19 @@ export function GegenueberstellungBereich({
   }, [lade]);
 
   const laeuft = auftrag?.status === "laeuft";
-  useEffect(() => {
-    if (!laeuft || !auftrag) return;
-    const id = auftrag.auftrag_id;
-    const takt = window.setInterval(async () => {
-      try {
-        const stand = await kern<KiAuftrag>("ki.auftrag", { auftrag_id: id });
-        setAuftrag(stand);
-        if (stand.status === "laeuft") return;
-        if (stand.status === "fehler") setFehler(stand.fehler);
-        await lade();
-      } catch (e) {
-        setFehler(String(e));
-        setAuftrag(null);
-      }
-    }, 1000);
-    return () => window.clearInterval(takt);
-  }, [laeuft, auftrag?.auftrag_id, lade]);
+  useAuftrag(
+    laeuft && auftrag ? auftrag.auftrag_id : null,
+    async (stand) => {
+      setAuftrag(stand);
+      if (stand.status === "laeuft") return;
+      if (stand.status === "fehler") setFehler(stand.fehler);
+      await lade();
+    },
+    (e) => {
+      setFehler(String(e));
+      setAuftrag(null);
+    },
+  );
 
   async function starte() {
     setFehler(null);

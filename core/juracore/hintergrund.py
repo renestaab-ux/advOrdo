@@ -6,27 +6,24 @@ leicht eine Minute; liefe er dort, warteten Timer, Erinnerungen und jeder Klick 
 ``Kern.verbindungen``) und gibt sofort die Nummer des Auftrags zurück. Die Oberfläche fragt mit
 ``hintergrund.auftrag`` nach Fortschritt und Ergebnis, ``hintergrund.abbrechen`` bricht ab.
 
-Das Muster folgt den KI-Aufträgen (``ki.auftraege``), mit zwei Unterschieden: Verschiedene Befehle dürfen
-gleichzeitig laufen (ein Import hält keine Volltextsuche auf), derselbe Befehl aber nur einmal. Und abgebrochen
-wird spätestens vor der nächsten Netzverbindung (``netzprotokoll.abbrechbar``) oder dort, wo der Befehl selbst mit
-``pruefe`` nachfragt; was schon begonnen ist (eine Antwort, die gerade gespeichert wird), wird noch beendet, sein
-Ergebnis aber verworfen.
+Die Verwaltung teilt sich ``Auftragsliste`` mit den KI-Aufträgen (``ki.auftraege``), mit zwei Unterschieden:
+Verschiedene Befehle dürfen gleichzeitig laufen (ein Import hält keine Volltextsuche auf), derselbe Befehl aber
+nur einmal. Und abgebrochen wird spätestens vor der nächsten Netzverbindung (``netzprotokoll.abbrechbar``) oder
+dort, wo der Befehl selbst mit ``pruefe`` nachfragt; was schon begonnen ist (eine Antwort, die gerade gespeichert
+wird), wird noch beendet, sein Ergebnis aber verworfen.
 """
 
 from __future__ import annotations
 
 import contextvars
-import itertools
 import logging
 import sqlite3
-import threading
-import time
 from collections.abc import Callable
 from typing import Any
 
 from . import netzprotokoll
 from .ki.analyse import Abgebrochen
-from .ki.auftraege import ABGEBROCHEN, FEHLER, FERTIG, LAEUFT, Auftrag
+from .ki.auftraege import ABGEBROCHEN, FEHLER, FERTIG, LAEUFT, Auftrag, Auftragsliste
 
 log = logging.getLogger("juracore.hintergrund")
 
@@ -44,8 +41,6 @@ BEFEHLE = {
     "akten.importieren_dateien": "Dokumente einlesen",
 }
 
-_BEHALTEN = 20  # beendete Aufträge, deren Ergebnis noch abgeholt werden kann
-
 _aktuell: contextvars.ContextVar[Auftrag | None] = contextvars.ContextVar("hintergrund_auftrag", default=None)
 
 
@@ -61,39 +56,29 @@ def melde(text: str, schritt: int | None = None, von: int | None = None) -> None
         auftrag.melde(text, schritt, von)
 
 
-class Hintergrund:
-    def __init__(self) -> None:
-        self._nummern = itertools.count(1)
-        self._auftraege: dict[int, Auftrag] = {}
-        self._sperre = threading.Lock()
+class Hintergrund(Auftragsliste):
+    bezeichnung = "Hintergrundauftrag"
+    thread_name = "hintergrund"
 
     def laufend(self) -> list[dict]:
-        with self._sperre:
-            liste = [a for a in self._auftraege.values() if a.status == LAEUFT]
-        return [_als_dict(a) for a in liste]
+        return [_als_dict(a) for a in self._laufende()]
 
     def starte(self, methode: str, arbeit: Callable[[], Any], warten: bool = False) -> dict:
         """Startet ``arbeit()`` im Hintergrund. ``warten`` führt sie sofort aus (Tests)."""
         if methode not in BEFEHLE:
             raise LookupError(f"{methode!r} läuft nicht im Hintergrund.")
-        with self._sperre:
-            if any(a.status == LAEUFT and a.aufgabe == methode for a in self._auftraege.values()):
+
+        def frei(laufende: list[Auftrag]) -> None:
+            if any(a.aufgabe == methode for a in laufende):
                 raise RuntimeError(f"„{BEFEHLE[methode]}“ läuft schon. Bitte warten oder abbrechen.")
-            auftrag = Auftrag(next(self._nummern), methode)
-            auftrag.text = f"{BEFEHLE[methode]} …"
-            self._auftraege[auftrag.nr] = auftrag
-            for alt in sorted(self._auftraege)[:-_BEHALTEN]:
-                if self._auftraege[alt].status != LAEUFT:
-                    del self._auftraege[alt]
-        if warten:
-            self._fuehre_aus(auftrag, arbeit)
-        else:
-            threading.Thread(target=self._fuehre_aus, args=(auftrag, arbeit), daemon=True,
-                             name=f"hintergrund-{auftrag.nr}").start()
+
+        auftrag = self._anlegen(methode, None, frei)
+        auftrag.text = f"{BEFEHLE[methode]} …"
+        self._starten(auftrag, lambda: self._fuehre_aus(auftrag, arbeit), warten)
         return _als_dict(auftrag)
 
-    @staticmethod
-    def _fuehre_aus(auftrag: Auftrag, arbeit: Callable[[], Any]) -> None:
+    @classmethod
+    def _fuehre_aus(cls, auftrag: Auftrag, arbeit: Callable[[], Any]) -> None:
         marke = _aktuell.set(auftrag)
         try:
             with netzprotokoll.abbrechbar(auftrag.pruefe):
@@ -114,17 +99,7 @@ class Hintergrund:
                                               f"({type(f).__name__}: {f}).", "Fehlgeschlagen")
         finally:
             _aktuell.reset(marke)
-        with auftrag._sperre:
-            auftrag.ergebnis, auftrag.fehler, auftrag.text = ergebnis, fehler, text
-            auftrag.dauer = time.monotonic() - auftrag.beginn
-            auftrag.status = status
-
-    def _hole(self, auftrag_id: int) -> Auftrag:
-        with self._sperre:
-            auftrag = self._auftraege.get(int(auftrag_id))
-        if auftrag is None:
-            raise LookupError(f"Hintergrundauftrag {auftrag_id} gibt es nicht (mehr).")
-        return auftrag
+        cls._beenden(auftrag, ergebnis, status, fehler, text)
 
     def status(self, auftrag_id: int) -> dict:
         return _als_dict(self._hole(auftrag_id))
