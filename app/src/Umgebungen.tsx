@@ -143,8 +143,8 @@ export default function Umgebungen({
           Neue Umgebung
         </button>
       </form>
-      {meldung && <p className="status">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {meldung && <p className="status" role="status">{meldung}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {loeschfrage && (
         <Rueckfrage
           frage={`Umgebung „${loeschfrage.name}“ löschen?`}

@@ -197,7 +197,7 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
 
       {auftrag && auftrag.status === "laeuft" && <Fortschritt auftrag={auftrag} onAbbrechen={abbrechen} />}
       {auftrag?.status === "abgebrochen" && <p className="meldung">Analyse abgebrochen.</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
 
       <nav className="reiter" aria-label="Ansicht">
         {(

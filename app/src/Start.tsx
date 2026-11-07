@@ -243,7 +243,7 @@ function StartNachrichten({ onVerwalten }: { onVerwalten: () => void }) {
           Nicht geladen: {liste.fehler.map((f) => `${f.titel} (${f.text})`).join("; ")}
         </p>
       )}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       <div className="nachrichten-fuss">
         {liste.gesamt > WENIGE && (
           <button

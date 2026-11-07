@@ -34,7 +34,7 @@ export default function Programme() {
         (["pdf", "text"] as const).map((art) => (
           <ProgrammZeile key={art} art={art} e={programme[art]} onSetzen={(p, par) => setze(art, p, par)} />
         ))}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </section>
   );
 }

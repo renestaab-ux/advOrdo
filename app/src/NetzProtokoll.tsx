@@ -119,7 +119,7 @@ export default function NetzProtokoll() {
         </div>
       )}
       {meldung && <p className="meldung">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {protokoll && protokoll.gesamt === 0 && <p className="leise">Noch keine Anfragen protokolliert.</p>}
       {eintraege.length > 0 && (
         <>

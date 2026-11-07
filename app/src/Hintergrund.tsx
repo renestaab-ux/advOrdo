@@ -16,9 +16,15 @@ export default function Hintergrund() {
     return aus;
   }, []);
 
-  if (liste.length === 0) return null;
+  // Für Bildschirmleser nur Beginn und Ende ansagen, nicht jede Sekunde; der Bereich steht immer da, damit Ansagen ankommen.
+  const ansage = liste.length ? `Läuft im Hintergrund: ${liste.map((a) => a.titel).join(", ")}` : "";
   return (
-    <div className="hintergrund-anzeige" role="status" aria-live="polite">
+    <>
+      <div className="nur-vorlesen" role="status">
+        {ansage}
+      </div>
+      {liste.length > 0 && (
+    <div className="hintergrund-anzeige" aria-label="Aufträge im Hintergrund" role="region">
       {liste.map((a) => {
         const bricht = a.text.startsWith("Wird ") && a.text.includes("abgebrochen");
         return (
@@ -44,7 +50,9 @@ export default function Hintergrund() {
           </div>
         );
       })}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </div>
+      )}
+    </>
   );
 }

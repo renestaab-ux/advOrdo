@@ -96,9 +96,9 @@ export default function Nachrichten() {
           Statt der Feed-Adresse genügt meist die Seite, die auf den Feed verweist: Die App lädt sie und nimmt den ersten
           Feed, den sie dort findet.
         </p>
-        {laeuft && <p className="status">Prüfe {laeuft} …</p>}
+        {laeuft && <p className="status" role="status">Prüfe {laeuft} …</p>}
         {meldung && <p className="gut">{meldung}</p>}
-        {fehler && <p className="fehler">{fehler}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
       </section>
 
       {offen.length > 0 && (

@@ -68,8 +68,8 @@ export default function Rechtsquellen({ onAkte }: { onAkte: () => void }) {
         Urteilszitate in Akten prüft die App gegen diese Quellen. Geladen werden nur öffentliche Verzeichnisse und
         Entscheidungen; aus der Akte verlässt nichts das Gerät. Die Gesetze selbst verwaltet der Bereich „Gesetze“.
       </p>
-      {laeuft && <p className="status">{laeuft}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {laeuft && <p className="status" role="status">{laeuft}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
 
       <section className="karte">
         <h2>Rechtsprechung im Internet (Bund)</h2>

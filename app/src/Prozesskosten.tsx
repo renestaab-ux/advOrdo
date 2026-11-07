@@ -195,7 +195,7 @@ export default function Prozesskosten() {
         </fieldset>
       </form>
 
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {!ergebnis && !fehler && <p className="leer">Streitwert eingeben; das Ergebnis erscheint sofort.</p>}
       {ergebnis && <KostenAusgabe e={ergebnis} />}
     </section>

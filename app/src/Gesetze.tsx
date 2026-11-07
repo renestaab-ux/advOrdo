@@ -266,8 +266,8 @@ export default function Gesetze() {
         </button>
       </form>
 
-      {laeuft && <p className="status">{laeuft}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {laeuft && <p className="status" role="status">{laeuft}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
 
       {beleg && <BelegAnsicht beleg={beleg} />}
 

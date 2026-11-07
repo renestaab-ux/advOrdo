@@ -336,7 +336,7 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
           </span>
         </form>
       )}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </section>
   );
 }

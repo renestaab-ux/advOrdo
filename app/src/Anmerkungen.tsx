@@ -18,6 +18,7 @@ import {
   markdownBloecke,
   STILE,
 } from "./anmerkungLogik";
+import { useDialog } from "./barrierefrei";
 import { istDesktop, kern } from "./kern";
 import type { LesezeichenStelle } from "./Lesezeichen";
 import Zeichen from "./Symbole";
@@ -241,7 +242,7 @@ function AuswahlMenue({
         <Zeichen name="kommentar" groesse={15} /> Kommentar
       </button>
       {onLesezeichen && (
-        <button className="anm-menue-knopf" title="Lesezeichen an dieser Stelle" {...zeige("Lesezeichen an dieser Stelle setzen")} onClick={onLesezeichen}>
+        <button className="anm-menue-knopf" title="Lesezeichen an dieser Stelle" aria-label="Lesezeichen an dieser Stelle" {...zeige("Lesezeichen an dieser Stelle setzen")} onClick={onLesezeichen}>
           <Zeichen name="lesezeichen" groesse={15} />
         </button>
       )}
@@ -296,6 +297,8 @@ function Editor({
   useEffect(() => {
     feld.current?.focus();
   }, []);
+  // Tab bleibt im Fenster, danach kehrt der Fokus zurück; Escape schließt schon über `tasten`.
+  useDialog(ref);
 
   function format(art: Parameters<typeof formatiere>[3]) {
     const el = feld.current;
@@ -373,19 +376,19 @@ function Editor({
         </blockquote>
       )}
       <div className="anm-editor-werkzeug">
-        <button title="Fett (Strg/⌘+B)" onClick={() => format("fett")}>
+        <button title="Fett (Strg/⌘+B)" aria-label="Fett (Strg/⌘+B)" onClick={() => format("fett")}>
           <strong>F</strong>
         </button>
-        <button title="Kursiv (Strg/⌘+I)" onClick={() => format("kursiv")}>
+        <button title="Kursiv (Strg/⌘+I)" aria-label="Kursiv (Strg/⌘+I)" onClick={() => format("kursiv")}>
           <em>K</em>
         </button>
         <button title="Liste" onClick={() => format("liste")}>
           • Liste
         </button>
-        <button title="Code" onClick={() => format("code")}>
+        <button title="Code" aria-label="Code" onClick={() => format("code")}>
           {"</>"}
         </button>
-        <button title="Code-Block" onClick={() => format("codeblock")}>
+        <button title="Code-Block" aria-label="Code-Block" onClick={() => format("codeblock")}>
           {"{ }"}
         </button>
         <button className={vorschau ? "aktiv" : ""} aria-pressed={vorschau} onClick={() => setVorschau(!vorschau)}>
@@ -601,7 +604,7 @@ export function useAnmerkungen(
 
   const schicht = (
     <>
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {menue && (
         <AuswahlMenue
           lage={menue.lage}
@@ -910,6 +913,7 @@ export function BedeutungenKarte() {
             <span className={`anm-punkt anm-punkt-${f}`} />
             <input
               value={werte[f]}
+              aria-label={`Bedeutung der Farbe ${FARB_NAME[f]}`}
               maxLength={40}
               onChange={(e) => {
                 setWerte({ ...werte, [f]: e.target.value });

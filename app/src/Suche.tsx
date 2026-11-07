@@ -254,7 +254,7 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
         </select>
         {bereich !== "rechtsprechung" && <AktenWahl akten={akten} akteId={akteId} onWahl={setAkteId} />}
       </form>
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {ergebnis && (
         <div className="such-stand">
           <span>
@@ -264,7 +264,7 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
           </span>
           {ergebnis.gekuerzt && <span className="hinweis"> · nur die ersten 5.000 passenden Abschnitte</span>}
           <span className="such-pfeile">
-            <button className="zweitrangig" onClick={() => springe(-1)} disabled={position <= 0} title="Vorige Fundstelle">
+            <button className="zweitrangig" onClick={() => springe(-1)} disabled={position <= 0} title="Vorige Fundstelle" aria-label="Vorige Fundstelle">
               ▲
             </button>
             <button
@@ -272,6 +272,7 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
               onClick={() => springe(1)}
               disabled={position < 0 || position >= folge.length - 1}
               title="Nächste Fundstelle"
+              aria-label="Nächste Fundstelle"
             >
               ▼
             </button>

@@ -251,7 +251,7 @@ function Verzugszinsen() {
         )}
       </form>
 
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {!ergebnis && !fehler && (
         <p className="leer">Hauptforderung und ersten Zinstag eingeben; das Ergebnis erscheint sofort.</p>
       )}
@@ -452,7 +452,7 @@ function BasiszinsVerwaltung() {
           Satz ergänzen
         </button>
       </form>
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </details>
   );
 }
@@ -566,7 +566,7 @@ function Fristen() {
           </label>
         </fieldset>
       </form>
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {ergebnis && <FristAusgabe e={ergebnis} />}
     </section>
   );

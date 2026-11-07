@@ -149,13 +149,13 @@ export default function EigeneDaten({ onZurueck }: { onZurueck: () => void }) {
     );
   }
   if (!felder || !stand) {
-    return <p className="status">{fehler ?? "Lade Eigene Daten …"}</p>;
+    return <p className="status" role="status">{fehler ?? "Lade Eigene Daten …"}</p>;
   }
 
   const meldungen = (
     <>
-      {meldung && <p className="status">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {meldung && <p className="status" role="status">{meldung}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {importFrage && (
         <Rueckfrage
           frage="Vorhandene Eigene Daten ersetzen?"
@@ -623,7 +623,7 @@ function Uebersicht({
       >
         <summary>Änderungsprotokoll</summary>
         {aenderungen === null ? (
-          <p className="status">Lade …</p>
+          <p className="status" role="status">Lade …</p>
         ) : aenderungen.length === 0 ? (
           <p className="leer">Noch keine Änderungen.</p>
         ) : (
@@ -1168,7 +1168,7 @@ export function Formular({
           <label key={f.schluessel} className={f.typ === "mehrzeilig" ? "feld feld-breit" : "feld"}>
             {titel}
             {f.typ === "auswahl" ? (
-              <select value={text} onChange={(e) => setze(f.schluessel, e.target.value)}>
+              <select value={text} autoComplete={ZWECK[f.schluessel]} onChange={(e) => setze(f.schluessel, e.target.value)}>
                 <option value="">–</option>
                 {(f.optionen ?? []).map((o) => (
                   <option key={o} value={o}>
@@ -1184,6 +1184,7 @@ export function Formular({
                 value={text}
                 onChange={(e) => setze(f.schluessel, e.target.value)}
                 spellCheck={f.typ === "text"}
+                autoComplete={ZWECK[f.schluessel]}
               />
             )}
             {hinweis}
@@ -1208,3 +1209,23 @@ function Anzeige({ felder, werte }: { felder: FeldDef[]; werte: Werte | undefine
     </dl>
   );
 }
+
+/**
+ * Zweck der Eingabe für Angaben zur eigenen Person bzw. Kanzlei (WCAG 1.3.5): Hilfsmittel und das System können
+ * die Felder erkennen und ausfüllen. Felder ohne passendes Merkmal bleiben ohne Angabe.
+ */
+const ZWECK: Record<string, string | undefined> = {
+  anrede: "honorific-prefix",
+  vorname: "given-name",
+  nachname: "family-name",
+  strasse: "street-address",
+  plz: "postal-code",
+  ort: "address-level2",
+  land: "country-name",
+  telefon: "tel",
+  email: "email",
+  website: "url",
+  name: "organization",
+  stellung: "organization-title",
+  funktion: "organization-title",
+};

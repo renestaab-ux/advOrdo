@@ -239,8 +239,8 @@ export default function Schriftstuecke({
             )}
           </div>
         )}
-        {meldung && <p className="status">{meldung}</p>}
-        {fehler && <p className="fehler">{fehler}</p>}
+        {meldung && <p className="status" role="status">{meldung}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
         {vorschau && vorschau.zeilen.length > 0 && (
           <details className="schrift-vorschau">
             <summary>Was eingesetzt wird ({vorschau.zeilen.length} Platzhalter)</summary>

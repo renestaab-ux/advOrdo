@@ -211,11 +211,21 @@ export function LeerHinweis({ symbol, children, aktion }: { symbol: SymbolName; 
 }
 
 /** Kalendersymbol vor einer Frist, die abgelaufen, heute fällig oder bald fällig ist; sonst nichts. */
+const FRIST_LAGE: Record<string, string> = {
+  abgelaufen: "abgelaufen",
+  heute: "heute fällig",
+  vorfrist: "Vorfrist",
+  bald: "bald fällig",
+};
+
+/** Die Lage steht zusätzlich als Text daneben: für Bildschirmleser immer, sichtbar bei hohem Kontrast (nicht nur Farbe). */
 export function FristZeichen({ lage }: { lage: string }) {
-  if (!["abgelaufen", "heute", "vorfrist", "bald"].includes(lage)) return null;
+  const text = FRIST_LAGE[lage];
+  if (!text) return null;
   return (
-    <span className="frist-zeichen">
+    <span className="frist-zeichen" title={text}>
       <Zeichen name="fristen" groesse={14} />
+      <span className="frist-lage-text">{text}</span>
     </span>
   );
 }
