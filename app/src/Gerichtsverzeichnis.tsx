@@ -90,9 +90,9 @@ export default function Gerichtsverzeichnis() {
           Aus Datei laden
         </button>
       </div>
-      {laeuft && <p className="status">{laeuft}</p>}
+      {laeuft && <p className="status" role="status">{laeuft}</p>}
       {meldung && <p className="meldung">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       <p className="grenze">
         Die Codeliste enthält nur die Namen, keine Anschriften und keine Zuständigkeiten. Beides findet man im Orts- und
         Gerichtsverzeichnis der Justiz: <OrtsverzeichnisKnopf onFehler={setFehler} />
@@ -293,7 +293,7 @@ export function ZustaendigesGericht({
             : "Bitte auch den Ort eintragen."}
         </p>
       )}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {ergebnis?.gerichtsbarkeit === ang && gerichte.length === 0 && (
         <p className="hinweis">
           Kein Gericht gefunden. Der Ort muss so geschrieben sein wie im Verzeichnis (etwa „Freiburg im Breisgau“) und
@@ -356,7 +356,7 @@ export function GerichtssucheKarte() {
     }
   }
 
-  if (!e) return fehler ? <p className="fehler">{fehler}</p> : null;
+  if (!e) return fehler ? <p className="fehler" role="alert">{fehler}</p> : null;
   return (
     <section className="karte">
       <h2>Zuständiges Gericht suchen</h2>
@@ -375,7 +375,7 @@ export function GerichtssucheKarte() {
         </label>
       ))}
       {e.aktiv.length === 0 && <p className="hinweis">Alle aus: Die Suche erscheint im Verfahren nicht mehr.</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </section>
   );
 }

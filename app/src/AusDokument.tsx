@@ -323,7 +323,7 @@ export default function AusDokument({
           Abbrechen
         </button>
         {!seite && <span className="leise">Bitte zuerst wählen, welche Seite wir vertreten.</span>}
-        {fehler && <p className="fehler">{fehler}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
       </span>
     </div>
   );

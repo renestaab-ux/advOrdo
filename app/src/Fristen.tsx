@@ -299,7 +299,7 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
         </span>
       </header>
 
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {meldung && <p className="meldung">{meldung}</p>}
 
       {entwurf && (
@@ -448,7 +448,7 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
         />
       )}
 
-      {eintraege == null && !fehler && <p className="status">Lade …</p>}
+      {eintraege == null && !fehler && <p className="status" role="status">Lade …</p>}
       {eintraege != null && offen.length === 0 && (
         <LeerHinweis symbol="fristen">Keine offenen Fristen, Termine oder Wiedervorlagen.</LeerHinweis>
       )}
@@ -1007,7 +1007,7 @@ export function EintragFormular({
           Abbrechen
         </button>
       </span>
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </form>
   );
 }

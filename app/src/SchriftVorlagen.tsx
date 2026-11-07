@@ -146,8 +146,8 @@ export default function SchriftVorlagenEinstellungen() {
             Vorlagenordner zeigen
           </button>
         </div>
-        {meldung && <p className="status">{meldung}</p>}
-        {fehler && <p className="fehler">{fehler}</p>}
+        {meldung && <p className="status" role="status">{meldung}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
       </section>
 
       <section className="karte">

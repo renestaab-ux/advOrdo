@@ -222,8 +222,8 @@ export default function RechtsprechungSuche({
         </div>
       </form>
 
-      {laeuft && <p className="status">{laeuft}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {laeuft && <p className="status" role="status">{laeuft}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
 
       {ergebnis && ergebnis.treffer.length === 0 && !laeuft && (
         <p className="leer">Keine Treffer. Die Suche lässt sich mit weniger oder anderen Begriffen erweitern.</p>

@@ -1,7 +1,7 @@
-"""Eingebettete Schrift für PDF-Berichte mit Zeichen außerhalb von WinAnsi (z. B. ş, ł, č, ă).
+"""Eingebettete Schrift für PDF-Berichte (PDF/A und PDF/UA verlangen eingebettete Schriften).
 
-Die PDF-Standardschrift Helvetica kennt nur die Zeichen von cp1252; Namen wie „Şahin“ oder „Łukasz“ würden sonst
-zu „?“. Enthält ein Bericht solche Zeichen, setzt ``ausgabe.pdf`` ihn in Liberation Sans (SIL Open Font License
+Die PDF-Standardschrift Helvetica ist nicht eingebettet und kennt nur die Zeichen von cp1252; Namen wie „Şahin“ oder
+„Łukasz“ würden sonst zu „?“. Deshalb setzt ``ausgabe.pdf`` jeden Bericht in Liberation Sans (SIL Open Font License
 1.1, siehe ``schriften/OFL.txt``). Die Schrift hat dieselben Zeichenbreiten wie Helvetica bzw. Arial, der Umbruch
 bleibt also gleich. Eingebettet wird nur eine Teilmenge: alle Glyphen, die der Bericht braucht, die übrigen leer.
 Die Glyphennummern bleiben erhalten, deshalb genügt ``CIDToGIDMap /Identity``. Eine ``ToUnicode``-Tabelle sorgt

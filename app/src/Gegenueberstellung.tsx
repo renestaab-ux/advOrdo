@@ -170,7 +170,7 @@ export function GegenueberstellungBereich({
     }
   }
 
-  if (!daten || daten.anzahl === 0) return fehler ? <p className="fehler">{fehler}</p> : null;
+  if (!daten || daten.anzahl === 0) return fehler ? <p className="fehler" role="alert">{fehler}</p> : null;
   const geprueft = daten.zitate.filter((z) => z.ergebnis !== "nicht_pruefbar").length;
   return (
     <details className="gegenueber-bereich" open={geprueft > 0 || laeuft}>
@@ -199,7 +199,7 @@ export function GegenueberstellungBereich({
           </button>
         </div>
       )}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {daten.zitate.length > 0 && <GegenueberstellungListe zitate={daten.zitate} onFundstelle={onFundstelle} />}
     </details>
   );

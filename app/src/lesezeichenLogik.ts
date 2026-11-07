@@ -156,3 +156,26 @@ export function verdichteMarken(marken: Marke[], abstand = 0.004): Marke[] {
   }
   return ergebnis;
 }
+
+/**
+ * Eintrag im eigenen Ordner eine Stelle nach oben (-1) oder unten (+1) schieben: die Alternative zum Ziehen
+ * für Tastatur und Einzelklick (WCAG 2.2, 2.5.7). Am Rand bleibt alles, wie es ist.
+ */
+export function eintragSchritt(gruppen: OrdnerGruppe[], key: string, richtung: -1 | 1): OrdnerGruppe[] {
+  const g = gruppen.find((x) => x.eintraege.some((e) => schluessel(e) === key));
+  if (!g) return gruppen;
+  const i = g.eintraege.findIndex((e) => schluessel(e) === key);
+  if (richtung < 0 && i === 0) return gruppen;
+  if (richtung > 0 && i === g.eintraege.length - 1) return gruppen;
+  const vor = richtung < 0 ? schluessel(g.eintraege[i - 1]) : (g.eintraege[i + 2] ? schluessel(g.eintraege[i + 2]) : null);
+  return verschiebeEintrag(gruppen, key, g.id, vor);
+}
+
+/** Ordner eine Stelle nach oben oder unten; „Ohne Ordner“ bleibt am Ende. */
+export function ordnerSchritt<G extends { id: number | null }>(gruppen: G[], id: number, richtung: -1 | 1): G[] {
+  const ordner = gruppen.filter((g) => g.id != null);
+  const i = ordner.findIndex((g) => g.id === id);
+  if (i < 0 || (richtung < 0 && i === 0) || (richtung > 0 && i === ordner.length - 1)) return gruppen;
+  const vor = richtung < 0 ? ordner[i - 1].id : (ordner[i + 2]?.id ?? null);
+  return verschiebeOrdner(gruppen, id, vor);
+}

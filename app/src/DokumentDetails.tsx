@@ -190,7 +190,7 @@ const DokumentDetails = forwardRef<
     );
   }, [dokumentId]);
 
-  if (!meta || !entwurf) return fehler ? <p className="fehler">{fehler}</p> : <p className="leer">Lade Details …</p>;
+  if (!meta || !entwurf) return fehler ? <p className="fehler" role="alert">{fehler}</p> : <p className="leer">Lade Details …</p>;
 
   const bisher = ausMeta(meta);
   const geaendert = {
@@ -511,7 +511,7 @@ const DokumentDetails = forwardRef<
           )}
         </div>
 
-        {fehler && <p className="fehler">{fehler}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
         <div className="aktionen meta-aktionen">
           <button type="submit" disabled={!offen || laeuft}>
             {laeuft ? "Speichere …" : "Speichern"}

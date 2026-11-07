@@ -262,7 +262,7 @@ export default function Chat({
           <div ref={ende} />
         </div>
 
-        {fehler && <p className="fehler">{fehler}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
         <div className="chat-eingabe">
           <textarea
             value={eingabe}

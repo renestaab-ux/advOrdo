@@ -199,7 +199,7 @@ export default function Zeiten({
 
   if (!liste || !einst || !f) {
     return (
-      <div className="zeiten">{fehler ? <p className="fehler">{fehler}</p> : <p className="status">Lade …</p>}</div>
+      <div className="zeiten">{fehler ? <p className="fehler" role="alert">{fehler}</p> : <p className="status" role="status">Lade …</p>}</div>
     );
   }
 
@@ -375,7 +375,7 @@ export default function Zeiten({
         </div>
       </form>
 
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {meldung && <p className="meldung">{meldung}</p>}
       {loeschfrage && (
         <div className="rueckfrage" role="alertdialog" aria-label="Zeiteintrag löschen?">

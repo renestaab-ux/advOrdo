@@ -111,7 +111,7 @@ export default function Diagnose() {
         </p>
       )}
       {meldung && <p className="meldung">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
 
       {gruppen.map((g) => (
         <section key={g} className="karte">

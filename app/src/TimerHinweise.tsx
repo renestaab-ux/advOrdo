@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Dialog from "./Dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ZeitLaufend, akteTitel, heuteIso, istDesktop, kern, timerSeitText, uhrText, zeitGeaendert } from "./kern";
@@ -62,7 +63,15 @@ export default function TimerHinweise({ onAkte }: { onAkte: (akteId: number) => 
   if (frage.art === "beenden")
     return (
       <div className="timer-hinweis-hintergrund">
-        <div className="rueckfrage timer-hinweis" role="alertdialog" aria-label="Zeiterfassung läuft noch">
+        <Dialog
+          className="rueckfrage timer-hinweis"
+          rolle="alertdialog"
+          label="Zeiterfassung läuft noch"
+          onSchliessen={() => {
+            setFrage(null);
+            void invoke("beenden_abgebrochen");
+          }}
+        >
           <strong>Zeiterfassung in der Akte „{akte}“ läuft noch</strong>
           <p>
             {l.bearbeiter}
@@ -86,14 +95,14 @@ export default function TimerHinweise({ onAkte }: { onAkte: (akteId: number) => 
               Abbrechen
             </button>
           </div>
-          {fehler && <p className="fehler">{fehler}</p>}
-        </div>
+          {fehler && <p className="fehler" role="alert">{fehler}</p>}
+        </Dialog>
       </div>
     );
 
   return (
     <div className="timer-hinweis-hintergrund">
-      <div className="rueckfrage timer-hinweis" role="alertdialog" aria-label="Zeiterfassung läuft">
+      <Dialog className="rueckfrage timer-hinweis" rolle="alertdialog" label="Zeiterfassung läuft" onSchliessen={() => setFrage(null)}>
         <strong>
           Die Zeiterfassung in der Akte „{akte}“ läuft seit {seit}
         </strong>
@@ -120,8 +129,8 @@ export default function TimerHinweise({ onAkte }: { onAkte: (akteId: number) => 
             Weiterlaufen lassen
           </button>
         </div>
-        {fehler && <p className="fehler">{fehler}</p>}
-      </div>
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
+      </Dialog>
     </div>
   );
 }

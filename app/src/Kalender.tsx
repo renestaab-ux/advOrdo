@@ -248,7 +248,7 @@ export default function Kalender({ onAkte }: { onAkte: (id: number) => void }) {
         </details>
       )}
 
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {meldung && <p className="meldung">{meldung}</p>}
 
       {buch && (
@@ -301,7 +301,7 @@ export default function Kalender({ onAkte }: { onAkte: (id: number) => void }) {
 
       <div className={gewaehlt ? "kalender-flaeche mit-detail" : "kalender-flaeche"}>
         <div className="kalender-haupt">
-          {eintraege == null && !fehler && <p className="status">Lade …</p>}
+          {eintraege == null && !fehler && <p className="status" role="status">Lade …</p>}
           {eintraege != null && ansicht === "monat" && (
             <MonatsRaster
               von={von}
@@ -399,12 +399,17 @@ function MonatsRaster({ von, monat, onTag, ...p }: AnsichtProps & { von: string;
   const tage = Array.from({ length: 42 }, (_, i) => plusTage(von, i));
   return (
     <div className="monats-raster" role="grid" aria-label="Monat">
-      {WOCHENTAGE.map((w) => (
-        <div key={w} className="kalender-wochentag" role="columnheader">
-          {w}
-        </div>
-      ))}
-      {tage.map((tag) => {
+      {/* Zeilen nur für Bildschirmleser; display: contents lässt das Raster unverändert. */}
+      <div className="raster-zeile" role="row">
+        {WOCHENTAGE.map((w) => (
+          <div key={w} className="kalender-wochentag" role="columnheader">
+            {w}
+          </div>
+        ))}
+      </div>
+      {Array.from({ length: 6 }, (_, woche) => (
+      <div key={woche} className="raster-zeile" role="row">
+      {tage.slice(woche * 7, woche * 7 + 7).map((tag) => {
         const liste = p.jeTag.get(tag) ?? [];
         const zuViele = liste.length > 4;
         return (
@@ -426,6 +431,8 @@ function MonatsRaster({ von, monat, onTag, ...p }: AnsichtProps & { von: string;
           </div>
         );
       })}
+      </div>
+      ))}
     </div>
   );
 }

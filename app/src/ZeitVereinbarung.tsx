@@ -166,7 +166,7 @@ export default function ZeitVereinbarung({
           </button>
         </div>
       )}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
       <p className="leise klein">
         Eine Vorlage für die Vereinbarung mit Stundensätzen, Taktung und Kostenschätzung gibt es unter{" "}
         <button className="link klein" onClick={onSchriftstuecke}>
@@ -284,7 +284,7 @@ export function MandantVereinbarungen({ mandant, onAkte }: { mandant: string; on
     }
   }
 
-  if (!d) return fehler ? <p className="fehler">{fehler}</p> : null;
+  if (!d) return fehler ? <p className="fehler" role="alert">{fehler}</p> : null;
   const beides = d.rahmen !== null && d.einzel.length > 0;
   return (
     <div className="beziehungen mandant-vereinbarungen">
@@ -349,7 +349,7 @@ export function MandantVereinbarungen({ mandant, onAkte }: { mandant: string; on
           </ul>
         </>
       )}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </div>
   );
 }

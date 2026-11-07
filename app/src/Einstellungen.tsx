@@ -13,11 +13,15 @@ import Umgebungen from "./Umgebungen";
 import {
   AKZENTE,
   Darstellung,
+  HILFEN,
   SCHRIFTGROESSEN,
   THEMEN,
   darstellungLesen,
   darstellungSpeichern,
   istDunkel,
+  modusAn,
+  modusSetzen,
+  systemWillKontrast,
 } from "./darstellung";
 import { KiStatus, Marke, UmgebungsListe, groesseText, istDesktop, kern } from "./kern";
 
@@ -234,7 +238,7 @@ export default function Einstellungen({
     inhalt = abgeschaltet ? (
       <>
         {schalter}
-        {fehler && <p className="fehler">{fehler}</p>}
+        {fehler && <p className="fehler" role="alert">{fehler}</p>}
       </>
     ) : (
       <>
@@ -312,8 +316,8 @@ export default function Einstellungen({
             </div>
           </form>
 
-          {laeuft && <p className="status">Prüfe …</p>}
-          {fehler && <p className="fehler">{fehler}</p>}
+          {laeuft && <p className="status" role="status">Prüfe …</p>}
+          {fehler && <p className="fehler" role="alert">{fehler}</p>}
           {lokal && !laeuft && (
             <p className={lokal.bereit ? "ki-zeile bereit" : "ki-zeile"}>
               {lokal.bereit
@@ -366,7 +370,7 @@ export default function Einstellungen({
         {status ? (
           <ExterneKi status={status} onStatus={setStatus} onGeaendert={onGeaendert} />
         ) : (
-          <p className="status">{fehler ?? "Prüfe …"}</p>
+          <p className="status" role="status">{fehler ?? "Prüfe …"}</p>
         )}
       </>
     );
@@ -414,6 +418,7 @@ function Allgemeines() {
   const dunkel = istDunkel(d);
 
   return (
+    <>
     <section className="karte">
       <h2>Darstellung</h2>
       <p className="erklaerung">Gilt für dieses Gerät, sofort und für alle Arbeitsumgebungen.</p>
@@ -471,6 +476,52 @@ function Allgemeines() {
         <button tabIndex={-1}>Knopf</button>
       </div>
     </section>
+
+    <section className="karte" aria-labelledby="barrierefreiheit">
+      <h2 id="barrierefreiheit">Barrierefreiheit</h2>
+      <p className="erklaerung">
+        Der barrierefreie Modus schaltet alle Hilfen unten ein und stellt die Schrift mindestens auf „Sehr groß“. Jede Hilfe
+        lässt sich auch einzeln an- oder abschalten. Gilt wie die Darstellung für dieses Gerät.
+      </p>
+      <label className="schalter barrierefrei-schalter">
+        <input
+          type="checkbox"
+          checked={modusAn(d.barrierefrei)}
+          onChange={(e) => {
+            const neu = modusSetzen(d, e.target.checked);
+            setD(neu);
+            darstellungSpeichern(neu);
+          }}
+        />
+        <span>Barrierefreier Modus</span>
+        <span className="leise">{modusAn(d.barrierefrei) ? "an" : HILFEN.some((h) => d.barrierefrei[h.id]) ? "teilweise an" : "aus"}</span>
+      </label>
+      <ul className="hilfen-liste" aria-label="Einzelne Hilfen">
+        {HILFEN.map((h) => (
+          <li key={h.id}>
+            <label>
+              <input
+                type="checkbox"
+                checked={d.barrierefrei[h.id]}
+                aria-describedby={`hilfe-${h.id}`}
+                onChange={(e) => setze({ barrierefrei: { ...d.barrierefrei, [h.id]: e.target.checked } })}
+              />
+              <span>{h.titel}</span>
+            </label>
+            <p className="leise" id={`hilfe-${h.id}`}>
+              {h.erklaerung}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <p className="leise">
+        JuraBox folgt auch den Einstellungen des Systems: Unter Windows übernimmt es die Farben eines Kontrastdesigns
+        (Einstellungen → Barrierefreiheit → Kontrastdesigns), unter macOS schaltet „Kontrast erhöhen“ den hohen Kontrast
+        ein, und „Animationen aus“ bzw. „Bewegung reduzieren“ hält die Oberfläche ruhig.
+        {systemWillKontrast() && " Das System verlangt gerade mehr Kontrast; der hohe Kontrast ist deshalb an."}
+      </p>
+    </section>
+    </>
   );
 }
 
@@ -554,7 +605,7 @@ function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke
         <p className="leise">Leer lassen, dann steht dort „JuraBox“.</p>
       </form>
 
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </section>
   );
 }
@@ -793,8 +844,8 @@ function ExterneKi({
             Der Schlüssel liegt in der Datei ki-schluessel.json im Datenverzeichnis der App, getrennt von den übrigen
             Einstellungen, und wird nicht wieder angezeigt.
           </p>
-          {laeuft && <p className="status">{laeuft}</p>}
-          {fehler && <p className="fehler">{fehler}</p>}
+          {laeuft && <p className="status" role="status">{laeuft}</p>}
+          {fehler && <p className="fehler" role="alert">{fehler}</p>}
           {!laeuft && (
             <p className={x.bereit ? "ki-zeile bereit" : "ki-zeile"}>
               {x.bereit

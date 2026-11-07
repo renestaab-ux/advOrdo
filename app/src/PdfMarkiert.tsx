@@ -41,10 +41,10 @@ function useAblauf(arbeit: string) {
   }
   const anzeige = (
     <>
-      {laeuft && <p className="status">{arbeit}</p>}
-      {meldung && <p className="status">{meldung}</p>}
+      {laeuft && <p className="status" role="status">{arbeit}</p>}
+      {meldung && <p className="status" role="status">{meldung}</p>}
       {hinweis && <p className="hinweis">{hinweis}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </>
   );
   return { laeuft, ausfuehren, setMeldung, setHinweis, anzeige };

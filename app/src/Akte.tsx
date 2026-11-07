@@ -1,3 +1,4 @@
+import Trenner from "./Trenner";
 import {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
@@ -93,6 +94,21 @@ type DokModus = "text" | "original" | "normen" | "rechtsprechung" | "chat" | "de
 const SEITE_STANDARD = 360;
 const SEITE_MIN = 260;
 const BREITE_SCHLUESSEL = "akte.seitenbreite";
+
+/** Breite der Dokumentansicht rechts neben der Dokumentliste, je Gerät gemerkt; null = Standard (anteilig). */
+const DOK_MIN = 360;
+const DOK_SCHLUESSEL = "akte.dokbreite";
+/** Liste behält mindestens so viel Platz neben den Filtern. */
+const LISTE_MIN = 340;
+
+function gespeicherteDokBreite(): number | null {
+  try {
+    const wert = Number(localStorage.getItem(DOK_SCHLUESSEL));
+    return wert >= DOK_MIN ? wert : null;
+  } catch {
+    return null;
+  }
+}
 
 function gespeicherteBreite(): number {
   try {
@@ -225,6 +241,9 @@ export default function Akte({
   // Geänderte Arbeitskopien, bei denen „Später“ gewählt wurde; gilt bis zum nächsten Speichern.
   const [spaeter, setSpaeter] = useState<ReadonlySet<string>>(new Set());
   const flaeche = useRef<HTMLDivElement>(null);
+  // Trennlinie zwischen Dokumentliste und geöffnetem Dokument (Reiter Dokumente).
+  const [dokBreite, setDokBreite] = useState<number | null>(gespeicherteDokBreite);
+  const dokRahmen = useRef<HTMLDivElement>(null);
   // Markierungen und Kommentare des geöffneten Dokuments; die Zähler in der Dokumentliste folgen jeder Änderung.
   // Lesezeichen: Inhaltsverzeichnis des PDFs und eigene Lesezeichen; „Lesezeichen“ steht auch im Menü über der Auswahl.
   const lz = useLesezeichen(inhalt?.dokument.id ?? null);
@@ -247,6 +266,45 @@ export default function Akte({
     } catch {
       // Ohne Speicher gilt die Breite nur bis zum Neustart.
     }
+  }
+
+  /** Platz links der Trennlinie: Filterspalte und Mindestbreite der Liste. */
+  function dokRest(): number {
+    return (filterZu ? 40 : 210) + LISTE_MIN + 6;
+  }
+
+  /** Standardbreite der Dokumentansicht: ihr Anteil wie im Raster ohne eigene Breite (1,3 bzw. 1,5 zu 1). */
+  function dokStandard(): number {
+    const gesamt = dokRahmen.current?.getBoundingClientRect().width ?? 1200;
+    const anteil = filterZu ? 1.5 : 1.3;
+    return Math.max(DOK_MIN, Math.round(((gesamt - (filterZu ? 40 : 210)) * anteil) / (1 + anteil)));
+  }
+
+  function setzeDokBreite(breite: number | null) {
+    // Gleich dem Standard: wieder anteilig, damit die Aufteilung beim Ändern der Fenstergröße mitwächst.
+    const neu = breite == null || Math.abs(breite - dokStandard()) < 3 ? null : breite;
+    setDokBreite(neu);
+    try {
+      if (neu == null) localStorage.removeItem(DOK_SCHLUESSEL);
+      else localStorage.setItem(DOK_SCHLUESSEL, String(neu));
+    } catch {
+      // Ohne Speicher gilt die Breite nur bis zum Neustart.
+    }
+  }
+
+  function dokBreiteZiehen(e: ReactPointerEvent<HTMLDivElement>) {
+    const rahmen = dokRahmen.current?.getBoundingClientRect();
+    if (!rahmen) return;
+    e.preventDefault();
+    const breite = (x: number) => Math.round(Math.min(Math.max(rahmen.right - x, DOK_MIN), rahmen.width - dokRest()));
+    const bewegen = (ev: PointerEvent) => setDokBreite(breite(ev.clientX));
+    const loslassen = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", bewegen);
+      window.removeEventListener("pointerup", loslassen);
+      setzeDokBreite(breite(ev.clientX));
+    };
+    window.addEventListener("pointermove", bewegen);
+    window.addEventListener("pointerup", loslassen);
   }
 
   function breiteZiehen(e: ReactPointerEvent<HTMLDivElement>) {
@@ -890,9 +948,9 @@ export default function Akte({
           onAbbrechen={() => setOrdnerFrage(null)}
         />
       )}
-      {laeuft && <p className="status">{laeuft}</p>}
+      {laeuft && <p className="status" role="status">{laeuft}</p>}
       {meldung && !laeuft && <p className="meldung">{meldung}</p>}
-      {fehler && <p className="fehler">{fehler}</p>}
+      {fehler && <p className="fehler" role="alert">{fehler}</p>}
     </>
   );
 
@@ -937,14 +995,16 @@ export default function Akte({
     <div className={`akte-arbeitsflaeche${zeigeAnmerkSeite ? " mit-anmerkungen" : ""}`} ref={flaeche} style={{ "--seite-breite": `${seitenbreite}px` } as CSSProperties}>
       <div className="akte-haupt">{haupt}</div>
       {(zeigeVolltextSeite || zeigeBelegSeite || zeigeAnmerkSeite) && (
-        <div
-          className="trenner"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Breite der Seitenleiste"
-          title="Ziehen, um die Breite zu ändern; Doppelklick setzt sie zurück"
-          onPointerDown={breiteZiehen}
-          onDoubleClick={() => setzeSeitenbreite(SEITE_STANDARD)}
+        <Trenner
+          label="Breite der Seitenleiste"
+          titel="Ziehen, um die Breite zu ändern"
+          breite={seitenbreite}
+          min={SEITE_MIN}
+          standard={SEITE_STANDARD}
+          rahmen={flaeche}
+          rest={320}
+          onZiehen={breiteZiehen}
+          onSetze={setzeSeitenbreite}
         />
       )}
       {zeigeVolltextSeite && volltext && (
@@ -978,7 +1038,7 @@ export default function Akte({
       {zeigeBelegSeite && auswahl && (
         <aside className="akte-seite">
           <p className="fundort">Zitiert in {auswahl.ort}</p>
-          {auswahl.beleg ? <BelegAnsicht beleg={auswahl.beleg} /> : <p className="status">Lade Wortlaut …</p>}
+          {auswahl.beleg ? <BelegAnsicht beleg={auswahl.beleg} /> : <p className="status" role="status">Lade Wortlaut …</p>}
         </aside>
       )}
     </div>
@@ -1015,7 +1075,11 @@ export default function Akte({
   }
 
   return (
-    <div className={filterZu ? "akte-dokumente filter-zu" : "akte-dokumente"}>
+    <div
+      ref={dokRahmen}
+      className={`akte-dokumente${filterZu ? " filter-zu" : ""}${dokBreite != null ? " feste-breite" : ""}`}
+      style={dokBreite != null ? ({ "--dok-breite": `${dokBreite}px` } as CSSProperties) : undefined}
+    >
       <aside className="akte-filter" aria-label="Filter">
         <button
           className="leisten-knopf"
@@ -1251,6 +1315,18 @@ export default function Akte({
         {dokumente.length > 0 && sichtbar.length === 0 && <p className="leer">Kein Dokument passt zu diesem Filter.</p>}
       </section>
 
+      <Trenner
+        label="Breite von Dokumentliste und Dokumentansicht"
+        titel="Ziehen, um Dokumentliste und Dokumentansicht anders aufzuteilen"
+        breite={dokBreite ?? dokStandard()}
+        min={DOK_MIN}
+        standard={dokStandard()}
+        rahmen={dokRahmen}
+        rest={dokRest()}
+        onZiehen={dokBreiteZiehen}
+        onSetze={setzeDokBreite}
+        wertText={`Dokumentansicht ${dokBreite ?? dokStandard()} Pixel breit`}
+      />
       <section className="akte-offen" aria-label="Geöffnetes Dokument">
         {inhalt ? (
           <>
@@ -1725,7 +1801,7 @@ function DokModusLeiste({
   // Ohne KI (Einstellungen) kein Chat mit dem Dokument.
   const kiAn = useKiAn();
   return (
-    <div className="dok-modi" role="tablist" aria-label={`Darstellung von ${dokument.dateiname}`}>
+    <div className="dok-modi">
       <div className="dok-modi-kopf">
         <span className="dok-modi-name" title={dokument.titel ? dokument.dateiname : undefined}>
           {dokumentName(dokument)}
@@ -1742,6 +1818,7 @@ function DokModusLeiste({
             .join(" · ")}
         </span>
       </div>
+      <div className="dok-modi-reiter" role="tablist" aria-label={`Darstellung von ${dokument.dateiname}`}>
       {DOK_MODI.filter((m) => kiAn || m.modus !== "chat").map((m) => (
         <button
           key={m.modus}
@@ -1755,6 +1832,7 @@ function DokModusLeiste({
           {m.text}
         </button>
       ))}
+      </div>
       {anmerkungen && (
         <button
           className={`anm-umschalter${anmerkungen.offen ? " aktiv" : ""}`}
@@ -1995,7 +2073,7 @@ export function OriginalAnsicht({
                 )}
               </div>
             ) : typeof b === "string" ? (
-              <p className="fehler">Seite {s} lässt sich nicht anzeigen: {b}</p>
+              <p className="fehler" role="alert">Seite {s} lässt sich nicht anzeigen: {b}</p>
             ) : (
               <div className="original-platzhalter">Seite {s} wird geladen …</div>
             )}
