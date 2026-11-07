@@ -24,6 +24,7 @@ beforeAll(async () => {
   document.body.appendChild(behaelter);
   wurzel = createRoot(behaelter);
   await act(async () => wurzel.render(<App />));
+  await geladen();
 });
 
 afterAll(() => {
@@ -44,6 +45,17 @@ async function klicke(el: Element) {
   await act(async () => {
     (el as HTMLElement).click();
   });
+  await geladen();
+}
+
+/** Bereiche werden erst beim Öffnen geladen (React.lazy): warten, bis statt „Lade …“ der Bereich dasteht. */
+async function geladen() {
+  for (let i = 0; i < 200 && document.querySelector("main [role='status']")?.textContent === "Lade …"; i++) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+  }
+  expect(document.querySelector("main [role='status']")?.textContent).not.toBe("Lade …");
 }
 
 function knopf(text: string, wo: ParentNode = document): HTMLElement {
