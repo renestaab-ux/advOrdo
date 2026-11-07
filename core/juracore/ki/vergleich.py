@@ -178,6 +178,9 @@ def _wert_im_absatz(t: belege.Text, fund: belege.Fund, wert: str):
     return treffer[0] if len(treffer) == 1 else None
 
 
+_VERNEINT_IM_BEZUG = re.compile(r"\b(?:nicht|kein\w*|ohne)\b", re.I)
+
+
 def _im_satz(text: str, start: int, wert: Wert) -> tuple[bool, bool]:
     """Ob der Satz um den Wert ein Bestreiten enthält, und ob der Wert in seinem Teilsatz verneint ist."""
     for s, e in saetze(text):
@@ -239,7 +242,9 @@ def _lies_werte(analyse: Analyse, t: belege.Text) -> dict:
             # Bestrittene Werte gibt der Verfasser nur wieder. Mittelgroße Modelle halten aber auch die eigene
             # Gegendarstellung im selben Absatz („Bestritten wird … Die Klägerin hat sich erstmals Mitte Juni
             # gemeldet“) für bestritten; maßgeblich ist deshalb der Satz, in dem der Wert steht.
-            if satz_bestritten or (haltung == "bestritten" and satz_verneint):
+            # Verneint („P17BF ließ sich nicht feststellen“): verworfen, wenn auch das Modell es so sieht.
+            verneint_laut_modell = haltung == "bestritten" or _VERNEINT_IM_BEZUG.search(str(w["bezug"]))
+            if satz_bestritten or (satz_verneint and verneint_laut_modell):
                 bestritten += 1
                 continue
             if haltung == "bestritten":

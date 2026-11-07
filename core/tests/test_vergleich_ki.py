@@ -315,3 +315,26 @@ def test_eigene_gegendarstellung_ist_nicht_bestritten(akten, con, tmp_path):
     w = vergleich.werte(Analyse(akten, Gemma()), d)
     assert [(x["wert"], x["haltung"]) for x in w["werte"]] == [("2025-06", "behauptet")]
     assert w["bestritten"] == 1
+
+
+def test_verneinter_wert_mit_verneintem_bezug_zaehlt_nicht(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Urteil")["id"]
+    pfad = tmp_path / "08_Urteil.md"
+    pfad.write_text("Urteil\n\nEin Fehlerspeichereintrag P17BF ließ sich nicht feststellen; gespeichert war vielmehr "
+                    "der Eintrag P189C.\n", encoding="utf-8")
+    d = akte.importiere(akten, con, a, pfad, tmp_path / "ablage", ocr=False, tags=["Gericht"])["dokument_id"]
+
+    class Gemma:
+        modell = "gemma"
+
+        def chat(self, system, nutzer, schema):
+            nr = _nr(nutzer, "P17BF")
+            return {"werte": [
+                {"wert": "P17BF", "bezug": "Fehlerspeichereintrag (nicht vorhanden)", "haltung": "festgestellt",
+                 "absatz": nr, "zitat": "Ein Fehlerspeichereintrag P17BF ließ sich nicht feststellen"},
+                {"wert": "P189C", "bezug": "vorhandener Fehlerspeichereintrag", "haltung": "festgestellt",
+                 "absatz": nr, "zitat": "gespeichert war vielmehr der Eintrag P189C"},
+            ]}
+
+    w = vergleich.werte(Analyse(akten, Gemma()), d)
+    assert [x["wert"] for x in w["werte"]] == ["P189C"]
