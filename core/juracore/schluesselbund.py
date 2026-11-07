@@ -62,7 +62,7 @@ def setze_bund(neu: Bund | None) -> None:
 
 
 def eintrag(ordner: Path, name: str) -> str:
-    """Name des Eintrags: je Datenordner getrennt, damit verschiedene Datenordner (etwa Test und Alltag) sich nicht überschreiben.
+    """Name des Eintrags: je Datenordner getrennt, damit sich verschiedene Datenordner nicht überschreiben.
 
     Die API-Schlüssel liegen am gemeinsamen Datenordner (``Kern.schluessel_datei``) und gelten damit für alle
     Arbeitsumgebungen, so wie ``ki.json``. Das Löschen einer Umgebung lässt sie deshalb bewusst bestehen.
