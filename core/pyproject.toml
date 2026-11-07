@@ -3,8 +3,10 @@ name = "juracore"
 version = "0.1.0"
 description = "Analysekern von JuraBox"
 requires-python = ">=3.11"
-# SPDX-Ausdruck nach PEP 639 (setuptools >= 77); der Lizenztext liegt in LICENSE im Hauptordner.
+# SPDX-Ausdruck nach PEP 639 (setuptools >= 77). Lizenzdateien müssen im Paketordner liegen: core/LICENSE ist eine
+# Kopie von LICENSE im Hauptordner (tests/test_lizenz.py prüft, dass beide gleich sind).
 license = "EUPL-1.2"
+license-files = ["LICENSE", "juracore/ausgabe/schriften/OFL.txt"]
 # pypdfium2: PDF-Text und Seitenbilder für die Texterkennung; fertige Pakete für Windows, macOS und Linux.
 # keyring: API-Schlüssel im Schlüsselbund des Systems (Windows, macOS, Linux Secret Service).
 dependencies = ["pypdfium2>=4.30,<6", "truststore>=0.9", "keyring>=24"]
