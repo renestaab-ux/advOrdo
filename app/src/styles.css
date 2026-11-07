@@ -236,7 +236,7 @@ code { font-family: ui-monospace, monospace; }
 .abschnitt { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 4px 0; line-height: 1.55; }
 .abschnitt p { margin: 0; }
 .abschnitt-ort { font-size: 11px; color: var(--text-leise); padding-top: 3px; text-align: right; }
-.abschnitt.fussnote p { font-size: 13px; color: var(--text-leise); }
+.abschnitt.fussnote p, .abschnitt.kopfzeile p { font-size: 13px; color: var(--text-leise); }
 .abschnitt.tabelle p { font-size: 13px; }
 button.zitat { font: inherit; padding: 0 2px; border: none; border-radius: 3px; background: none; color: inherit; cursor: pointer; border-bottom: 2px solid; }
 button.zitat.belegt { border-color: var(--gut); }

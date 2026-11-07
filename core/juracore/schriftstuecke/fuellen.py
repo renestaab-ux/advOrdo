@@ -16,6 +16,8 @@ import zipfile
 from collections.abc import Callable
 from xml.sax.saxutils import escape, unescape
 
+from .. import grenzen
+
 PLATZHALTER = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
 # Text eines Laufs bzw. Ende eines Absatzes; <w:tab/>, <w:tbl> u. ä. passen nicht, weil nach „w:t“ ein Leerzeichen
 # oder „>“ folgen muss.
@@ -112,7 +114,7 @@ def platzhalter_finden(daten: bytes) -> list[str]:
         for name in sorted(z.namelist(), key=lambda n: (n != "word/document.xml", n)):
             if not _TEILE.match(name):
                 continue
-            xml = z.read(name).decode("utf-8")
+            xml = grenzen.entpacke(z, name).decode("utf-8")
             for laeufe in _absaetze(xml):
                 gesamt = "".join(unescape(m.group(2), _ENTITAETEN) for m in laeufe)
                 gefunden += [" ".join(m.group(1).split()) for m in PLATZHALTER.finditer(gesamt)]
@@ -124,7 +126,7 @@ def fuellen(daten: bytes, ersatz: Callable[[str], str | None]) -> bytes:
     puffer = io.BytesIO()
     with _oeffne(daten) as quelle, zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as ziel:
         for info in quelle.infolist():
-            inhalt = quelle.read(info.filename)
+            inhalt = grenzen.entpacke(quelle, info)
             if _TEILE.match(info.filename):
                 inhalt = _ersetze_teil(inhalt.decode("utf-8"), ersatz).encode("utf-8")
             elif info.filename == "[Content_Types].xml":

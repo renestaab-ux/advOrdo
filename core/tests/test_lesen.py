@@ -10,12 +10,15 @@ from .conftest import schreibe_pdf
 ZEILE = "Die Beklagte lehnte die Nachbesserung ab und berief sich auf den Gewährleistungsausschluss im"
 
 
-def _docx(pfad, body: str, fussnoten: str | None = None):
+def _docx(pfad, body: str, fussnoten: str | None = None, rahmen: dict[str, str] | None = None):
     ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
     with zipfile.ZipFile(pfad, "w") as z:
         z.writestr("word/document.xml", f"<w:document {ns}><w:body>{body}</w:body></w:document>")
         if fussnoten:
             z.writestr("word/footnotes.xml", f"<w:footnotes {ns}>{fussnoten}</w:footnotes>")
+        for name, inhalt in (rahmen or {}).items():
+            wurzel = "w:hdr" if name.startswith("header") else "w:ftr"
+            z.writestr(f"word/{name}.xml", f"<{wurzel} {ns}>{inhalt}</{wurzel}>")
     return pfad
 
 
@@ -80,6 +83,44 @@ def test_docx_ohne_umbrueche_hat_keine_seiten(tmp_path):
     dok = lesen.lies(_docx(tmp_path / "a.docx", _p("(1) Text")))
     assert dok.abschnitte[0].seite is None
     assert "Randnummer" in dok.hinweise[0]
+
+
+def test_docx_harter_umbruch_zaehlt_nur_einmal(tmp_path):
+    # Word schreibt nach einem harten Umbruch zusätzlich lastRenderedPageBreak an den Anfang der neuen Seite.
+    gerendert = "<w:r><w:lastRenderedPageBreak/></w:r>"
+    body = (
+        _p("Seite eins")
+        + "<w:p><w:r><w:br w:type='page'/></w:r></w:p>"
+        + _p("Seite zwei", gerendert)
+        + _p("Seite drei", "<w:pPr><w:pageBreakBefore/></w:pPr>" + gerendert)
+        + "<w:p><w:r><w:t>Lang</w:t></w:r>" + gerendert + "<w:r><w:t>weiter</w:t></w:r></w:p>"  # weicher Umbruch
+        + _p("Seite vier")
+    )
+    dok = lesen.lies(_docx(tmp_path / "a.docx", body))
+    assert [(a.text, a.seite) for a in dok.abschnitte] == [
+        ("Seite eins", 1), ("Seite zwei", 2), ("Seite drei", 3), ("Langweiter", 3), ("Seite vier", 4),
+    ]
+
+
+def test_docx_verschachtelte_tabelle_und_kopfzeilen(tmp_path):
+    innen = "<w:tbl><w:tr><w:tc>" + _p("Pos. 1") + "</w:tc><w:tc>" + _p("100,00 EUR") + "</w:tc></w:tr></w:tbl>"
+    body = (
+        "<w:tbl><w:tr><w:tc>" + _p("Anlage K 2") + "</w:tc><w:tc>" + _p("Rechnung") + innen + "</w:tc></w:tr></w:tbl>"
+        + _p("Text")
+    )
+    rahmen = {
+        "header1": _p("Kanzlei Muster · Az. 12/26"),
+        "header2": _p("Kanzlei Muster · Az. 12/26"),  # erste Seite, gleicher Text
+        "footer1": "<w:tbl><w:tr><w:tc>" + _p("Bank") + "</w:tc><w:tc>" + _p("IBAN DE00") + "</w:tc></w:tr></w:tbl>",
+    }
+    dok = lesen.lies(_docx(tmp_path / "a.docx", body, rahmen=rahmen))
+    assert [(a.text, a.art) for a in dok.abschnitte] == [
+        ("Anlage K 2 | Rechnung", "tabelle"),
+        ("Pos. 1 | 100,00 EUR", "tabelle"),
+        ("Text", "absatz"),
+        ("Kanzlei Muster · Az. 12/26", "kopfzeile"),
+        ("Bank | IBAN DE00", "kopfzeile"),
+    ]
 
 
 def test_markdown_und_text(tmp_path):

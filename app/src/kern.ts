@@ -1098,7 +1098,7 @@ export interface Abschnitt {
   seite: number | null;
   seite_bis: number | null;
   rn: number | null;
-  art: "absatz" | "tabelle" | "fussnote";
+  art: "absatz" | "tabelle" | "fussnote" | "kopfzeile";
   text: string;
   zitate: NormZitat[];
 }
@@ -1685,6 +1685,7 @@ export interface KiExternStatus {
   kontext: number;
   schluessel_hinterlegt: boolean;
   schluessel_ende: string | null;
+  schluessel_ort?: "schluesselbund" | "datei";
   /** Ob der Anbieter bei dieser Abfrage angefragt wurde (nur die Modellliste, keine Inhalte). */
   geprueft: boolean;
   erreichbar: boolean;

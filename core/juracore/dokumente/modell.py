@@ -33,7 +33,7 @@ class Abschnitt:
     seite: int | None = None
     seite_bis: int | None = None
     rn: int | None = None  # Randnummer, z. B. "(4)" am Absatzanfang
-    art: str = "absatz"  # "absatz", "tabelle", "fussnote"
+    art: str = "absatz"  # "absatz", "tabelle", "fussnote", "kopfzeile"
     seitenwechsel: list[tuple[int, int]] = field(default_factory=list)  # [(Zeichenposition, Seite)]
 
 

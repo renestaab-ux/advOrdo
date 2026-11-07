@@ -32,7 +32,7 @@ import zlib
 from dataclasses import dataclass
 from html.entities import name2codepoint
 
-from .. import netzprotokoll
+from .. import grenzen, netzprotokoll
 from .verzeichnis import USER_AGENT
 from .volltext import Absatz, Volltext
 
@@ -257,7 +257,7 @@ def _xml_aus_zip(daten: bytes) -> tuple[str, bytes]:
             xmls = [n for n in z.namelist() if n.lower().endswith(".xml") and not n.upper().startswith("META-INF/")]
             if len(xmls) != 1:
                 raise ValueError(f"Erwartet genau eine XML-Datei im Archiv, gefunden: {xmls}")
-            return xmls[0], z.read(xmls[0])
+            return xmls[0], grenzen.entpacke(z, xmls[0])
     except (zipfile.BadZipFile, EOFError, zlib.error):
         try:
             return _rette_xml(daten)

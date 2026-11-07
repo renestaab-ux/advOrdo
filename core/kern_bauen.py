@@ -47,6 +47,9 @@ def main() -> int:
             "--collect-all", "pypdfium2",
             "--collect-all", "pypdfium2_raw",
             "--collect-submodules", "truststore",
+            # keyring findet seine Schlüsselbund-Anbindungen über Paket-Metadaten (entry points).
+            "--collect-submodules", "keyring",
+            "--copy-metadata", "keyring",
             "--add-data", f"{daten}{os.pathsep}juracore/gesetze",
             # Eingebettete Schrift für PDF-Berichte mit Zeichen außerhalb von WinAnsi, samt Lizenz (OFL)
             "--add-data", f"{CORE / 'juracore' / 'ausgabe' / 'schriften'}{os.pathsep}juracore/ausgabe/schriften",

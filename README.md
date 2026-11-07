@@ -495,8 +495,11 @@ externen Anbieter wählen. Solange er gewählt ist, steht links unten „KI-Modu
 Analyse und Chat weisen darauf hin, dass Dokumenttexte das Gerät verlassen. Schalter aus stellt sofort
 wieder auf lokal.
 
-Die Schlüssel liegen in `ki-schluessel.json` im Datenverzeichnis der App (Linux/macOS: nur für den
-Benutzer lesbar), getrennt von `ki.json`, und werden nie wieder angezeigt. Die Kommandozeile
+Die Schlüssel liegen im Schlüsselbund des Systems (Windows: Anmeldeinformationsverwaltung, macOS:
+Schlüsselbund, Linux: Secret Service wie GNOME-Schlüsselbund oder KWallet), je Arbeitsumgebung getrennt,
+und werden nie wieder angezeigt. Nur wenn kein Schlüsselbund erreichbar ist, liegen sie in
+`ki-schluessel.json` im Datenverzeichnis (Linux/macOS: nur für den Benutzer lesbar). Schlüssel aus
+älteren Fassungen ziehen beim ersten Gebrauch aus der Datei in den Schlüsselbund um. Die Kommandozeile
 (`ki-status`, `ki-pruefen`) arbeitet immer lokal.
 
 ## Diagnose

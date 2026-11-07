@@ -841,8 +841,9 @@ function ExterneKi({
             </div>
           </form>
           <p className="leise">
-            Der Schlüssel liegt in der Datei ki-schluessel.json im Datenverzeichnis der App, getrennt von den übrigen
-            Einstellungen, und wird nicht wieder angezeigt.
+            {x.schluessel_ort === "schluesselbund"
+              ? "Der Schlüssel liegt verschlüsselt im Schlüsselbund des Systems (Windows: Anmeldeinformationsverwaltung, macOS: Schlüsselbund, Linux: Secret Service), getrennt von den übrigen Einstellungen, und wird nicht wieder angezeigt."
+              : "Der Schlüssel liegt in der Datei ki-schluessel.json im Datenverzeichnis der App (nur für dich lesbar), weil kein Schlüsselbund des Systems erreichbar ist. Er wird nicht wieder angezeigt."}
           </p>
           {laeuft && <p className="status" role="status">{laeuft}</p>}
           {fehler && <p className="fehler" role="alert">{fehler}</p>}

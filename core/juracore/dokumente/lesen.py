@@ -17,6 +17,7 @@ from collections.abc import Callable
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from .. import grenzen
 from .aufbereitung import abschnitte_bilden
 from .modell import DATEI, LEER, OCR, TEXTEBENE, Abschnitt, Dokument, Seite
 from .ocr import OcrNichtVerfuegbar, Tesseract
@@ -132,8 +133,12 @@ _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 def _lies_docx(pfad: Path) -> Dokument:
     try:
         with zipfile.ZipFile(pfad) as z:
-            dokument_xml = z.read("word/document.xml")
-            fussnoten_xml = z.read("word/footnotes.xml") if "word/footnotes.xml" in z.namelist() else None
+            namen = z.namelist()
+            dokument_xml = grenzen.entpacke(z, "word/document.xml")
+            fussnoten_xml = grenzen.entpacke(z, "word/footnotes.xml") if "word/footnotes.xml" in namen else None
+            # Kopf- und Fußzeilen (Briefkopf, Aktenzeichen, Seitenfuß) in fester Reihenfolge.
+            rahmen_xml = [grenzen.entpacke(z, n) for n in sorted(namen, key=_rahmen_ordnung)
+                          if re.fullmatch(r"word/(header|footer)\d*\.xml", n)]
     except (zipfile.BadZipFile, KeyError) as fehler:
         raise ValueError(f"{pfad.name} ist keine lesbare Word-Datei (DOCX): {fehler}") from fehler
 
@@ -144,22 +149,22 @@ def _lies_docx(pfad: Path) -> Dokument:
     # (Seite, Text, Art) je Absatz; Seiten nur über Umbrüche in der Datei.
     absaetze: list[tuple[int, str, str]] = []
     seite = 1
+    umbruch = _Umbruch()
     for element in _bloecke(koerper):
         if element.tag == f"{_W}p":
             if element.find(f"{_W}pPr/{_W}pageBreakBefore") is not None:
-                seite += 1
-            text, umbrueche = _absatztext(element)
+                seite += umbruch.hart()
+            text, umbrueche = _absatztext(element, umbruch)
             if text.strip():
                 absaetze.append((seite, text, "absatz"))
             seite += umbrueche
         elif element.tag == f"{_W}tbl":
-            for zeile in element.iter(f"{_W}tr"):
-                zellen = [
-                    " ".join(_absatztext(p)[0] for p in zelle.iter(f"{_W}p")).strip()
-                    for zelle in zeile.iter(f"{_W}tc")
-                ]
-                if any(zellen):
-                    absaetze.append((seite, " | ".join(zellen), "tabelle"))
+            umbrueche = 0
+            for zeile in _tabellenzeilen(element, umbruch):
+                if zeile[1]:
+                    absaetze.append((seite, zeile[1], "tabelle"))
+                umbrueche += zeile[0]
+            seite += umbrueche
 
     hat_seiten = seite > 1
     seiten = [Seite(None, DATEI, [])]
@@ -175,9 +180,50 @@ def _lies_docx(pfad: Path) -> Dokument:
             text = " ".join(_absatztext(p)[0] for p in fn.iter(f"{_W}p")).strip()
             if text:
                 abschnitte.append(Abschnitt(len(abschnitte) + 1, re.sub(r"\s+", " ", text), art="fussnote"))
+    gesehen: set[str] = set()
+    for xml in rahmen_xml:
+        for element in _bloecke(ET.fromstring(xml)):
+            if element.tag == f"{_W}p":
+                zeilen = [_absatztext(element)[0]]
+            elif element.tag == f"{_W}tbl":
+                zeilen = [z[1] for z in _tabellenzeilen(element)]
+            else:
+                continue
+            for text in zeilen:
+                text = re.sub(r"\s+", " ", text).strip()
+                if text and text not in gesehen:  # dieselbe Kopfzeile steht oft in mehreren Abschnitten
+                    gesehen.add(text)
+                    abschnitte.append(Abschnitt(len(abschnitte) + 1, text, art="kopfzeile"))
     seiten[0].zeilen = [a.text for a in abschnitte]
     hinweise = [] if hat_seiten else ["Word-Datei ohne Seitenumbrüche: Fundstellen nach Randnummer bzw. Absatz."]
     return Dokument("docx", seiten, abschnitte, hinweise)
+
+
+def _rahmen_ordnung(name: str) -> tuple[int, int]:
+    """header1, header2, …, dann footer1, …; ohne Zahl zuerst."""
+    m = re.fullmatch(r"word/(header|footer)(\d*)\.xml", name)
+    return (0 if m.group(1) == "header" else 1, int(m.group(2) or 0)) if m else (2, 0)
+
+
+class _Umbruch:
+    """Merkt sich, ob seit dem letzten harten Seitenumbruch schon Text kam.
+
+    Word schreibt an einem harten Umbruch (w:br type="page", pageBreakBefore) beim Speichern zusätzlich ein
+    w:lastRenderedPageBreak an den Anfang der neuen Seite. Das ist derselbe Umbruch und zählt nicht doppelt.
+    """
+
+    def __init__(self) -> None:
+        self.offen = False
+
+    def hart(self) -> int:
+        self.offen = True
+        return 1
+
+    def gerendert(self) -> int:
+        return 0 if self.offen else 1
+
+    def text(self) -> None:
+        self.offen = False
 
 
 def _bloecke(element: ET.Element):
@@ -191,23 +237,51 @@ def _bloecke(element: ET.Element):
             yield kind
 
 
-def _absatztext(p: ET.Element) -> tuple[str, int]:
+def _tabellenzeilen(tbl: ET.Element, umbruch: _Umbruch | None = None):
+    """(Seitenumbrüche, Text) je Tabellenzeile. Eine Tabelle in einer Zelle folgt als eigene Zeilen nach der
+    Zeile, in der sie steht, und wird nicht zusätzlich in deren Zelltext gelesen."""
+    for zeile in _bloecke(tbl):
+        if zeile.tag != f"{_W}tr":
+            continue
+        zellen: list[str] = []
+        umbrueche = 0
+        innen: list[tuple[int, str]] = []
+        for zelle in _bloecke(zeile):
+            if zelle.tag != f"{_W}tc":
+                continue
+            teile = []
+            for kind in _bloecke(zelle):
+                if kind.tag == f"{_W}p":
+                    text, n = _absatztext(kind, umbruch)
+                    teile.append(text)
+                    umbrueche += n
+                elif kind.tag == f"{_W}tbl":
+                    innen += list(_tabellenzeilen(kind, umbruch))
+            zellen.append(" ".join(teile).strip())
+        yield umbrueche, (" | ".join(zellen) if any(zellen) else "")
+        yield from innen
+
+
+def _absatztext(p: ET.Element, umbruch: _Umbruch | None = None) -> tuple[str, int]:
     """Text eines Word-Absatzes und Zahl der darin enthaltenen Seitenumbrüche."""
+    umbruch = umbruch or _Umbruch()
     teile: list[str] = []
     umbrueche = 0
     for e in p.iter():
         if e.tag == f"{_W}t" and e.text:
             teile.append(e.text)
+            if e.text.strip():
+                umbruch.text()
         elif e.tag == f"{_W}tab":
             teile.append("\t")
         elif e.tag == f"{_W}noBreakHyphen":
             teile.append("-")
         elif e.tag == f"{_W}br":
             if e.get(f"{_W}type") == "page":
-                umbrueche += 1
+                umbrueche += umbruch.hart()
             teile.append(" ")
         elif e.tag == f"{_W}lastRenderedPageBreak":
-            umbrueche += 1
+            umbrueche += umbruch.gerendert()
     return "".join(teile), umbrueche
 
 

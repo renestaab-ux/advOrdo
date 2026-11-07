@@ -20,6 +20,7 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .. import grenzen
 from .verzeichnis import USER_AGENT
 
 ADRESSE = "https://www.rechtsprechung-im-internet.de/jportal/docs/bsjrs/jb-{doknr}.zip"
@@ -126,7 +127,7 @@ def lies(daten: bytes) -> Volltext:
             xmls = [n for n in z.namelist() if n.lower().endswith(".xml")]
             if len(xmls) != 1:
                 raise ValueError(f"Erwartet genau eine XML-Datei im Archiv, gefunden: {xmls}")
-            daten = z.read(xmls[0])
+            daten = grenzen.entpacke(z, xmls[0])
     try:
         wurzel = ET.fromstring(daten)
     except ET.ParseError as fehler:

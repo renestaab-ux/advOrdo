@@ -12,6 +12,7 @@ Verbindung zu den Ein- und Ausgaben des Kerns, weil der Kern über stdout mit de
 from __future__ import annotations
 
 import json
+import ntpath
 import os
 import shlex
 import shutil
@@ -91,10 +92,16 @@ def befehl(datei: Path, programm: str = "", parameter: str = "", system: str = s
     return [programm, *argumente]
 
 
+def explorer() -> str:
+    """Der Explorer mit vollem Pfad. Ein bloßes „explorer“ sucht Windows zuerst im Programm- und im aktuellen
+    Ordner; eine dort abgelegte explorer.exe würde sonst gestartet."""
+    return ntpath.join(os.environ.get("SystemRoot") or r"C:\Windows", "explorer.exe")
+
+
 def ordner_befehl(datei: Path, system: str = sys.platform) -> list[str]:
     """Dateimanager mit der Datei (Windows, macOS markieren sie) bzw. ihrem Ordner (Linux)."""
     if system == "win32":
-        return ["explorer", f"/select,{datei}"]
+        return [explorer(), f"/select,{datei}"]
     if system == "darwin":
         return ["open", "-R", str(datei)]
     return ["xdg-open", str(Path(datei).parent)]
@@ -120,8 +127,8 @@ def befehlszeile(aufruf: list[str]) -> str | list[str]:
     ``subprocess`` setzt ein Argument mit Leerzeichen ganz in Anführungszeichen (``"/select,C:\\a b.pdf"``). Das
     versteht der Explorer nicht und öffnet dann „Dokumente“; er braucht ``/select,"C:\\a b.pdf"``.
     """
-    if len(aufruf) == 2 and aufruf[0] == "explorer" and aufruf[1].startswith("/select,"):
-        return f'explorer /select,"{aufruf[1][len("/select,"):]}"'
+    if len(aufruf) == 2 and ntpath.basename(aufruf[0]).lower() == "explorer.exe" and aufruf[1].startswith("/select,"):
+        return f'"{aufruf[0]}" /select,"{aufruf[1][len("/select,"):]}"'
     return aufruf
 
 

@@ -2,10 +2,18 @@ from pathlib import Path
 
 import pytest
 
-from juracore import db
+from juracore import db, schluesselbund
 from juracore.gesetze import quelle, wissensbasis
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def ohne_schluesselbund():
+    """Tests schreiben nie in den echten Schlüsselbund des Rechners (auch nicht auf den CI-Rechnern)."""
+    schluesselbund.setze_bund(None)
+    yield
+    schluesselbund.setze_bund(None)
 
 
 @pytest.fixture

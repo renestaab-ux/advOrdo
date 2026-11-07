@@ -29,6 +29,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from . import grenzen
+
 DATEINAME = "netzprotokoll.jsonl"
 HOECHSTENS = 5000  # Vorgaben, wählbar in Einstellungen → Diagnose
 AUFBEWAHRUNG_TAGE = 90
@@ -149,7 +151,7 @@ def _mitschreiben(anfrage: urllib.request.Request, oeffnen: Callable[[], Any]) -
         _schreibe(anfrage, status, None if status else _fehlertext(fehler), time.monotonic() - beginn)
         raise
     _schreibe(anfrage, getattr(antwort, "status", None), None, time.monotonic() - beginn)
-    return antwort
+    return grenzen.begrenze(antwort)
 
 
 class _ProtokollHTTP(urllib.request.HTTPHandler):

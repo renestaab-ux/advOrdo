@@ -152,12 +152,13 @@ def test_befehle_je_system():
         "open", "-a", "/Applications/LibreOffice.app", str(datei), "--args", "--nologo"]
     assert programme.befehl(datei, r"C:\Programme\Word.exe", r'/q "C:\Vorlagen\x.dotx"', system="win32") == [
         r"C:\Programme\Word.exe", "/q", r"C:\Vorlagen\x.dotx", str(datei)]
-    assert programme.ordner_befehl(datei, system="win32") == ["explorer", f"/select,{datei}"]
+    assert programme.ordner_befehl(datei, system="win32") == [programme.explorer(), f"/select,{datei}"]
+    assert programme.explorer().lower().endswith("\\explorer.exe")  # voller Pfad, nicht nur „explorer“
     assert programme.ordner_befehl(datei, system="darwin") == ["open", "-R", str(datei)]
     assert programme.ordner_befehl(datei, system="linux") == ["xdg-open", str(datei.parent)]
     # Der Explorer braucht die Anführungszeichen nur um den Pfad, sonst öffnet er „Dokumente“
-    assert programme.befehlszeile(["explorer", r"/select,C:\Akten\05 Klage (markiert).pdf"]) == \
-        r'explorer /select,"C:\Akten\05 Klage (markiert).pdf"'
+    assert programme.befehlszeile([r"C:\Windows\explorer.exe", r"/select,C:\Akten\05 Klage (markiert).pdf"]) == \
+        r'"C:\Windows\explorer.exe" /select,"C:\Akten\05 Klage (markiert).pdf"'
     assert programme.befehlszeile(["open", "-R", "x"]) == ["open", "-R", "x"]
 
 
