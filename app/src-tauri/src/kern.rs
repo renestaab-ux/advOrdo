@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn nur_freigegebene_methoden() {
         assert!(pruefe_freigabe("akten.liste", &json!({})).is_ok());
-        assert!(pruefe_freigabe("akten.beteiligung_aendern", &json!({})).is_err());
+        assert!(pruefe_freigabe("akten.importieren", &json!({})).is_err());
         assert!(pruefe_freigabe("gibt.es.nicht", &json!({})).is_err());
         assert!(pruefe_freigabe("# Kernmethoden", &json!({})).is_err());
         let gut = json!({ "methode": "akten.importieren_dateien", "params": {} });

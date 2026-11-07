@@ -89,8 +89,6 @@ def lies_treffer(daten: bytes | str | dict) -> tuple[list[dict], int | None]:
     return treffer, int(gesamt) if isinstance(gesamt, int | str) and str(gesamt).isdigit() else None
 
 
-GERICHTE = ("BVerfG", "BGH", "BVerwG", "BFH", "BAG", "BSG", "BPatG")
-
 
 def suche(aktenzeichen: str = "", timeout: float = 30, *, suchbegriff: str = "", gericht: str | None = None,
           von: str | None = None, bis: str | None = None, seite: int = 0) -> tuple[list[dict], int | None]:

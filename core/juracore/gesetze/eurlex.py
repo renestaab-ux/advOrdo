@@ -113,7 +113,7 @@ def _lade_cellar(celex: str, timeout: float) -> bytes | None:
     return daten if ist_eurlex(daten) else None
 
 
-def _cellar_oeffnen(anfrage: urllib.request.Request, timeout: float):  # noqa: ANN202 - Antwort von urllib
+def _cellar_oeffnen(anfrage: urllib.request.Request, timeout: float):
     """Cellar leitet auf eine http-Adresse weiter; die Fassung kommt über dieselbe Adresse mit https. Nur wenn das
     scheitert, bleibt es bei der Weiterleitung wie geliefert (öffentlicher Text, Prüfsumme im Archiv)."""
     try:
@@ -133,7 +133,7 @@ def https(adresse: str) -> str:
 
 
 class _HttpsWeiterleitung(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001, ANN201 - Signatur von urllib
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         return super().redirect_request(req, fp, code, msg, headers, https(newurl))
 
 

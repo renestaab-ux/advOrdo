@@ -329,7 +329,7 @@ def pruefe(k: Any, pruef_id: str) -> dict:
     beginn = time.monotonic()
     try:
         ergebnis = eintrag[3](k)
-    except Exception as fehler:  # noqa: BLE001 – die Diagnose soll jeden Fehler zeigen, nicht abbrechen
+    except Exception as fehler:
         ergebnis = _ergebnis("fehler", f"Die Prüfung ist mit einem Fehler abgebrochen: {fehler}",
                              [f"{type(fehler).__name__}"], "Bitte diesen Bericht kopieren und melden.")
     ergebnis.update(id=pruef_id, gruppe=eintrag[1], titel=eintrag[2],

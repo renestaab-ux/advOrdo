@@ -32,9 +32,7 @@ from .verzeichnis import USER_AGENT, dokument_link
 from .zitate import normalisiere_az
 
 MASKE = "https://www.rechtsprechung-im-internet.de/jportal/portal/page/bsjrsprod.psml/js_pane/Suchportlet2"
-GERICHTE = ("BVerfG", "BGH", "BVerwG", "BFH", "BAG", "BSG", "BPatG")
 MAX_TREFFER = 200
-JE_SEITE = 25
 
 
 def _iso_zu_tag(iso: str | None) -> str:

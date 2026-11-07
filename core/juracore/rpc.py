@@ -191,15 +191,12 @@ class Kern:
             "akten.einstellungen_setzen": lambda **p: stammdaten.einstellungen_setzen(self.akten, **p),
             "akten.beteiligung_hinzufuegen": lambda akte_id, rolle, **p: self._nach_aenderung(
                 stammdaten.beteiligung_hinzufuegen(self.akten, akte_id, rolle, **p), rolle),
-            "akten.beteiligung_aendern": lambda beteiligung_id, rolle=None, aktenzeichen=None: self._nach_aenderung(
-                stammdaten.beteiligung_aendern(self.akten, beteiligung_id, rolle, aktenzeichen), rolle),
             "akten.beteiligung_entfernen": lambda beteiligung_id: self._nach_aenderung(
                 stammdaten.beteiligung_entfernen(self.akten, beteiligung_id), "mandant"),
             "akten.kollision_pruefen": self.kollision_pruefen,
             "akten.kollision_vorab": self.kollision_vorab,
             "akten.kollision_entscheiden": lambda pruefung_id, entscheidung, begruendung="": kollision.entscheiden(
                 self.akten, pruefung_id, entscheidung, begruendung),
-            "akten.kollision_verlauf": lambda akte_id: kollision.verlauf(self.akten, akte_id),
             "akten.verfahren": lambda akte_id: verfahren.liste(self.akten, akte_id),
             "akten.verfahren_speichern": lambda akte_id, daten, verfahren_id=None, gericht_daten=None: (
                 verfahren.speichern(self.akten, akte_id, daten, verfahren_id, gericht_daten=gericht_daten)),
@@ -332,7 +329,6 @@ class Kern:
             "akten.urteil_ergaenzen": lambda akte_id, pfad, gericht, aktenzeichen=None, datum=None, zitat=None,
                 herkunft=None: urteile.ergaenzen(self.akten, akte_id, pfad, self.ablage, gericht, aktenzeichen, datum,
                                                  zitat, herkunft),
-            "akten.urteile": lambda akte_id: urteile.liste(self.akten, akte_id),
             "akten.urteile_zugeordnet": lambda akte_id: urteile.zur_bearbeitung(self.akten, self.con, akte_id),
             "akten.volltexte_laden": self.volltexte_laden,
             "rechtsprechung.eigene": lambda: urteile.uebersicht(self.akten),
@@ -383,7 +379,6 @@ class Kern:
             "kostennote.berechnen": lambda eingabe: kostennote.berechne(eingabe),
             "kostennote.erzeugen": lambda akte_id, eingabe, pfad=None, in_akte=True: kostennote.erzeugen(
                 self.akten, self.con, self.umgebungen.ordner(), self.ablage, akte_id, eingabe, pfad, in_akte),
-            "kostennote.liste": lambda akte_id: kostennote.liste(self.akten, akte_id),
             "kostennote.eingabe": lambda kostennote_id: kostennote.eingabe(self.akten, kostennote_id),
             "kostennote.stornieren": lambda kostennote_id: kostennote.stornieren(self.akten, kostennote_id),
             # Zeiterfassung je Akte: Stufen, Bearbeiter und Taktung gelten für die Umgebung.
@@ -439,7 +434,6 @@ class Kern:
             "hintergrund.starten": self.hintergrund_starten,
             "hintergrund.auftrag": self.hintergrund.status,
             "hintergrund.abbrechen": self.hintergrund.abbrechen,
-            "hintergrund.laufend": self.hintergrund.laufend,
             "ki.auftrag": self.auftraege.status,
             "ki.laufend": lambda: (a.als_dict() if (a := self.auftraege.laufend()) else None),
             "ki.abbrechen": self.auftraege.abbrechen,
@@ -1134,7 +1128,7 @@ class Kern:
         except (ValueError, LookupError, TypeError, OSError, RuntimeError, sqlite3.Error) as fehler:
             log.warning("Fehler bei Anfrage %s: %s", anfrage_id, fehler)
             return {"id": anfrage_id, "error": {"message": str(fehler), "typ": type(fehler).__name__}}
-        except Exception as fehler:  # noqa: BLE001 – ein unerwarteter Fehler darf den Kern nicht beenden
+        except Exception as fehler:
             log.exception("Unerwarteter Fehler bei Anfrage %s", anfrage_id)
             return {"id": anfrage_id, "error": {
                 "message": f"Unerwarteter Fehler im Analysekern ({type(fehler).__name__}: {fehler}).",

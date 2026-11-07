@@ -31,7 +31,6 @@ ARTEN = {
     "dynamisch": "Basiszinssatz + frei gewählte Prozentpunkte",
     "fest": "Fester Zinssatz, nicht an den Basiszinssatz gekoppelt",
 }
-METHODEN = ("act/act", "act/360", "act/365", "act/365.25", "act/366", "30E/360")
 VERRECHNUNG = {
     "zinsen_zuerst": "Zahlungen zuerst auf die Zinsen, dann auf die Hauptforderung (§ 367 Abs. 1 BGB)",
     "hauptschuld_zuerst": "Zahlungen zuerst auf die Hauptforderung, dann auf die Zinsen (§ 497 Abs. 3 S. 1 BGB)",

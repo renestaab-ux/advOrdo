@@ -422,7 +422,7 @@ class Nachrichten:
         def eins(f: dict) -> tuple[str, dict]:
             try:
                 return f["id"], self._feed_stand(f, lies_feed(abrufen(f["url"], self.oeffnen), f["url"]))
-            except Exception as fehler:  # noqa: BLE001 – ein kaputter Feed darf die anderen nicht aufhalten
+            except Exception as fehler:
                 log.info("Feed %s nicht geladen: %s", f["url"], fehler)
                 return f["id"], {"abgerufen": datetime.now(UTC).isoformat(timespec="seconds"),
                                  "fehler": _meldung(fehler)}

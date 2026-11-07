@@ -155,12 +155,12 @@ def _mitschreiben(anfrage: urllib.request.Request, oeffnen: Callable[[], Any]) -
 
 
 class _ProtokollHTTP(urllib.request.HTTPHandler):
-    def http_open(self, req):  # noqa: ANN001, ANN201 - Signatur von urllib
+    def http_open(self, req):
         return _mitschreiben(req, lambda: super(_ProtokollHTTP, self).http_open(req))
 
 
 class _ProtokollHTTPS(urllib.request.HTTPSHandler):
-    def https_open(self, req):  # noqa: ANN001, ANN201 - Signatur von urllib
+    def https_open(self, req):
         return _mitschreiben(req, lambda: super(_ProtokollHTTPS, self).https_open(req))
 
 

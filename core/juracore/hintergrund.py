@@ -108,7 +108,7 @@ class Hintergrund:
             else:
                 log.warning("Hintergrundauftrag %s (%s) fehlgeschlagen: %s", auftrag.nr, auftrag.aufgabe, f)
                 ergebnis, status, fehler, text = None, FEHLER, str(f), "Fehlgeschlagen"
-        except Exception as f:  # noqa: BLE001 – ein Fehler im Hintergrund darf den Kern nicht beenden
+        except Exception as f:
             log.exception("Unerwarteter Fehler in Hintergrundauftrag %s", auftrag.nr)
             ergebnis, status, fehler, text = (None, FEHLER, f"Unerwarteter Fehler im Analysekern "
                                               f"({type(f).__name__}: {f}).", "Fehlgeschlagen")

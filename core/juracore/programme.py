@@ -160,7 +160,7 @@ def _ausfuehren(aufruf: list[str], zeile: str | list[str] | None = None) -> None
     else:
         zusatz["start_new_session"] = True
     try:
-        subprocess.Popen(  # noqa: S603 - Programm und Datei stammen aus den Einstellungen und der Ablage
+        subprocess.Popen(
             zeile or aufruf, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             close_fds=True, **zusatz,
         )

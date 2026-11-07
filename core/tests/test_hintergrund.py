@@ -45,7 +45,7 @@ def test_import_im_hintergrund_mit_eigener_verbindung(kern):
     assert stand["ergebnis"]["abk"] == "ZPO"
     # Der Hauptthread sieht, was der Auftrag mit seiner eigenen Verbindung gespeichert hat.
     assert [g["abk"] for g in rufe(kern, "gesetze.liste")] == ["ZPO"]
-    assert rufe(kern, "hintergrund.laufend") == []
+    assert kern.hintergrund.laufend() == []
 
 
 def test_kern_antwortet_waehrend_ein_befehl_laeuft(kern):
@@ -64,7 +64,7 @@ def test_kern_antwortet_waehrend_ein_befehl_laeuft(kern):
     # Andere Aufrufe kommen sofort durch, auch ein zweiter Hintergrundbefehl anderer Art.
     assert "version" in rufe(kern, "ping")
     assert rufe(kern, "akten.liste") == []
-    assert [x["aufgabe"] for x in rufe(kern, "hintergrund.laufend")] == ["gerichte.laden"]
+    assert [x["aufgabe"] for x in kern.hintergrund.laufend()] == ["gerichte.laden"]
     # Derselbe Befehl läuft nur einmal.
     doppelt = kern.bearbeite(json.dumps({"id": 2, "method": "hintergrund.starten",
                                          "params": {"methode": "gerichte.laden"}}))
