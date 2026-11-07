@@ -22,7 +22,20 @@ from __future__ import annotations
 import re
 
 from ..abgleich import abgleich as regeln
-from ..abgleich.angaben import BETRAG, CODE, DATUM, KM, MONAT, anzeige, finde_werte, vereinbar
+from ..abgleich.angaben import (
+    _BESTREITEN,
+    BETRAG,
+    CODE,
+    DATUM,
+    KM,
+    MONAT,
+    Wert,
+    _ist_verneint,
+    anzeige,
+    finde_werte,
+    saetze,
+    vereinbar,
+)
 from . import belege
 from .analyse import BELEGREGEL, HALTUNGEN, Analyse, _einordnung
 from .anbieter import KiFehler
@@ -116,9 +129,12 @@ def _werte_anweisung(t: belege.Text, stueck: list) -> str:
         "Übergabe“, „Datum der ersten Mängelanzeige“, „Frist zur Nacherfüllung“, „Fehlerspeicher beim Auslesen am "
         "27.06.2025“. Unterscheide genau: Kilometerstand bei Übergabe ist nicht der heutige Kilometerstand, eine "
         "Anzahlung ist nicht der Kaufpreis, das Datum eines Schreibens ist nicht das Datum des Ereignisses, von dem "
-        "es berichtet.\n"
+        "es berichtet („mit Schreiben vom 23.06.2025 gesetzte Frist“: 23.06.2025 ist das Datum des Schreibens, nicht "
+        "die Frist), eine eingeklagte Forderung ist nicht der vom Gericht zugesprochene Betrag.\n"
         "- haltung: behauptet (der Verfasser stellt den Wert als zutreffend dar), bestritten (der Verfasser "
-        "bestreitet oder verneint ihn, z. B. „betrug nicht 64.800 km“), unstreitig, festgestellt (vom Gericht).\n"
+        "bestreitet oder verneint genau diesen Wert, z. B. „betrug nicht 64.800 km“, „Bestritten wird, dass … am "
+        "12.05.2025 …“), unstreitig, festgestellt (vom Gericht). Was der Verfasser dem Bestrittenen als eigene "
+        "Darstellung entgegensetzt („Die Klägerin hat sich erstmals Mitte Juni 2025 gemeldet“), ist behauptet.\n"
         "Nicht aufführen: Aktenzeichen, Geschäftszeichen, Telefonnummern, Postleitzahlen, Paragrafen, Seiten- und "
         "Randnummern, Daten von Gesetzen oder von Entscheidungen anderer Verfahren, Briefdatum im Kopf.\n"
         "Höchstens 40 Werte.\n\n"
@@ -160,6 +176,16 @@ def _wert_im_absatz(t: belege.Text, fund: belege.Fund, wert: str):
     g = genannt[0]
     treffer = [w for w in finde_werte(t.nach_nr[fund.abschnitt]) if (w.art, w.wert) == (g.art, g.wert)]
     return treffer[0] if len(treffer) == 1 else None
+
+
+def _im_satz(text: str, start: int, wert: Wert) -> tuple[bool, bool]:
+    """Ob der Satz um den Wert ein Bestreiten enthält, und ob der Wert in seinem Teilsatz verneint ist."""
+    for s, e in saetze(text):
+        if s <= start < e:
+            satz = text[s:e]
+            w = Wert(wert.art, wert.wert, start - s, start - s + (wert.ende - wert.start))
+            return bool(_BESTREITEN.search(satz)), wert.wert != "kein Eintrag" and _ist_verneint(satz, w)
+    return False, False
 
 
 def werte(analyse: Analyse, dokument_id: int) -> dict:
@@ -207,10 +233,17 @@ def _lies_werte(analyse: Analyse, t: belege.Text) -> dict:
             if wert is None:
                 verworfen += 1
                 continue
-            if w.get("haltung") == "bestritten":
+            start, ende = versatz + wert.start, versatz + wert.ende
+            haltung = w.get("haltung") if w.get("haltung") in HALTUNGEN else "behauptet"
+            satz_bestritten, satz_verneint = _im_satz(t.nach_nr[fund.abschnitt], start, wert)
+            # Bestrittene Werte gibt der Verfasser nur wieder. Mittelgroße Modelle halten aber auch die eigene
+            # Gegendarstellung im selben Absatz („Bestritten wird … Die Klägerin hat sich erstmals Mitte Juni
+            # gemeldet“) für bestritten; maßgeblich ist deshalb der Satz, in dem der Wert steht.
+            if satz_bestritten or (haltung == "bestritten" and satz_verneint):
                 bestritten += 1
                 continue
-            start, ende = versatz + wert.start, versatz + wert.ende
+            if haltung == "bestritten":
+                haltung = "behauptet"
             schluessel = (fund.abschnitt, start, wert.wert)
             if schluessel in gesehen:
                 continue
@@ -220,7 +253,7 @@ def _lies_werte(analyse: Analyse, t: belege.Text) -> dict:
                 "bezug": " ".join(str(w["bezug"]).split())[:100],
                 "art": wert.art,
                 "wert": wert.wert,
-                "haltung": w.get("haltung") if w.get("haltung") in HALTUNGEN else "behauptet",
+                "haltung": haltung,
                 "fundstelle": fundstelle,
             })
     return {"dokument_id": t.dokument_id, "dateiname": t.dateiname, "werte": gefunden, "verworfen": verworfen,
@@ -263,7 +296,8 @@ def _ordne_bezuege(analyse: Analyse, eintraege: list[dict], luecken: list[int]) 
             "derselben Sache aus verschiedenen Dokumenten nebeneinanderstellen.\n"
             "- Verschiedene Sachen gehören in verschiedene Gruppen, auch wenn sie ähnlich klingen: Kilometerstand bei "
             "Übergabe und heutiger Kilometerstand; Kaufpreis und Anzahlung; Frist zur Nacherfüllung und Frist zur "
-            "Zahlung; Datum eines Schreibens und Datum des Ereignisses, von dem es berichtet.\n"
+            "Zahlung; Datum eines Schreibens und Datum des Ereignisses, von dem es berichtet; eingeklagte Forderung "
+            "und vom Gericht zugesprochener Betrag.\n"
             "- titel: der Bezug in wenigen Wörtern, wie er über der Gegenüberstellung stehen soll.\n"
             "- bezuege: die Kennungen (z. B. B3) der Bezüge dieser Gruppe; jeder Bezug in höchstens einer Gruppe.\n"
             "Bezüge, die zu keinem anderen passen, lässt du weg.\n\n"
@@ -452,6 +486,38 @@ def _stelle(f: dict) -> tuple[int, int]:
     return f["dokument_id"], f["abschnitt"]
 
 
+def _regel_abweichungen_behalten(regel_angaben: list[dict], merkmale: list[dict]) -> list[dict]:
+    """Eine Abweichung, die die Regeln sehen, darf durch die KI nicht verschwinden.
+
+    Ordnet das Modell die Werte eines Merkmals der Regeln verschiedenen Bezügen zu (im Urteil „Übergabe am
+    18.03.2025“ und „Gefahrübergang am 21.03.2025“), steht die Gegenüberstellung der Regeln zusätzlich da, mit dem
+    Hinweis, wie das Modell die Werte verteilt hat. Ob es dasselbe meint, entscheidet der Mensch.
+    """
+    gruppen: dict[str, dict] = {}
+    for a in regel_angaben:
+        g = gruppen.setdefault(a["merkmal"], {"titel": a["titel"], "werte": {}})
+        regeln.wert_eintrag(g["werte"], a["art"], a["wert"])["fundstellen"].append({**a["fundstelle"], "quelle": REGEL})
+    dazu = []
+    for schluessel, g in gruppen.items():
+        werte_ = list(g["werte"].values())
+        if not _unvereinbar(werte_):
+            continue
+        if any(set(g["werte"]) <= set(m["werte"]) for m in merkmale):
+            continue  # eine Karte zeigt die Abweichung schon
+        # Wohin das Modell die Werte gelegt hat.
+        orte = []
+        for w in werte_:
+            for m in merkmale:
+                if m["quelle"] == KI and w["wert"] in m["werte"] and m["titel"] not in orte:
+                    orte.append(m["titel"])
+        hinweis = ("Die Regeln sehen hier dasselbe Merkmal; die KI ordnet die Werte verschiedenen Bezügen zu ("
+                   + "; ".join(f"„{o}“" for o in orte) + "). Ob es dasselbe meint, zeigen die Fundstellen."
+                   if len(orte) > 1 else "")
+        dazu.append({"merkmal": f"regel:{schluessel}", "titel": g["titel"], "quelle": REGEL, "werte": g["werte"],
+                     "erklaerung": hinweis, "einschaetzung": None})
+    return dazu
+
+
 def zusammenfuehren(con, akte_id: int, dokument_ids: list[int] | None, ki_teil: dict, inhaltlich: dict) -> dict:
     """Ergebnis wie ``abgleich.abgleich``, aus den Gruppen des Modells; was nur die Regeln finden, kommt dazu."""
     anzahl, regel_angaben = regeln.angaben_der_akte(con, akte_id, dokument_ids)
@@ -488,6 +554,7 @@ def zusammenfuehren(con, akte_id: int, dokument_ids: list[int] | None, ki_teil: 
         regeln.wert_eintrag(ziel["werte"], a["art"], a["wert"])["fundstellen"].append(
             {**a["fundstelle"], "quelle": REGEL})
     merkmale += nur_regel.values()
+    merkmale += _regel_abweichungen_behalten(regel_angaben, merkmale)
 
     ergebnis = []
     for m in merkmale:

@@ -267,3 +267,51 @@ def test_probelauf_mit_vergleich(tmp_path, monkeypatch, capsys):
     assert "Vom regelbasierten Abgleich gefunden: W3" in aus
     assert "Vom Vergleich mit KI (Zahlen und Daten) gefunden: W4, W3" in aus
     assert "Von keinem gefunden: keiner" in aus
+
+
+def test_regel_abweichung_verschwindet_nicht(akten, con, tmp_path):
+    """Trennt die KI Übergabe und Gefahrübergang, bleibt die Gegenüberstellung der Regeln mit Hinweis stehen."""
+    from juracore.abgleich import abgleich as regeln
+
+    a = akte.akte_anlegen(akten, "Urteil")["id"]
+    pfad = tmp_path / "08_Urteil.md"
+    pfad.write_text("Urteil\n\nDas Fahrzeug wurde am 18.03.2025 übergeben.\n\n"
+                    "Seit dem Gefahrübergang am 21.03.2025 zeigte sich der Mangel.\n", encoding="utf-8")
+    akte.importiere(akten, con, a, pfad, tmp_path / "ablage", ocr=False, tags=["Gericht"])
+    _, angaben = regeln.angaben_der_akte(akten, a)
+    assert [x["wert"] for x in angaben] == ["2025-03-18", "2025-03-21"]
+    ki_teil = {"merkmale": [
+        {"merkmal": f"ki:{i}", "titel": titel, "werte": [{"bezug": titel, "art": x["art"], "wert": x["wert"],
+                                                          "haltung": "festgestellt", "fundstelle": x["fundstelle"]}]}
+        for i, (titel, x) in enumerate(zip(["Datum der Übergabe", "Datum des Gefahrübergangs"], angaben,
+                                           strict=True), 1)]}
+    e = vergleich.zusammenfuehren(akten, a, None, ki_teil, {"widersprueche": []})
+    regel = next(m for m in e["merkmale"] if m["merkmal"] == "regel:uebergabe")
+    assert regel["status"] == "abweichend" and regel["quelle"] == "regel"
+    assert "„Datum der Übergabe“; „Datum des Gefahrübergangs“" in regel["erklaerung"]
+    assert [m["status"] for m in e["merkmale"] if m["quelle"] == "ki"] == ["einzeln", "einzeln"]
+
+
+def test_eigene_gegendarstellung_ist_nicht_bestritten(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "KE")["id"]
+    pfad = tmp_path / "06_Klageerwiderung.md"
+    pfad.write_text("Klageerwiderung\n\n(2) Bestritten wird, dass die Klägerin den Mangel am 12.05.2025 angezeigt "
+                    "hat. Die Klägerin hat sich erstmals Mitte Juni 2025 beschwert.\n", encoding="utf-8")
+    d = akte.importiere(akten, con, a, pfad, tmp_path / "ablage", ocr=False, tags=["Beklagter"])["dokument_id"]
+
+    class Gemma:
+        modell = "gemma"
+
+        def chat(self, system, nutzer, schema):
+            nr = _nr(nutzer, "Bestritten")
+            # Wie Gemma im Probelauf: beide Werte des Absatzes als bestritten.
+            return {"werte": [
+                {"wert": "12.05.2025", "bezug": "erste Mängelanzeige", "haltung": "bestritten", "absatz": nr,
+                 "zitat": "dass die Klägerin den Mangel am 12.05.2025 angezeigt hat"},
+                {"wert": "Mitte Juni 2025", "bezug": "erste Mängelanzeige", "haltung": "bestritten", "absatz": nr,
+                 "zitat": "Die Klägerin hat sich erstmals Mitte Juni 2025 beschwert"},
+            ]}
+
+    w = vergleich.werte(Analyse(akten, Gemma()), d)
+    assert [(x["wert"], x["haltung"]) for x in w["werte"]] == [("2025-06", "behauptet")]
+    assert w["bestritten"] == 1
