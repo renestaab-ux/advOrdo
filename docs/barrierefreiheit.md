@@ -119,7 +119,7 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | 5.4 | Erhalt von Barrierefreiheitsinformationen bei Konvertierung | erfüllt | Export nach docx mit Überschriftenformaten, nach PDF mit Strukturbaum (siehe 10) |
 | 5.5–5.8 | Bedienteile, Tastenwiederholung, Doppelanschlag | n. a. | keine eigene Hardware; Tastatur des Systems |
 | 5.9 | Gleichzeitige Benutzeraktionen | erfüllt | Alt + Ziffer ist nur ein Kürzel; jede Funktion geht auch mit einem Klick |
-| 10.x | Erzeugte Dokumente | teilweise | **Word (docx):** Sprache de-DE, Titel in den Eigenschaften, echte Formatvorlagen „Title“ und „heading 1–3“. **PDF:** getaggt (`/MarkInfo`, Strukturbaum mit H1–H3 und P, Sprache, Titel, Fußzeile und Linien als Artefakt). Seit 07.11.2026 zusätzlich mit Kennung PDF/A-2a und PDF/UA-1: eingebettete Schrift (Liberation Sans, Teilmenge), XMP-Metadaten mit Titel und Erweiterungsschema für `pdfuaid`, Ausgabebedingung mit sRGB-Profil, Dateikennung. **Offen:** Bestätigung mit einem Validator (veraPDF, PAC) für die neue Fassung; die Fassung vorher scheiterte an PDF/A-2b (Schrift nicht eingebettet, kein Farbprofil, keine Kennung, kein XMP); Excel ohne eigene Prüfung; die „PDF-Kopie mit Markierungen“ ändert das Original des Nutzers und erbt dessen Struktur |
+| 10.x | Erzeugte Dokumente | teilweise | **Word (docx):** Sprache de-DE, Titel in den Eigenschaften, echte Formatvorlagen „Title“ und „heading 1–3“. **PDF:** getaggt (`/MarkInfo`, Strukturbaum mit H1–H3 und P, Sprache, Titel, Fußzeile und Linien als Artefakt). Seit 07.11.2026 zusätzlich mit Kennung PDF/A-2a und PDF/UA-1: eingebettete Schrift (Liberation Sans, Teilmenge), XMP-Metadaten mit Titel und Erweiterungsschema für `pdfuaid`, Ausgabebedingung mit sRGB-Profil, Dateikennung. Am 07.11.2026 mit einem Prüfdienst bestätigt: Anmerkungen-Export „erfüllt PDF/A-2a“ und „erfüllt PDF/UA-1“ (die Fassung vorher scheiterte an PDF/A-2b). **Offen:** Excel ohne eigene Prüfung; die „PDF-Kopie mit Markierungen“ ändert das Original des Nutzers und erbt dessen Struktur |
 | 11.5 | Zusammenarbeit mit Hilfsmitteln | umgesetzt | Webansicht des Systems stellt die Oberfläche über UI Automation (Windows), NSAccessibility (macOS), AT-SPI (Linux) bereit; von Hand mit NVDA/Sprachausgabe bestätigen |
 | 11.6 | Dokumentierte Hilfsmittelnutzung | n. a. | JuraBox ist selbst kein Hilfsmittel |
 | 11.7 | Benutzereinstellungen | erfüllt | folgt Hell/Dunkel, Kontrastdesign, „Kontrast erhöhen“, „Bewegung reduzieren“ des Systems. Die Textgröße des Systems wirkt je nach Webansicht; JuraBox hat zusätzlich eine eigene Schriftgröße |
@@ -134,6 +134,5 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
    Dokument lesen → Frist eintragen → Schriftstück erzeugen“ allein mit der Tastatur und mit NVDA bzw. der Windows-
    Sprachausgabe; dasselbe im Kontrastdesign von Windows und bei 200 %.
 2. **Markieren und Kommentieren per Tastatur** (2.1.1) im Original (PDF-Bild); im Text-Modus geht es (07.11.2026).
-3. **PDF/A-2a und PDF/UA-1** der neuen Fassung mit veraPDF oder PAC bestätigen.
-4. **Sprache von Teilen** (3.1.2) für fremdsprachige Normtexte aus EUR-Lex.
-5. **Reflow** (1.4.10) der dreispaltigen Akte bei 200 %: Spalten bei schmalem Fenster untereinander.
+3. **Sprache von Teilen** (3.1.2) für fremdsprachige Normtexte aus EUR-Lex.
+4. **Reflow** (1.4.10) der dreispaltigen Akte bei 200 %: Spalten bei schmalem Fenster untereinander.
