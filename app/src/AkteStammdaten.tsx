@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useBearbeitung, useUngespeichert } from "./ungespeichert";
 import {
   AMPEL_TEXT,
   AkteStammdaten as Stammdaten,
@@ -94,6 +95,7 @@ export default function AkteStammdaten({
   }
 
   const ungespeichert = !!(daten && entwurf) && JSON.stringify(entwurf) !== JSON.stringify(entwurfAus(daten));
+  useUngespeichert(ungespeichert, "Stammdaten der Akte", () => sichern());
 
   // Beim Verlassen der Stammdaten (anderer Reiter, andere Akte) gehen Eingaben nicht verloren: sie werden gespeichert.
   const offen = useRef<{ entwurf: Entwurf | null; ungespeichert: boolean }>({ entwurf: null, ungespeichert: false });
@@ -605,6 +607,7 @@ export function BeteiligterFormular({
   /** Aufruf aus dem Beteiligtenverzeichnis: nur anlegen, nicht in eine Akte eintragen. */
   ohneAkte?: boolean;
 }) {
+  const bearbeitung = useBearbeitung(art === "person" ? "Beteiligter (Person)" : "Beteiligter (Organisation)");
   const start: Record<string, string> = {};
   if (eintrag) {
     for (const [k, v] of Object.entries(eintrag.daten)) start[k] = Array.isArray(v) ? v.join("\n") : v;
@@ -719,7 +722,7 @@ export function BeteiligterFormular({
         ))}
       </datalist>
       <h3>{aktuell ? aktuell.name : art === "person" ? "Neue Person" : "Neue Organisation"}</h3>
-      <form onSubmit={(e) => void speichern(e, true)}>
+      <form {...bearbeitung.formular} onSubmit={(e) => void speichern(e, true)}>
         <div className="formular-raster">
           {felder.map(([k, t]) => feld(k, t))}
           {art === "organisation" && (

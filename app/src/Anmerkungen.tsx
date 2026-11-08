@@ -24,6 +24,7 @@ import type { LesezeichenStelle } from "./Lesezeichen";
 import Zeichen from "./Symbole";
 import { PdfKopieKnopf } from "./PdfMarkiert";
 import { auswahlIn, auswahlSchritt, markeAn, markeOben, markeSichtbar, markeZeigen, strichVerbergen, strichZeigen } from "./textCursor";
+import { useUngespeichert } from "./ungespeichert";
 
 // --- Bedeutung der Farben (je Arbeitsumgebung, im Kern gespeichert) ----------------------------------------------------
 
@@ -314,6 +315,14 @@ function Editor({
   const [vorschau, setVorschau] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const feld = useRef<HTMLTextAreaElement>(null);
+  useUngespeichert(text !== (anmerkung.kommentar ?? ""), "Kommentar zur Anmerkung", async () => {
+    try {
+      await onSpeichern(farbe, darstellung, text);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     feld.current?.focus();

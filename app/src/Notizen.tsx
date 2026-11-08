@@ -1,10 +1,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AktenDokument, Notiz, dokumentName, kern, zeitpunkt } from "./kern";
 import { LeerHinweis } from "./Symbole";
+import { useBearbeitung } from "./ungespeichert";
 
 /** Reiter „Notizen“: kurze Vermerke zur Akte oder zu einem Dokument; wichtige werden oben angeheftet.
  *  Mit ``dokumentId`` (Ansicht „Details“) nur die Notizen zu diesem Dokument, neue gehören zu ihm. */
 export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId: number; dokumentId?: number }) {
+  const neuBearb = useBearbeitung("Neue Notiz");
+  const notizBearb = useBearbeitung("Notiz");
   const [alle, setNotizen] = useState<Notiz[] | null>(null);
   const notizen = festesDokument == null ? alle : (alle?.filter((n) => n.dokument_id === festesDokument) ?? null);
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
@@ -50,7 +53,7 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
 
   return (
     <div className="notizen">
-      <form className="karte notiz-neu" onSubmit={hinzufuegen}>
+      <form {...neuBearb.formular} className="karte notiz-neu" onSubmit={hinzufuegen}>
         <label className="feld">
           {festesDokument == null ? "Neue Notiz" : "Neue Notiz zu diesem Dokument"}
           <textarea
@@ -113,7 +116,7 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
         {notizen?.map((n) => (
           <li key={n.id} className={n.angeheftet ? "notiz angeheftet" : "notiz"}>
             {bearbeitet?.id === n.id ? (
-              <form
+              <form {...notizBearb.formular}
                 onSubmit={async (e) => {
                   e.preventDefault();
                   if (

@@ -9,6 +9,7 @@ import {
   euro,
   kern,
 } from "./kern";
+import { useBearbeitung } from "./ungespeichert";
 
 /** Kernwerte („4500.00“) deutsch zum Bearbeiten („4500,00“). */
 const de = (t: string | null) => (t ?? "").replace(".", ",");
@@ -194,6 +195,7 @@ export function VereinbarungFormular({
   onSpeichern: (d: Record<string, unknown>) => Promise<unknown>;
   onAbbrechen: () => void;
 }) {
+  const vereinbarungBearb = useBearbeitung("Vergütungsvereinbarung");
   const [f, setF] = useState({
     vereinbart_am: wert?.vereinbart_am ?? "",
     taktung: wert?.taktung ? String(wert.taktung) : "",
@@ -201,7 +203,7 @@ export function VereinbarungFormular({
     notiz: wert?.notiz ?? "",
   });
   return (
-    <form
+    <form {...vereinbarungBearb.formular}
       className="zeit-vereinbarung-form"
       onSubmit={(e) => {
         e.preventDefault();

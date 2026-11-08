@@ -32,6 +32,7 @@ import {
 } from "./kern";
 import { SortKopf, useSortierung } from "./Sortierung";
 import { useKiAn } from "./kiSchalter";
+import { useBearbeitung } from "./ungespeichert";
 
 /** Reiter einer geöffneten Akte; „stammdaten“ öffnet der Knopf im Kopf. */
 export type Reiter =
@@ -186,6 +187,7 @@ function AkteAnlegen({
   onAbbrechen: () => void;
   onAngelegt: (id: number, reiter?: Reiter) => Promise<void>;
 }) {
+  const anlegenBearb = useBearbeitung("Neue Akte");
   const [name, setName] = useState("");
   const [ausDokument, setAusDokument] = useState<{ pfad: string; vorschau: RubrumVorschau } | null>(null);
   const [az, setAz] = useState("");
@@ -252,7 +254,7 @@ function AkteAnlegen({
         </div>
       ) : (
       <div className="akte-anlegen">
-        <form className="karte akte-anlegen-form" onSubmit={abschicken}>
+        <form {...anlegenBearb.formular} className="karte akte-anlegen-form" onSubmit={abschicken}>
           <label className="feld">
             Kurzbezeichnung
             <input
