@@ -70,11 +70,11 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | 1.4.3 | Kontrast (Minimum) | AA | erfüllt | axe mit echtem Kern: keine Befunde, normal und barrierefrei, hell und dunkel; Warnfarbe hell auf #774d00 angehoben |
 | 1.4.4 | Textgröße ändern | AA | umgesetzt | Schriftgröße bis „Doppelt“ (200 %) über die Fenstervergrößerung |
 | 1.4.5 | Bilder von Text | AA | erfüllt | Text ist Text; Ausnahme: Scans eingelesener Akten (Original des Nutzers), deren Text die Texterkennung liefert |
-| 1.4.10 | Umbruch (Reflow) | AA | teilweise | Bei 200 % brechen Kopfband, Reiter und Leiste um; breite Tabellen (Aktenliste, Dokumentliste) rollen seitlich, wie 1.4.10 für Tabellen erlaubt. Die dreispaltige Akte ist bei 200 % eng; von Hand prüfen |
+| 1.4.10 | Umbruch (Reflow) | AA | umgesetzt | Bis 760 CSS-Pixel Breite (z. B. halbes Fenster bei „Doppelt“) ist die Leiste eingeklappt, Kopfband und Reiter brechen um, die Akte steht untereinander (Filter, Liste, Dokument). Die Aktenliste rollt in ihrem eigenen Rahmen seitlich, wie 1.4.10 für Datentabellen erlaubt. Mit Testakte bei 640 × 400 geprüft (08.11.2026): kein Bereich und kein Reiter der Akte rollt waagerecht |
 | 1.4.11 | Nicht-Text-Kontrast | AA | erfüllt | Ränder von Feldern und Knöpfen; bei hohem Kontrast mindestens 3 : 1 |
 | 1.4.12 | Textabstand | AA | umgesetzt | keine festen Höhen für Text; „Mehr Abstand“ setzt 1,6 Zeilenabstand |
 | 1.4.13 | Inhalt bei Hover oder Fokus | AA | umgesetzt | Hinweise sind `title`-Tooltips des Systems; die Vorschau einer Anmerkung schließt mit Escape |
-| 2.1.1 | Tastatur | A | umgesetzt | alle Funktionen per Tastatur; Trennlinien mit Pfeiltasten; Verschieben von Lesezeichen und Ordnern mit Pfeil hoch/runter. Markieren und Kommentieren im Text-Modus per Tastatur von Hand bestätigt (07.11.2026). **Offen:** im Original (PDF-Bild) nur mit der Maus |
+| 2.1.1 | Tastatur | A | umgesetzt | alle Funktionen per Tastatur; Trennlinien mit Pfeiltasten; Reiterleisten mit Pfeiltasten, Pos1 und Ende (08.11.2026); Verschieben von Lesezeichen und Ordnern mit Pfeil hoch/runter. Markieren und Kommentieren im Text-Modus per Tastatur von Hand bestätigt (07.11.2026). **Offen:** im Original (PDF-Bild) nur mit der Maus |
 | 2.1.2 | Keine Tastaturfalle | A | umgesetzt | Dialoge halten den Fokus, Escape gibt ihn frei |
 | 2.1.4 | Tastaturkürzel mit Zeichen | A | erfüllt | Kürzel nur mit Alt bzw. Strg/⌘, keine Einzelzeichen |
 | 2.2.1 | Zeitbegrenzungen anpassbar | A | erfüllt | keine Zeitgrenzen |
@@ -95,7 +95,7 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | 2.5.7 | Ziehbewegungen | AA | erfüllt | Trennlinien: Klick wechselt Standard/breit, Doppelklick setzt zurück; Lesezeichen und Ordner: Knöpfe ▲ ▼ und Auswahl „In Ordner verschieben“ |
 | 2.5.8 | Zielgröße (Minimum) | AA | erfüllt | mindestens 24 × 24 px oder genug Abstand (axe); Trennlinie mit 24 px Greiffläche |
 | 3.1.1 | Sprache der Seite | A | erfüllt | `lang="de"` |
-| 3.1.2 | Sprache von Teilen | AA | teilweise | fremdsprachige Rechtstexte (EUR-Lex englisch/französisch) sind nicht als solche ausgezeichnet |
+| 3.1.2 | Sprache von Teilen | AA | teilweise | Normtexte aus EUR-Lex werden auf Deutsch geladen. Offen: fremdsprachige Dokumente in einer Akte (z. B. englischer Vertrag) sind nicht als solche ausgezeichnet |
 | 3.2.1 | Bei Fokus | A | erfüllt | Fokus löst nichts aus |
 | 3.2.2 | Bei Eingabe | A | erfüllt | Auswahlen wirken ohne Seitenwechsel; Einstellungen gelten sofort, wie angekündigt |
 | 3.2.3 | Konsistente Navigation | AA | erfüllt | eine Leiste, immer gleich |
@@ -134,5 +134,5 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
    Dokument lesen → Frist eintragen → Schriftstück erzeugen“ allein mit der Tastatur und mit NVDA bzw. der Windows-
    Sprachausgabe; dasselbe im Kontrastdesign von Windows und bei 200 %.
 2. **Markieren und Kommentieren per Tastatur** (2.1.1) im Original (PDF-Bild); im Text-Modus geht es (07.11.2026).
-3. **Sprache von Teilen** (3.1.2) für fremdsprachige Normtexte aus EUR-Lex.
-4. **Reflow** (1.4.10) der dreispaltigen Akte bei 200 %: Spalten bei schmalem Fenster untereinander.
+3. **Sprache von Teilen** (3.1.2) für fremdsprachige Dokumente in einer Akte (Sprache je Dokument erkennen und auszeichnen).
+4. ~~**Reflow** (1.4.10) der dreispaltigen Akte bei 200 %~~: umgesetzt am 08.11.2026, Bestätigung von Hand offen.
