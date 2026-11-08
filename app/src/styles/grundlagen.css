@@ -13,8 +13,9 @@
   /* Gefüllte Knöpfe, Eingabefelder und das dunkle Kopfband; im Dunkelmodus eigene Werte für guten Kontrast. */
   --knopf: #24476b;
   --knopf-text: #ffffff;
-  /* Fläche hinter einem eigenen Logo im Farbakzent; hier auf :root festgelegt, weil die Leiste --knopf überschreibt. */
-  --logo-akzent: var(--knopf);
+  /* Fläche hinter einem eigenen Logo im Farbakzent: der dunkle Ton der Leiste, damit das Logo in Leiste und
+     Kopfband ohne sichtbaren Kasten steht. Auf :root festgelegt, damit jede Fläche denselben Wert erbt. */
+  --logo-akzent: var(--leiste);
   --feld: #ffffff;
   --band: linear-gradient(100deg, #1b3550, #27507a);
   --band-text: #f3f6fa;
