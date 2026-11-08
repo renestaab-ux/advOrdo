@@ -16,8 +16,8 @@ advOrdo verarbeitet Akten mit vertraulichen Mandatsdaten. Daraus folgen Regeln, 
 - **Der Kern öffnet keinen Netzwerkport.** Die Oberfläche spricht mit dem Kern nur über JSON-Zeilen auf
   stdin/stdout.
 - **Dokumentinhalte bleiben auf dem Gerät.** Sie gehen nur im ausdrücklich gewählten Modus „Externer Anbieter“
-  hinaus. Ohne Rückfrage ins Netz darf nur das Laden öffentlicher Rechtsquellen. Jede neue Online-Anfrage läuft
-  über `urllib` im Kern, damit sie im Netzprotokoll (`core/juracore/netzprotokoll.py`) steht.
+  hinaus. Ohne Rückfrage darf die App nur öffentliche Rechtsquellen aus dem Netz laden. Jede neue Online-Anfrage
+  läuft über `urllib` im Kern, damit sie im Netzprotokoll (`core/juracore/netzprotokoll.py`) steht.
 - **Beleg vor Behauptung.** Jede Aussage der App führt auf eine Fundstelle zurück: Dokument mit Seite oder
   Randnummer, oder Norm mit Fassung. Fundstellen werden nie erfunden. Fehlt ein Beleg, sagt die App das
   ausdrücklich. Bei Ergebnissen eines Sprachmodells zeigt die App nur Text, der wörtlich im Dokument steht.
