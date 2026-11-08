@@ -390,12 +390,12 @@ class _Http:
                     text += " (API-Schlüssel prüfen)"
                 if self.extern and fehler.code == 503:
                     raise KiFehler(
-                        f"{self.titel} ist gerade überlastet (Fehler 503: {text}); JuraBox hat {gewartet}-mal gewartet "
+                        f"{self.titel} ist gerade überlastet (Fehler 503: {text}); advOrdo hat {gewartet}-mal gewartet "
                         "und es erneut versucht. Das liegt beim Anbieter: später noch einmal starten oder ein anderes "
                         "Modell wählen.") from fehler
                 if self.extern and fehler.code == 429:
                     raise KiFehler(
-                        f"{self.titel} lässt gerade keine weiteren Anfragen zu (Fehler 429: {text}); JuraBox hat "
+                        f"{self.titel} lässt gerade keine weiteren Anfragen zu (Fehler 429: {text}); advOrdo hat "
                         f"{gewartet}-mal gewartet und es erneut versucht. Kostenlose Tarife erlauben nur wenige "
                         "Anfragen je Minute: einige Minuten warten, eine kleinere Aufgabe wählen (etwa ein Dokument "
                         "statt der ganzen Akte) oder beim Anbieter ein höheres Limit buchen.") from fehler

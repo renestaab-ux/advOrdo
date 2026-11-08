@@ -1,6 +1,6 @@
 """Ist der Datenordner auf einer verschlüsselten Festplatte? (Adapter je Betriebssystem)
 
-JuraBox speichert Akten und Originale unverschlüsselt im Datenordner. Für die
+advOrdo speichert Akten und Originale unverschlüsselt im Datenordner. Für die
 Verschwiegenheit (§ 43a Abs. 2 BRAO, § 2 BORA) und die Sicherheit der Verarbeitung
 (Art. 32 DSGVO) genügt das, wenn das Laufwerk selbst verschlüsselt ist. Geprüft wird
 ohne Administratorrechte und ohne etwas zu ändern:

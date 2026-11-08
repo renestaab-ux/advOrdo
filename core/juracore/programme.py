@@ -1,6 +1,6 @@
 """Externe Programme: Dokumente im PDF-Programm oder in der Textverarbeitung öffnen.
 
-Herstellerneutral: JuraBox übergibt nur die Datei an das gewählte Programm (LibreOffice,
+Herstellerneutral: advOrdo übergibt nur die Datei an das gewählte Programm (LibreOffice,
 Microsoft Office, PDF-XChange, Okular …). Voreinstellung ist das Standardprogramm des
 Systems. Die Einstellung gilt für das Gerät, nicht je Arbeitsumgebung.
 

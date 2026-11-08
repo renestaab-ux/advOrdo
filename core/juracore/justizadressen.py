@@ -29,7 +29,7 @@ from pathlib import Path
 from . import gerichte, netzprotokoll
 
 BASIS = "https://www.justizadressen.nrw.de/de/justiz/gericht"
-USER_AGENT = "JuraBox/0.1 (Gerichtsanschriften)"
+USER_AGENT = "advOrdo/0.1 (Gerichtsanschriften)"
 
 # Gerichtsbarkeiten der Zuständigkeitssuche: Schlüssel ``ang`` des Verzeichnisses → Bezeichnung in der App.
 GERICHTSBARKEITEN = {

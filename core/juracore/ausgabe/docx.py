@@ -185,7 +185,7 @@ def _eigenschaften(bericht: Bericht) -> str:
     return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
             'xmlns:dc="http://purl.org/dc/elements/1.1/">'
-            f"<dc:title>{_x(bericht.titel)}</dc:title><dc:creator>JuraBox</dc:creator><dc:language>de-DE</dc:language>"
+            f"<dc:title>{_x(bericht.titel)}</dc:title><dc:creator>advOrdo</dc:creator><dc:language>de-DE</dc:language>"
             "</cp:coreProperties>")
 
 

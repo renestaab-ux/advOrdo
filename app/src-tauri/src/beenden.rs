@@ -1,5 +1,5 @@
 // Rückfrage beim Beenden der App, solange ein Timer der Zeiterfassung läuft. Rust hält das Schließen des
-// Hauptfensters bzw. das Beenden (macOS: „JuraBox beenden“, ⌘Q) an und meldet es der Oberfläche; die prüft den
+// Hauptfensters bzw. das Beenden (macOS: „advOrdo beenden“, ⌘Q) an und meldet es der Oberfläche; die prüft den
 // Timer, fragt nach und beendet dann selbst mit `app_beenden` oder bricht mit `beenden_abgebrochen` ab.
 // Antwortet die Oberfläche nicht, schließt der zweite Versuch ohne Rückfrage, damit die App nie festhängt.
 
@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 pub const HAUPTFENSTER: &str = "main";
 /// Ereignis an die Oberfläche des Hauptfensters.
 pub const EREIGNIS: &str = "beenden-angefragt";
-/// Menüeintrag „JuraBox beenden“ (macOS).
+/// Menüeintrag „advOrdo beenden“ (macOS).
 pub const MENUE_ID: &str = "beenden";
 
 #[derive(Default)]

@@ -180,7 +180,7 @@ export function darstellungStarten() {
   systemKontrast?.addEventListener?.("change", () => darstellungAnwenden(aktuell));
 }
 
-/** Ob Bewegung vermieden werden soll: Schalter in JuraBox oder Einstellung des Betriebssystems. */
+/** Ob Bewegung vermieden werden soll: Schalter in advOrdo oder Einstellung des Betriebssystems. */
 export function bewegungVermeiden(): boolean {
   return aktuell.barrierefrei.bewegung || !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }

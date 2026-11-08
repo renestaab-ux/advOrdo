@@ -11,7 +11,7 @@ export interface SchriftVorlage {
   datei?: string;
   /** Platzhalter in der Vorlage, in der Schreibweise des Katalogs. */
   platzhalter: string[];
-  /** Platzhalter, die JuraBox nicht kennt (Tippfehler); sie bleiben im Schriftstück stehen. */
+  /** Platzhalter, die advOrdo nicht kennt (Tippfehler); sie bleiben im Schriftstück stehen. */
   unbekannt: string[];
   fehler?: string;
 }

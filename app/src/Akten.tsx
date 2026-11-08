@@ -173,7 +173,7 @@ export default function Akten({
 // --------------------------------------------------------------------------- Neue Akte anlegen
 
 const SCHRITTE = [
-  ["Kurzbezeichnung und Aktenzeichen", "Das Aktenzeichen schlägt JuraBox vor; ein eigenes geht auch."],
+  ["Kurzbezeichnung und Aktenzeichen", "Das Aktenzeichen schlägt advOrdo vor; ein eigenes geht auch."],
   ["Stammdaten", "Gegenstand, Sachgebiet, Sachbearbeiter, Gegenstandswert."],
   ["Beteiligte", "Mandant, Gegner, Gericht; die Kollisionsprüfung läuft dabei mit."],
 ] as const;
@@ -296,7 +296,7 @@ function AkteAnlegen({
           <div className="karte aus-dokument-start">
             <strong>Oder aus einem Dokument</strong>
             <p className="leise">
-              Klage, Anspruchsbegründung, Mahnbescheid oder Verfügung wählen: JuraBox liest Gericht, Aktenzeichen,
+              Klage, Anspruchsbegründung, Mahnbescheid oder Verfügung wählen: advOrdo liest Gericht, Aktenzeichen,
               Parteien und Gegenstand aus dem Rubrum und zeigt alles mit Fundstelle zur Prüfung.
             </p>
             <button className="zweitrangig" onClick={dokumentWaehlen} disabled={laeuft}>

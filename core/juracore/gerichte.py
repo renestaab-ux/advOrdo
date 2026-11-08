@@ -30,7 +30,7 @@ VERSION_URL = f"https://www.xrepository.de/api/codeliste/{KENNUNG}/gueltigeVersi
 # Rückfall, falls die Abfrage der gültigen Version scheitert; Stand 2026-02-18.
 VERSION_RUECKFALL = f"{KENNUNG}_3.7"
 ORTS_UND_GERICHTSVERZEICHNIS = "https://www.justizadressen.nrw.de/de/justiz/suche"
-USER_AGENT = "JuraBox/0.1 (Gerichtsverzeichnis)"
+USER_AGENT = "advOrdo/0.1 (Gerichtsverzeichnis)"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS gerichtsverzeichnis_stand (

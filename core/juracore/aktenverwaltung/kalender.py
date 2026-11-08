@@ -9,7 +9,7 @@
   den alten verweist (``verlegt_von``).
 - Wiedervorlage: Tag, an dem die Akte wieder vorgelegt werden soll; wird erledigt oder verschoben.
 
-JuraBox schlägt Fristen und Termine aus Dokumenten nur vor (mit Fundstelle); eingetragen wird erst nach Bestätigung.
+advOrdo schlägt Fristen und Termine aus Dokumenten nur vor (mit Fundstelle); eingetragen wird erst nach Bestätigung.
 Ein Vorschlag ersetzt nie die eigene Fristenkontrolle.
 """
 
@@ -269,7 +269,7 @@ def termin_zustand(con: sqlite3.Connection, eintrag_id: int, zustand: str, verme
     """Termin aufheben, verlegen oder wieder als geplant führen.
 
     Beim Verlegen nennt ``neu`` den neuen Termin ({datum, uhrzeit, bis_uhrzeit, ort, dokument_id, fundstelle});
-    JuraBox legt ihn als Folgetermin an, der auf den alten verweist. Titel, Verfahren und Notiz werden übernommen,
+    advOrdo legt ihn als Folgetermin an, der auf den alten verweist. Titel, Verfahren und Notiz werden übernommen,
     Uhrzeit und Ort, wenn ``neu`` keine nennt.
     """
     z = _eintrag(con, eintrag_id)
@@ -526,7 +526,7 @@ def vorschlaege(abschnitte: list[dict], dokument_datum: str | None = None, land:
             else:
                 v["datum"] = None
                 v["hinweis"] = (f"Bezugstag ({m.group('bezug')}) steht nicht im Dokument; bitte eintragen, "
-                                "dann rechnet JuraBox das Fristende.")
+                                "dann rechnet advOrdo das Fristende.")
             ergebnis.append(v)
         for m in _BIS.finditer(text):
             datum = _iso(m)

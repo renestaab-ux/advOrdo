@@ -327,7 +327,7 @@ export default function Fristen({ akteId, onGeaendert }: { akteId: number; onGea
             </button>
           </div>
           <p className="erklaerung">
-            JuraBox hat diese Stellen gefunden. Bitte jede prüfen, bevor sie eingetragen wird; Vorschläge ersetzen nicht
+            advOrdo hat diese Stellen gefunden. Bitte jede prüfen, bevor sie eingetragen wird; Vorschläge ersetzen nicht
             die eigene Fristenkontrolle.
           </p>
           {sichtbareVorschlaege.length === 0 && <p className="leer">Keine neuen Fristen oder Termine in den Dokumenten gefunden.</p>}
@@ -915,7 +915,7 @@ export function EintragFormular({
                   ))}
                 </>
               ) : (
-                <span className="leise">{rechenfehler ?? "Bezugstag und Dauer eingeben, dann rechnet JuraBox das Fristende."}</span>
+                <span className="leise">{rechenfehler ?? "Bezugstag und Dauer eingeben, dann rechnet advOrdo das Fristende."}</span>
               )}
             </div>
           </>

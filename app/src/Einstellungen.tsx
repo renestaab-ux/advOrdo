@@ -192,7 +192,7 @@ export default function Einstellungen({
           </button>
         </div>
         <p className="erklaerung">
-          Wer mit JuraBox arbeitet: Organisationsform, Kanzlei bzw. Unternehmen und Ihre Person. Die Angaben gehören zur
+          Wer mit advOrdo arbeitet: Organisationsform, Kanzlei bzw. Unternehmen und Ihre Person. Die Angaben gehören zur
           aktiven Arbeitsumgebung.
         </p>
       </section>
@@ -230,8 +230,8 @@ export default function Einstellungen({
         </label>
         <p className="erklaerung">
           {abgeschaltet
-            ? "Die KI ist ausgeschaltet. JuraBox fragt kein Sprachmodell, weder auf diesem Gerät noch im Netzwerk oder bei einem externen Anbieter. Analyse, Chat und Gegenüberstellung sind ausgeblendet; Texterkennung, Normen, Rechtsprechung, Vergleich, Suche und die Vorschläge in „Details“ arbeiten ohne KI weiter. Die Einstellungen des Sprachmodells bleiben gespeichert."
-            : "Ausgeschaltet fragt JuraBox kein Sprachmodell mehr, auch keinen externen Anbieter. Knöpfe und Reiter, die zwingend eine KI brauchen (Analyse, Chat, Gegenüberstellung), verschwinden dann; alles andere arbeitet ohne KI weiter."}
+            ? "Die KI ist ausgeschaltet. advOrdo fragt kein Sprachmodell, weder auf diesem Gerät noch im Netzwerk oder bei einem externen Anbieter. Analyse, Chat und Gegenüberstellung sind ausgeblendet; Texterkennung, Normen, Rechtsprechung, Vergleich, Suche und die Vorschläge in „Details“ arbeiten ohne KI weiter. Die Einstellungen des Sprachmodells bleiben gespeichert."
+            : "Ausgeschaltet fragt advOrdo kein Sprachmodell mehr, auch keinen externen Anbieter. Knöpfe und Reiter, die zwingend eine KI brauchen (Analyse, Chat, Gegenüberstellung), verschwinden dann; alles andere arbeitet ohne KI weiter."}
         </p>
       </section>
     );
@@ -522,7 +522,7 @@ function Allgemeines() {
         ))}
       </ul>
       <p className="leise">
-        JuraBox folgt auch den Einstellungen des Systems: Unter Windows übernimmt es die Farben eines Kontrastdesigns
+        advOrdo folgt auch den Einstellungen des Systems: Unter Windows übernimmt es die Farben eines Kontrastdesigns
         (Einstellungen → Barrierefreiheit → Kontrastdesigns), unter macOS schaltet „Kontrast erhöhen“ den hohen Kontrast
         ein, und „Animationen aus“ bzw. „Bewegung reduzieren“ hält die Oberfläche ruhig.
         {systemWillKontrast() && " Das System verlangt gerade mehr Kontrast; der hohe Kontrast ist deshalb an."}
@@ -604,12 +604,12 @@ function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke
       >
         <h3>Kurzbezeichnung in der Leiste</h3>
         <div className="weiteres">
-          <input value={kurz} onChange={(e) => setKurz(e.target.value)} maxLength={40} placeholder="JuraBox" />
+          <input value={kurz} onChange={(e) => setKurz(e.target.value)} maxLength={40} placeholder="advOrdo" />
           <button type="submit" disabled={laeuft || kurz.trim() === (marke?.kurzbezeichnung ?? "")}>
             Speichern
           </button>
         </div>
-        <p className="leise">Leer lassen, dann steht dort „JuraBox“.</p>
+        <p className="leise">Leer lassen, dann steht dort „advOrdo“.</p>
       </form>
 
       {fehler && <p className="fehler" role="alert">{fehler}</p>}

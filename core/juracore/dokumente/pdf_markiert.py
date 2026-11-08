@@ -81,7 +81,7 @@ def _markieren(seite, rechtecke: list[dict], farbe: str, stil: str, notiz: str |
 
 
 def schreiben(con: sqlite3.Connection, dokument_id: int, pfad: str | Path, ids: list[int] | None = None,
-              titel: str = "JuraBox") -> dict:
+              titel: str = "advOrdo") -> dict:
     """Schreibt die Kopie nach ``pfad``; ``ids`` = nur diese Markierungen (sonst alle des Dokuments)."""
     import pypdfium2 as pdfium
 
@@ -146,7 +146,7 @@ def _frei(ordner: Path, name: str) -> Path:
 
 
 def akte_schreiben(con: sqlite3.Connection, akte_id: int, ordner: str | Path, ids: list[int] | None = None,
-                   titel: str = "JuraBox") -> dict:
+                   titel: str = "advOrdo") -> dict:
     """Je PDF der Akte mit (ausgewählten) Markierungen eine Kopie im Ordner; andere Formate werden genannt."""
     zeilen = con.execute(
         """SELECT DISTINCT d.id, d.format, d.dateiname FROM anmerkung a JOIN dokument d ON d.id = a.dokument_id

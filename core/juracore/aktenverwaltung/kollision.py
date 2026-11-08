@@ -1,7 +1,7 @@
 """Kollisionsprüfung: Steht eine Partei dieser Akte in einer anderen Akte auf der anderen Seite?
 
 Ein Anwalt darf nicht tätig werden, wenn er in derselben Rechtssache eine andere Partei im widerstreitenden Interesse
-schon beraten oder vertreten hat (§ 43a Abs. 4 BRAO, § 3 BORA). Ob das so ist, entscheidet der Anwalt; JuraBox legt
+schon beraten oder vertreten hat (§ 43a Abs. 4 BRAO, § 3 BORA). Ob das so ist, entscheidet der Anwalt; advOrdo legt
 die Treffer vor und dokumentiert Prüfung und Entscheidung in der Akte.
 
 Verglichen werden Mandanten und Gegner, ihre gesetzlichen Vertreter und verbundene Organisationen, auch frühere Namen,

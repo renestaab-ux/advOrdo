@@ -56,7 +56,7 @@ export default function Fristenbuch({
       const { name } = await kern<{ name: string }>("kalender.fristenbuch_name", { von, bis });
       const ziel = await save({
         title: endung === "ics" ? "Kalenderdatei speichern" : `Fristenbuch als ${titel} speichern`,
-        defaultPath: `${endung === "ics" ? name.replace("Fristenbuch", "JuraBox Kalender") : name}.${endung}`,
+        defaultPath: `${endung === "ics" ? name.replace("Fristenbuch", "advOrdo Kalender") : name}.${endung}`,
         filters: [{ name: titel, extensions: [endung] }],
       });
       if (!ziel) return;

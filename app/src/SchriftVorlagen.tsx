@@ -102,13 +102,13 @@ export default function SchriftVorlagenEinstellungen() {
         <h2>Eigene Vorlagen</h2>
         <p className="leise">
           Eigene Vorlagen gelten für alle Akten dieser Arbeitsumgebung und stehen im Reiter „Schriftstücke“ jeder Akte zur
-          Wahl. JuraBox legt eine Kopie ab; deine Datei bleibt, wo sie ist.
+          Wahl. advOrdo legt eine Kopie ab; deine Datei bleibt, wo sie ist.
         </p>
         {vorlagen?.logo_hinweis && <p className="hinweis">{vorlagen.logo_hinweis}</p>}
         {entfernen && (
           <Rueckfrage
             frage={`Vorlage „${entfernen.titel}“ entfernen?`}
-            erklaerung="Entfernt wird die Kopie in JuraBox. Schriftstücke, die schon erzeugt sind, bleiben in den Akten."
+            erklaerung="Entfernt wird die Kopie in advOrdo. Schriftstücke, die schon erzeugt sind, bleiben in den Akten."
             ja="Entfernen"
             onJa={entfernenBestaetigt}
             onNein={() => setEntfernen(null)}
@@ -169,12 +169,12 @@ export default function SchriftVorlagenEinstellungen() {
             vorhandenen Briefbogen der Kanzlei (.docx oder .dotx).
           </li>
           <li>
-            An die Stellen, die JuraBox füllen soll, Platzhalter in doppelten geschweiften Klammern schreiben, z. B.{" "}
+            An die Stellen, die advOrdo füllen soll, Platzhalter in doppelten geschweiften Klammern schreiben, z. B.{" "}
             <code>{"{{Mandant.Name}}"}</code> oder <code>{"{{Gericht.Aktenzeichen}}"}</code>. Die Liste unten kopiert sie per
             Klick. Der Platzhalter übernimmt die Formatierung, die er in Word hat (fett, Schriftgröße).
           </li>
           <li>
-            Speichern und hier mit „Vorlage hinzufügen …“ aufnehmen. JuraBox meldet, welche Platzhalter es gefunden hat und
+            Speichern und hier mit „Vorlage hinzufügen …“ aufnehmen. advOrdo meldet, welche Platzhalter es gefunden hat und
             welche es nicht kennt. Unbekannte bleiben im Schriftstück stehen, damit ein Tippfehler auffällt.
           </li>
           <li>Später ändern: „In Word bearbeiten“ und speichern; das nächste Schriftstück nimmt die neue Fassung.</li>

@@ -84,7 +84,7 @@ body { margin: 0; background: var(--hintergrund); }
 .nav-eintrag.einklappen { color: var(--text-leise); font-size: 13px; margin-top: 4px; }
 .eingeklappt .nav-text { display: none; }
 .eingeklappt .marke { margin-left: 5px; }
-/* Eigenes Logo statt des JuraBox-Zeichens; breite Logos dürfen breiter sein, eingeklappt passt es in die Leiste. */
+/* Eigenes Logo statt des advOrdo-Zeichens; breite Logos dürfen breiter sein, eingeklappt passt es in die Leiste. */
 .marke.mit-logo .marke-zeichen { width: auto; height: 36px; max-width: 60px; object-fit: contain; background: #ffffff; border-radius: 6px; padding: 3px; }
 .marke.mit-logo .nav-text { white-space: normal; font-size: 15px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .eingeklappt .marke.mit-logo { margin-left: 0; justify-content: center; }

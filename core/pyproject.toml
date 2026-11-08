@@ -1,7 +1,7 @@
 [project]
 name = "juracore"
 version = "0.1.0"
-description = "Analysekern von JuraBox"
+description = "Analysekern von advOrdo"
 requires-python = ">=3.11"
 # SPDX-Ausdruck nach PEP 639 (setuptools >= 77). Lizenzdateien müssen im Paketordner liegen: core/LICENSE ist eine
 # Kopie von LICENSE im Hauptordner (tests/test_lizenz.py prüft, dass beide gleich sind).

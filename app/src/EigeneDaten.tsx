@@ -298,7 +298,7 @@ function Assistent({
 
       {schritt === "form" && (
         <>
-          <p className="frage-gross">In welchem Rahmen arbeiten Sie mit JuraBox?</p>
+          <p className="frage-gross">In welchem Rahmen arbeiten Sie mit advOrdo?</p>
           <div className="formkarten">
             {FORMKARTEN.map((k) => (
               <button

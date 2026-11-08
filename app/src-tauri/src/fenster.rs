@@ -18,7 +18,7 @@ pub async fn toolbox_oeffnen(app: AppHandle) -> Result<(), String> {
         return fenster.set_focus().map_err(|f| f.to_string());
     }
     WebviewWindowBuilder::new(&app, TOOLBOX, WebviewUrl::App(adresse(TOOLBOX).into()))
-        .title("JuraBox – Toolbox")
+        .title("advOrdo – Toolbox")
         .inner_size(1000.0, 760.0)
         .min_inner_size(720.0, 520.0)
         .build()

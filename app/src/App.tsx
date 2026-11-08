@@ -161,16 +161,16 @@ export default function App() {
         Zum Inhalt springen
       </a>
       <nav className="navigation" aria-label="Bereiche">
-        {/* Auf der Startseite stehen Logo und Name groß im Kopfband; die Leiste zeigt dort nur JuraBox. */}
+        {/* Auf der Startseite stehen Logo und Name groß im Kopfband; die Leiste zeigt dort nur advOrdo. */}
         {bereich === "start" ? (
-          <div className="marke" title="JuraBox">
+          <div className="marke" title="advOrdo">
             <img className="marke-zeichen" src={jurabox} alt="" aria-hidden />
-            <span className="nav-text">JuraBox</span>
+            <span className="nav-text">advOrdo</span>
           </div>
         ) : (
-          <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "JuraBox"}>
+          <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "advOrdo"}>
             <img className="marke-zeichen" src={marke?.logo ?? jurabox} alt="" aria-hidden />
-            <span className="nav-text">{marke?.kurzbezeichnung || "JuraBox"}</span>
+            <span className="nav-text">{marke?.kurzbezeichnung || "advOrdo"}</span>
           </div>
         )}
         {BEREICHE.map((b, i) => (

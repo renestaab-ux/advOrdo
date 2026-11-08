@@ -391,7 +391,7 @@ def als_csv(eintraege: list[dict]) -> str:
 
 
 def als_text(eintraege: list[dict]) -> str:
-    kopf = ["Protokoll der Online-Anfragen von JuraBox",
+    kopf = ["Protokoll der Online-Anfragen von advOrdo",
             f"Erstellt am {datetime.now().strftime('%d.%m.%Y %H:%M')}, {len(eintraege)} Einträge, neueste zuerst.",
             "Kopfzeilen der Anfragen (mit API-Schlüsseln) und Texte an Sprachmodelle werden nicht protokolliert.",
             ""]

@@ -347,7 +347,7 @@ def schreiben(bericht: Bericht) -> bytes:
         normen = b"/Metadata %d 0 R /OutputIntents [%d 0 R] " % (metadaten, len(objekte))
     objekte[0] = (b"<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /MarkInfo << /Marked true >> /StructTreeRoot %d 0 R "
                   b"%s/ViewerPreferences << /DisplayDocTitle true >> >>" % (wurzel, normen))
-    objekte.append(b"<< /Title <FEFF%s> /Creator (JuraBox) /Producer (JuraBox) >>" % titel.encode("utf-16-be").hex()
+    objekte.append(b"<< /Title <FEFF%s> /Creator (advOrdo) /Producer (advOrdo) >>" % titel.encode("utf-16-be").hex()
                    .upper().encode())
     info = len(objekte)
 
@@ -387,8 +387,8 @@ def _xmp(titel: str) -> bytes:
 <dc:title><rdf:Alt><rdf:li xml:lang="x-default">{_xml(titel)}</rdf:li></rdf:Alt></dc:title>
 <dc:format>application/pdf</dc:format>
 <dc:language><rdf:Bag><rdf:li>de-DE</rdf:li></rdf:Bag></dc:language>
-<xmp:CreatorTool>JuraBox</xmp:CreatorTool>
-<pdf:Producer>JuraBox</pdf:Producer>
+<xmp:CreatorTool>advOrdo</xmp:CreatorTool>
+<pdf:Producer>advOrdo</pdf:Producer>
 <pdfaid:part>2</pdfaid:part>
 <pdfaid:conformance>A</pdfaid:conformance>
 <pdfuaid:part>1</pdfuaid:part>

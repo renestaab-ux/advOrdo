@@ -19,7 +19,7 @@ from .rechtsprechung.zitate import finde_urteilszitate
 
 def main(argv: list[str] | None = None) -> int:
     zertifikate.systemzertifikate_nutzen()
-    p = argparse.ArgumentParser(prog="juracore", description="Analysekern von JuraBox")
+    p = argparse.ArgumentParser(prog="juracore", description="Analysekern von advOrdo")
     p.add_argument("--db", type=Path, help="Pfad der Datenbank (Standard: Datenverzeichnis)")
     p.add_argument("--archiv", type=Path, help="Pfad des Roharchivs (Standard: Datenverzeichnis)")
     p.add_argument("-v", "--verbose", action="store_true")

@@ -1,5 +1,5 @@
 // Menüleiste unter macOS. Tauris Standardmenü nennt die App in „Über …“, „… ausblenden“ und „… beenden“
-// nach dem Programmnamen; im Entwicklungsmodus ist das die Programmdatei „jurabox“. Dieses Menü setzt den
+// nach dem Programmnamen; im Entwicklungsmodus ist das die Programmdatei „advordo“. Dieses Menü setzt den
 // sichtbaren Namen aus `productName` und deutsche Bezeichnungen.
 // Windows und Linux zeigen kein Menü; die Funktion wird nur unter macOS eingebunden.
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -91,6 +91,6 @@ mod tests {
 
     #[test]
     fn app_eintraege_tragen_den_anzeigenamen() {
-        assert_eq!(app_eintraege("JuraBox"), ["Über JuraBox", "JuraBox ausblenden", "JuraBox beenden"]);
+        assert_eq!(app_eintraege("advOrdo"), ["Über advOrdo", "advOrdo ausblenden", "advOrdo beenden"]);
     }
 }

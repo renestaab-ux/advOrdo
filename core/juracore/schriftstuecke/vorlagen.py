@@ -1,9 +1,9 @@
 """Eigene Vorlagen der Arbeitsumgebung und das Erzeugen eines Schriftstücks aus einer Vorlage.
 
-Eigene Vorlagen sind Word-Dateien (.docx, .dotx) mit Platzhaltern. JuraBox legt eine Kopie im Ordner ``vorlagen``
+Eigene Vorlagen sind Word-Dateien (.docx, .dotx) mit Platzhaltern. advOrdo legt eine Kopie im Ordner ``vorlagen``
 der Arbeitsumgebung ab; die Originaldatei bleibt, wo sie ist. Eine Vorlage heißt wie ihre Datei.
 
-Ein erzeugtes Schriftstück kommt als neues Dokument in die Akte (Herkunft „Von JuraBox erzeugt“) und lässt sich
+Ein erzeugtes Schriftstück kommt als neues Dokument in die Akte (Herkunft „Von advOrdo erzeugt“) und lässt sich
 dort über „Bearbeiten“ in Word fertig schreiben, oder es wird nur unter einem gewählten Pfad gespeichert.
 """
 
@@ -19,7 +19,7 @@ from ..dokumente import akte as akten
 from . import fuellen, grundvorlagen, platzhalter
 
 ENDUNGEN = (".docx", ".dotx")
-HERKUNFT = "Von JuraBox erzeugt"
+HERKUNFT = "Von advOrdo erzeugt"
 GROESSTE = 20 * 1024 * 1024
 
 

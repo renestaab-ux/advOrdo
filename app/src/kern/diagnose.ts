@@ -28,7 +28,7 @@ export function diagnoseBericht(
   zeitpunkt: Date,
 ): string {
   const zeichen: Record<DiagnoseStand, string> = { ok: "OK", warnung: "HINWEIS", fehler: "FEHLER", aus: "AUS" };
-  const zeilen = [`JuraBox-Diagnose vom ${zeitpunkt.toLocaleString("de-DE")}`];
+  const zeilen = [`advOrdo-Diagnose vom ${zeitpunkt.toLocaleString("de-DE")}`];
   let gruppe = "";
   for (const p of pruefungen) {
     if (p.gruppe_titel !== gruppe) {

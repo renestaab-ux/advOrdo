@@ -6,15 +6,15 @@ Stand: 3. November 2026 · Maßstab: **WCAG 2.2, Konformitätsstufe AA**, und **
 
 - **WCAG 2.2** (W3C-Empfehlung vom 5. Oktober 2023), Erfolgskriterien der Stufen A und AA. Das Kriterium 4.1.1
   „Syntaxanalyse“ ist in WCAG 2.2 entfallen.
-- **EN 301 549 V3.2.1 (2021-03)**, die harmonisierte Norm zur Barrierefreiheit von IKT. Für JuraBox gelten:
+- **EN 301 549 V3.2.1 (2021-03)**, die harmonisierte Norm zur Barrierefreiheit von IKT. Für advOrdo gelten:
   - Kapitel 11 (Software): Es übernimmt die WCAG-2.1-Kriterien A/AA für Software (11.1–11.4) und ergänzt
     11.5 bis 11.8.
-  - Kapitel 10 (Dokumente, die nicht Web sind): Das betrifft die Dateien, die JuraBox erzeugt (docx, pdf, xlsx).
+  - Kapitel 10 (Dokumente, die nicht Web sind): Das betrifft die Dateien, die advOrdo erzeugt (docx, pdf, xlsx).
   - Kapitel 5 (allgemeine Anforderungen) und Kapitel 12 (Dokumentation).
 
   Eine Fassung der EN 301 549 auf Grundlage von WCAG 2.2 ist in Arbeit. Weil WCAG 2.2 AA die Kriterien von 2.1 AA
   einschließt (außer dem entfallenen 4.1.1), deckt die Ausrichtung auf 2.2 AA beide ab.
-- JuraBox ist eine Desktop-App (Tauri). Die Oberfläche läuft in der Webansicht des Systems (Windows: WebView2,
+- advOrdo ist eine Desktop-App (Tauri). Die Oberfläche läuft in der Webansicht des Systems (Windows: WebView2,
   macOS: WKWebView, Linux: WebKitGTK). Hilfsmittel wie die Windows-Sprachausgabe, NVDA oder VoiceOver lesen sie über
   die Barrierefreiheits-Schnittstelle des Systems (EN 301 549, 11.5).
 
@@ -47,7 +47,7 @@ je Gerät.
 Immer, ohne Schalter: „Zum Inhalt springen“, **Alt + 1 … 8** für die Bereiche der Leiste, Escape schließt Dialoge,
 der Fokus bleibt im offenen Dialog, Fehlermeldungen werden vorgelesen.
 
-Systemeinstellungen (EN 301 549, 11.7), denen JuraBox folgt: Hell/Dunkel („Systemstandard“), Kontrastdesigns von
+Systemeinstellungen (EN 301 549, 11.7), denen advOrdo folgt: Hell/Dunkel („Systemstandard“), Kontrastdesigns von
 Windows (erzwungene Farben), „Kontrast erhöhen“ von macOS (schaltet den hohen Kontrast ein), „Animationen aus“ bzw.
 „Bewegung reduzieren“.
 
@@ -59,7 +59,7 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | Nr. | Kriterium | Stufe | Stand | Umsetzung, Beleg |
 | --- | --- | --- | --- | --- |
 | 1.1.1 | Nicht-Text-Inhalt | A | erfüllt | Symbole `aria-hidden` neben Text; Symbolknöpfe mit `aria-label`; Seitenbilder mit `alt` („Seite n von Datei“); axe: keine Befunde |
-| 1.2.1–1.2.5 | Zeitbasierte Medien | A/AA | n. a. | JuraBox spielt weder Audio noch Video ab |
+| 1.2.1–1.2.5 | Zeitbasierte Medien | A/AA | n. a. | advOrdo spielt weder Audio noch Video ab |
 | 1.3.1 | Info und Beziehungen | A | erfüllt | Überschriften, Tabellen mit `th`, Reiter `tablist/tab`, Kalenderraster `grid/row/gridcell`, Felder mit `label`; axe |
 | 1.3.2 | Bedeutungstragende Reihenfolge | A | umgesetzt | DOM-Reihenfolge = Lesereihenfolge; von Hand mit Sprachausgabe bestätigen |
 | 1.3.3 | Sensorische Eigenschaften | A | umgesetzt | Hinweise nennen Namen der Knöpfe, nicht nur Lage oder Farbe |
@@ -81,7 +81,7 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | 2.2.2 | Pausieren, Beenden, Ausblenden | A | erfüllt | Warteanzeige mit „Abbrechen“; Bewegung abschaltbar |
 | 2.3.1 | Dreimaliges Blitzen | A | erfüllt | nichts blinkt |
 | 2.4.1 | Blöcke umgehen | A | erfüllt | „Zum Inhalt springen“, Hauptbereich `main#inhalt`, Leiste `nav` |
-| 2.4.2 | Seite mit Titel | A | erfüllt | Fenstertitel „JuraBox“, Bereiche mit `h1` |
+| 2.4.2 | Seite mit Titel | A | erfüllt | Fenstertitel „advOrdo“, Bereiche mit `h1` |
 | 2.4.3 | Fokus-Reihenfolge | A | umgesetzt | DOM-Reihenfolge; Fokus kehrt nach Dialogen zurück; von Hand bestätigen |
 | 2.4.4 | Linkzweck (im Kontext) | A | erfüllt | Verweise tragen Dateiname, Fundstelle oder Ziel |
 | 2.4.5 | Verschiedene Wege | AA | erfüllt | Leiste, Startseite, Suche, „Zuletzt geöffnet“ |
@@ -100,7 +100,7 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | 3.2.2 | Bei Eingabe | A | erfüllt | Auswahlen wirken ohne Seitenwechsel; Einstellungen gelten sofort, wie angekündigt |
 | 3.2.3 | Konsistente Navigation | AA | erfüllt | eine Leiste, immer gleich |
 | 3.2.4 | Konsistente Erkennung | AA | erfüllt | gleiche Symbole und Namen für gleiche Funktionen |
-| 3.2.6 | Konsistente Hilfe | A | n. a. | JuraBox bietet keine Hilfefunktion auf mehreren Seiten an. Kommt eine hinzu, gehört sie an dieselbe Stelle |
+| 3.2.6 | Konsistente Hilfe | A | n. a. | advOrdo bietet keine Hilfefunktion auf mehreren Seiten an. Kommt eine hinzu, gehört sie an dieselbe Stelle |
 | 3.3.1 | Fehlererkennung | A | erfüllt | Meldungen als Text, `role="alert"` |
 | 3.3.2 | Beschriftungen oder Anweisungen | A | erfüllt | Felder beschriftet, Beispiele als Platzhalter und Hinweistext |
 | 3.3.3 | Fehlerempfehlung | AA | umgesetzt | Meldungen nennen die Ursache (z. B. Aktenzeichen-Schema); nicht alle Meldungen des Kerns schlagen eine Lösung vor |
@@ -121,8 +121,8 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | 5.9 | Gleichzeitige Benutzeraktionen | erfüllt | Alt + Ziffer ist nur ein Kürzel; jede Funktion geht auch mit einem Klick |
 | 10.x | Erzeugte Dokumente | teilweise | **Word (docx):** Sprache de-DE, Titel in den Eigenschaften, echte Formatvorlagen „Title“ und „heading 1–3“. **PDF:** getaggt (`/MarkInfo`, Strukturbaum mit H1–H3 und P, Sprache, Titel, Fußzeile und Linien als Artefakt). Seit 07.11.2026 zusätzlich mit Kennung PDF/A-2a und PDF/UA-1: eingebettete Schrift (Liberation Sans, Teilmenge), XMP-Metadaten mit Titel und Erweiterungsschema für `pdfuaid`, Ausgabebedingung mit sRGB-Profil, Dateikennung. Am 07.11.2026 mit einem Prüfdienst bestätigt: Anmerkungen-Export „erfüllt PDF/A-2a“ und „erfüllt PDF/UA-1“ (die Fassung vorher scheiterte an PDF/A-2b). **Offen:** Excel ohne eigene Prüfung; die „PDF-Kopie mit Markierungen“ ändert das Original des Nutzers und erbt dessen Struktur |
 | 11.5 | Zusammenarbeit mit Hilfsmitteln | umgesetzt | Webansicht des Systems stellt die Oberfläche über UI Automation (Windows), NSAccessibility (macOS), AT-SPI (Linux) bereit; von Hand mit NVDA/Sprachausgabe bestätigen |
-| 11.6 | Dokumentierte Hilfsmittelnutzung | n. a. | JuraBox ist selbst kein Hilfsmittel |
-| 11.7 | Benutzereinstellungen | erfüllt | folgt Hell/Dunkel, Kontrastdesign, „Kontrast erhöhen“, „Bewegung reduzieren“ des Systems. Die Textgröße des Systems wirkt je nach Webansicht; JuraBox hat zusätzlich eine eigene Schriftgröße |
+| 11.6 | Dokumentierte Hilfsmittelnutzung | n. a. | advOrdo ist selbst kein Hilfsmittel |
+| 11.7 | Benutzereinstellungen | erfüllt | folgt Hell/Dunkel, Kontrastdesign, „Kontrast erhöhen“, „Bewegung reduzieren“ des Systems. Die Textgröße des Systems wirkt je nach Webansicht; advOrdo hat zusätzlich eine eigene Schriftgröße |
 | 11.8 | Autorenwerkzeuge | teilweise | Schriftstücke (Brief, Schriftsatz, Kostennote) entstehen als docx mit Sprache und Formatvorlagen. **Offen:** keine Prüfhilfe, die beim Bearbeiten auf Barrieren hinweist (11.8.4) |
 | 12.1.1 | Beschreibung der Barrierefreiheitsfunktionen | erfüllt | diese Seite und die Erklärungen in Einstellungen → Allgemeines |
 | 12.1.2 | Barrierefreie Dokumentation | umgesetzt | Dokumentation als Markdown (Text mit Überschriften) |

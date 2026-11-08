@@ -19,6 +19,7 @@ from typing import Protocol
 
 log = logging.getLogger("juracore.schluesselbund")
 
+# Dienstname bleibt „JuraBox“ (früherer Name der App), sonst fänden sich gespeicherte API-Schlüssel nicht mehr.
 DIENST = "JuraBox"
 SCHLUESSELBUND = "schluesselbund"
 DATEI = "datei"

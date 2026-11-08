@@ -1,4 +1,4 @@
-# JuraBox
+# advOrdo
 
 Desktop-App für Windows, macOS und Linux, die Schriftsätze, Schreiben und Urteile
 analysiert, vergleicht und zusammenfasst. Grundlage ist eine versionierte
@@ -8,10 +8,11 @@ Rechtsquelle mit Fassungsstand.
 
 Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzung in `docs/architektur.md`.
 
-Die App hieß früher „Juristischer Datenabgleich“. Interne Bezeichner tragen den alten
+Die App hieß früher „Juristischer Datenabgleich“, danach „JuraBox“. Interne Bezeichner tragen die alten
 Namen bewusst weiter (Tauri-Kennung `de.juristischer-datenabgleich.app`, Paketnamen,
-Datenverzeichnisse), damit vorhandene Akten, Gesetze und Einstellungen an ihrem Ort bleiben.
-Nur die Programmdatei heißt `jurabox`, weil macOS sie im Entwicklungsmodus im Dock anzeigt.
+Datenverzeichnisse, Dienstname „JuraBox“ im Schlüsselbund, Exportformat `jurabox-eigene-daten`, Kennungen
+der Kalendereinträge), damit vorhandene Akten, Gesetze, Einstellungen, API-Schlüssel und Kalenderimporte weiter
+passen. Nur die Programmdatei heißt `advordo`, weil macOS sie im Entwicklungsmodus im Dock anzeigt.
 
 ## Aufbau
 
@@ -92,8 +93,8 @@ npm install
 npm run paket
 ```
 
-Die Installer liegen danach unter `app\src-tauri\target\release\bundle\`: `nsis\JuraBox_0.1.0_x64-setup.exe`
-und `msi\JuraBox_0.1.0_x64_en-US.msi`. Beim ersten Bau lädt Tauri die Werkzeuge NSIS und WiX selbst
+Die Installer liegen danach unter `app\src-tauri\target\release\bundle\`: `nsis\advOrdo_0.1.0_x64-setup.exe`
+und `msi\advOrdo_0.1.0_x64_en-US.msi`. Beim ersten Bau lädt Tauri die Werkzeuge NSIS und WiX selbst
 herunter. Der Installer ist nicht signiert; Windows SmartScreen fragt deshalb einmal nach
 („Weitere Informationen“, „Trotzdem ausführen“).
 
@@ -252,7 +253,7 @@ Unter der Leiste des geöffneten Dokuments:
 - **Öffnen** übergibt eine schreibgeschützte Kopie an das PDF-Programm (PDF) bzw. die Textverarbeitung (Word, TXT,
   MD). Die abgelegte Datei der Akte wird nie verändert.
 - **Bearbeiten** legt eine Arbeitskopie an und öffnet sie; eine vorhandene Arbeitskopie wird weiterverwendet. Nach dem
-  Speichern im anderen Programm fragt JuraBox, sobald man zur App zurückkehrt: **Als Fassung 2 übernehmen** legt die
+  Speichern im anderen Programm fragt advOrdo, sobald man zur App zurückkehrt: **Als Fassung 2 übernehmen** legt die
   Datei unverändert ab und liest Text, Normzitate und Datum neu ein; Tags, Chat und Fassung 1 bleiben. Gespeicherte
   Ergebnisse des Sprachmodells zu dieser Akte werden dabei verworfen, weil sie auf dem alten Text beruhen. **Später**
   fragt erst nach dem nächsten Speichern wieder; **Arbeitskopie verwerfen** entfernt die Kopie.
@@ -262,7 +263,7 @@ Unter der Leiste des geöffneten Dokuments:
 
 Welche Programme das sind, steht in **Einstellungen › Programme**: Voreinstellung ist das Standardprogramm des
 Systems; alternativ wählt man eine Programmdatei (LibreOffice, Microsoft Word, Okular, PDF-XChange …) und optional
-Aufrufparameter („{datei}“ steht für die Datei). JuraBox übergibt nur die Datei, unter Windows, macOS und Linux gleich.
+Aufrufparameter („{datei}“ steht für die Datei). advOrdo übergibt nur die Datei, unter Windows, macOS und Linux gleich.
 
 ### Ordner, Beteiligte und Entfernen
 
@@ -327,9 +328,9 @@ Konzept: „Aktenverwaltung“ vom 19.10.2026, Stufe 1. In der Akte öffnen **St
 - **Nächste Fristen**: auf der Startseite die offenen Einträge der nächsten 14 Tage aus allen Akten (abgelaufene
   zuerst), in der Aktenübersicht die Spalte „Nächste Frist“ und der Filter „Frist in 7 Tagen“, im Kopf der Akte die
   nächste Frist.
-- **Erinnerungen**: Solange JuraBox läuft, meldet das Betriebssystem fällige Fristen (bei erreichter Vorfrist, am
+- **Erinnerungen**: Solange advOrdo läuft, meldet das Betriebssystem fällige Fristen (bei erreichter Vorfrist, am
   Vortag, am Tag des Ablaufs, einmal nach Ablauf), Termine (Vortag und Tag) und Wiedervorlagen, beim Start und dann
-  alle zehn Minuten; jede Stufe nur einmal. Beim ersten Mal fragt das System, ob JuraBox Mitteilungen zeigen darf.
+  alle zehn Minuten; jede Stufe nur einmal. Beim ersten Mal fragt das System, ob advOrdo Mitteilungen zeigen darf.
   Abschalten und Probe-Erinnerung unter Einstellungen → Akten. Ist die App geschlossen, erinnert sie nicht.
 - Reiter **Notizen**: kurze Vermerke zur Akte oder zu einem Dokument, wichtige oben angeheftet.
 - **Akte aus Dokument**: Beim Anlegen ein Dokument wählen (Klage, Anspruchsbegründung, Mahnbescheid, Verfügung). Die
@@ -651,7 +652,7 @@ GII-Format und keine Rechtsquelle.
 
 ## Lizenz
 
-JuraBox steht unter der **Europäischen Union Public Licence, Version 1.2** (EUPL-1.2), siehe
+advOrdo steht unter der **Europäischen Union Public Licence, Version 1.2** (EUPL-1.2), siehe
 [`LICENSE`](LICENSE). Die EUPL ist in allen Amtssprachen der EU gleichermaßen verbindlich. Die deutsche
 Fassung steht im Amtsblatt der EU, Durchführungsbeschluss (EU) 2017/863 der Kommission vom 18. Mai 2017
 (ABl. L 128 vom 19.5.2017, S. 59), <https://eur-lex.europa.eu/eli/dec_impl/2017/863/oj>.

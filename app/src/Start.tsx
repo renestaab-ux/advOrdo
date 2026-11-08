@@ -62,8 +62,8 @@ export default function Start({
       <header className="kopfband start-kopf">
         {marke?.logo && <img className="start-logo" src={marke.logo} alt="Logo" />}
         <div>
-          <p className="kopfband-ueber">{marke?.name ? "Willkommen bei JuraBox" : "Startseite"}</p>
-          <h1>{marke?.name || "Willkommen bei JuraBox"}</h1>
+          <p className="kopfband-ueber">{marke?.name ? "Willkommen bei advOrdo" : "Startseite"}</p>
+          <h1>{marke?.name || "Willkommen bei advOrdo"}</h1>
         </div>
       </header>
       <div className="start-inhalt">
