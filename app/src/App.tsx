@@ -11,6 +11,7 @@ import TimerHinweise from "./TimerHinweise";
 import Hintergrund from "./Hintergrund";
 import { KiAn } from "./kiSchalter";
 import { bereichAusTaste } from "./barrierefrei";
+import { darstellungLesen, fensterThema } from "./darstellung";
 import {
   KiModus,
   Marke,
@@ -147,7 +148,7 @@ export default function App() {
       setBereich("einstellungen");
     } else if (ziel === "toolbox") {
       // Die Toolbox hat ein eigenes Fenster; im Browser (ohne Desktop-App) erscheint sie hier.
-      if (istDesktop) await invoke("toolbox_oeffnen");
+      if (istDesktop) await invoke("toolbox_oeffnen", { thema: fensterThema(darstellungLesen()) });
       else setBereich("toolbox");
     }
   }
