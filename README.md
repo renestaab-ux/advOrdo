@@ -6,6 +6,9 @@ Wissensbasis aus Gesetzen (später auch Rechtsprechung). Leitprinzip: **Beleg vo
 Behauptung**. Jede Aussage verweist auf eine Fundstelle im Dokument oder in einer
 Rechtsquelle mit Fassungsstand.
 
+**Der Name:** „adv“ steht für *advocatus*, lateinisch für den Anwalt, „Ordo“ für lateinisch *ordo*, die Ordnung.
+advOrdo bringt also Ordnung in die Anwaltsarbeit: Akten, Fristen, Belege und Rechtsquellen an einem Ort.
+
 Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzung in `docs/architektur.md`.
 
 Die App hieß früher „Juristischer Datenabgleich“, danach „JuraBox“. Interne Bezeichner tragen die alten
