@@ -183,3 +183,11 @@ def test_aufbewahrung_waehlbar(tmp_path):
         assert netzprotokoll.liste(datei)["tage"] == 30
     finally:
         netzprotokoll.einrichten(None)
+
+
+def test_diagnose_wird_an_der_kennung_erkannt():
+    from juracore import diagnose
+
+    anfrage = urllib.request.Request("https://www.gesetze-im-internet.de/", headers={"User-Agent": diagnose.USER_AGENT})
+    assert netzprotokoll.zweck(anfrage) == "Verbindung prüfen (Diagnose)"
+    assert "advordo@staab.legal" in diagnose.USER_AGENT

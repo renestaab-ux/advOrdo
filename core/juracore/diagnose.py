@@ -28,7 +28,7 @@ from .gesetze import quelle
 from .ki import anbieter as ki_anbieter
 from .rechtsprechung import bayern, neuris, online, verzeichnis
 
-USER_AGENT = "advOrdo/0.1 (Diagnose)"
+USER_AGENT = "advOrdo/0.1 (Diagnose; advordo@staab.legal)"
 NETZ_TIMEOUT = 10
 FREI_WARNUNG = 1024**3  # unter 1 GB freiem Speicher warnen
 

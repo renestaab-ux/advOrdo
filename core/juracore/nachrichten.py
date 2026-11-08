@@ -35,7 +35,7 @@ from .htmlleser import HtmlLeser
 
 log = logging.getLogger("juracore.nachrichten")
 
-USER_AGENT = "advOrdo/0.1 (Nachrichten)"
+USER_AGENT = "advOrdo/0.1 (Nachrichten; advordo@staab.legal)"
 HOECHSTENS_BYTES = 5 * 1024 * 1024
 ZEITLIMIT = 15
 VERALTET_NACH = timedelta(minutes=30)
