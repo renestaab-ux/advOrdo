@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime
+from difflib import SequenceMatcher
 
 from .. import db
 from . import bayern, eurlex
@@ -162,9 +164,18 @@ def loese_zitat(con: sqlite3.Connection, zitat: str | Zitat, fassung_id: int | N
     (Norm, Absatz, Satz oder Nummer fehlt in der Fassung) oder "unbekanntes_gesetz".
     """
     z = parse_zitat(zitat) if isinstance(zitat, str) else zitat
-    ergebnis: dict = {"zitat": str(z), "status": "nicht_gefunden", "wortlaut": None, "fassung": None, "hinweis": None}
+    ergebnis: dict = {"zitat": str(z), "status": "nicht_gefunden", "wortlaut": None, "fassung": None, "hinweis": None,
+                      "gemeint": None}
     fassung = _fassung(con, z.gesetz, fassung_id)
     if fassung is None:
+        gemeint = gemeintes_gesetz(con, z.gesetz)
+        if gemeint and db.schreibweise(gemeint) != db.schreibweise(z.gesetz):
+            # Eigene Schreibweise: gegen das gemeinte Gesetz prüfen, die Schreibweise im Text bleibt sichtbar.
+            beleg = loese_zitat(con, replace(z, gesetz=gemeint), fassung_id)
+            vermerk = f"Im Text steht „{z.gesetz}“; zugeordnet zu {gemeint} (eigene Schreibweise)."
+            beleg.update(zitat=str(z), gemeint=gemeint,
+                         hinweis=f"{vermerk} {beleg['hinweis']}" if beleg["hinweis"] else vermerk)
+            return beleg
         ergebnis.update(status="unbekanntes_gesetz", hinweis=f"{z.gesetz} ist nicht in der Wissensbasis.")
         return ergebnis
     ergebnis["fassung"] = _fassung_info(fassung)
@@ -214,6 +225,74 @@ def loese_zitat(con: sqlite3.Connection, zitat: str | Zitat, fassung_id: int | N
             teil_text = f"{z.nr}. {eintrag}" if z.nr[0].isdigit() else f"{z.nr}) {eintrag}"
     ergebnis.update(status="belegt", wortlaut=teil_text)
     return ergebnis
+
+
+# --- Unbekannte Gesetze: Vorschläge und eigene Schreibweisen --------------------------------------------------------
+
+
+def gemeintes_gesetz(con: sqlite3.Connection, gesetz: str) -> str | None:
+    """Gesetz, das eine eigene Schreibweise meint (Vergleich wie bei den Abkürzungen), oder None."""
+    gesucht = db.schreibweise(gesetz)
+    for von, nach in con.execute("SELECT von, nach FROM schreibweise"):
+        if db.schreibweise(von) == gesucht:
+            return nach
+    return None
+
+
+def schreibweisen(con: sqlite3.Connection) -> list[dict]:
+    return [dict(z) for z in con.execute("SELECT von, nach, angelegt_am FROM schreibweise ORDER BY von COLLATE NOCASE")]
+
+
+def schreibweise_setzen(con: sqlite3.Connection, von: str, nach: str) -> dict:
+    """Merkt sich, dass ``von`` im Text das Gesetz ``nach`` meint; eine frühere Zuordnung derselben Schreibweise
+    wird ersetzt."""
+    von, nach = " ".join(von.split()), " ".join(nach.split())
+    if not von or not nach:
+        raise ValueError("Bitte Schreibweise und gemeintes Gesetz angeben.")
+    if db.schreibweise(von) == db.schreibweise(nach):
+        raise ValueError(f"„{von}“ und „{nach}“ sind dieselbe Abkürzung.")
+    if con.execute("SELECT 1 FROM gesetz WHERE abk = ?", (db.gesetz_abk(con, von),)).fetchone():
+        raise ValueError(f"{von} ist selbst ein Gesetz der Wissensbasis und kann nicht umgeleitet werden.")
+    with con:
+        for (alt,) in con.execute("SELECT von FROM schreibweise").fetchall():
+            if db.schreibweise(alt) == db.schreibweise(von):
+                con.execute("DELETE FROM schreibweise WHERE von = ?", (alt,))
+        con.execute("INSERT INTO schreibweise (von, nach, angelegt_am) VALUES (?, ?, ?)",
+                    (von, nach, datetime.now(UTC).isoformat(timespec="seconds")))
+    return {"von": von, "nach": nach}
+
+
+def schreibweise_loeschen(con: sqlite3.Connection, von: str) -> None:
+    """Löscht die eigene Schreibweise ``von`` (auch bei abweichender Groß- und Kleinschreibung oder Bindestrichen)."""
+    with con:
+        for (alt,) in con.execute("SELECT von FROM schreibweise").fetchall():
+            if db.schreibweise(alt) == db.schreibweise(von):
+                con.execute("DELETE FROM schreibweise WHERE von = ?", (alt,))
+
+
+def vorschlaege(con: sqlite3.Connection, gesetz: str, liste: list[dict], anzahl: int = 3) -> list[dict]:
+    """Ähnlich geschriebene Gesetze zu einer unbekannten Abkürzung („Meinten Sie …?“).
+
+    Verglichen wird mit den geladenen Gesetzen und der Gesetzesliste, in der Vergleichsform von
+    ``db.schreibweise``. ``geladen`` sagt, ob das Gesetz schon in der Wissensbasis steht."""
+    gesucht = db.schreibweise(gesetz)
+    if not gesucht:
+        return []
+    kandidaten: dict[str, dict] = {}
+    for g in db.gesetze(con):
+        kandidaten[db.schreibweise(g["abk"])] = {"abk": g["abk"], "titel": g["langtitel"], "geladen": True}
+    for g in liste:
+        kandidaten.setdefault(db.schreibweise(g["abk"]), {"abk": g["abk"], "titel": g.get("titel"), "geladen": False})
+    bewertet = []
+    for schluessel, k in kandidaten.items():
+        if schluessel == gesucht:
+            continue
+        wert = SequenceMatcher(None, gesucht, schluessel).ratio()
+        # Kurze Kürzel unterscheiden sich schon durch einen Buchstaben stark; dort strenger bleiben.
+        if wert >= (0.75 if min(len(gesucht), len(schluessel)) <= 4 else 0.7):
+            bewertet.append((wert, k))
+    bewertet.sort(key=lambda t: (-t[0], not t[1]["geladen"], t[1]["abk"]))
+    return [k | {"aehnlichkeit": round(w, 2)} for w, k in bewertet[:anzahl]]
 
 
 def _fassung(con: sqlite3.Connection, abk: str, fassung_id: int | None) -> sqlite3.Row | None:

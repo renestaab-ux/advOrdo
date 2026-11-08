@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from juracore.dokumente import akte
+from juracore.gesetze import wissensbasis
 
 from .conftest import schreibe_pdf
 
@@ -217,3 +218,21 @@ def test_alte_akten_werden_migriert(tmp_path):
     assert dok["herkunft"] is None and dok["tags"] == []
     assert con.execute("PRAGMA user_version").fetchone()[0] == akte.SCHEMA_VERSION
     con.close()
+
+
+def test_eigene_schreibweise_prueft_alle_akten_neu(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Akte")
+    akte.importiere(akten, con, a["id"], _klage(tmp_path), tmp_path / "ablage", ocr=False)
+    gvg = next(n for n in akte.normen(akten, a["id"]) if n["gesetz"] == "GVG")
+    assert gvg["status"] == "unbekanntes_gesetz" and gvg["gemeint"] is None
+
+    wissensbasis.schreibweise_setzen(con, "GVG", "ZPO")
+    assert akte.normzitate_eines_gesetzes_neu_pruefen(akten, con, ["GVG"]) == {"dokumente": 1}
+    gvg = next(n for n in akte.normen(akten, a["id"]) if n["gesetz"] == "GVG")
+    assert gvg["zitat"] == "§ 23 Nr. 1 GVG"  # wie im Text
+    assert gvg["gemeint"] == "ZPO"
+    assert gvg["hinweis"].startswith("Im Text steht „GVG“; zugeordnet zu ZPO")
+
+    wissensbasis.schreibweise_loeschen(con, "GVG")
+    assert akte.normzitate_eines_gesetzes_neu_pruefen(akten, con, ["GVG"]) == {"dokumente": 1}
+    assert next(n for n in akte.normen(akten, a["id"]) if n["gesetz"] == "GVG")["gemeint"] is None

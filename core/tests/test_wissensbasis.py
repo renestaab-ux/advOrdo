@@ -1,3 +1,5 @@
+import pytest
+
 from juracore import db
 from juracore.gesetze import quelle, wissensbasis
 
@@ -113,3 +115,47 @@ def test_nummer_ohne_absatz(con):
     falsch = wissensbasis.loese_zitat(con, "§ 437 Nr. 4 BGB")
     assert falsch["status"] == "nicht_gefunden"
     assert falsch["hinweis"] == "Nr. 4 wurde in der Fundstelle nicht gefunden."
+
+
+def test_meinten_sie_vorschlaege(con):
+    liste = [{"abk": "AVBFernwärmeV", "titel": "Verordnung über Allgemeine Bedingungen für die Versorgung mit "
+              "Fernwärme"}, {"abk": "BGB", "titel": "Bürgerliches Gesetzbuch"}]
+    vorschlag = wissensbasis.vorschlaege(con, "AVBFernwärmV", liste)
+    assert [v["abk"] for v in vorschlag] == ["AVBFernwärmeV"]
+    assert vorschlag[0]["geladen"] is False
+    # Geladene Gesetze zählen mit, ein Tippfehler im Kürzel findet das Gesetz.
+    assert wissensbasis.vorschlaege(con, "BGBG", liste)[0] | {"aehnlichkeit": 0} == {
+        "abk": "BGB", "titel": "Bürgerliches Gesetzbuch", "geladen": True, "aehnlichkeit": 0}
+    # Kein ähnliches Gesetz: kein Vorschlag.
+    assert wissensbasis.vorschlaege(con, "StVollzG", liste) == []
+
+
+def test_eigene_schreibweise_belegt_und_bleibt_sichtbar(con):
+    assert wissensbasis.loese_zitat(con, "§ 280 Abs. 1 BGBG")["status"] == "unbekanntes_gesetz"
+    wissensbasis.schreibweise_setzen(con, "BGBG", "BGB")
+    beleg = wissensbasis.loese_zitat(con, "§ 280 Abs. 1 S. 2 BGBG")
+    assert beleg["status"] == "belegt"
+    assert beleg["zitat"] == "§ 280 Abs. 1 S. 2 BGBG"
+    assert beleg["gemeint"] == "BGB"
+    assert beleg["hinweis"] == "Im Text steht „BGBG“; zugeordnet zu BGB (eigene Schreibweise)."
+    assert beleg["wortlaut"].startswith("Dies gilt nicht")
+    # Mit der Fassung aus der Prüfung (wie die Oberfläche den Wortlaut nachlädt).
+    assert wissensbasis.loese_zitat(con, "§ 280 Abs. 1 BGBG", beleg["fassung"]["id"])["status"] == "belegt"
+    # Fehler in der Fundstelle bleiben benannt, mit dem Vermerk davor.
+    assert wissensbasis.loese_zitat(con, "§ 280 Abs. 4 BGBG")["hinweis"].endswith("§ 280 hat keinen Absatz 4.")
+
+    # Gleiche Schreibweise anders geschrieben ersetzt die alte Zuordnung.
+    wissensbasis.schreibweise_setzen(con, "bgb-g", "ZPO")
+    assert [(s["von"], s["nach"]) for s in wissensbasis.schreibweisen(con)] == [("bgb-g", "ZPO")]
+    wissensbasis.schreibweise_loeschen(con, "BGBG")
+    assert wissensbasis.schreibweisen(con) == []
+    assert wissensbasis.loese_zitat(con, "§ 280 Abs. 1 BGBG")["status"] == "unbekanntes_gesetz"
+
+
+def test_eigene_schreibweise_pruefung(con):
+    with pytest.raises(ValueError, match="selbst ein Gesetz"):
+        wissensbasis.schreibweise_setzen(con, "bgb", "ZPO")
+    with pytest.raises(ValueError, match="dieselbe Abkürzung"):
+        wissensbasis.schreibweise_setzen(con, "AVB-FernwärmeV", "AVBFernwärmeV")
+    with pytest.raises(ValueError, match="angeben"):
+        wissensbasis.schreibweise_setzen(con, " ", "BGB")
