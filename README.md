@@ -684,3 +684,5 @@ Apache-2.0, MPL-2.0).
 
 Fragen, Hinweise und Fehlermeldungen an **advordo@staab.legal**. Sicherheitslücken bitte nicht öffentlich
 als Issue melden, sondern wie in [`SECURITY.md`](SECURITY.md) beschrieben.
+
+Wer mitarbeiten möchte, findet die Regeln für Beiträge in [`CONTRIBUTING.md`](CONTRIBUTING.md).
