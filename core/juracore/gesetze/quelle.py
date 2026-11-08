@@ -23,7 +23,7 @@ from .. import grenzen
 from . import bayern, eurlex
 
 BASIS_URL = "https://www.gesetze-im-internet.de"
-USER_AGENT = "JuraBox/0.1 (Wissensbasis-Import)"
+USER_AGENT = "advOrdo/0.1 (Wissensbasis-Import)"
 
 # Voreingestellte Gesetze stehen in voreinstellung.json, gegliedert in Pakete (Zivilrecht, Strafrecht,
 # Verwaltungsrecht, Landesrecht Bayern), die sich einzeln ein- und ausschalten lassen. Jedes andere

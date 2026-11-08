@@ -1,4 +1,4 @@
-"""Eigene Daten: wer mit JuraBox arbeitet und in welchem Rahmen (Konzept „Eigene Daten“, Fassung vom 18.10.2026).
+"""Eigene Daten: wer mit advOrdo arbeitet und in welchem Rahmen (Konzept „Eigene Daten“, Fassung vom 18.10.2026).
 
 Gespeichert wird in der Aktendatenbank der aktiven Arbeitsumgebung, damit Akten später auf Organisation und
 Person verweisen können. Die Angaben verlassen das Gerät nicht; Export und Import laufen über eine Datei.
@@ -596,7 +596,7 @@ def importieren(con: sqlite3.Connection, pfad: str | Path, ersetzen: bool = Fals
     except (OSError, ValueError) as fehler:
         raise ValueError(f"Die Datei konnte nicht gelesen werden: {fehler}") from fehler
     if not isinstance(daten, dict) or daten.get("format") != EXPORT_FORMAT:
-        raise ValueError("Das ist keine Exportdatei der Eigenen Daten von JuraBox.")
+        raise ValueError("Das ist keine Exportdatei der Eigenen Daten von advOrdo.")
     if daten.get("version") != EXPORT_VERSION:
         raise ValueError(f"Unbekannte Version der Exportdatei: {daten.get('version')!r}")
     form = daten.get("form")

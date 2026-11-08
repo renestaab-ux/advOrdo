@@ -40,12 +40,12 @@ function senden(liste: Erinnerung[]) {
   }
   const zeilen = liste.slice(0, EINZELN_HOECHSTENS).map((e) => e.titel);
   zeilen.push(`… und ${liste.length - EINZELN_HOECHSTENS} weitere, siehe Startseite.`);
-  sendNotification({ title: `JuraBox: ${liste.length} Fristen, Termine und Wiedervorlagen`, body: zeilen.join("\n") });
+  sendNotification({ title: `advOrdo: ${liste.length} Fristen, Termine und Wiedervorlagen`, body: zeilen.join("\n") });
 }
 
 export async function testErinnerung() {
-  if (!(await mitteilungenErlaubt())) throw new Error("Das Betriebssystem erlaubt JuraBox keine Mitteilungen.");
-  sendNotification({ title: "JuraBox: Probe-Erinnerung", body: "So erscheinen Erinnerungen an Fristen und Termine." });
+  if (!(await mitteilungenErlaubt())) throw new Error("Das Betriebssystem erlaubt advOrdo keine Mitteilungen.");
+  sendNotification({ title: "advOrdo: Probe-Erinnerung", body: "So erscheinen Erinnerungen an Fristen und Termine." });
 }
 
 /**

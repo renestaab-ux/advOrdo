@@ -46,7 +46,7 @@ def test_linux_unverschluesselt_und_ecryptfs(tmp_path):
     from pathlib import Path
     b = v._linux(Path("/boot/efi"), block, MOUNTINFO, GERAETE.__getitem__)
     assert b.stand == v.AUS
-    b = v._linux(Path("/home/rene/Privat/JuraBox"), block, MOUNTINFO, GERAETE.__getitem__)
+    b = v._linux(Path("/home/rene/Privat/advOrdo"), block, MOUNTINFO, GERAETE.__getitem__)
     assert b.stand == v.AN and b.verfahren == "ecryptfs"
 
 

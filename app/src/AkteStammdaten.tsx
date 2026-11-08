@@ -1045,7 +1045,7 @@ function KollisionsAnzeige({
           </button>
         </span>
       </div>
-      {!pruefung && <p className="leer">Noch nicht geprüft. JuraBox prüft automatisch, sobald Mandant oder Gegner eingetragen werden.</p>}
+      {!pruefung && <p className="leer">Noch nicht geprüft. advOrdo prüft automatisch, sobald Mandant oder Gegner eingetragen werden.</p>}
       {pruefung && (
         <>
           <p className={`ampel ampel-${pruefung.ampel}`}>
@@ -1090,7 +1090,7 @@ function KollisionsAnzeige({
             )
           )}
           <p className="leise">
-            Ob ein Interessenkonflikt vorliegt (§ 43a Abs. 4 BRAO, § 3 BORA), entscheidest du; JuraBox legt nur die
+            Ob ein Interessenkonflikt vorliegt (§ 43a Abs. 4 BRAO, § 3 BORA), entscheidest du; advOrdo legt nur die
             Treffer vor und hält Prüfung und Entscheidung fest.
           </p>
         </>

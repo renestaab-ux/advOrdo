@@ -1,0 +1,349 @@
+/* Kopfband, Aktenübersicht, geöffnete Akte, Fristen, Verfahren, Notizen und Akte aus Dokument. */
+
+/* Kopfband: Startseite und geöffnete Akte */
+.kopfband { display: flex; align-items: center; gap: 28px; padding: 18px 32px; background: var(--band); color: var(--band-text); }
+.kopfband h1 { font-size: 22px; margin: 0; color: var(--band-text); }
+.kopfband-ueber { margin: 0 0 2px; font-size: 12px; color: var(--band-leise); letter-spacing: 0.02em; }
+.kopfband > div:first-child { flex: 1; min-width: 0; }
+
+/* Startseite */
+.kachel { grid-template-rows: auto auto auto; }
+.kachel-stand { grid-column: 2; }
+.kachel-liste, .kachel-info { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; cursor: default; }
+.kachel-liste h2, .kachel-info h2 { font-size: 16px; margin: 0 0 4px; }
+.kachel-liste ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.kachel-liste li { display: flex; flex-direction: column; }
+.kachel-liste .link { text-align: left; }
+.kachel-liste > .link.klein, .kachel-info > .link.klein { margin-top: auto; }
+.kachel-info { background: color-mix(in srgb, var(--akzent) 6%, var(--flaeche)); }
+.kachel-info dl { margin: 0; display: grid; grid-template-columns: 1fr; gap: 2px; font-size: 13px; }
+.kachel-info dd + dt { margin-top: 8px; }
+.kachel-info dt { color: var(--text-leise); font-size: 12px; font-weight: 600; }
+.kachel-info dd { margin: 0; }
+.gut { color: var(--gut); }
+
+/* Aktenübersicht */
+.akten-uebersicht { max-width: 1500px; }
+.akten-suche { width: 100%; margin: 14px 0 10px; padding: 9px 12px; }
+.filterleiste { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.filterleiste select { padding: 4px 8px; font-size: 13px; }
+.rechts { margin-left: auto; }
+button.chip { background: none; color: var(--text); border: 1px solid var(--linie); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
+button.chip.aktiv { background: var(--knopf); border-color: var(--knopf); color: var(--knopf-text); }
+button.chip.frist-chip { display: inline-flex; align-items: center; gap: 5px; }
+/* Status als zusammenhängende Reiter mit Zahl; die übrigen Filter rechts in einer Gruppe. */
+.segment { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--linie); border-radius: 8px; background: var(--flaeche); }
+button.segment-knopf { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; color: var(--text); padding: 4px 12px;
+  border-radius: 6px; font-size: 13px; font-weight: 500; }
+button.segment-knopf:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+button.segment-knopf.aktiv { background: var(--knopf); color: var(--knopf-text); }
+.segment-zahl { min-width: 20px; padding: 0 6px; border-radius: 999px; font-size: 11px; text-align: center;
+  background: color-mix(in srgb, var(--text-leise) 16%, transparent); }
+.segment-knopf.aktiv .segment-zahl { background: rgb(255 255 255 / 22%); }
+.filtergruppe { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; color: var(--text-leise); }
+.abschnitt-titel { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-leise); margin: 6px 0 8px; }
+.zuletzt { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.zuletzt-karte { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; min-width: 220px; max-width: 340px;
+  background: var(--flaeche); color: var(--text); border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; }
+.zuletzt-karte:hover { border-color: var(--akzent); }
+.zuletzt-karte strong { display: inline-flex; align-items: flex-start; gap: 6px; }
+.zuletzt-karte strong .symbol { flex: none; color: var(--akzent); margin-top: 2px; }
+.akten-tabelle { font-size: 14px; }
+.akten-tabelle th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+.akten-tabelle td { padding: 10px 12px; }
+.akten-tabelle th { padding: 8px 12px; background: color-mix(in srgb, var(--text-leise) 6%, transparent); }
+.akten-tabelle .az { font-weight: 600; white-space: nowrap; }
+tr.klickbar { cursor: pointer; }
+tr.klickbar:hover { background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+button.marke-fehlt { display: block; margin-top: 4px; padding: 0 8px; font-size: 12px; border-radius: 999px; font-weight: 600;
+  color: var(--warnung); background: color-mix(in srgb, var(--warnung) 15%, transparent); border: 1px solid transparent; }
+button.marke-fehlt:hover { border-color: var(--warnung); }
+.status-marke { font-size: 12px; padding: 1px 8px; border-radius: 999px; color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 15%, transparent); }
+.status-marke.laufend { color: var(--gut); background: color-mix(in srgb, var(--gut) 15%, transparent); }
+.status-marke.ruhend { color: var(--warnung); background: color-mix(in srgb, var(--warnung) 15%, transparent); }
+.status-marke.abgeschlossen { color: var(--text-leise); background: none; border: 1px solid var(--linie); }
+
+/* Geöffnete Akte: Kopf, Reiter, Fläche */
+.inhalt.ohne-rand { padding: 0; overflow: hidden; }
+.akte-rahmen { display: flex; flex-direction: column; height: 100%; }
+.akte-kopf { gap: 10px 28px; padding: 14px 24px; }
+.akte-kopf h1 { font-size: 21px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akte-kopf .akte-kopf-titel { flex: 1 1 260px; min-width: 0; }
+.akte-kopf .kopfband-ueber { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akte-kopf-angabe { flex: 0 1 auto; min-width: 0; }
+.akte-kopf-angabe strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akte-kopf-angabe { max-width: 240px; }
+.akte-kopf button { flex: none; }
+.kopfband button.zurueck, .kopfband button.kopf-knopf { display: inline-flex; align-items: center; gap: 6px; background: rgb(255 255 255 / 10%);
+  border: 1px solid rgb(255 255 255 / 35%); color: var(--band-text); padding: 5px 12px; position: relative; }
+.kopfband button.zurueck:hover, .kopfband button.kopf-knopf:hover, .kopfband button.kopf-knopf.aktiv { background: rgb(255 255 255 / 22%); }
+.fehlt-punkt { width: 8px; height: 8px; border-radius: 50%; background: #f0c060; }
+.akte-reiter { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; gap: 4px; padding: 8px 24px 0; border-bottom: 1px solid var(--linie); background: var(--flaeche); }
+button.akte-reiter-knopf { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; background: none; border: none; border-bottom: 3px solid transparent;
+  border-radius: 0; color: var(--text-leise); padding: 8px 12px 9px; }
+button.akte-reiter-knopf:hover { color: var(--text); }
+/* Auf schmaleren Bildschirmen (MacBook) rücken die Reiter zusammen, damit alle sichtbar bleiben. */
+@media (max-width: 1520px) {
+  .akte-reiter { padding-left: 16px; padding-right: 16px; gap: 0; }
+  button.akte-reiter-knopf { padding-left: 8px; padding-right: 8px; gap: 5px; font-size: 14px; }
+}
+@media (max-width: 1360px) {
+  button.akte-reiter-knopf .symbol { display: none; }
+}
+button.akte-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--akzent); font-weight: 600; }
+.akte-reiter-knopf .anzahl, .filter-eintrag .anzahl { font-size: 12px; color: var(--text-leise); font-weight: 400; }
+.akte-reiterflaeche { flex: 1; min-height: 0; overflow: auto; position: relative; padding: 16px 24px 24px; }
+.akte-reiterflaeche .karte { max-width: 1100px; }
+.gefahrenzone { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--linie); }
+
+/* Reiter Dokumente: Filter | Liste | geöffnetes Dokument, jede Spalte scrollt für sich */
+.akte-dokumente { position: absolute; inset: 0; display: grid; grid-template-columns: 210px minmax(360px, 1fr) auto minmax(0, 1.3fr); }
+.akte-dokumente.filter-zu { grid-template-columns: 40px minmax(340px, 1fr) auto minmax(0, 1.5fr); }
+.akte-dokumente > * { overflow: auto; min-height: 0; padding: 12px 16px; }
+/* Trennlinie zwischen Liste und geöffnetem Dokument; mit eigener Breite steht die Dokumentansicht fest. */
+.akte-dokumente > .trenner { padding: 0; overflow: visible; min-height: 0; width: 4px; margin: 0 -2px; z-index: 2; }
+@media (min-width: 1201px) {
+  .akte-dokumente.feste-breite { grid-template-columns: 210px minmax(340px, 1fr) auto var(--dok-breite); }
+  .akte-dokumente.filter-zu.feste-breite { grid-template-columns: 40px minmax(340px, 1fr) auto var(--dok-breite); }
+}
+.akte-filter { border-right: 1px solid var(--linie); display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; }
+.filter-zu .akte-filter { padding: 8px 4px; align-items: center; }
+.akte-filter h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-leise); margin: 12px 0 4px; }
+button.leisten-knopf { align-self: flex-end; background: none; border: none; color: var(--text-leise); padding: 4px; position: relative; }
+button.leisten-knopf:hover { color: var(--text); }
+.filter-punkt { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--akzent); }
+button.filter-eintrag { display: flex; justify-content: space-between; gap: 8px; text-align: left; background: none; border: none; color: var(--text);
+  padding: 4px 8px; border-radius: 5px; font-size: 13px; }
+button.filter-eintrag:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, transparent); font-weight: 600; }
+.filter-beteiligte { list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+.filter-beteiligte li { display: flex; flex-direction: column; }
+.filter-beteiligte .link { font-weight: 500; text-align: left; color: var(--text); }
+.filter-beteiligte .leise { padding-left: 16px; }
+.punkt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--text-leise); }
+.punkt.eigene { background: var(--akzent); }
+.punkt.gegen { background: var(--fehler); }
+.akte-liste { border-right: 1px solid var(--linie); }
+.akte-liste .leiste { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.akte-liste .leiste button { padding: 5px 12px; }
+.dokumente.kompakt { margin-top: 4px; table-layout: fixed; }
+.dokumente.kompakt .spalte-datum { width: 96px; }
+.dokumente.kompakt .spalte-zitate { width: 60px; }
+.dokumente.kompakt .link { overflow-wrap: anywhere; }
+.dok-name-zeile { display: flex; align-items: flex-start; gap: 6px; }
+.dok-symbol { flex: none; display: flex; color: var(--text-leise); margin-top: 1px; }
+.dokumente.kompakt .dok-name { font-weight: 600; }
+.dokumente.kompakt .dok-name-zeile + .herkunft { margin-left: 22px; }
+.dokumente.kompakt .tags { margin-left: 22px; }
+.art-chip { display: inline-block; padding: 0 7px; margin-right: 4px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  color: var(--akzent); background: color-mix(in srgb, var(--akzent) 10%, transparent); }
+.dokumente.kompakt tbody tr { cursor: pointer; }
+.dokumente.kompakt tbody tr:hover { background: color-mix(in srgb, var(--akzent) 5%, transparent); }
+.dokumente.kompakt tr.aktiv { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+.zeilen-aktionen { display: inline-flex; gap: 8px; visibility: hidden; }
+.dokumente.kompakt tr:hover .zeilen-aktionen, .dokumente.kompakt tr.aktiv .zeilen-aktionen, .zeilen-aktionen:focus-within { visibility: visible; }
+/* In der Dokumentliste erscheinen die Zeilenknöpfe nur beim geöffneten Dokument; die übrigen Zeilen halten keinen Platz frei. */
+.dokumente.kompakt .zeilen-aktionen { display: none; margin: 4px 0 0 22px; }
+.dokumente.kompakt tr.aktiv .zeilen-aktionen, .dokumente.kompakt .zeilen-aktionen:focus-within { display: flex; }
+.akte-offen .dok-modi { position: sticky; top: -12px; background: var(--hintergrund); z-index: 1; padding-top: 4px; }
+.akte-offen .akte-arbeitsflaeche { grid-template-columns: minmax(0, 1fr) auto auto; }
+.akte-offen .dokument { margin-top: 0; }
+/* Schmales Fenster: Filter bleiben links, Liste und geöffnetes Dokument stehen untereinander. */
+@media (max-width: 1200px) {
+  .akte-dokumente, .akte-dokumente.filter-zu { position: static; grid-template-columns: 190px minmax(0, 1fr);
+    grid-template-areas: "filter liste" "filter offen"; align-items: start; }
+  .akte-dokumente.filter-zu { grid-template-columns: 40px minmax(0, 1fr); }
+  .akte-dokumente > * { overflow: visible; }
+  .akte-dokumente > .trenner { display: none; }
+  .akte-filter { grid-area: filter; align-self: stretch; }
+  .akte-liste { grid-area: liste; border-right: none; border-bottom: 1px solid var(--linie); }
+  .akte-offen { grid-area: offen; }
+  .akte-reiterflaeche:has(.akte-dokumente) { padding: 0; }
+  .akte-offen .dok-modi { top: 0; }
+  .akte-liste, .akte-offen { min-width: 0; }
+  .dokumente.kompakt .link { overflow-wrap: anywhere; }
+}
+/* Sehr schmal: Angaben im Kopf weglassen, sie stehen auch in Stammdaten und Beteiligten. */
+@media (max-width: 900px) {
+  .akte-kopf-angabe { display: none; }
+}
+.zitat-kurz { display: inline-flex; gap: 8px; font-variant-numeric: tabular-nums; }
+.zitat-kurz .zitat-zahl { margin: 0; font-weight: 600; }
+.dokumente.kompakt .tags { margin-top: 4px; }
+.dokumente.kompakt .dok-datum .herkunft { display: none; }
+details.kurz-hinweis { font-size: 13px; margin: 0 0 6px; }
+details.kurz-hinweis summary { cursor: pointer; }
+details.kurz-hinweis p { margin: 4px 0; }
+.rollen { display: flex; flex-wrap: wrap; gap: 4px; }
+.rolle-marke { font-size: 12px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; color: var(--text-leise);
+  background: color-mix(in srgb, var(--text-leise) 14%, transparent); }
+.rolle-marke.eigene { color: var(--akzent); background: color-mix(in srgb, var(--akzent) 15%, transparent); }
+.rolle-marke.gegen { color: var(--fehler); background: color-mix(in srgb, var(--fehler) 13%, transparent); }
+.rolle-marke.funktion { color: var(--text); background: none; border: 1px solid var(--linie); }
+
+/* Externe Programme und Fassungen (Teil 3) */
+.dok-extern { margin: -4px 0 10px; }
+.dok-extern-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+/* Schlichte Knöpfe mit Symbol, damit die Leiste ruhig bleibt und der Text höher beginnt. */
+.dok-extern-leiste { gap: 2px 4px; }
+.dok-extern-leiste button.zweitrangig { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; font-size: 13px;
+  border-color: transparent; color: var(--text-leise); }
+.dok-extern-leiste button.zweitrangig:hover:not(:disabled) { color: var(--akzent); background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+.dok-extern-leiste .dok-fassung { display: inline-flex; align-items: center; gap: 4px; }
+.dok-extern-leiste .dok-fassung { margin-left: auto; color: var(--text-leise); }
+.arbeitskopie-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); font-size: 13px; }
+.arbeitskopie-zeile > span { margin-right: auto; }
+.arbeitskopie-zeile.geaendert { border-left: 4px solid var(--akzent); }
+.arbeitskopie-zeile button:not(.link) { padding: 3px 10px; font-size: 13px; }
+.fassungen { list-style: none; margin: 8px 0 0; padding: 6px 10px; border: 1px solid var(--linie); border-radius: 6px; font-size: 13px; }
+.fassungen li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 3px 0; }
+.fassungen li .leise { margin-right: auto; }
+.programm-zeile { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--linie); }
+.programm-zeile:first-of-type { border-top: 0; }
+.programm-zeile label { display: grid; gap: 4px; max-width: 460px; }
+.programm-eigenes { display: grid; gap: 6px; padding-left: 12px; border-left: 2px solid var(--linie); }
+.programm-pfad { display: flex; align-items: center; gap: 10px; }
+.programm-pfad span { font-weight: 600; }
+.programm-voll { font-size: 12px; color: var(--text-leise); overflow-wrap: anywhere; }
+
+/* Neue Akte anlegen: eigene Seite, Schritt 1 von 3 */
+.akte-anlegen { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; padding: 24px 32px; }
+.akte-anlegen-form { display: grid; gap: 14px; flex: 1 1 420px; max-width: 620px; margin: 0; }
+.akte-anlegen-form .feld { display: grid; gap: 4px; }
+.akte-anlegen-form input { font-size: 16px; padding: 8px 12px; }
+.akte-anlegen-form .aktionen { display: flex; flex-wrap: wrap; gap: 10px; }
+.anlegen-schritte { margin: 0; padding-left: 22px; display: grid; gap: 12px; color: var(--text-leise); }
+.anlegen-schritte li { padding-left: 4px; }
+.anlegen-schritte li span { display: block; font-size: 13px; }
+.anlegen-schritte li.aktiv strong { color: var(--text); }
+
+/* --- Stufe 2: Fristen, Termine, Wiedervorlagen ------------------------------------------------------------------ */
+.klein { font-size: 12px; }
+.hinweis-text { color: var(--warnung); }
+.fristen, .notizen { max-width: 900px; }
+.fristen-kopf { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.fristen-kopf h2 { font-size: 18px; margin: 4px 0; }
+.fristen-kopf .aktionen, .vorschlag .aktionen, .kalender-formular .aktionen, .verfahren-formular .aktionen { display: flex; flex-wrap: wrap; gap: 8px; }
+.art-marke { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .02em; padding: 1px 7px; border-radius: 4px; color: var(--akzent); background: color-mix(in srgb, var(--akzent) 12%, transparent); }
+.art-marke.termin { color: var(--gut); background: color-mix(in srgb, var(--gut) 14%, transparent); }
+.art-marke.wiedervorlage, .art-marke.erledigen { color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 14%, transparent); }
+.beleg { margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--linie); color: var(--text); font-size: 13px; }
+.beleg cite { display: block; margin-top: 4px; font-style: normal; font-size: 12px; color: var(--text-leise); }
+.vorschlaege { max-width: 900px; border-left: 4px solid var(--akzent); }
+.vorschlaege-kopf { display: flex; justify-content: space-between; align-items: center; }
+.vorschlaege-kopf h3, .kalender-formular h3, .aus-dokument h3 { margin: 0; font-size: 16px; }
+.vorschlag-liste { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 14px; }
+.vorschlag { padding-top: 12px; border-top: 1px solid var(--linie); }
+.vorschlag-zeile { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.kalender-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.kalender-eintrag { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; padding: 10px 14px; background: var(--flaeche); border: 1px solid var(--linie); border-left: 4px solid var(--linie); border-radius: 8px; }
+.kalender-eintrag.abgelaufen, .kalender-eintrag.heute { border-left-color: var(--fehler); }
+.kalender-eintrag.vorfrist, .kalender-eintrag.bald { border-left-color: var(--warnung); }
+.kalender-eintrag.offen { border-left-color: var(--akzent); }
+.kalender-eintrag.erledigt { opacity: .75; }
+.kalender-eintrag.stattgefunden, .kalender-eintrag.aufgehoben, .kalender-eintrag.verlegt { opacity: .75; }
+.kalender-eintrag.aufgehoben .kalender-titel, .kalender-eintrag.verlegt .kalender-titel { text-decoration: line-through; }
+.kalender-eintrag p { margin: 3px 0 0; }
+.kalender-datum { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.kalender-datum strong { font-size: 14px; }
+.lage-marke { font-size: 12px; color: var(--text-leise); }
+.lage-marke.abgelaufen, .lage-marke.heute { color: var(--fehler); font-weight: 600; }
+.lage-marke.vorfrist, .lage-marke.bald { color: var(--warnung); font-weight: 600; }
+.kalender-aktionen { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.kalender-aktionen button.zweitrangig { padding: 3px 10px; font-size: 13px; }
+@media (max-width: 760px) {
+  .kalender-eintrag { grid-template-columns: 1fr; }
+  .kalender-aktionen { flex-direction: row; align-items: center; }
+}
+.erledigt-liste summary { cursor: pointer; color: var(--text-leise); margin: 8px 0; }
+.kalender-formular { max-width: 900px; }
+.modus-wahl { border: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.modus-wahl legend { padding: 0; margin-bottom: 4px; }
+.modus-wahl label { display: flex; align-items: center; gap: 4px; }
+.dauer { display: flex; gap: 8px; align-items: center; }
+.dauer input[type="number"] { width: 5em; }
+.frist-ergebnis { padding: 8px 12px; border-radius: 6px; background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+.frist-ergebnis strong { font-size: 15px; }
+
+/* Verfahren (Stammdaten) */
+.verfahren-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.verfahren-liste li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--linie); border-radius: 6px; }
+.verfahren-liste li.aktuell { border-left: 4px solid var(--akzent); }
+.verfahren-liste .aktionen { display: flex; gap: 10px; align-items: flex-start; }
+.marke-aktuell { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--akzent); }
+.verfahren-liste .status-marke { margin-left: 8px; }
+.verfahren-karte .kopf .aktionen { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Verfahren aus Dokument: Prüfansicht innerhalb der Karte */
+.verfahren-aus-dokument { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--linie); display: grid; gap: 10px; }
+.verfahren-aus-dokument h3 { margin: 6px 0 0; font-size: 16px; }
+.verfahren-aus-dokument p { margin: 0; }
+.verfahren-aus-dokument .aktionen { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.quelle-wahl { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; }
+.quelle-wahl .feld { flex: 1 1 320px; margin: 0; }
+.abschliessen-wahl { border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; margin: 0; display: grid; gap: 6px; }
+.abschliessen-wahl legend { font-weight: 600; padding: 0 4px; }
+
+/* Notizen */
+.notiz-neu { max-width: 900px; }
+.notiz-neu textarea, .notiz textarea { width: 100%; box-sizing: border-box; }
+.notiz-optionen { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 10px; }
+.notiz-optionen label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.notiz-optionen button { margin-left: auto; }
+.notiz-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.notiz { padding: 10px 14px; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; }
+.notiz.angeheftet { border-left: 4px solid var(--warnung); }
+.notiz-text { margin: 0 0 6px; white-space: pre-wrap; }
+.notiz-fuss { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: center; }
+.notiz-fuss .aktionen, .notiz .aktionen { display: flex; gap: 10px; }
+
+/* Akte aus Dokument */
+.akte-anlegen.einspaltig { display: block; padding-bottom: 0; }
+/* Die Anlegeseite scrollt selbst (der Rahmen darüber ist fest), sonst fehlen auf kleinen Bildschirmen die Knöpfe unten. */
+.akte-rahmen > .akte-anlegen { flex: 1; min-height: 0; overflow: auto; }
+.anlegen-seite { flex: 0 1 340px; display: grid; gap: 16px; }
+.aus-dokument-start { margin: 0; display: grid; gap: 8px; justify-items: start; }
+.aus-dokument-start p { margin: 0; font-size: 13px; }
+.aus-dokument-start button { display: inline-flex; align-items: center; gap: 6px; }
+.aus-dokument { max-width: 900px; }
+.aus-dokument .karte { max-width: none; }
+.aus-dokument > .aktionen { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+/* „Akte anlegen“/„Abbrechen“ bleiben am unteren Rand sichtbar, auch wenn die Prüfansicht länger als der Bildschirm ist. */
+.aus-dokument > .aktionen.leiste-unten { position: sticky; bottom: 0; z-index: 2; padding: 12px 0 16px; margin-top: 8px;
+  background: var(--hintergrund); border-top: 1px solid var(--linie); }
+.aus-dokument > .aktionen.leiste-unten .fehler { flex-basis: 100%; margin: 0; }
+.hinweis-liste { margin: 8px 0; padding-left: 20px; color: var(--warnung); font-size: 13px; }
+.seite-wahl { border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; margin: 14px 0; display: grid; gap: 6px; }
+.seite-wahl legend { font-weight: 600; padding: 0 4px; }
+.seite-wahl label { display: flex; gap: 8px; align-items: baseline; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.seite-wahl label.gewaehlt { background: color-mix(in srgb, var(--akzent) 10%, transparent); }
+.fund { font-size: 11px; font-weight: 400; color: var(--text-leise); border-bottom: 1px dotted var(--text-leise); cursor: help; }
+.rubrum-parteien { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 10px; }
+.rubrum-parteien > li { padding: 10px 12px; border: 1px solid var(--linie); border-radius: 8px; display: grid; gap: 6px; }
+.rubrum-parteien > li.abgewaehlt { opacity: .55; }
+.partei-kopf { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.partei-daten { font-size: 13px; padding-left: 24px; }
+.rolle-marke { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; color: var(--text-leise); background: color-mix(in srgb, var(--text-leise) 14%, transparent); }
+.rolle-marke.eigene { color: var(--gut); background: color-mix(in srgb, var(--gut) 14%, transparent); }
+.rolle-marke.gegen { color: var(--fehler); background: color-mix(in srgb, var(--fehler) 12%, transparent); }
+/* Geschäftsführer u. a.: Farbe der Seite ihrer Firma, umrandet statt gefüllt */
+.rolle-marke.funktion.eigene { background: none; border-color: color-mix(in srgb, var(--gut) 60%, transparent); }
+.rolle-marke.funktion.gegen { background: none; border-color: color-mix(in srgb, var(--fehler) 60%, transparent); }
+.treffer-wahl, .bevollmaechtigte { padding-left: 24px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+
+/* Nächste Frist in Übersicht, Akte und Start */
+.naechste-frist { display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; border: none; padding: 0; color: var(--text); font-size: 13px; }
+.naechste-frist .leise { font-size: 12px; }
+.frist-datum { display: inline-flex; align-items: center; gap: 4px; }
+.frist-zeichen { display: inline-flex; margin-right: 4px; vertical-align: -2px; }
+.frist-datum .frist-zeichen { margin-right: 0; }
+.naechste-frist.abgelaufen, .naechste-frist.heute { color: var(--fehler); font-weight: 600; }
+.naechste-frist.vorfrist, .naechste-frist.bald { color: var(--warnung); font-weight: 600; }
+.kopf-frist { background: none; border: none; padding: 0; text-align: left; color: inherit; cursor: pointer; }
+.akte-kopf button.kopf-frist { flex: none; }
+.akte-kopf .akte-kopf-titel { min-width: 260px; }
+.kopf-frist.abgelaufen strong, .kopf-frist.heute strong, .kopf-frist.vorfrist strong, .kopf-frist.bald strong { color: #ffd7a8; }
+.akte-reiter-knopf .anzahl.frist { color: var(--warnung); font-weight: 700; }
+.akte-reiter-knopf .anzahl.frist.abgelaufen, .akte-reiter-knopf .anzahl.frist.heute { color: var(--fehler); }
+.kachel-fristen .start-frist .link { font-weight: 600; }
+.kachel-fristen .start-frist.abgelaufen .leise, .kachel-fristen .start-frist.heute .leise { color: var(--fehler); }
+.kachel-fristen .start-frist.bald .leise, .kachel-fristen .start-frist.vorfrist .leise { color: var(--warnung); }

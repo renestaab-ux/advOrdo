@@ -366,23 +366,6 @@ def beteiligung_hinzufuegen(con: sqlite3.Connection, akte_id: int, rolle: str, b
     return stammdaten(con, akte_id)
 
 
-def beteiligung_aendern(con: sqlite3.Connection, beteiligung_id: int, rolle: str | None = None,
-                        aktenzeichen: str | None = None) -> dict:
-    z = con.execute("SELECT * FROM akte_beteiligung WHERE id = ?", (beteiligung_id,)).fetchone()
-    if z is None:
-        raise LookupError(f"Unbekannte Beteiligung: {beteiligung_id}")
-    if rolle is not None and rolle not in ROLLEN:
-        raise ValueError(f"Unbekannte Rolle: {rolle!r}")
-    if rolle is not None and rolle != z["rolle"] and (z["eigene_organisation_id"] or z["eigene_person_id"]):
-        raise ValueError("Die Rolle eines Eintrags aus „Eigene Daten“ lässt sich nicht ändern.")
-    with con:
-        con.execute("UPDATE akte_beteiligung SET rolle = COALESCE(?, rolle), aktenzeichen = COALESCE(?, aktenzeichen) "
-                    "WHERE id = ?", (rolle, None if aktenzeichen is None else " ".join(aktenzeichen.split()),
-                                     beteiligung_id))
-        con.execute("UPDATE akte SET geaendert_am = ? WHERE id = ?", (_jetzt(), z["akte_id"]))
-    return stammdaten(con, z["akte_id"])
-
-
 def beteiligung_entfernen(con: sqlite3.Connection, beteiligung_id: int) -> dict:
     z = con.execute("SELECT akte_id FROM akte_beteiligung WHERE id = ?", (beteiligung_id,)).fetchone()
     if z is None:

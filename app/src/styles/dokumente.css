@@ -1,0 +1,306 @@
+/* Akte und Dokumentansicht, Vergleich, Belege, Analyse, Suche und Chat. */
+
+/* Akte */
+.akten-wahl { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
+.akten-wahl select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.akten-wahl .weiteres { margin: 0; flex: 1; min-width: 280px; }
+.dokumente { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; }
+.dokumente th, .dokumente td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--linie); vertical-align: top; }
+.dokumente th { color: var(--text-leise); font-weight: 500; }
+.dokumente tr.aktiv { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+.zitat-zahl { margin-right: 10px; white-space: nowrap; }
+.zitat-zahl.belegt, .marke-status.belegt { color: var(--gut); }
+.zitat-zahl.nicht_gefunden, .marke-status.nicht_gefunden { color: var(--fehler); }
+.zitat-zahl.unbekanntes_gesetz, .marke-status.unbekanntes_gesetz { color: var(--warnung); }
+.marke-status.belegt { background: color-mix(in srgb, var(--gut) 18%, transparent); }
+.marke-status.nicht_gefunden { background: color-mix(in srgb, var(--fehler) 18%, transparent); }
+.marke-status.unbekanntes_gesetz { background: color-mix(in srgb, var(--warnung) 18%, transparent); }
+.marke-status.urteil-belegt { color: var(--gut); background: color-mix(in srgb, var(--gut) 18%, transparent); }
+.marke-status.urteil-abweichend, .marke-status.urteil-nicht_gefunden {
+  color: var(--fehler); background: color-mix(in srgb, var(--fehler) 18%, transparent);
+}
+.marke-status.urteil-kein_verzeichnis, .marke-status.urteil-ausserhalb, .marke-status.urteil-nicht_pruefbar {
+  color: var(--warnung); background: color-mix(in srgb, var(--warnung) 18%, transparent);
+}
+.link-zeile { font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+.marke-status.urteil-volltext { color: var(--akzent); background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+.urteil-aktionen { display: flex; gap: 14px; align-items: baseline; margin-top: 4px; font-size: 13px; }
+.akte-seite.volltext { max-height: calc(100vh - 40px); overflow-y: auto; }
+.volltext-kopf { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 4px; }
+.volltext-abschnitt { margin: 8px 0; line-height: 1.5; white-space: pre-line; font-size: 14px; }
+.volltext-abschnitt .rn { font-weight: 600; margin-right: 6px; }
+.volltext-abschnitt.ziel { background: color-mix(in srgb, var(--akzent) 12%, transparent); border-radius: 4px; padding: 2px 4px; }
+.volltext-teil { font-size: 14px; margin: 14px 0 4px; }
+.volltext-titel { font-style: italic; margin: 4px 0; }
+.volltexte-laden { display: flex; gap: 12px; align-items: center; margin: 4px 0 8px; }
+.volltexte-laden button { white-space: nowrap; }
+.fundstelle { display: inline-flex; gap: 6px; align-items: baseline; margin-right: 12px; }
+.rn-hinweis { font-size: 12px; }
+.rn-hinweis.rn-ok { color: var(--gut); }
+.rn-hinweis.rn-fehlt { color: var(--fehler); cursor: default; text-decoration: none; }
+.formular { display: grid; grid-template-columns: 110px minmax(0, 360px); gap: 8px 12px; align-items: center; margin: 8px 0 12px; }
+.formular label { display: contents; }
+.formular input { font: inherit; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--linie); background: var(--hintergrund); color: var(--text); }
+.reiter { display: flex; gap: 8px; margin: 8px 0 4px; }
+.reiter-aktiv { cursor: default; }
+.dok-modi { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--linie); }
+/* Dateiname in eigener Zeile, die Ansichtsknöpfe stehen darunter in einer Reihe. */
+.dok-modi-kopf { flex: 0 0 100%; display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.dok-modi-name { font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
+.dok-modi-angaben { font-size: 12px; color: var(--text-leise); overflow-wrap: anywhere; }
+/* Ansichten des Dokuments als Reiter mit Unterstrich, wie die Reiter der Akte. */
+.dok-modi { gap: 2px 4px; padding-bottom: 0; }
+.dok-modi button.dok-modus { background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-leise);
+  padding: 5px 10px 7px; margin-bottom: -1px; font-size: 13px; font-weight: 500; }
+.dok-modi button.dok-modus:hover:not(:disabled) { color: var(--text); }
+.dok-modi button.dok-modus.aktiv { color: var(--akzent); border-bottom-color: var(--akzent); font-weight: 650; cursor: default; }
+.original { display: flex; flex-direction: column; gap: 14px; }
+.original-seite { margin: 0; }
+.original-seite img { display: block; width: 100%; height: auto; border: 1px solid var(--linie); background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 12%); }
+.original-platzhalter { aspect-ratio: 1 / 1.414; display: grid; place-items: center; border: 1px dashed var(--linie); color: var(--text-leise); font-size: 13px; }
+.original-seite figcaption { font-size: 12px; color: var(--text-leise); text-align: center; margin-top: 4px; }
+.akte-arbeitsflaeche { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0 10px; align-items: start; }
+.akte-seite { width: var(--seite-breite, 360px); position: sticky; top: 0; }
+.trenner { align-self: stretch; width: 6px; min-height: 120px; cursor: col-resize; border-radius: 3px; background: var(--linie); opacity: 0.5; touch-action: none; }
+.trenner:hover { opacity: 1; background: var(--akzent); }
+.akte-seite .beleg { margin-top: 0; }
+.fundort { font-size: 12px; color: var(--text-leise); margin: 0 0 6px; }
+.dokument { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 16px 20px; margin: 12px 0; }
+.dokument-info { font-size: 12px; color: var(--text-leise); margin: -6px 0 10px; }
+.abschnitt { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 4px 0; line-height: 1.55; }
+.abschnitt p { margin: 0; }
+.abschnitt-ort { font-size: 11px; color: var(--text-leise); padding-top: 3px; text-align: right; }
+.abschnitt.fussnote p, .abschnitt.kopfzeile p { font-size: 13px; color: var(--text-leise); }
+.abschnitt.tabelle p { font-size: 13px; }
+button.zitat { font: inherit; padding: 0 2px; border: none; border-radius: 3px; background: none; color: inherit; cursor: pointer; border-bottom: 2px solid; }
+button.zitat.belegt { border-color: var(--gut); }
+button.zitat.nicht_gefunden { border-color: var(--fehler); background: color-mix(in srgb, var(--fehler) 10%, transparent); }
+button.zitat.unbekanntes_gesetz { border-color: var(--warnung); border-bottom-style: dashed; }
+button.zitat.gewaehlt, button.zitat:hover { background: color-mix(in srgb, var(--akzent) 15%, transparent); }
+.normen { list-style: none; padding: 0; }
+.normen li { padding: 10px 0; border-bottom: 1px solid var(--linie); }
+.fundstellen { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12px; }
+.fundstellen .link { font-weight: 400; }
+@media (max-width: 1100px) {
+  .akte-arbeitsflaeche { grid-template-columns: 1fr; }
+  .akte-seite { width: auto; position: static; }
+  .trenner { display: none; }
+}
+
+/* Tags, Ordner-Import und Rückfragen */
+.tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: color-mix(in srgb, var(--akzent) 14%, transparent); color: var(--text); border: 1px solid color-mix(in srgb, var(--akzent) 35%, transparent); }
+.tag.manuell { border-style: dashed; }
+.tag-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+button.tag-wahl { background: none; color: var(--text); border: 1px solid var(--linie); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 400; }
+button.tag-wahl.aktiv { background: var(--knopf); border-color: var(--knopf); color: var(--knopf-text); }
+.tag-eingabe { font: inherit; width: 100%; min-width: 180px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.tag-editor { display: grid; gap: 6px; min-width: 240px; }
+.tag-editor .aktionen button { padding: 4px 10px; }
+.herkunft { color: var(--text-leise); font-size: 12px; }
+button.link.klein { font-size: 12px; font-weight: 400; }
+button.gefahr, button.link.gefahr { color: var(--gefahr); background: none; border-color: currentColor; }
+button.link.gefahr { border: none; }
+button.gefahr-voll { background: #b3261e; border-color: #b3261e; color: #fff; }
+.rueckfrage { margin: 12px 0; padding: 12px 16px; border: 1px solid var(--linie); border-left: 4px solid var(--akzent); border-radius: 8px; background: var(--flaeche); }
+.rueckfrage p { margin: 6px 0 10px; }
+.rueckfrage .dokumente { margin: 8px 0; }
+.timer-hinweis-hintergrund { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgb(0 0 0 / 35%); }
+.timer-hinweis { max-width: 560px; box-shadow: 0 8px 32px rgb(0 0 0 / 25%); }
+.timer-hinweis .aktionen { flex-wrap: wrap; }
+.meldung { color: var(--text-leise); }
+.unsichtbar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.dokumente button.link { text-align: left; }
+.dokumente button.link.spaltenkopf { font: inherit; color: inherit; }
+.dok-datum { white-space: nowrap; }
+
+/* Vergleich */
+.erklaerung { color: var(--text-leise); max-width: 760px; margin: 8px 0 0; }
+.umfang { display: flex; gap: 14px; }
+.umfang label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.paar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.paar select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); max-width: 420px; }
+.zusammenfassung { font-weight: 600; margin: 8px 0; }
+.merkmal { background: var(--flaeche); border: 1px solid var(--linie); border-left: 4px solid var(--linie); border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+.merkmal.abweichend { border-left-color: var(--warnung); }
+.merkmal.uebereinstimmend { border-left-color: var(--gut); }
+.merkmal.verschieden { border-left-color: color-mix(in srgb, var(--warnung) 40%, var(--linie)); }
+.quelle-art { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--linie); color: var(--text-leise); }
+.quelle-art.ki { border-color: color-mix(in srgb, var(--akzent) 50%, var(--linie)); color: var(--akzent); }
+.vergleich-inhaltlich h3 { font-size: 15px; margin: 20px 0 4px; }
+.merkmal header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.merkmal header strong { margin-right: 6px; }
+.einordnung { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--warnung) 15%, transparent); color: var(--warnung); }
+.einordnung.partei_unbekannt { background: none; color: var(--text-leise); border: 1px dashed var(--linie); }
+.werte { display: grid; gap: 10px; }
+.wert { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 12px; }
+.wert + .wert { border-top: 1px solid var(--linie); padding-top: 10px; }
+.wert-anzeige { font-weight: 600; font-variant-numeric: tabular-nums; }
+.belege { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 13px; }
+.belege li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.belege .link { font-weight: 400; text-align: left; }
+.belege li.gewaehlt .link { font-weight: 600; }
+.belege .ausschnitt { flex-basis: 100%; margin: 0; }
+/* Eingeklappte Belege: kurze Quellenangaben nebeneinander statt Zitaten untereinander. */
+.belege:has(> li.kompakt) { display: flex; flex-wrap: wrap; gap: 6px; }
+.weitere-merkmale { margin: 16px 0; }
+.weitere-merkmale summary { cursor: pointer; color: var(--text-leise); }
+.grenze { font-size: 12px; color: var(--text-leise); margin-top: 20px; }
+.vergleich-dokument { width: 460px; }
+.vergleich-dokument-kopf { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.vergleich-dokument-text { max-height: calc(100vh - 100px); overflow: auto; }
+.vergleich-dokument .dokument { margin-top: 8px; }
+.vergleich-dokument .abschnitt { grid-template-columns: 52px 1fr; gap: 8px; }
+.abschnitt.markiert { background: color-mix(in srgb, var(--warnung) 14%, transparent); border-radius: 4px; }
+button.zitat:disabled { opacity: 1; cursor: default; }
+@media (max-width: 1100px) {
+  .vergleich-dokument { width: auto; }
+  .vergleich-dokument-text { max-height: 70vh; }
+  .wert { grid-template-columns: 1fr; gap: 4px; }
+}
+
+/* Analyse und Einstellungen (Sprachmodell) */
+.ki-zeile { font-size: 13px; color: var(--warnung); margin: 10px 0 0; }
+.ki-zeile.bereit { color: var(--gut); }
+.ki-fortschritt { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center; margin: 12px 0; padding: 10px 14px; border: 1px solid var(--linie); border-left: 4px solid var(--akzent); border-radius: 8px; background: var(--flaeche); max-width: 760px; }
+.ki-fortschritt button { grid-row: 1 / span 2; grid-column: 2; }
+.balken { height: 6px; border-radius: 3px; background: var(--linie); overflow: hidden; }
+.balken div { height: 100%; background: var(--akzent); transition: width 0.4s; }
+.leise { color: var(--text-leise); font-size: 12px; font-weight: 400; }
+.ki-herkunft { font-size: 12px; color: var(--text-leise); margin: -4px 0 8px; }
+.ki-aussagen { padding-left: 22px; display: grid; gap: 12px; margin: 8px 0; }
+.ki-aussagen > li { line-height: 1.5; }
+.ki-aussagen .belege { margin-top: 6px; }
+.art { display: inline-block; font-size: 11px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--linie); color: var(--text-leise); margin-right: 4px; vertical-align: 1px; }
+.ohne-beleg { font-size: 12px; margin-left: 8px; padding: 1px 8px; border-radius: 999px; color: var(--fehler); background: color-mix(in srgb, var(--fehler) 12%, transparent); }
+.ki-aussagen > li.ohne_beleg { color: var(--text-leise); }
+.merkmal.spannung { border-left-color: color-mix(in srgb, var(--warnung) 50%, var(--linie)); }
+.ki-erklaerung { font-size: 13px; color: var(--text-leise); margin: 0 0 10px; font-style: italic; }
+.ki-angabe { font-weight: 400; font-variant-numeric: normal; font-size: 13px; }
+.analyse .wert { grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.2fr); }
+.chronologie { list-style: none; padding: 0; margin: 8px 0; max-width: 900px; border-left: 2px solid var(--linie); }
+.chronologie > li { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 4px 14px; padding: 8px 0 8px 14px; position: relative; line-height: 1.5; }
+.chronologie > li::before { content: ""; position: absolute; left: -6px; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: var(--akzent); }
+.chronologie > li.ereignis-frist::before { background: var(--warnung); }
+.chronologie > li.ereignis-dokument::before { background: var(--hintergrund); border: 2px solid var(--text-leise); width: 6px; height: 6px; }
+.chronologie > li.streitig::before { background: var(--fehler); }
+.chrono-datum { font-variant-numeric: tabular-nums; font-weight: 600; }
+.chronologie .einordnung { margin-left: 8px; }
+.chronologie details summary { cursor: pointer; margin-top: 2px; }
+.chrono-quelle { margin-top: 6px; }
+@media (max-width: 640px) { .chronologie > li { grid-template-columns: 1fr; } }
+.ki-dokument { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 10px 14px; margin: 8px 0; }
+.ki-dokument summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+.karte { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 16px 20px; margin: 16px 0; max-width: 760px; }
+.ki-formular { display: grid; grid-template-columns: 120px minmax(0, 420px); gap: 10px 14px; align-items: center; margin: 14px 0 8px; }
+.ki-formular label { display: contents; }
+.ki-formular input, .ki-formular select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--hintergrund); color: var(--text); }
+.ki-formular .aktionen { grid-column: 2; }
+.ki-formular .feld-hinweis { grid-column: 2; margin-top: -6px; font-size: 12px; }
+.ki-anleitung { margin-top: 14px; font-size: 13px; }
+.ki-anleitung summary { cursor: pointer; color: var(--akzent); }
+.ki-anleitung li { margin: 6px 0; }
+
+/* Suche */
+.suche-bereich { display: flex; flex-direction: column; height: calc(100vh - 48px); min-height: 0; }
+.suche-bereich .kopf { margin-bottom: 8px; }
+.suche-feld { display: flex; gap: 12px; align-items: center; }
+.suche-feld input[type="search"] { flex: 1; font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.such-pfeile button:disabled { opacity: 0.4; }
+.such-bereich { font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); max-width: 30%; }
+/* Entscheidung aus der Rechtsprechung in der Suche: Volltext füllt die rechte Seite. */
+.such-dokument-ansicht .akte-seite.volltext { width: auto; position: static; max-height: none; }
+/* Eigener Name: „.akten-wahl“ ist die Knopfzeile in Analyse und Vergleich. */
+.akten-wahl-feld { position: relative; width: 320px; max-width: 40%; }
+.akten-wahl-knopf { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); text-align: left; }
+.akten-wahl-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akten-wahl-liste { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; width: max(100%, 420px); max-width: 80vw; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 8px; }
+.akten-wahl-liste input { width: 100%; box-sizing: border-box; padding: 7px 9px; }
+.akten-wahl-liste ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 60vh; overflow-y: auto; }
+.akten-wahl-zeile { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.akten-wahl-zeile[aria-selected="true"] { border-left: 3px solid var(--akzent); }
+.akten-wahl-zeile.markiert { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+.akten-wahl-titel { padding: 8px 8px 2px; font-size: 0.8em; color: var(--text-leise); text-transform: uppercase; letter-spacing: 0.04em; }
+.such-stand { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--text-leise); margin: 10px 0 8px; }
+.such-pfeile { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.such-pfeile button { padding: 2px 10px; }
+.such-position { min-width: 56px; text-align: right; }
+/* Ohne Statuszeile (leeres Feld, nur Rechtsprechung) denselben Abstand unter der Suchleiste halten. */
+.suche-feld + .such-flaeche, .suche-bereich > .fehler + .such-flaeche { margin-top: 12px; }
+.such-flaeche { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 380px) minmax(0, 1fr); gap: 16px; }
+.such-liste { list-style: none; margin: 0; padding: 0 4px 0 0; overflow: auto; border-right: 1px solid var(--linie); }
+.such-liste ul { list-style: none; margin: 0 0 6px; padding: 0; }
+.such-dokument { border-bottom: 1px solid var(--linie); padding: 4px 0; }
+.such-dokument-kopf { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 16px 1fr; width: 100%; padding: 6px 4px; }
+.such-dokument-kopf:focus-visible { outline: 2px solid var(--akzent); }
+.such-pfeil { color: var(--text-leise); }
+.such-name { font-weight: 600; overflow-wrap: anywhere; }
+.such-meta { grid-column: 2; font-size: 12px; color: var(--text-leise); }
+.such-dokument-kopf.such-anmerkungen-kopf { cursor: default; grid-template-columns: 1fr; }
+.such-anmerkungen-kopf .such-meta { grid-column: 1; }
+.such-fundstelle { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; padding: 6px 8px 6px 20px; border-radius: 6px; }
+.such-fundstelle:hover { background: color-mix(in srgb, var(--akzent) 6%, transparent); }
+.such-fundstelle.gewaehlt { background: color-mix(in srgb, var(--akzent) 12%, transparent); }
+.such-fundstelle:focus-visible { outline: 2px solid var(--akzent); }
+.such-ort { font-size: 13px; }
+.such-rang { font-size: 11px; color: var(--hintergrund); background: var(--gut); border-radius: 4px; padding: 1px 6px; align-self: center; }
+.such-fundstelle .ausschnitt { grid-column: 1 / -1; margin-top: 0; }
+.such-dokument-ansicht { overflow: auto; min-width: 0; padding-right: 4px; }
+.such-dokument-titel { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--linie); }
+.original-bild { position: relative; }
+.markierung { position: absolute; background: rgb(255 214 0 / 45%); outline: 1px solid rgb(230 180 0 / 70%); border-radius: 2px; pointer-events: none; mix-blend-mode: multiply; }
+
+/* Externe KI: abgesetzt, damit klar ist, dass es die Ausnahme ist */
+.modus.extern { color: var(--warnung); font-weight: 600; text-align: left; background: color-mix(in srgb, var(--warnung) 12%, transparent); border: 1px solid var(--warnung); padding: 6px 8px; font-size: 12px;
+  /* Längere Anbieternamen umbrechen statt aus der Leiste zu ragen */
+  white-space: normal; width: 100%; box-sizing: border-box; line-height: 1.3; overflow-wrap: anywhere; }
+.ki-zeile.extern { color: var(--warnung); font-weight: 600; }
+.extern-karte { border-style: dashed; }
+.extern-karte.freigegeben { border: 1px solid var(--warnung); border-left-width: 4px; }
+.schalter { display: flex; align-items: center; gap: 10px; font-weight: 600; margin: 8px 0 12px; }
+.schalter input { width: 18px; height: 18px; accent-color: var(--warnung); }
+.schalter .leise { font-weight: 400; }
+.ki-schalter input { accent-color: var(--knopf); }
+.rueckfrage .schalter { font-weight: 400; }
+.rechtshinweis { font-size: 13px; line-height: 1.5; padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--warnung) 9%, transparent); border: 1px solid color-mix(in srgb, var(--warnung) 40%, transparent); }
+.rechtshinweis ul { margin: 6px 0; padding-left: 20px; }
+.rechtshinweis li { margin: 4px 0; }
+.ki-wahl { border: 1px solid var(--linie); border-radius: 8px; padding: 8px 14px 12px; margin: 14px 0 0; display: grid; gap: 6px; }
+.ki-wahl legend { font-weight: 600; padding: 0 4px; }
+
+/* Chat mit Akte und Dokument */
+.chat { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 14px; align-items: start; }
+.chat.mit-seite { grid-template-columns: minmax(0, 1fr) auto; }
+.chat-haupt { max-width: 1200px; }
+.chat-verlauf { display: grid; gap: 12px; margin: 14px 0; }
+.chat-frage { justify-self: end; max-width: 80%; white-space: pre-wrap; padding: 8px 14px; border-radius: 12px 12px 2px 12px; background: color-mix(in srgb, var(--akzent) 14%, var(--flaeche)); }
+.chat-frage.wartet { opacity: 0.7; }
+.chat-antwort { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 12px 12px 12px 2px; padding: 4px 16px 2px; }
+.chat-aussagen { list-style: none; padding-left: 0; display: grid; gap: 0; margin: 4px 0; }
+.chat-aussagen > li { padding: 10px 0; border-top: 1px solid var(--linie); line-height: 1.5; }
+.chat-aussagen > li:first-child { border-top: none; }
+.chat-aussagen .belege { margin-top: 6px; }
+.chat-aussagen .belege + .belege { margin-top: 4px; }
+button.quelle { font-size: 12px; padding: 1px 9px; border-radius: 999px; background: color-mix(in srgb, var(--akzent) 8%, transparent); border: 1px solid color-mix(in srgb, var(--akzent) 30%, transparent); color: var(--akzent); font-weight: 400; }
+button.quelle .quelle-partei { color: var(--text-leise); }
+button.quelle:hover, button.quelle.gewaehlt { background: color-mix(in srgb, var(--akzent) 20%, transparent); }
+.chat-fuss { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline; margin: 2px 0 10px; padding-top: 8px; border-top: 1px solid var(--linie); }
+.chat-aussagen > li.chat-hinweis { color: var(--text-leise); font-style: italic; }
+.chat-aussagen > li.chat-einschaetzung > div { color: var(--text); }
+.chat-eingabe { display: grid; gap: 8px; }
+.chat-eingabe textarea { font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); resize: vertical; min-height: 52px; }
+.chat-eingabe .aktionen { display: flex; gap: 8px; }
+.chat-wissen { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: var(--text-leise); }
+.chat-wissen label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.chat-wissen select, .chat-wissen input[type="text"] { font: inherit; font-size: 13px; }
+.chat-wissen input[type="text"] { width: 16em; padding: 2px 6px; }
+.chat-rechnung { margin-top: 6px; }
+.chat-eingaben { list-style: none; padding: 0; margin: 0 0 6px; display: grid; gap: 4px; font-size: 13px; }
+.chat-eingaben .belege { display: inline-flex; margin: 0 0 0 4px; vertical-align: baseline; }
+.chat-rechnung details summary { cursor: pointer; font-size: 13px; color: var(--akzent); }
+.chat-rechnung .rechner-ergebnis { margin-top: 8px; }
+.chat-aussagen > li.chat-berechnung > div:first-child { font-weight: 600; }
+span.quelle.norm, span.quelle.urteil { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--linie); color: var(--text-leise); }
+@media (max-width: 1100px) {
+  .chat.mit-seite { grid-template-columns: 1fr; }
+}

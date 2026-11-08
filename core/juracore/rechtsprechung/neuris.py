@@ -20,8 +20,8 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from html.parser import HTMLParser
 
+from ..htmlleser import HtmlLeser
 from .verzeichnis import USER_AGENT
 from .volltext import Absatz, Volltext
 
@@ -89,8 +89,6 @@ def lies_treffer(daten: bytes | str | dict) -> tuple[list[dict], int | None]:
     return treffer, int(gesamt) if isinstance(gesamt, int | str) and str(gesamt).isdigit() else None
 
 
-GERICHTE = ("BVerfG", "BGH", "BVerwG", "BFH", "BAG", "BSG", "BPatG")
-
 
 def suche(aktenzeichen: str = "", timeout: float = 30, *, suchbegriff: str = "", gericht: str | None = None,
           von: str | None = None, bis: str | None = None, seite: int = 0) -> tuple[list[dict], int | None]:
@@ -116,14 +114,14 @@ def lade(doknr: str, timeout: float = 60) -> bytes:
 # --- Volltext --------------------------------------------------------------------------------------
 
 
-class _Leser(HTMLParser):
+class _Leser(HtmlLeser):
     """Sammelt Absätze je Abschnitt: Randnummer aus ``dt``, Text aus ``dd``; sonst je ``p`` ein Absatz."""
 
     BLOCK = {"p", "dd", "dt", "li", "h1", "h2", "h3", "h4", "td", "div", "blockquote"}
     UEBERGEHEN = {"script", "style", "head", "title"}
 
     def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
+        super().__init__()
         self.absaetze: list[Absatz] = []
         self._teil: str | None = None
         self._section_tiefe: list[str | None] = []
@@ -142,7 +140,7 @@ class _Leser(HTMLParser):
             self._rn = None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        a = dict(attrs)
+        a = self.attribute(attrs)
         if tag in self.UEBERGEHEN:
             self._uebergehen += 1
         elif tag == "section":
@@ -198,10 +196,8 @@ class _Leser(HTMLParser):
 def lies(daten: bytes, entscheidung: dict | None = None) -> Volltext:
     """Liest den HTML-Volltext; Kopfdaten kommen aus dem Treffer der Suche (``entscheidung``)."""
     e = entscheidung or {}
-    leser = _Leser()
     try:
-        leser.feed(daten.decode("utf-8", errors="replace"))
-        leser.close()
+        leser = _Leser.lies(daten.decode("utf-8", errors="replace"))
     except AssertionError as fehler:  # HTMLParser meldet manche Fehler so
         raise ValueError(f"Die Entscheidung ist kein lesbares HTML ({fehler}).") from fehler
     leser._abschliessen()

@@ -5,16 +5,16 @@ description = "Desktop-App für Analyse, Vergleich und Zusammenfassung juristisc
 edition = "2021"
 license = "EUPL-1.2"
 rust-version = "1.77"
-# Programmdatei heißt „jurabox“: macOS zeigt im Entwicklungsmodus (Dock, Mouseover) den Dateinamen an.
+# Programmdatei heißt „advordo“: macOS zeigt im Entwicklungsmodus (Dock, Mouseover) den Dateinamen an.
 # Der Paketname bleibt bewusst „juristischer-datenabgleich“ (siehe README).
-default-run = "jurabox"
+default-run = "advordo"
 
 [lib]
 name = "jda_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "jurabox"
+name = "advordo"
 path = "src/main.rs"
 
 [build-dependencies]

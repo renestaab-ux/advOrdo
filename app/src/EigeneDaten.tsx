@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Rueckfrage } from "./Akte";
+import { Rueckfrage } from "./Rueckfrage";
 import SuchAuswahl, { SUCHE_AB } from "./SuchAuswahl";
 import {
   EigeneAenderung,
@@ -298,7 +298,7 @@ function Assistent({
 
       {schritt === "form" && (
         <>
-          <p className="frage-gross">In welchem Rahmen arbeiten Sie mit JuraBox?</p>
+          <p className="frage-gross">In welchem Rahmen arbeiten Sie mit advOrdo?</p>
           <div className="formkarten">
             {FORMKARTEN.map((k) => (
               <button

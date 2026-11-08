@@ -24,16 +24,16 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from html.parser import HTMLParser
 
 from .. import netzprotokoll
+from ..htmlleser import HtmlLeser, leerraum
 from .gii import Absatz, GesetzDokument, Norm
 from .saetze import Liste, zerlege_in_saetze
 
 BASIS = "https://www.gesetze-bayern.de"
 HERKUNFT = "gesetze-bayern.de"
 QUELLE = "bayern"
-USER_AGENT = "JuraBox/0.1 (Wissensbasis-Import)"
+USER_AGENT = "advOrdo/0.1 (Wissensbasis-Import)"
 HINWEIS = ("Nichtamtliche Fassung aus dem Bürgerservice BAYERN.RECHT (gesetze-bayern.de). "
            "Maßgeblich ist die Veröffentlichung im Gesetz- und Verordnungsblatt.")
 PAUSE = 1.0  # Sekunden zwischen zwei Abrufen
@@ -120,9 +120,9 @@ class _Zeile:
     nur_verweis: bool = False
 
 
-class _Zeilen(HTMLParser):
+class _Zeilen(HtmlLeser):
     def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
+        super().__init__()
         self.zeilen: list[_Zeile] = []
         self.titel = ""
         self._stapel: list[str] = []
@@ -137,7 +137,7 @@ class _Zeilen(HTMLParser):
         return any(n in k for k in self._klassen for n in namen)
 
     def _ausgeben(self) -> None:
-        text = re.sub(r"\s+", " ", "".join(t for t, _ in self._teile).replace("\xa0", " ")).strip()
+        text = leerraum("".join(t for t, _ in self._teile))
         if text:
             sichtbar = [(t, v) for t, v in self._teile if t.strip()]
             self.zeilen.append(_Zeile(
@@ -152,7 +152,7 @@ class _Zeilen(HTMLParser):
             self._ausgeben()
         if tag not in _LEER:
             self._stapel.append(tag)
-            self._klassen.append(klassen := set((dict(attrs).get("class") or "").split()))
+            self._klassen.append(klassen := set(self.attribute(attrs).get("class", "").split()))
             if "annexheading" in klassen:
                 self.zeilen.append(_Zeile(_ANLAGE))  # Anlagen sind keine Artikel; der letzte Artikel endet hier
 
@@ -273,9 +273,7 @@ def _ist_titel(z: _Zeile) -> bool:
 def parse_bayern_html(daten: bytes | str, abk: str = "") -> GesetzDokument:
     """Parst die Gesamtansicht einer Vorschrift aus gesetze-bayern.de."""
     text = daten.decode("utf-8", "replace") if isinstance(daten, bytes) else daten
-    leser = _Zeilen()
-    leser.feed(text)
-    leser.close()
+    leser = _Zeilen.lies(text)
 
     seitentitel = re.sub(r"\s+", " ", leser.titel).strip()
     langtitel = re.sub(r"^[^:]{1,40}:\s*", "", seitentitel)

@@ -394,18 +394,6 @@ def _kanzlei_zeile(p: Partei) -> str:
 # --------------------------------------------------------------------------- Werte einer Akte
 
 
-def empfaenger_vorschlag(beteiligungen: list[dict], art: str) -> int | None:
-    """Schriftsatz an das Gericht, Vergütungsvereinbarung an den Mandanten, Brief an den Gegnervertreter, sonst an
-    den Gegner."""
-    reihenfolge = (("gericht",) if art == "schriftsatz" else ("mandant",) if art == "vereinbarung"
-                   else ("bevollmaechtigter_gegner", "gegner", "mandant"))
-    for rolle in reihenfolge:
-        for b in beteiligungen:
-            if b["rolle"] == rolle:
-                return b["id"]
-    return beteiligungen[0]["id"] if beteiligungen else None
-
-
 MINDESTVERGUETUNG = ("In gerichtlichen Verfahren schuldet der Auftraggeber mindestens die gesetzliche Vergütung nach "
                      "dem RVG. Übersteigt sie das nach Zeitaufwand berechnete Honorar, wird statt des Zeithonorars die "
                      "gesetzliche Vergütung berechnet; beide werden nicht nebeneinander berechnet.")

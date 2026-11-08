@@ -24,7 +24,7 @@ export function Fund({ f, abschnitte }: { f: Fundstelle | undefined; abschnitte:
 }
 
 /**
- * Prüfansicht für „Akte aus Dokument“: alles, was JuraBox im Rubrum erkannt hat, mit Fundstelle. Erst „Akte anlegen“
+ * Prüfansicht für „Akte aus Dokument“: alles, was advOrdo im Rubrum erkannt hat, mit Fundstelle. Erst „Akte anlegen“
  * übernimmt die Auswahl; das Dokument wird dabei als erstes Dokument der Akte eingelesen.
  */
 export default function AusDokument({
@@ -152,7 +152,7 @@ export default function AusDokument({
           {v.eigene_seite ? (
             <small className="leise">Vorauswahl: {v.eigene_seite.grund}</small>
           ) : (
-            <small className="hinweis-text">Bitte wählen; JuraBox konnte es nicht aus „Eigene Daten“ ableiten.</small>
+            <small className="hinweis-text">Bitte wählen; advOrdo konnte es nicht aus „Eigene Daten“ ableiten.</small>
           )}
         </fieldset>
 

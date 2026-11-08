@@ -1,0 +1,322 @@
+/* Nachrichten, Diagnose, KI-Ausgabe, Einstellungen, Rechtsprechung, Schriftstücke und Zeiterfassung. */
+
+/* Nachrichten auf der Startseite und ihre Einstellungen */
+.kacheln .kachel-nachrichten { grid-column: 1 / -1; }
+.nachrichten-kopf { display: flex; align-items: baseline; gap: 12px; width: 100%; }
+.nachrichten-kopf h2 { margin-bottom: 0; }
+.nachrichten-kopf .link { margin-left: auto; }
+.kachel-nachrichten ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; }
+@media (max-width: 1000px) { .kachel-nachrichten ul { grid-template-columns: 1fr; } }
+.kachel-nachrichten li .link { font-weight: 500; }
+.kachel-nachrichten .hinweis.klein { font-size: 12px; color: var(--warnung); margin: 0; }
+.nachrichten-fuss { display: flex; gap: 16px; margin-top: auto; }
+.feed-liste { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 10px; }
+.feed-liste li { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--linie); }
+.feed-liste li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.feed-url { font-size: 12px; color: var(--text-leise); overflow-wrap: anywhere; }
+.feed-titel { font-weight: 600; min-width: 280px; }
+.feed-formular { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.feed-formular label { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 280px; }
+
+/* Diagnose */
+.diagnose { max-width: 900px; }
+.diagnose .aktionen { margin: 12px 0; }
+.diagnose-summe { font-weight: 600; }
+.diagnose-summe.stand-ok { color: var(--gut); }
+.diagnose-summe.stand-warnung { color: var(--warnung); }
+.diagnose-summe.stand-fehler { color: var(--fehler); }
+.diagnose-liste { list-style: none; margin: 0; padding: 0; }
+.diagnose-zeile { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--linie); }
+.diagnose-zeile:first-child { border-top: none; }
+.diagnose-marke { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--linie); }
+.diagnose-zeile.stand-ok .diagnose-marke { background: var(--gut); }
+.diagnose-zeile.stand-warnung .diagnose-marke { background: var(--warnung); }
+.diagnose-zeile.stand-fehler .diagnose-marke { background: var(--fehler); }
+.diagnose-zeile.stand-aus .diagnose-marke { background: transparent; border: 1px solid var(--text-leise); }
+.diagnose-zeile.stand-laeuft .diagnose-marke { background: var(--akzent); animation: diagnose-puls 1s ease-in-out infinite alternate; }
+@keyframes diagnose-puls { from { opacity: .3; } to { opacity: 1; } }
+.diagnose-titel { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.diagnose-hilfe { margin-top: 4px; padding: 6px 8px; border-left: 3px solid var(--warnung); background: color-mix(in srgb, var(--warnung) 8%, transparent); }
+.diagnose-zeile.stand-fehler .diagnose-hilfe { border-left-color: var(--fehler); background: color-mix(in srgb, var(--fehler) 8%, transparent); }
+.diagnose-details { margin: 4px 0 0; padding-left: 16px; overflow-wrap: anywhere; }
+
+/* Sortierbare Spaltenköpfe */
+.sortier-kopf { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.sortier-kopf:hover, .sortier-kopf.aktiv { color: var(--text); }
+.sortier-kopf:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; border-radius: 2px; }
+.sortier-pfeil { font-size: 10px; opacity: .45; }
+.sortier-kopf.aktiv .sortier-pfeil { opacity: 1; color: var(--akzent); }
+
+/* Ausgabe der KI-Ergebnisse */
+.ki-ausgeben { margin-left: auto; }
+.ki-export { max-width: 900px; margin: 0 0 12px; }
+.ki-export-kopf { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.ki-export-teile { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 8px; }
+.ki-export-zitate { display: block; font-size: 13px; margin-bottom: 10px; }
+.ki-export-knoepfe { flex-wrap: wrap; }
+#druckbereich { display: none; }
+@media print {
+  @page { margin: 16mm 15mm; }
+  body:has(#druckbereich) { background: #fff; }
+  body:has(#druckbereich) > #root { display: none !important; }
+  #druckbereich { display: block; }
+}
+
+/* Gegenüberstellung Schriftsatz ↔ Entscheidung */
+.gegenueber-bereich { margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--linie); border-radius: 8px; }
+.gegenueber-bereich > summary { cursor: pointer; font-weight: 600; }
+.gegenueber { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 12px; }
+.gegenueber > li { border: 1px solid var(--linie); border-radius: 8px; padding: 10px 12px; }
+.gegenueber-kopf { margin-bottom: 6px; }
+.gegenueber-spalten { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.gegenueber-spalten p { margin: 0 0 4px; }
+.gegenueber-titel { font-size: 12px; color: var(--text-leise); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+.gegenueber-begruendung { margin: 8px 0 0; }
+.marke-status.gegenueber-traegt { background: color-mix(in srgb, var(--gut) 18%, transparent); color: var(--gut); }
+.marke-status.gegenueber-traegt_teilweise { background: color-mix(in srgb, var(--warnung) 20%, transparent); color: var(--warnung); }
+.marke-status.gegenueber-traegt_nicht { background: color-mix(in srgb, var(--fehler) 18%, transparent); color: var(--fehler); }
+.marke-status.gegenueber-nicht_beurteilbar,
+.marke-status.gegenueber-nicht_pruefbar { border: 1px solid var(--linie); color: var(--text-leise); }
+.chat-gegenueber { margin-top: 10px; }
+.chat-gegenueber > summary { cursor: pointer; color: var(--text-leise); }
+@media (max-width: 1100px) {
+  .gegenueber-spalten { grid-template-columns: 1fr; }
+}
+
+/* Einstellungen: ein Reiter je Thema links, rechts nur das gewählte Thema; Diagnose immer zuletzt. */
+.einstellungen-raster { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; align-items: start; margin-top: 16px; }
+.einstellungen-reiter { position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px; }
+.einstellungen-reiter .nav-eintrag, .eingeklappt .einstellungen-reiter .nav-eintrag { width: 100%; justify-content: flex-start; padding: 8px 10px 8px 9px; }
+.einstellungen-reiter .trenner-oben { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--linie); }
+.einstellungen-flaeche > .karte:first-child, .einstellungen-flaeche > .ki-zeile:first-child { margin-top: 0; }
+.einstellungen-flaeche .diagnose { max-width: 980px; }
+.wahl-reihe { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+.wahl-reihe button { background: var(--feld); color: var(--text); border: 1px solid var(--linie); display: inline-flex; align-items: center; gap: 8px; }
+.wahl-reihe button[aria-pressed="true"] { border-color: var(--akzent); box-shadow: inset 0 0 0 1px var(--akzent); font-weight: 600; }
+.farbmuster { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 1px solid rgb(0 0 0 / 15%); }
+.darstellung-gruppe { margin: 14px 0 0; }
+.darstellung-gruppe h3 { font-size: 14px; margin: 0; }
+.darstellung-probe { margin-top: 18px; padding: 12px 16px; border-radius: 8px; background: var(--band); color: var(--band-text); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.darstellung-probe .leise { color: var(--band-leise); }
+@media (max-width: 760px) {
+  .einstellungen-raster { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .einstellungen-reiter { position: static; flex-direction: row; flex-wrap: wrap; }
+  .einstellungen-reiter .nav-eintrag { width: auto; }
+}
+.logo-zeile { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 6px; }
+.logo-vorschau { width: 180px; height: 120px; padding: 8px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--linie); border-radius: 8px; background: var(--feld); }
+/* Feste Größe statt max-%: so bleibt auch ein SVG mit eigener Breite und Höhe im Rahmen. */
+.logo-vorschau img { width: 100%; height: 100%; object-fit: contain; }
+/* Startseite: Logo groß, daneben der Name aus „Eigene Daten“. */
+
+/* Bereich „Rechtsprechung“: Sammlung links, Volltext rechts. */
+.sammlung { display: flex; gap: 12px; align-items: flex-start; }
+.sammlung-liste { flex: 1; min-width: 0; }
+.sammlung-liste .suche-feld { margin-top: 12px; }
+.sammlung .akte-seite.volltext { flex-shrink: 0; width: min(var(--seite-breite), calc(100% - 372px)); }
+.sammlung .trenner { position: sticky; top: 0; height: calc(100vh - 40px); min-height: 0; }
+.sammlung-filter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0 14px; }
+.sammlung-filter select, .sammlung-filter input { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.sammlung-filter input { flex: 1; min-width: 180px; }
+.sammlung-eintraege { list-style: none; margin: 0; padding: 0; }
+.sammlung-eintrag { border: 1px solid var(--linie); border-radius: 8px; margin-bottom: 8px; background: var(--flaeche); overflow: visible; }
+.sammlung-flaeche { padding: 10px 12px; cursor: pointer; border-radius: 8px 8px 0 0; }
+.sammlung-flaeche:hover { background: color-mix(in srgb, var(--akzent) 6%, transparent); }
+.sammlung-flaeche:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
+.sammlung-eintrag.aktiv { border-color: var(--akzent); }
+.sammlung-titel { font-weight: 600; color: var(--akzent); }
+.sammlung-fundstellen { margin: 4px 0; padding-left: 18px; font-size: 13px; }
+.sammlung-fundstellen mark { background: color-mix(in srgb, var(--akzent) 25%, transparent); color: inherit; }
+.sammlung-akten { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 12px; font-size: 13px; border-top: 1px solid var(--linie); border-radius: 0 0 8px 8px; background: color-mix(in srgb, var(--text) 6%, var(--hintergrund)); }
+.sammlung-akte { display: inline-flex; gap: 4px; align-items: center; padding: 1px 8px; border: 1px solid var(--linie); border-radius: 999px; }
+.akten-wahl-feld.als-knopf { width: auto; max-width: none; }
+.als-knopf .akten-wahl-liste { left: 0; right: auto; }
+@media (max-width: 900px) {
+  .sammlung { flex-direction: column; }
+  .sammlung .akte-seite.volltext { width: auto; }
+}
+.feld-mit-fundstelle { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.feld-mit-fundstelle .feld-hinweis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.volltext-leiste { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 0 6px; margin-bottom: 8px; background: var(--hintergrund); border-bottom: 1px solid var(--linie); }
+.volltext-leiste button { padding: 3px 10px; font-size: 13px; }
+.volltext-leiste > span:first-child { flex: 1; }
+.volltext-leiste { flex-wrap: wrap; }
+.recherche-maske { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; margin: 10px 0; }
+.recherche-maske label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.recherche-maske .zeitraum { display: flex; gap: 6px; }
+.recherche-maske .zeitraum input { flex: 1; min-width: 0; }
+.recherche-aktionen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.recherche-ausschnitt { margin: 4px 0 0; font-size: 13px; color: var(--text-leise); }
+.recherche-fuss { display: flex; align-items: center; gap: 12px; margin: 10px 0 24px; }
+.marke-gespeichert { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: normal; background: color-mix(in srgb, var(--akzent) 14%, var(--hintergrund)); }
+.bereich-wahl { margin: 0 0 10px; }
+.sammlung-liste .kopf button { white-space: nowrap; }
+.zugeordnet { margin-bottom: 18px; }
+
+/* --- Schriftstücke aus der Akte ------------------------------------------------------------------------------- */
+.schriftstuecke .karte { max-width: 900px; }
+.schriftstuecke h2 { font-size: 18px; margin: 4px 0 12px; }
+.schrift-wahl { display: flex; flex-wrap: wrap; gap: 12px 16px; }
+.schrift-wahl .feld { display: grid; gap: 4px; min-width: 220px; flex: 1 1 220px; }
+.schrift-wahl select { max-width: 100%; }
+.schriftstuecke .aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.schrift-ergebnis { margin-top: 12px; }
+.schrift-vorschau, .schrift-katalog { margin-top: 14px; }
+.schrift-vorschau summary, .schrift-katalog summary { cursor: pointer; font-weight: 600; }
+.schrift-vorschau table, .schrift-katalog table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.schrift-vorschau th, .schrift-katalog th { text-align: left; font-weight: 500; vertical-align: top; padding: 4px 12px 4px 0; width: 34%; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.schrift-vorschau td, .schrift-katalog td { padding: 4px 0; vertical-align: top; white-space: pre-line; overflow-wrap: anywhere; }
+.schrift-vorschau tr + tr th, .schrift-vorschau tr + tr td, .schrift-katalog tr + tr th, .schrift-katalog tr + tr td { border-top: 1px solid var(--linie); }
+.schrift-vorschau tr.leer th { color: var(--warnung); }
+.schrift-gruppe h3 { font-size: 14px; margin: 14px 0 0; }
+.schrift-liste { list-style: none; margin: 8px 0; padding: 0; }
+.schrift-liste li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 0; border-top: 1px solid var(--linie); }
+.schrift-liste li .aktionen { margin-top: 0; }
+@media (max-width: 700px) { .schrift-vorschau th, .schrift-katalog th { white-space: normal; width: 45%; } }
+.schrift-anleitung { margin: 0; padding-left: 22px; display: grid; gap: 10px; }
+.schrift-anleitung .aktionen { margin-top: 8px; }
+.schrift-hinweis p { margin: 0; }
+
+/* Ansicht „Details“ eines Dokuments: Metadaten mit Vorschlägen, Notizen und Verlauf. */
+.dok-details { max-width: 820px; }
+.dok-details-felder { display: grid; gap: 18px; margin-top: 0; max-width: none; }
+.dok-details-felder .feld > span:first-child, .dok-details-felder .feld > label:first-child { font-weight: 600; }
+.dok-details-felder input:not([type="checkbox"]) { padding: 5px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.meta-datum { max-width: 180px; }
+.meta-vorschlag { font-size: 13px; padding: 4px 8px; border-left: 3px solid color-mix(in srgb, var(--akzent) 45%, transparent); background: color-mix(in srgb, var(--akzent) 6%, transparent); border-radius: 0 6px 6px 0; overflow-wrap: anywhere; }
+.meta-vorschlag-wert { font-weight: 600; }
+.meta-wort-neu { display: flex; gap: 8px; align-items: center; }
+.meta-wort-neu .tag-eingabe { width: auto; flex: 1; }
+.tag-weg { border: none; background: none; padding: 0 0 0 2px; color: var(--text-leise); cursor: pointer; font-size: 13px; line-height: 1; }
+.tag-weg:hover { color: var(--text); }
+.meta-beteiligte { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.meta-beteiligte li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.meta-beteiligte li.vorgeschlagen { padding: 2px 6px; margin: 0 -6px; border-radius: 6px; background: color-mix(in srgb, var(--akzent) 6%, transparent); }
+.meta-beteiligte label { display: flex; gap: 6px; align-items: baseline; font-size: 14px; }
+.meta-vorschlag-kurz { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.meta-aktionen { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.dok-details-abschnitt { margin-top: 22px; }
+.dok-details-abschnitt h3 { margin: 0 0 8px; font-size: 15px; }
+.dok-details-abschnitt .notiz-neu { margin-top: 0; }
+.meta-verlauf { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; font-size: 13px; }
+.meta-zeile { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.dok-details-felder select { padding: 5px 8px; border-radius: 6px; border: 1px solid var(--linie); background: var(--flaeche); color: var(--text); }
+.akte-filter h4 { font-size: 12px; font-weight: 600; color: var(--text-leise); margin: 8px 0 2px 8px; }
+.filter-eintrag.unter { padding-left: 18px; }
+
+/* Protokoll der Online-Anfragen (Einstellungen → Diagnose) */
+.netzprotokoll .aktionen { align-items: center; flex-wrap: wrap; }
+.netzprotokoll-rahmen { max-height: 480px; overflow: auto; border: 1px solid var(--linie); border-radius: 6px; }
+.netzprotokoll-tabelle { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.netzprotokoll-tabelle th { position: sticky; top: 0; background: var(--flaeche, var(--hintergrund)); text-align: left; font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--linie); }
+.netzprotokoll-tabelle td { padding: 6px 8px; border-bottom: 1px solid var(--linie); vertical-align: top; }
+.netzprotokoll-tabelle td.nowrap { white-space: nowrap; }
+.netzprotokoll-adresse { overflow-wrap: anywhere; font-family: var(--mono, ui-monospace, monospace); font-size: 11.5px; }
+
+/* Kostennote im Reiter Schriftstücke */
+.kostennote h3 { font-size: 14px; margin: 16px 0 6px; }
+.kostennote .schrift-wahl + .schrift-wahl { margin-top: 10px; }
+.schrift-wahl .feld.kurz { min-width: 110px; flex: 0 1 130px; }
+/* Eingaben bleiben in ihrer Spalte (lange Auswahltexte schoben sie sonst über das Nachbarfeld). */
+.kostennote .schrift-wahl .feld > input, .kostennote .schrift-wahl .feld > select { min-width: 0; width: 100%; box-sizing: border-box; }
+.kostennote .schrift-wahl .feld { min-width: 0; }
+.kosten-posten { display: grid; gap: 6px; }
+.kosten-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+.kosten-zeile label { display: inline-flex; align-items: center; gap: 4px; }
+.kosten-zeile select { max-width: 100%; flex: 1 1 260px; }
+.kosten-zeile input.text { flex: 1 1 220px; min-width: 0; }
+.kosten-zeile input.satz { width: 56px; }
+.kosten-zeile input.betrag { width: 96px; }
+.kosten-posten > select { justify-self: start; max-width: 100%; }
+.kosten-wahl { display: grid; gap: 6px; margin: 12px 0 0; border: none; padding: 0; font-size: 13px; }
+.kosten-wahl input.satz { width: 56px; margin-left: 6px; }
+.kosten-vorschau { margin-top: 12px; }
+.kosten-vorschau tr.abschnitt td { font-weight: 600; padding-top: 10px; white-space: nowrap; }
+.kosten-vorschau tfoot tr:last-child td { border-top: 1px solid var(--linie); }
+.schrift-liste li.storniert strong { text-decoration: line-through; }
+
+/* Zeiterfassung */
+.zeiten { max-width: 1000px; }
+.zeiten .karte { max-width: none; }
+.zeit-timer-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.zeit-timer-zeile input.text { flex: 1 1 240px; min-width: 0; }
+.zeit-timer-zeile select { max-width: 100%; }
+.zeit-uhr { font-size: 22px; font-variant-numeric: tabular-nums; color: var(--text-leise); min-width: 92px; }
+.zeit-uhr.laeuft { color: var(--gut); font-weight: 600; }
+.zeit-formular h3, .zeit-liste h3, .zeit-einstellungen h3 { font-size: 14px; margin: 0 0 8px; }
+.zeit-liste h3 + table { margin-top: 0; }
+.zeit-liste table + h3 { margin-top: 16px; }
+.zeit-liste .status-marke { margin-left: 6px; }
+.zeit-liste tr.abgerechnet td { color: var(--text-leise); }
+.zeit-aktionen { white-space: nowrap; text-align: right; }
+.zeit-vereinbarung h3 { font-size: 14px; margin: 0; }
+.zeit-vereinbarung form, .zeit-vereinbarung-form { display: grid; gap: 8px; margin-top: 8px; }
+.zeit-vereinbarung .haken, .zeit-vereinbarung-form .haken { display: flex; gap: 6px; align-items: baseline; }
+.zeit-vereinbarung-stand { margin: 6px 0 4px; }
+.zeit-vereinbarung-form .feld.kurz { max-width: 240px; }
+.zeit-vereinbarung-form .schrift-wahl .feld:not(.kurz) { max-width: 360px; }
+.zeit-vereinbarung-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mandant-vereinbarungen .rahmen-vereinbarung p { margin: 4px 0; }
+.mandant-vereinbarungen .rahmen-vereinbarung.hervorgehoben { border-left: 3px solid var(--akzent); background: var(--hintergrund); padding: 6px 10px; border-radius: 4px; margin-bottom: 8px; }
+.zeit-budget { height: 6px; border-radius: 3px; background: var(--linie); overflow: hidden; margin: 4px 0 8px; max-width: 420px; }
+.zeit-budget span { display: block; height: 100%; background: var(--gut); }
+.zeit-budget.knapp span { background: var(--warnung); }
+.zeit-budget.ueber span { background: var(--fehler); }
+.zeit-aktionen button + button { margin-left: 8px; }
+.zeit-liste tr.zeit-details td { background: var(--hintergrund); }
+.zeit-details-inhalt ul { margin: 0 0 4px; padding-left: 18px; }
+.zeit-details-inhalt p { margin: 2px 0; }
+.zeit-notiz { margin: 6px 0; display: grid; gap: 6px; max-width: 720px; justify-items: start; }
+.zeit-notiz textarea { width: 100%; }
+.zeit-notiz .notiz-text { white-space: pre-wrap; margin: 0; }
+.zeit-notiz-wahl { max-width: 520px; margin: 6px 0; }
+.zeit-notiz-wahl button { justify-self: start; align-self: flex-start; }
+.zeit-liste button.status-marke { border: none; cursor: pointer; }
+.zeit-stufen { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
+.zeit-stufen li.archiviert input { color: var(--text-leise); }
+.zeit-einstellungen .kosten-zeile input.betrag { width: 90px; }
+.zeit-leiste { display: flex; align-items: center; gap: 6px; padding: 8px; border-radius: 8px; color: var(--gut);
+  background: color-mix(in srgb, var(--gut) 12%, transparent); border: 1px solid color-mix(in srgb, var(--gut) 35%, transparent); }
+.zeit-leiste-akte { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: none; border: none; padding: 0;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.zeit-leiste-symbol { flex: none; display: flex; }
+.zeit-leiste-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.zeit-leiste-uhr { font-size: 17px; font-variant-numeric: tabular-nums; }
+.zeit-leiste-name { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zeit-leiste-stopp { flex: none; align-self: center; background: none; border: 1px solid currentColor; border-radius: 4px; color: inherit;
+  padding: 2px 7px; font-size: 11px; line-height: 16px; cursor: pointer; }
+.eingeklappt .zeit-leiste-stopp { display: none; }
+.eingeklappt .zeit-leiste { justify-content: center; padding: 8px 4px; }
+.eingeklappt .zeit-leiste-akte { justify-content: center; }
+/* Eingeklappt: ruhiges Ein- und Ausblenden des Uhrensymbols, damit ein laufender Timer nicht übersehen wird. */
+@keyframes zeit-puls { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.eingeklappt .zeit-leiste-symbol { animation: zeit-puls 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .eingeklappt .zeit-leiste-symbol { animation: none; } }
+.zeit-formular .schrift-wahl .feld > input, .zeit-formular .schrift-wahl .feld > select { min-width: 0; width: 100%; box-sizing: border-box; }
+.zeit-formular .schrift-wahl .feld { min-width: 0; }
+.zeit-formular .schrift-wahl + .schrift-wahl { margin-top: 10px; }
+.zeit-formular .notiz-optionen { margin-top: 10px; }
+.zeit-liste .status-marke { white-space: nowrap; display: inline-block; }
+.zeit-einstellungen > .feld.kurz { max-width: 260px; margin-top: 12px; }
+
+/* Leere Bereiche: Symbol, Satz und der passende Knopf statt einer blassen Zeile. */
+.leer-hinweis { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; margin: 16px 0; padding: 28px 20px;
+  border: 1px dashed var(--linie); border-radius: var(--rund); color: var(--text-leise); }
+.leer-hinweis p { margin: 0; max-width: 46ch; }
+.leer-hinweis-symbol { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; color: var(--akzent);
+  background: color-mix(in srgb, var(--akzent) 10%, transparent); }
+.leer-hinweis-aktion { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+
+/* Ziffern gleich breit, damit Daten, Beträge und Zeiten in Tabellen und Listen sauber untereinander stehen. */
+table, .frist-datum, .summen, input.betrag, .kachel-fristen, .zeit-liste, .dok-modi-angaben { font-variant-numeric: tabular-nums; }
+td.zahl, th.zahl { text-align: right; white-space: nowrap; }
+
+/* Einheitliche Karten: gleiche Ecken, Rahmen und ein kaum sichtbarer Schatten. */
+:root { --rund: 10px; --schatten: 0 1px 2px rgb(0 0 0 / 5%); }
+:root[data-thema="dunkel"] { --schatten: 0 1px 2px rgb(0 0 0 / 30%); }
+.karte, .kachel, .beleg, .norm, .dokument, .merkmal, .ki-dokument, .rechner-ergebnis, .formkarte, .dokumente, .rueckfrage, .ki-fortschritt,
+.ki-wahl, .posten { border-radius: var(--rund); }
+.karte, .kachel, .beleg, .norm, .dokument, .ki-dokument, .rechner-ergebnis, .formkarte, .dokumente { border-color: var(--linie); box-shadow: var(--schatten); }
+.kachel:hover:not(:disabled), .formkarte.gewaehlt { box-shadow: 0 0 0 1px var(--akzent), var(--schatten); }
+.darstellung-segment { margin: 6px 0 4px; }

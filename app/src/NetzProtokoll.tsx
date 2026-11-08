@@ -56,7 +56,7 @@ export default function NetzProtokoll() {
     setMeldung(null);
     const ziel = await save({
       title: "Protokoll der Online-Anfragen exportieren",
-      defaultPath: `jurabox-online-anfragen-${new Date().toISOString().slice(0, 10)}.csv`,
+      defaultPath: `advordo-online-anfragen-${new Date().toISOString().slice(0, 10)}.csv`,
       filters: [
         { name: "Tabelle (CSV, z. B. für Excel)", extensions: ["csv"] },
         { name: "Text", extensions: ["txt"] },
@@ -76,9 +76,9 @@ export default function NetzProtokoll() {
     <section className="karte netzprotokoll">
       <h2>Protokoll der Online-Anfragen</h2>
       <p className="erklaerung">
-        Jede Verbindung, die JuraBox aufbaut, mit Ziel, Zweck und dem, was dabei außer der Adresse gesendet wurde.
+        Jede Verbindung, die advOrdo aufbaut, mit Ziel, Zweck und dem, was dabei außer der Adresse gesendet wurde.
         API-Schlüssel und Texte an ein Sprachmodell stehen nicht darin; bei KI-Anfragen nur Anbieter, Modell, Aufgabe und
-        Umfang. Das Protokoll liegt nur auf diesem Gerät. Was du im Browser öffnest, sieht JuraBox nicht.
+        Umfang. Das Protokoll liegt nur auf diesem Gerät. Was du im Browser öffnest, sieht advOrdo nicht.
       </p>
       <div className="aktionen">
         <label className="schalter-zeile">
@@ -115,7 +115,7 @@ export default function NetzProtokoll() {
               ))}
             </select>
           </label>
-          <span className="leise klein">Ältere Einträge löscht JuraBox beim Start und einmal am Tag.</span>
+          <span className="leise klein">Ältere Einträge löscht advOrdo beim Start und einmal am Tag.</span>
         </div>
       )}
       {meldung && <p className="meldung">{meldung}</p>}

@@ -1,9 +1,9 @@
-"""Dokumente außerhalb von JuraBox ansehen und bearbeiten, mit Fassungen.
+"""Dokumente außerhalb von advOrdo ansehen und bearbeiten, mit Fassungen.
 
 Die abgelegten Dateien einer Akte werden nie verändert. Deshalb:
 
-- Ansehen: JuraBox legt eine schreibgeschützte Kopie an und übergibt sie dem Programm.
-- Bearbeiten: JuraBox legt eine Arbeitskopie an (höchstens eine je Dokument). Ändert sich
+- Ansehen: advOrdo legt eine schreibgeschützte Kopie an und übergibt sie dem Programm.
+- Bearbeiten: advOrdo legt eine Arbeitskopie an (höchstens eine je Dokument). Ändert sich
   ihre Prüfsumme, fragt die Oberfläche, ob sie als neue Fassung übernommen werden soll.
   Die neue Fassung wird unverändert abgelegt und neu eingelesen (Text, Normzitate,
   Datum); frühere Fassungen bleiben in der Ablage und lassen sich weiter ansehen.

@@ -129,6 +129,11 @@ def test_verfahren_mit_instanz_und_gericht_als_beteiligter(con):
     liste = verfahren.speichern(con, a, {"spruchkoerper": "2. Zivilkammer"}, klage["id"])
     assert liste[-1]["spruchkoerper"] == "2. Zivilkammer" and liste[-1]["instanz"] == "1. Instanz"
     assert len([b for b in stammdaten.beteiligungen(con, a) if b["rolle"] == "gericht"]) == 2
+    # Die Übersicht holt das aktuelle Verfahren aller Akten auf einmal, mit demselben Ergebnis wie je Akte.
+    ohne = neue_akte(con, "Ohne Verfahren")
+    je_akte = verfahren.aktuelle_je_akte(con)
+    assert je_akte[a]["id"] == verfahren.aktuelles(verfahren.liste(con, a))["id"] == klage["id"]
+    assert ohne not in je_akte
 
 
 def test_verfahren_pruefungen(con):

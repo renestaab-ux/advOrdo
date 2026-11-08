@@ -155,12 +155,12 @@ def _mitschreiben(anfrage: urllib.request.Request, oeffnen: Callable[[], Any]) -
 
 
 class _ProtokollHTTP(urllib.request.HTTPHandler):
-    def http_open(self, req):  # noqa: ANN001, ANN201 - Signatur von urllib
+    def http_open(self, req):
         return _mitschreiben(req, lambda: super(_ProtokollHTTP, self).http_open(req))
 
 
 class _ProtokollHTTPS(urllib.request.HTTPSHandler):
-    def https_open(self, req):  # noqa: ANN001, ANN201 - Signatur von urllib
+    def https_open(self, req):
         return _mitschreiben(req, lambda: super(_ProtokollHTTPS, self).https_open(req))
 
 
@@ -391,7 +391,7 @@ def als_csv(eintraege: list[dict]) -> str:
 
 
 def als_text(eintraege: list[dict]) -> str:
-    kopf = ["Protokoll der Online-Anfragen von JuraBox",
+    kopf = ["Protokoll der Online-Anfragen von advOrdo",
             f"Erstellt am {datetime.now().strftime('%d.%m.%Y %H:%M')}, {len(eintraege)} Einträge, neueste zuerst.",
             "Kopfzeilen der Anfragen (mit API-Schlüsseln) und Texte an Sprachmodelle werden nicht protokolliert.",
             ""]

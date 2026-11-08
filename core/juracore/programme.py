@@ -1,6 +1,6 @@
 """Externe Programme: Dokumente im PDF-Programm oder in der Textverarbeitung öffnen.
 
-Herstellerneutral: JuraBox übergibt nur die Datei an das gewählte Programm (LibreOffice,
+Herstellerneutral: advOrdo übergibt nur die Datei an das gewählte Programm (LibreOffice,
 Microsoft Office, PDF-XChange, Okular …). Voreinstellung ist das Standardprogramm des
 Systems. Die Einstellung gilt für das Gerät, nicht je Arbeitsumgebung.
 
@@ -160,7 +160,7 @@ def _ausfuehren(aufruf: list[str], zeile: str | list[str] | None = None) -> None
     else:
         zusatz["start_new_session"] = True
     try:
-        subprocess.Popen(  # noqa: S603 - Programm und Datei stammen aus den Einstellungen und der Ablage
+        subprocess.Popen(
             zeile or aufruf, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             close_fds=True, **zusatz,
         )

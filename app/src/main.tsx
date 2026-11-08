@@ -1,9 +1,11 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import Toolbox from "./Toolbox";
 import { darstellungStarten } from "./darstellung";
 import "./styles.css";
+
+// Das Toolbox-Fenster lädt nur die Toolbox, nicht die ganze App.
+const App = lazy(() => import("./App"));
+const Toolbox = lazy(() => import("./Toolbox"));
 
 // Zusätzliche Fenster laden dieselbe Oberfläche mit ?fenster=… (siehe src-tauri/src/fenster.rs).
 const fenster = new URLSearchParams(window.location.search).get("fenster");
@@ -13,6 +15,6 @@ darstellungStarten();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {fenster === "toolbox" ? <Toolbox /> : <App />}
+    <Suspense fallback={null}>{fenster === "toolbox" ? <Toolbox /> : <App />}</Suspense>
   </React.StrictMode>,
 );

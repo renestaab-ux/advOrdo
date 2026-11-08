@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DokumentAnsicht } from "./Akte";
+import { DokumentAnsicht } from "./DokumentAnsicht";
 import { WiderspruchKarte } from "./Analyse";
 import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
 import { useKiAn } from "./kiSchalter";
+import { useAuftrag } from "./useAuftrag";
 import {
   Abgleich,
   AbgleichFundstelle,
@@ -124,23 +125,16 @@ export default function Vergleich({ akteId, onEinstellungen }: { akteId: number;
 
   // Laufenden KI-Auftrag jede Sekunde abfragen.
   const kiAuftragId = ki.art === "laeuft" ? ki.auftrag.auftrag_id : null;
-  useEffect(() => {
-    if (kiAuftragId == null) return;
-    const nr = anfrage.current;
-    const takt = window.setInterval(async () => {
-      try {
-        const a = await kern<KiAuftrag>("ki.auftrag", { auftrag_id: kiAuftragId });
-        if (nr !== anfrage.current) return;
-        if (a.status === "laeuft") setKi({ art: "laeuft", auftrag: a });
-        else if (a.status === "fertig") setKi({ art: "fertig", ergebnis: a.ergebnis as KiVergleich });
-        else if (a.status === "abgebrochen") setKi({ art: "abgebrochen" });
-        else setKi({ art: "fehler", text: a.fehler ?? "Unbekannter Fehler" });
-      } catch (e) {
-        if (nr === anfrage.current) setKi({ art: "fehler", text: String(e) });
-      }
-    }, 1000);
-    return () => window.clearInterval(takt);
-  }, [kiAuftragId]);
+  useAuftrag(
+    kiAuftragId,
+    (a) => {
+      if (a.status === "laeuft") setKi({ art: "laeuft", auftrag: a });
+      else if (a.status === "fertig") setKi({ art: "fertig", ergebnis: a.ergebnis as KiVergleich });
+      else if (a.status === "abgebrochen") setKi({ art: "abgebrochen" });
+      else setKi({ art: "fehler", text: a.fehler ?? "Unbekannter Fehler" });
+    },
+    (e) => setKi({ art: "fehler", text: String(e) }),
+  );
 
   async function kiAbbrechen() {
     if (ki.art !== "laeuft") return;

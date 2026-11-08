@@ -384,8 +384,8 @@ def logo_hinweis(ordner: Path) -> str | None:
     """Hinweis, wenn ein Logo eingestellt ist, das Word nicht einbetten kann und für das kein Druckbild vorliegt."""
     vorhanden = [p for p in Path(ordner).glob("logo.*") if p.suffix.lower() in (".svg", ".webp")]
     if vorhanden and logo_lesen(ordner) is None:
-        return ("Das Logo (SVG oder WebP) erscheint noch nicht im Schriftstück. Bitte JuraBox einmal neu starten oder "
-                "das Logo in Einstellungen → Allgemeines erneut wählen; dann legt JuraBox eine Fassung für Word an.")
+        return ("Das Logo (SVG oder WebP) erscheint noch nicht im Schriftstück. Bitte advOrdo einmal neu starten oder "
+                "das Logo in Einstellungen → Allgemeines erneut wählen; dann legt advOrdo eine Fassung für Word an.")
     return None
 
 
@@ -411,7 +411,7 @@ def erzeugen(art: str, logo: tuple[bytes, str, str] | None = None, koerper: str 
                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
                    '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-'
                    'properties" xmlns:dc="http://purl.org/dc/elements/1.1/">'
-                   f"<dc:title>{escape(titel)}</dc:title><dc:creator>JuraBox</dc:creator>"
+                   f"<dc:title>{escape(titel)}</dc:title><dc:creator>advOrdo</dc:creator>"
                    "<dc:language>de-DE</dc:language></cp:coreProperties>")
         z.writestr("word/_rels/document.xml.rels", _DOKUMENT_BEZUEGE)
         z.writestr("word/_rels/header1.xml.rels", _kopf_bezuege(bild))

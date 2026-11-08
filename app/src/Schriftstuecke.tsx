@@ -228,7 +228,7 @@ export default function Schriftstuecke({
             {ergebnis.dokument_id ? (
               <>
                 „{ergebnis.dateiname}“ {ergebnis.neu ? "liegt jetzt" : "lag schon"} unter Dokumente
-                {ergebnis.geoeffnet && " und ist als Arbeitskopie geöffnet. Nach dem Speichern in Word fragt JuraBox, ob die Änderungen als neue Fassung übernommen werden"}
+                {ergebnis.geoeffnet && " und ist als Arbeitskopie geöffnet. Nach dem Speichern in Word fragt advOrdo, ob die Änderungen als neue Fassung übernommen werden"}
                 .{" "}
                 <button className="link" onClick={onDokumente}>
                   Zu den Dokumenten

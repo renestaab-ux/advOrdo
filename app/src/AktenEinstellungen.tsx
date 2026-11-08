@@ -105,7 +105,7 @@ export default function AktenEinstellungen({ umgebungen }: { umgebungen: Umgebun
 
       <h3>Erinnerungen</h3>
       <p className="erklaerung">
-        Solange JuraBox läuft, meldet das Betriebssystem fällige Fristen (Vorfrist, Vortag, Ablauf), Termine (Vortag
+        Solange advOrdo läuft, meldet das Betriebssystem fällige Fristen (Vorfrist, Vortag, Ablauf), Termine (Vortag
         und Tag) und Wiedervorlagen. Ist die App geschlossen, erinnert sie nicht; sie ersetzt keinen Fristenkalender.
         Die Einstellung gilt für dieses Gerät.
       </p>
@@ -127,7 +127,7 @@ export default function AktenEinstellungen({ umgebungen }: { umgebungen: Umgebun
           setFehler(null);
           setMeldung(null);
           void testErinnerung().then(
-            () => setMeldung("Probe-Erinnerung gesendet. Erscheint keine, bitte die Mitteilungen des Systems für JuraBox prüfen."),
+            () => setMeldung("Probe-Erinnerung gesendet. Erscheint keine, bitte die Mitteilungen des Systems für advOrdo prüfen."),
             (e) => setFehler(String(e)),
           );
         }}

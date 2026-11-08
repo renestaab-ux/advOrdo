@@ -19,6 +19,7 @@ from typing import Protocol
 
 log = logging.getLogger("juracore.schluesselbund")
 
+# Dienstname bleibt „JuraBox“ (früherer Name der App), sonst fänden sich gespeicherte API-Schlüssel nicht mehr.
 DIENST = "JuraBox"
 SCHLUESSELBUND = "schluesselbund"
 DATEI = "datei"
@@ -50,7 +51,7 @@ def bund() -> Bund | None:
             kandidat = keyring.get_keyring()
             if not isinstance(kandidat, (fail.Keyring, null.Keyring)):
                 _bund = kandidat
-        except Exception as fehler:  # noqa: BLE001 – ohne Schlüsselbund geht es mit der Datei weiter
+        except Exception as fehler:
             log.info("Kein Schlüsselbund nutzbar: %s", fehler)
     return _bund
 
@@ -77,7 +78,7 @@ def lies(ordner: Path, name: str) -> str | None:
         return None
     try:
         return b.get_password(DIENST, eintrag(ordner, name)) or None
-    except Exception as fehler:  # noqa: BLE001 – gesperrter oder fehlender Dienst
+    except Exception as fehler:
         log.warning("Schlüsselbund nicht lesbar: %s", fehler)
         return None
 
@@ -92,10 +93,10 @@ def schreibe(ordner: Path, name: str, wert: str | None) -> bool:
         else:
             try:
                 b.delete_password(DIENST, eintrag(ordner, name))
-            except Exception:  # noqa: BLE001 – war nicht vorhanden
+            except Exception:
                 pass
         return True
-    except Exception as fehler:  # noqa: BLE001
+    except Exception as fehler:
         log.warning("Schlüsselbund nicht beschreibbar, nehme die Datei: %s", fehler)
         return False
 

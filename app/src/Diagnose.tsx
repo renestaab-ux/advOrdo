@@ -16,12 +16,12 @@ const MITTEILUNGEN: DiagnosePruefung = {
 async function mitteilungenPruefen(): Promise<DiagnoseErgebnis> {
   const basis = { id: MITTEILUNGEN.id, gruppe: MITTEILUNGEN.gruppe, titel: MITTEILUNGEN.titel, dauer_ms: 0 };
   if (await isPermissionGranted()) {
-    return { ...basis, stand: "ok", meldung: "JuraBox darf Erinnerungen an Fristen anzeigen.", details: [], hilfe: null };
+    return { ...basis, stand: "ok", meldung: "advOrdo darf Erinnerungen an Fristen anzeigen.", details: [], hilfe: null };
   }
   return {
     ...basis,
     stand: "warnung",
-    meldung: "Erinnerungen an Fristen erscheinen nicht, das System erlaubt JuraBox keine Mitteilungen.",
+    meldung: "Erinnerungen an Fristen erscheinen nicht, das System erlaubt advOrdo keine Mitteilungen.",
     details: [],
     hilfe:
       "Unter Einstellungen → Akten „Probe-Erinnerung senden“ wählen und die Rückfrage bestätigen. Unter Windows sonst " +
@@ -88,7 +88,7 @@ export default function Diagnose() {
     <div className="diagnose">
       <h2>Diagnose</h2>
       <p className="erklaerung">
-        Prüft, ob alle Teile von JuraBox funktionieren: Datenordner, Datenbanken, das Archiv der Rechtsquellen,
+        Prüft, ob alle Teile von advOrdo funktionieren: Datenordner, Datenbanken, das Archiv der Rechtsquellen,
         Texterkennung, Programme, die Sprachmodelle und die Rechtsquellen im Internet. Ins Netz gehen nur kurze Abrufe der
         öffentlichen Rechtsquellen und, wenn die externe KI eingebunden ist, die Modellliste des Anbieters. Dokumentinhalte
         werden nicht übertragen. Jede Anfrage steht unten im Protokoll der Online-Anfragen.

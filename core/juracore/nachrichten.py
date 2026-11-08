@@ -27,15 +27,15 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
 from . import netzprotokoll
+from .htmlleser import HtmlLeser
 
 log = logging.getLogger("juracore.nachrichten")
 
-USER_AGENT = "JuraBox/0.1 (Nachrichten)"
+USER_AGENT = "advOrdo/0.1 (Nachrichten)"
 HOECHSTENS_BYTES = 5 * 1024 * 1024
 ZEITLIMIT = 15
 VERALTET_NACH = timedelta(minutes=30)
@@ -90,9 +90,9 @@ def _text(el: ET.Element | None) -> str:
     return "".join(el.itertext()).strip() if el is not None else ""
 
 
-class _NurText(HTMLParser):
+class _NurText(HtmlLeser):
     def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
+        super().__init__()
         self.teile: list[str] = []
 
     def handle_data(self, data: str) -> None:
@@ -102,10 +102,7 @@ class _NurText(HTMLParser):
 def klartext(roh: str) -> str:
     """HTML einer Beschreibung als einfacher Text, Leerraum zusammengefasst."""
     if "<" in roh:
-        p = _NurText()
-        p.feed(roh)
-        p.close()
-        roh = " ".join(p.teile)
+        roh = " ".join(_NurText.lies(roh).teile)
     return re.sub(r"\s+", " ", html.unescape(roh)).strip()
 
 
@@ -196,16 +193,16 @@ def lies_feed(daten: bytes, adresse: str = "") -> dict:
     return {"titel": klartext(titel), "eintraege": eintraege}
 
 
-class _FeedLinks(HTMLParser):
+class _FeedLinks(HtmlLeser):
     """Sammelt in einer Webseite die Verweise auf Feeds: zuerst ``<link rel="alternate">``, dann Links."""
 
     def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
+        super().__init__()
         self.alternativ: list[str] = []
         self.links: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        a = {k: (v or "") for k, v in attrs}
+        a = self.attribute(attrs)
         if tag == "link" and "alternate" in a.get("rel", "").lower() and (
             "rss" in a.get("type", "") or "atom" in a.get("type", "")
         ):
@@ -215,9 +212,7 @@ class _FeedLinks(HTMLParser):
 
 
 def feed_links(seite: bytes, adresse: str) -> list[str]:
-    p = _FeedLinks()
-    p.feed(seite.decode("utf-8", "replace"))
-    p.close()
+    p = _FeedLinks.lies(seite.decode("utf-8", "replace"))
     gesehen: list[str] = []
     for ziel in p.alternativ + p.links:
         voll = _sichere_adresse(ziel, adresse)
@@ -422,7 +417,7 @@ class Nachrichten:
         def eins(f: dict) -> tuple[str, dict]:
             try:
                 return f["id"], self._feed_stand(f, lies_feed(abrufen(f["url"], self.oeffnen), f["url"]))
-            except Exception as fehler:  # noqa: BLE001 – ein kaputter Feed darf die anderen nicht aufhalten
+            except Exception as fehler:
                 log.info("Feed %s nicht geladen: %s", f["url"], fehler)
                 return f["id"], {"abgerufen": datetime.now(UTC).isoformat(timespec="seconds"),
                                  "fehler": _meldung(fehler)}

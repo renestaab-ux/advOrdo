@@ -28,7 +28,7 @@ from .gesetze import quelle
 from .ki import anbieter as ki_anbieter
 from .rechtsprechung import bayern, neuris, online, verzeichnis
 
-USER_AGENT = "JuraBox/0.1 (Diagnose)"
+USER_AGENT = "advOrdo/0.1 (Diagnose)"
 NETZ_TIMEOUT = 10
 FREI_WARNUNG = 1024**3  # unter 1 GB freiem Speicher warnen
 
@@ -43,7 +43,7 @@ def _ergebnis(stand: str, meldung: str, details: list[str] | None = None, hilfe:
 
 def _kern(k: Any) -> dict:
     ordner = Path(k.ki_datei).parent
-    details = [f"JuraBox-Kern {__version__}, Python {platform.python_version()}",
+    details = [f"advOrdo-Kern {__version__}, Python {platform.python_version()}",
                f"System: {platform.system()} {platform.release()} ({platform.machine()})",
                f"Datenordner: {ordner}", f"Arbeitsumgebung: {k.umgebungen.ordner()}",
                "Zertifikate: " + ("Speicher des Systems" if zertifikate.aktiv() else "eigene Liste von Python "
@@ -234,12 +234,12 @@ def netzfehler(fehler: BaseException, adresse: str) -> tuple[str, str]:
         if code in (404, 410):
             return (f"{host} meldet die Adresse als {'abgeschaltet' if code == 410 else 'nicht vorhanden'} "
                     f"(HTTP {code}).",
-                    "Der Anbieter hat die Schnittstelle verlegt. JuraBox braucht dafür ein Update; bitte melden.")
+                    "Der Anbieter hat die Schnittstelle verlegt. advOrdo braucht dafür ein Update; bitte melden.")
         if code == 429:
             return (f"{host} meldet zu viele Anfragen (HTTP 429).", "Einige Minuten warten und erneut prüfen.")
         if code >= 500:
             return (f"Störung bei {host} (HTTP {code}).",
-                    "Das liegt beim Anbieter, nicht an JuraBox. Später erneut versuchen.")
+                    "Das liegt beim Anbieter, nicht an advOrdo. Später erneut versuchen.")
         return (f"{host} antwortet mit HTTP {code}.", "Die Adresse hat sich womöglich geändert; bitte melden.")
     if isinstance(grund, socket.gaierror):
         return (f"Der Name {host} lässt sich nicht auflösen.",
@@ -248,7 +248,7 @@ def netzfehler(fehler: BaseException, adresse: str) -> tuple[str, str]:
     if isinstance(grund, ssl.SSLCertVerificationError) or isinstance(grund, ssl.SSLError):
         return (f"Die sichere Verbindung zu {host} lässt sich nicht prüfen ({getattr(grund, 'reason', grund)}).",
                 ("" if zertifikate.aktiv() else
-                 "Der Kern prüft noch nicht mit den Zertifikaten des Systems: im Ordner von JuraBox "
+                 "Der Kern prüft noch nicht mit den Zertifikaten des Systems: im Ordner von advOrdo "
                  "„pip install -e core[dev]“ ausführen und die App neu starten. Sonst ") +
                 "häufige Ursachen: falsche Uhrzeit am Rechner, oder ein Virenscanner bzw. eine Firewall, die "
                 "HTTPS-Verbindungen aufbricht. Datum und Uhrzeit prüfen; im Virenscanner die HTTPS-Prüfung "
@@ -329,7 +329,7 @@ def pruefe(k: Any, pruef_id: str) -> dict:
     beginn = time.monotonic()
     try:
         ergebnis = eintrag[3](k)
-    except Exception as fehler:  # noqa: BLE001 – die Diagnose soll jeden Fehler zeigen, nicht abbrechen
+    except Exception as fehler:
         ergebnis = _ergebnis("fehler", f"Die Prüfung ist mit einem Fehler abgebrochen: {fehler}",
                              [f"{type(fehler).__name__}"], "Bitte diesen Bericht kopieren und melden.")
     ergebnis.update(id=pruef_id, gruppe=eintrag[1], titel=eintrag[2],

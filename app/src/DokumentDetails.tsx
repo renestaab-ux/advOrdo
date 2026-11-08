@@ -2,7 +2,6 @@ import { FormEvent, forwardRef, useCallback, useEffect, useImperativeHandle, use
 import {
   BETEILIGTE,
   DokumentMetadaten,
-  KiAuftrag,
   MetaKiErgebnis,
   MetaKiStand,
   MetaFundstelle,
@@ -17,6 +16,7 @@ import {
   zeitpunkt,
 } from "./kern";
 import Notizen from "./Notizen";
+import { useAuftrag } from "./useAuftrag";
 
 /** Bearbeitungsstand der Felder; gespeichert wird erst mit „Speichern“. */
 interface Entwurf {
@@ -161,20 +161,16 @@ const DokumentDetails = forwardRef<
     return () => window.clearTimeout(spaeter);
   }, [kiBelegt, kiStarten]);
   const kiAuftrag = ki?.status === "laeuft" ? ki.auftrag.auftrag_id : null;
-  useEffect(() => {
-    if (kiAuftrag == null) return;
-    const takt = window.setInterval(async () => {
-      try {
-        const a = await kern<KiAuftrag>("ki.auftrag", { auftrag_id: kiAuftrag });
-        if (a.status === "laeuft") setKi({ status: "laeuft", auftrag: a });
-        else if (a.status === "fertig") setKi({ status: "fertig", ergebnis: a.ergebnis as MetaKiErgebnis });
-        else setKi({ status: "fehler", fehler: a.fehler ?? "abgebrochen" });
-      } catch (e) {
-        setKi({ status: "fehler", fehler: String(e) });
-      }
-    }, 1500);
-    return () => window.clearInterval(takt);
-  }, [kiAuftrag]);
+  useAuftrag(
+    kiAuftrag,
+    (a) => {
+      if (a.status === "laeuft") setKi({ status: "laeuft", auftrag: a });
+      else if (a.status === "fertig") setKi({ status: "fertig", ergebnis: a.ergebnis as MetaKiErgebnis });
+      else setKi({ status: "fehler", fehler: a.fehler ?? "abgebrochen" });
+    },
+    (e) => setKi({ status: "fehler", fehler: String(e) }),
+    1500,
+  );
 
   useEffect(() => {
     setMeta(null);

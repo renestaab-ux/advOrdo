@@ -12,7 +12,8 @@ import {
 } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import AktenWahl from "./AktenWahl";
-import { Rueckfrage, VolltextAnsicht } from "./Akte";
+import { VolltextAnsicht } from "./DokumentAnsicht";
+import { Rueckfrage } from "./Rueckfrage";
 import RechtsprechungSuche, { trefferSchluessel } from "./RechtsprechungSuche";
 import {
   Akte,

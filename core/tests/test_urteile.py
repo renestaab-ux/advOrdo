@@ -116,8 +116,7 @@ def test_rpc(tmp_path):
     u = kern.bearbeite(json.dumps({"id": 2, "method": "akten.urteil_ergaenzen", "params": {
         "akte_id": a["id"], "pfad": str(datei), "gericht": "BGH", "aktenzeichen": "VIII ZR 999/20",
         "herkunft": "beck-online"}}))["result"]
-    liste = kern.bearbeite(json.dumps({"id": 3, "method": "akten.urteile", "params": {"akte_id": a["id"]}}))
-    assert [x["herkunft"] for x in liste["result"]] == ["beck-online"]
+    assert [x["herkunft"] for x in urteile.liste(kern.akten, a["id"])] == ["beck-online"]
     eigene = kern.bearbeite(json.dumps({"id": 6, "method": "rechtsprechung.eigene"}))["result"]
     assert eigene == {"gesamt": 1, "quellen": [{"quelle": "manuell", "herkunft": "beck-online", "anzahl": 1}]}
     text = kern.bearbeite(json.dumps({"id": 4, "method": "akten.urteil", "params": {"urteil_id": u["urteil_id"]}}))

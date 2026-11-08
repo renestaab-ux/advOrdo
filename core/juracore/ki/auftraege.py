@@ -85,37 +85,76 @@ class Auftrag:
             }
 
 
-class Auftraege:
+class Auftragsliste:
+    """Gemeinsame Verwaltung von Aufträgen in eigenen Threads: Nummern vergeben, alte Ergebnisse aufräumen,
+    starten, nachschlagen und das Ende festhalten. Grundlage für die KI-Aufträge und ``hintergrund``."""
+
+    bezeichnung = "Auftrag"  # für Fehlermeldungen
+    thread_name = "auftrag"
+
     def __init__(self) -> None:
         self._nummern = itertools.count(1)
         self._auftraege: dict[int, Auftrag] = {}
         self._sperre = threading.Lock()
 
-    def laufend(self) -> Auftrag | None:
+    def _laufende(self) -> list[Auftrag]:
         with self._sperre:
-            return next((a for a in self._auftraege.values() if a.status == LAEUFT), None)
+            return [a for a in self._auftraege.values() if a.status == LAEUFT]
 
-    def starte(self, aufgabe: str, arbeit: Callable[[Auftrag], Any], warten: bool = False,
-               bezug: object = None) -> dict:
-        """Startet ``arbeit(auftrag)`` im Hintergrund. ``warten`` führt sie sofort aus (Kommandozeile, Tests)."""
+    def _anlegen(self, aufgabe: str, bezug: object, frei: Callable[[list[Auftrag]], None]) -> Auftrag:
+        """Legt einen Auftrag an; ``frei`` sieht die laufenden Aufträge und wirft, wenn keiner starten darf."""
         with self._sperre:
-            if any(a.status == LAEUFT for a in self._auftraege.values()):
-                raise RuntimeError("Das Sprachmodell arbeitet gerade an einem anderen Auftrag (Analyse oder "
-                                   "Chat). Bitte warten oder ihn abbrechen.")
+            frei([a for a in self._auftraege.values() if a.status == LAEUFT])
             auftrag = Auftrag(next(self._nummern), aufgabe, bezug)
             self._auftraege[auftrag.nr] = auftrag
             for alt in sorted(self._auftraege)[:-_BEHALTEN]:
                 if self._auftraege[alt].status != LAEUFT:
                     del self._auftraege[alt]
+        return auftrag
+
+    def _starten(self, auftrag: Auftrag, ausfuehren: Callable[[], None], warten: bool) -> None:
         if warten:
-            self._fuehre_aus(auftrag, arbeit)
+            ausfuehren()
         else:
-            threading.Thread(target=self._fuehre_aus, args=(auftrag, arbeit), daemon=True,
-                             name=f"ki-auftrag-{auftrag.nr}").start()
-        return auftrag.als_dict()
+            threading.Thread(target=ausfuehren, daemon=True, name=f"{self.thread_name}-{auftrag.nr}").start()
 
     @staticmethod
-    def _fuehre_aus(auftrag: Auftrag, arbeit: Callable[[Auftrag], Any]) -> None:
+    def _beenden(auftrag: Auftrag, ergebnis: Any, status: str, fehler: str | None, text: str) -> None:
+        with auftrag._sperre:
+            auftrag.ergebnis, auftrag.fehler, auftrag.text = ergebnis, fehler, text
+            auftrag.dauer = time.monotonic() - auftrag.beginn
+            auftrag.status = status
+
+    def _hole(self, auftrag_id: int) -> Auftrag:
+        with self._sperre:
+            auftrag = self._auftraege.get(int(auftrag_id))
+        if auftrag is None:
+            raise LookupError(f"{self.bezeichnung} {auftrag_id} gibt es nicht (mehr).")
+        return auftrag
+
+
+class Auftraege(Auftragsliste):
+    """KI-Aufträge: höchstens einer zugleich, weil die Grafikkarte ohnehin nur einen rechnet."""
+
+    thread_name = "ki-auftrag"
+
+    def laufend(self) -> Auftrag | None:
+        return next(iter(self._laufende()), None)
+
+    def starte(self, aufgabe: str, arbeit: Callable[[Auftrag], Any], warten: bool = False,
+               bezug: object = None) -> dict:
+        """Startet ``arbeit(auftrag)`` im Hintergrund. ``warten`` führt sie sofort aus (Kommandozeile, Tests)."""
+        def frei(laufende: list[Auftrag]) -> None:
+            if laufende:
+                raise RuntimeError("Das Sprachmodell arbeitet gerade an einem anderen Auftrag (Analyse oder "
+                                   "Chat). Bitte warten oder ihn abbrechen.")
+
+        auftrag = self._anlegen(aufgabe, bezug, frei)
+        self._starten(auftrag, lambda: self._fuehre_aus(auftrag, arbeit), warten)
+        return auftrag.als_dict()
+
+    @classmethod
+    def _fuehre_aus(cls, auftrag: Auftrag, arbeit: Callable[[Auftrag], Any]) -> None:
         try:
             with netzprotokoll.anlass(AUFGABEN.get(auftrag.aufgabe, auftrag.aufgabe)):
                 ergebnis = arbeit(auftrag)
@@ -128,23 +167,13 @@ class Auftraege:
         except Exception as f:  # ein Fehler im Hintergrund darf den Kern nicht beenden
             log.exception("Unerwarteter Fehler in Auftrag %s", auftrag.nr)
             ergebnis, status, fehler, text = None, FEHLER, f"Unerwarteter Fehler: {f}", "Fehlgeschlagen"
-        with auftrag._sperre:
-            auftrag.ergebnis, auftrag.fehler, auftrag.text = ergebnis, fehler, text
-            auftrag.dauer = time.monotonic() - auftrag.beginn
-            auftrag.status = status
+        cls._beenden(auftrag, ergebnis, status, fehler, text)
 
     def status(self, auftrag_id: int) -> dict:
-        with self._sperre:
-            auftrag = self._auftraege.get(int(auftrag_id))
-        if auftrag is None:
-            raise LookupError(f"Auftrag {auftrag_id} gibt es nicht (mehr).")
-        return auftrag.als_dict()
+        return self._hole(auftrag_id).als_dict()
 
     def abbrechen(self, auftrag_id: int) -> dict:
-        with self._sperre:
-            auftrag = self._auftraege.get(int(auftrag_id))
-        if auftrag is None:
-            raise LookupError(f"Auftrag {auftrag_id} gibt es nicht (mehr).")
+        auftrag = self._hole(auftrag_id)
         auftrag._abbruch.set()
         auftrag.melde("Wird nach dem laufenden Schritt abgebrochen …")
         return auftrag.als_dict()

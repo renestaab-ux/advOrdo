@@ -14,7 +14,7 @@ const KOPIE_TEXT: Record<Arbeitskopie["status"], string> = {
 /**
  * Öffnen und Bearbeiten in externen Programmen, unter der Leiste des geöffneten Dokuments.
  * Öffnen zeigt eine schreibgeschützte Kopie; Bearbeiten legt eine Arbeitskopie an, deren Änderungen
- * JuraBox als neue Fassung übernimmt. Die abgelegten Dateien bleiben unverändert.
+ * advOrdo als neue Fassung übernimmt. Die abgelegten Dateien bleiben unverändert.
  */
 export default function DokumentExtern({
   dokument,
@@ -57,7 +57,7 @@ export default function DokumentExtern({
     await onKopien();
     onMeldung(
       (r.neu ? "Arbeitskopie angelegt und geöffnet." : "Vorhandene Arbeitskopie wieder geöffnet.") +
-        " Nach dem Speichern fragt JuraBox, ob die Änderungen als neue Fassung übernommen werden sollen.",
+        " Nach dem Speichern fragt advOrdo, ob die Änderungen als neue Fassung übernommen werden sollen.",
     );
   }
 
@@ -188,7 +188,7 @@ export function UebernahmeFrage({
         const nr = (dokumente.find((d) => d.id === k.dokument_id)?.fassung.nr ?? k.basis_nr) + 1;
         return (
           <div key={k.dokument_id} className="rueckfrage uebernahme" role="alertdialog" aria-label="Neue Fassung übernehmen?">
-            <strong>„{k.dateiname}“ wurde außerhalb von JuraBox geändert.</strong>
+            <strong>„{k.dateiname}“ wurde außerhalb von advOrdo geändert.</strong>
             <p>
               Gespeichert {k.geaendert_am ? zeitpunkt(k.geaendert_am) : ""}. Übernehmen legt die Datei als Fassung {nr}{" "}
               ab und liest Text, Normzitate und Datum neu ein. Die bisherigen Fassungen bleiben erhalten.

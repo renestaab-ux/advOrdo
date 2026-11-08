@@ -140,6 +140,20 @@ export function systemWillKontrast(): boolean {
 }
 let aktuell: Darstellung = VORGABE;
 
+/** Thema der Titelleiste für Tauri: „light“, „dark“ oder null (wie das System). */
+export function fensterThema(d: Darstellung): "light" | "dark" | null {
+  return d.thema === "system" ? null : d.thema === "dunkel" ? "dark" : "light";
+}
+
+/**
+ * Zuletzt an das Fenster gegebenes Thema. Die Toolbox bekommt es schon beim Anlegen (`thema=` in der Adresse);
+ * ein zweites Setzen direkt danach ließe unter Windows die Titelleiste schwarz und ohne sichtbare Knöpfe.
+ */
+let gesetztesThema: "light" | "dark" | null | undefined = (() => {
+  const t = typeof location !== "undefined" ? new URLSearchParams(location.search).get("thema") : null;
+  return t === "light" || t === "dark" ? t : t === "system" ? null : undefined;
+})();
+
 /** Ob die Oberfläche gerade dunkel ist; bei „Systemstandard“ nach der Einstellung des Betriebssystems. */
 export function istDunkel(d: Darstellung = aktuell): boolean {
   return d.thema === "dunkel" || (d.thema === "system" && !!systemDunkel?.matches);
@@ -158,9 +172,13 @@ export function darstellungAnwenden(d: Darstellung) {
   }
   if (istDesktop) {
     // Auch Titelleiste und Bedienelemente des Systems folgen der Wahl; null heißt „wie das System“.
-    void getCurrentWindow()
-      .setTheme(d.thema === "system" ? null : d.thema === "dunkel" ? "dark" : "light")
-      .catch(() => undefined);
+    const thema = fensterThema(d);
+    if (thema !== gesetztesThema) {
+      gesetztesThema = thema;
+      void getCurrentWindow()
+        .setTheme(thema)
+        .catch(() => undefined);
+    }
     void getCurrentWebview()
       .setZoom(d.schrift)
       .catch(() => undefined);
@@ -180,7 +198,7 @@ export function darstellungStarten() {
   systemKontrast?.addEventListener?.("change", () => darstellungAnwenden(aktuell));
 }
 
-/** Ob Bewegung vermieden werden soll: Schalter in JuraBox oder Einstellung des Betriebssystems. */
+/** Ob Bewegung vermieden werden soll: Schalter in advOrdo oder Einstellung des Betriebssystems. */
 export function bewegungVermeiden(): boolean {
   return aktuell.barrierefrei.bewegung || !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }

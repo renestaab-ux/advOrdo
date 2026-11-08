@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Rueckfrage } from "./Akte";
+import { Rueckfrage } from "./Rueckfrage";
 import { Umgebung, UmgebungsListe, kern } from "./kern";
 
 /**

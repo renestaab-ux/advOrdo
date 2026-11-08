@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DokumentAnsicht } from "./Akte";
+import { DokumentAnsicht } from "./DokumentAnsicht";
 import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
 import KiExport from "./Export";
+import { useAuftrag } from "./useAuftrag";
 import {
   ART_TEXT,
   EREIGNIS_ART_TEXT,
@@ -76,22 +77,18 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
 
   // Laufenden Auftrag jede Sekunde abfragen; danach die gespeicherten Ergebnisse neu laden.
   const laeuft = auftrag?.status === "laeuft";
-  useEffect(() => {
-    if (!laeuft || !auftrag) return;
-    const id = auftrag.auftrag_id;
-    const takt = window.setInterval(async () => {
-      try {
-        const stand = await kern<KiAuftrag>("ki.auftrag", { auftrag_id: id });
-        setAuftrag(stand);
-        if (stand.status === "fehler") setFehler(stand.fehler);
-        if (stand.status !== "laeuft" && akteId != null) await ladeErgebnisse(akteId);
-      } catch (e) {
-        setFehler(String(e));
-        setAuftrag(null);
-      }
-    }, 1000);
-    return () => window.clearInterval(takt);
-  }, [laeuft, auftrag?.auftrag_id, akteId, ladeErgebnisse]);
+  useAuftrag(
+    laeuft && auftrag ? auftrag.auftrag_id : null,
+    async (stand) => {
+      setAuftrag(stand);
+      if (stand.status === "fehler") setFehler(stand.fehler);
+      if (stand.status !== "laeuft" && akteId != null) await ladeErgebnisse(akteId);
+    },
+    (e) => {
+      setFehler(String(e));
+      setAuftrag(null);
+    },
+  );
 
   async function starte(aufgabe: KiAufgabe, params: Record<string, unknown>) {
     setFehler(null);

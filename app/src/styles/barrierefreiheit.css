@@ -1,0 +1,143 @@
+/* Barrierefreiheit (Einstellungen → Allgemeines). */
+
+/* ---------- Barrierefreiheit (Einstellungen → Allgemeines); darstellung.ts setzt data-kontrast, data-abstaende, data-fokus, data-bewegung an <html>. ---------- */
+.hilfen-liste { list-style: none; margin: 4px 0 8px; padding: 0 0 0 28px; display: grid; gap: 8px; }
+.hilfen-liste label { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.hilfen-liste input { width: 18px; height: 18px; }
+.hilfen-liste p { margin: 2px 0 0 28px; }
+.barrierefrei-schalter input { accent-color: var(--knopf); }
+
+/* Hoher Kontrast: Schrift mindestens 7:1, Ränder und Bedienelemente mindestens 3:1 zum Hintergrund (WCAG AA, Text weitgehend AAA). */
+:root[data-kontrast="an"] {
+  --hintergrund: #ffffff;
+  --flaeche: #ffffff;
+  --text: #000000;
+  --text-leise: #333333;
+  --linie: #595959;
+  --gut: #1a5226;
+  --warnung: #6b4500;
+  --fehler: #8a1f1f;
+  --gefahr: #8a1f1f;
+  --feld: #ffffff;
+  --schatten: none;
+}
+:root[data-thema="dunkel"][data-kontrast="an"] {
+  --hintergrund: #000000;
+  --flaeche: #121212;
+  --text: #ffffff;
+  --text-leise: #d6d6d6;
+  --linie: #a6a6a6;
+  --gut: #9be0a8;
+  --warnung: #ffd479;
+  --fehler: #ffaaaa;
+  --gefahr: #ffc4c1;
+  --feld: #000000;
+}
+:root[data-kontrast="an"] .navigation { --text-leise: #e6ebf0; --linie: rgba(255, 255, 255, 0.45); }
+:root[data-kontrast="an"] input,
+:root[data-kontrast="an"] select,
+:root[data-kontrast="an"] textarea,
+:root[data-kontrast="an"] .segment { border-color: var(--text-leise); }
+:root[data-kontrast="an"] input::placeholder, :root[data-kontrast="an"] textarea::placeholder { opacity: 1; }
+:root[data-kontrast="an"] button.link, :root[data-kontrast="an"] a { text-decoration: underline; text-underline-offset: 2px; }
+:root[data-kontrast="an"] button:disabled { opacity: 0.65; border-style: dashed; }
+/* Ampeln nicht nur über die Farbe: rot eckig, gelb als Raute, grün rund. */
+:root[data-kontrast="an"] .ampel-punkt.ampel-rot, :root[data-kontrast="an"] .ampel-rot .ampel-punkt, :root[data-kontrast="an"] li.vorab-rot .ampel-punkt { border-radius: 1px; }
+:root[data-kontrast="an"] .ampel-punkt.ampel-gelb, :root[data-kontrast="an"] .ampel-gelb .ampel-punkt, :root[data-kontrast="an"] li.vorab-gelb .ampel-punkt { border-radius: 1px; transform: rotate(45deg) scale(0.85); }
+/* Nur beim Überfahren sichtbare Knöpfe stehen dauerhaft da. */
+:root[data-kontrast="an"] .lz-knopf { opacity: 1; }
+
+/* Mehr Abstand und größere Klickflächen (mindestens 36 px, WCAG 2.5.8 verlangt 24 px). */
+:root[data-abstaende="an"] body { line-height: 1.6; }
+:root[data-abstaende="an"] button:not(.link):not(.lz-knopf),
+:root[data-abstaende="an"] input:not([type="checkbox"]):not([type="radio"]),
+:root[data-abstaende="an"] select { min-height: 36px; }
+:root[data-abstaende="an"] input[type="checkbox"], :root[data-abstaende="an"] input[type="radio"] { width: 20px; height: 20px; }
+:root[data-abstaende="an"] .nav-eintrag { padding-top: 11px; padding-bottom: 11px; }
+:root[data-abstaende="an"] td, :root[data-abstaende="an"] th { padding-top: 8px; padding-bottom: 8px; }
+:root[data-abstaende="an"] p, :root[data-abstaende="an"] li { margin-bottom: 0.4em; }
+
+/* Deutlicher Tastaturrahmen: breit, in Signalfarbe und mit hellem bzw. dunklem Saum, damit er auf jedem Hintergrund auffällt. */
+:root { --fokus: #b34700; --fokus-saum: #ffffff; }
+:root[data-thema="dunkel"] { --fokus: #ffcc33; --fokus-saum: #000000; }
+.navigation { --fokus: #ffcc33; --fokus-saum: #000000; }
+:root[data-fokus="an"] :focus-visible:not(main) {
+  outline: 3px solid var(--fokus) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 6px var(--fokus-saum) !important;
+}
+
+/* Bewegung reduzieren: per Schalter oder wenn das Betriebssystem Animationen abschaltet (Windows: Animationseffekte aus). */
+:root[data-bewegung="an"] *, :root[data-bewegung="an"] *::before, :root[data-bewegung="an"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Kontrastdesign von Windows (erzwungene Farben): gewählte Knöpfe und Reiter bleiben erkennbar, Farbmuster behalten ihre Farbe. */
+@media (forced-colors: active) {
+  button.segment-knopf.aktiv, [aria-pressed="true"], [aria-selected="true"], .nav-eintrag.aktiv { outline: 2px solid Highlight; outline-offset: -2px; }
+  :focus-visible:not(main) { outline: 3px solid Highlight !important; outline-offset: 2px; }
+  .ampel-punkt, .modus-punkt, .farbmuster { forced-color-adjust: none; }
+  /* Unsichtbare Platzhalter-Ränder (für den Strich am gewählten Eintrag) würden im Kontrastdesign als Linien
+     erscheinen: in Hintergrundfarbe zeichnen, nur am gewählten Eintrag bzw. Ablageziel in Markierungsfarbe. */
+  .nav-eintrag, button.akte-reiter-knopf, .dok-modi button.dok-modus, .lz-zeile { border-color: Canvas; }
+  .nav-eintrag.aktiv, button.akte-reiter-knopf.aktiv, .dok-modi button.dok-modus.aktiv { border-color: Highlight; }
+  .lz-zeile.lz-ziel-vor { border-top-color: Highlight; }
+  .lz-zeile.lz-ziel-nach { border-bottom-color: Highlight; }
+}
+
+/* Nur für Bildschirmleser: unsichtbar, aber vorgelesen. */
+.nur-vorlesen, .frist-lage-text {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+:root[data-kontrast="an"] .frist-lage-text { position: static; width: auto; height: auto; margin: 0 0 0 4px; clip: auto; overflow: visible; font-size: 0.85em; font-weight: 600; }
+:root[data-kontrast="an"] button[aria-pressed="true"]:not(.segment-knopf):not(.link) { box-shadow: inset 0 0 0 2px var(--text); }
+
+/* „Zum Inhalt springen“: erster Halt der Tabulatortaste, nur sichtbar, solange er den Fokus hat. */
+.zum-inhalt { position: absolute; left: 8px; top: -60px; z-index: 2000; padding: 8px 14px; border-radius: 6px; background: var(--knopf); color: var(--knopf-text); font-weight: 600; text-decoration: none; }
+.zum-inhalt:focus { top: 8px; outline: 3px solid var(--fokus); outline-offset: 2px; }
+main.inhalt:focus { outline: none; }
+.raster-zeile { display: contents; }
+/* Kleine Pfeilknöpfe mindestens 24 × 24 px (WCAG 2.5.8), im Abstandsmodus auch Verweisknöpfe. */
+button.link.klein[aria-label] { min-width: 24px; min-height: 24px; }
+:root[data-abstaende="an"] button.link { min-height: 24px; }
+/* Reiterliste der Dokumentansicht nur als Rolle; die Knöpfe stehen weiter in der Reihe von .dok-modi. */
+.dok-modi-reiter { display: contents; }
+/* Leise Angaben in der gewählten Zeile kräftiger, damit sie auf dem getönten Grund 4,5 : 1 erreichen. */
+.dokumente tr.aktiv .herkunft { color: color-mix(in srgb, var(--text-leise) 65%, var(--text)); }
+/* Verschieben ohne Ziehen: Griff ist ein Knopf (Pfeiltasten), ▲ ▼ erscheinen beim Überfahren oder mit der Tastatur. */
+.lz-schieber { display: inline-flex; align-items: center; }
+button.lz-griff { background: none; border: none; padding: 2px; color: var(--text-leise); border-radius: 4px; }
+.lz-schritt { font-size: 10px !important; min-width: 24px; min-height: 24px; }
+.lz-zeile:hover .lz-schritt, .lz-ordner-kopf:hover .lz-schritt, .lz-schieber:focus-within .lz-schritt { opacity: 1; }
+
+/* WCAG 2.2, 2.4.11 Fokus nicht verdeckt: Beim Ansteuern mit der Tastatur bleibt Abstand zu klebenden Kopfzeilen
+   (Dokumentansicht, Volltext) und zu Leisten unten (Warteanzeige, Knopfleiste „Aus Dokument“). */
+:where(a, button, input, select, textarea, summary, [tabindex]) { scroll-margin-block: 96px 96px; }
+.trenner:focus-visible { opacity: 1; background: var(--akzent); outline: 2px solid var(--akzent); outline-offset: 2px; }
+:root[data-kontrast="an"] .trenner { opacity: 1; background: var(--text-leise); }
+/* Greiffläche der Trennlinie 24 px breit (2.5.8), sichtbar bleibt die schmale Linie. */
+.trenner { position: relative; }
+.trenner::before { content: ""; position: absolute; inset: 0 -9px; }
+li button.link:not(.klein), td button.link { min-height: 24px; }
+
+/* WCAG 1.4.4/1.4.10: Bei „Doppelt“ (200 %) bleibt das Fenster schmal; Leiste schmaler, Kopfband und Reiter brechen um,
+   statt seitlich abgeschnitten zu werden. Tabellen dürfen weiter seitlich rollen (Ausnahme in 1.4.10). */
+@media (max-width: 760px) {
+  .rahmen:not(.eingeklappt) { grid-template-columns: 170px minmax(0, 1fr); }
+  .kopfband { flex-wrap: wrap; gap: 10px 16px; padding: 14px 16px; }
+  .akte-reiter { flex-wrap: wrap; overflow-x: visible; padding-left: 12px; padding-right: 12px; }
+  .inhalt { padding: 16px; }
+  .nav-eintrag, .modus { white-space: normal; }
+}
+.feld-hinweis.warnhinweis { color: var(--warnung); }

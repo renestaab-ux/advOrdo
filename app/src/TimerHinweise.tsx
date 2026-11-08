@@ -9,7 +9,7 @@ type Frage = { art: "start" | "beenden"; laufend: ZeitLaufend };
 /**
  * Hinweise zum laufenden Timer der Zeiterfassung, nur im Hauptfenster:
  * - beim Start der App, wenn noch ein Timer läuft (er zählt auch bei geschlossener App weiter),
- * - beim Beenden (Fenster schließen, macOS „JuraBox beenden“): anhalten, weiterlaufen lassen oder abbrechen.
+ * - beim Beenden (Fenster schließen, macOS „advOrdo beenden“): anhalten, weiterlaufen lassen oder abbrechen.
  *   Rust hält das Beenden an und meldet „beenden-angefragt“ (src-tauri/src/beenden.rs).
  */
 export default function TimerHinweise({ onAkte }: { onAkte: (akteId: number) => void }) {

@@ -92,7 +92,7 @@ export default function VerfahrenAusDokument({
     <div className="verfahren-aus-dokument">
       <h3>Verfahren aus Dokument übernehmen</h3>
       <p className="erklaerung">
-        JuraBox liest Gericht, Aktenzeichen und Parteien aus dem Dokument und zeigt sie mit Fundstelle zur Prüfung.
+        advOrdo liest Gericht, Aktenzeichen und Parteien aus dem Dokument und zeigt sie mit Fundstelle zur Prüfung.
       </p>
       <div className="quelle-wahl">
         <label className="feld">

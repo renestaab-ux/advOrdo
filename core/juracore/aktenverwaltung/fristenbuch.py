@@ -4,7 +4,7 @@
   abgelaufenen, nicht erledigten Fristen und Wiedervorlagen, auch wenn sie vor dem Zeitraum liegen, danach unter
   „Dringend“ die offenen Fristen, die in den nächsten Tagen ablaufen (hervorgehoben). Es folgen je Art ein eigener
   Abschnitt (Termine, Fristen, Vorfristen, Wiedervorlagen), darin nach Tagen; Excel bekommt je Abschnitt ein Blatt.
-- Kalenderdatei (.ics, iCalendar nach RFC 5545) zum Einlesen in Outlook, Apple- oder Google-Kalender. JuraBox
+- Kalenderdatei (.ics, iCalendar nach RFC 5545) zum Einlesen in Outlook, Apple- oder Google-Kalender. advOrdo
   schreibt nur die Datei; ein Abgleich über das Netz findet nicht statt.
 
 Der Filter entspricht dem des Kalenders in der App (app/src/kalenderLogik.ts): Arten, Zustand, Akte, Gericht, nur
@@ -215,7 +215,7 @@ def bericht(con: sqlite3.Connection, von: str, bis: str, filter: dict | None = N
         tabellen.append(Tabelle(ueberschrift, list(_SPALTEN), [_tabellenzeile(p) for p in teil], _BREITEN))
     if not f["arten"]:
         bausteine.append(Absatz("Keine Art ausgewählt.", leise=True))
-    bausteine.append(Absatz("Erstellt mit JuraBox aus den eingetragenen Fristen, Terminen und Wiedervorlagen. "
+    bausteine.append(Absatz("Erstellt mit advOrdo aus den eingetragenen Fristen, Terminen und Wiedervorlagen. "
                             "Vorschläge aus Dokumenten sind nur enthalten, soweit sie eingetragen wurden; die "
                             "eigene Fristenkontrolle ersetzt das Fristenbuch nicht.", leise=True))
     return Bericht(f"Fristenbuch {von[8:10]}.{von[5:7]}.{von[:4]} bis {bis[8:10]}.{bis[5:7]}.{bis[:4]}",
@@ -277,8 +277,8 @@ def ics(con: sqlite3.Connection, von: str, bis: str, filter: dict | None = None,
     enthält die Arbeitsumgebung, weil jede Umgebung ihre Einträge eigenständig nummeriert."""
     kennung = re.sub(r"[^a-z0-9-]+", "-", umgebung.casefold()).strip("-") or "standard"
     stempel = (jetzt or datetime.now()).strftime("%Y%m%dT%H%M%S")
-    zeilen = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//JuraBox//Kalender//DE", "CALSCALE:GREGORIAN",
-              "METHOD:PUBLISH", "X-WR-CALNAME:JuraBox Fristen und Termine"]
+    zeilen = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//advOrdo//Kalender//DE", "CALSCALE:GREGORIAN",
+              "METHOD:PUBLISH", "X-WR-CALNAME:advOrdo Fristen und Termine"]
     for p in posten(kalender.zeitraum(con, von, bis, heute), filter, von, bis):
         e = p["eintrag"]
         tag = date.fromisoformat(p["tag"])

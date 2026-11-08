@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BARRIEREFREI_AN, BARRIEREFREI_AUS, VORGABE, darstellungLesen, modusAn, modusSetzen } from "./darstellung";
+import { BARRIEREFREI_AN, BARRIEREFREI_AUS, VORGABE, darstellungLesen, fensterThema, modusAn, modusSetzen } from "./darstellung";
 
 describe("darstellungLesen", () => {
   it("übernimmt gültige Werte", () => {
@@ -45,5 +45,13 @@ describe("barrierefreier Modus", () => {
 
   it("Extra groß ist eine gültige Schriftgröße", () => {
     expect(darstellungLesen('{"schrift":1.5}').schrift).toBe(1.5);
+  });
+});
+
+describe("fensterThema", () => {
+  it("übersetzt die Wahl für die Titelleiste", () => {
+    expect(fensterThema({ ...VORGABE, thema: "hell" })).toBe("light");
+    expect(fensterThema({ ...VORGABE, thema: "dunkel" })).toBe("dark");
+    expect(fensterThema(VORGABE)).toBeNull();
   });
 });

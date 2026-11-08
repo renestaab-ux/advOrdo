@@ -1,11 +1,12 @@
 import { KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
-import { DokumentAnsicht } from "./Akte";
+import { DokumentAnsicht } from "./DokumentAnsicht";
 import { FundstelleZeile, Offen } from "./Analyse";
 import { Zitatbereich, ZitateSchalter, useZitateZeigen } from "./Belege";
 import { GegenueberstellungListe } from "./Gegenueberstellung";
 import { gemerkt, merke } from "./merken";
 import { FristAusgabe, ZinsAusgabe, gespeichertesLand } from "./Toolbox";
 import { KostenAusgabe } from "./Prozesskosten";
+import { useAuftrag } from "./useAuftrag";
 import {
   ChatAussage,
   ChatBerechnung,
@@ -118,27 +119,23 @@ export default function Chat({
 
   // Laufende Frage jede Sekunde abfragen; danach den Verlauf neu laden.
   const laeuft = auftrag?.status === "laeuft";
-  useEffect(() => {
-    if (!laeuft || !auftrag) return;
-    const id = auftrag.auftrag_id;
-    const takt = window.setInterval(async () => {
-      try {
-        const stand = await kern<KiAuftrag>("ki.auftrag", { auftrag_id: id });
-        setAuftrag(stand);
-        if (stand.status === "laeuft") return;
-        if (stand.status === "fehler") {
-          setFehler(stand.fehler);
-          setEingabe((alt) => alt || gestellt || "");
-        }
-        setGestellt(null);
-        await ladeVerlauf();
-      } catch (e) {
-        setFehler(String(e));
-        setAuftrag(null);
+  useAuftrag(
+    laeuft && auftrag ? auftrag.auftrag_id : null,
+    async (stand) => {
+      setAuftrag(stand);
+      if (stand.status === "laeuft") return;
+      if (stand.status === "fehler") {
+        setFehler(stand.fehler);
+        setEingabe((alt) => alt || gestellt || "");
       }
-    }, 1000);
-    return () => window.clearInterval(takt);
-  }, [laeuft, auftrag?.auftrag_id, ladeVerlauf, gestellt]);
+      setGestellt(null);
+      await ladeVerlauf();
+    },
+    (e) => {
+      setFehler(String(e));
+      setAuftrag(null);
+    },
+  );
 
   useEffect(() => {
     ende.current?.scrollIntoView({ block: "nearest" });

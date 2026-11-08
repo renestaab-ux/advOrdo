@@ -8,7 +8,7 @@ import App from "./App";
 /**
  * Automatische Prüfung auf Barrieren (axe-core, Regeln nach WCAG 2.2 A/AA) in der Vorschau ohne Kern:
  * jeder Bereich der Leiste und jeder Reiter der Einstellungen, einmal normal und einmal im barrierefreien Modus.
- * Farbkontraste kann jsdom nicht berechnen; die stehen fest in styles.css.
+ * Farbkontraste kann jsdom nicht berechnen; die stehen fest in styles/grundlagen.css und styles/barrierefreiheit.css.
  */
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -24,6 +24,7 @@ beforeAll(async () => {
   document.body.appendChild(behaelter);
   wurzel = createRoot(behaelter);
   await act(async () => wurzel.render(<App />));
+  await geladen();
 });
 
 afterAll(() => {
@@ -44,6 +45,17 @@ async function klicke(el: Element) {
   await act(async () => {
     (el as HTMLElement).click();
   });
+  await geladen();
+}
+
+/** Bereiche werden erst beim Öffnen geladen (React.lazy): warten, bis statt „Lade …“ der Bereich dasteht. */
+async function geladen() {
+  for (let i = 0; i < 200 && document.querySelector("main [role='status']")?.textContent === "Lade …"; i++) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+  }
+  expect(document.querySelector("main [role='status']")?.textContent).not.toBe("Lade …");
 }
 
 function knopf(text: string, wo: ParentNode = document): HTMLElement {

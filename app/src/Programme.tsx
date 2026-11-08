@@ -4,7 +4,7 @@ import { ProgrammArt, ProgrammEinstellung, kern, programmName } from "./kern";
 
 type Programme = Record<ProgrammArt, ProgrammEinstellung>;
 
-/** Einstellungen: mit welchem Programm PDFs und Word-Dateien außerhalb von JuraBox geöffnet werden. */
+/** Einstellungen: mit welchem Programm PDFs und Word-Dateien außerhalb von advOrdo geöffnet werden. */
 export default function Programme() {
   const [programme, setProgramme] = useState<Programme | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export default function Programme() {
     <section className="karte">
       <h2>Programme</h2>
       <p className="erklaerung">
-        Mit „Öffnen“ und „Bearbeiten“ an einem Dokument übergibt JuraBox die Datei an diese Programme. Jedes Programm
+        Mit „Öffnen“ und „Bearbeiten“ an einem Dokument übergibt advOrdo die Datei an diese Programme. Jedes Programm
         ist möglich, etwa LibreOffice, Microsoft Word oder ein PDF-Programm Ihrer Wahl. Die Einstellung gilt für dieses
         Gerät.
       </p>

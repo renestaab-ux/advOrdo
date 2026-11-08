@@ -35,7 +35,7 @@ def entpacke(z: zipfile.ZipFile, name: str | zipfile.ZipInfo, grenze: int = GROE
     return daten
 
 
-def begrenze(antwort, grenze: int = GROESSTE_ANTWORT):  # noqa: ANN001, ANN201 - urllib-Antwort
+def begrenze(antwort, grenze: int = GROESSTE_ANTWORT):
     """Lässt ``antwort.read()`` höchstens ``grenze`` Bytes liefern und bricht sonst mit ZuGross ab."""
     laenge = (getattr(antwort, "headers", None) or {}).get("Content-Length")
     if laenge and str(laenge).strip().isdigit() and int(laenge) > grenze:

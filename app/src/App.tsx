@@ -1,14 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import Akten, { Reiter } from "./Akten";
-import EigeneDaten from "./EigeneDaten";
-import Einstellungen, { EinstellungsReiter } from "./Einstellungen";
-import Gesetze from "./Gesetze";
-import Kalender from "./Kalender";
-import Rechtsprechung from "./Rechtsprechung";
-import Beteiligte from "./Beteiligte";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import type { Reiter } from "./Akten";
+import type { EinstellungsReiter } from "./Einstellungen";
 import Start, { StartZiel } from "./Start";
-import Suche from "./Suche";
-import Toolbox from "./Toolbox";
 import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
 import { gemerkt, merke } from "./merken";
@@ -18,6 +11,7 @@ import TimerHinweise from "./TimerHinweise";
 import Hintergrund from "./Hintergrund";
 import { KiAn } from "./kiSchalter";
 import { bereichAusTaste } from "./barrierefrei";
+import { darstellungLesen, fensterThema } from "./darstellung";
 import {
   KiModus,
   Marke,
@@ -33,6 +27,17 @@ import {
 import jurabox from "./bilder/jurabox-64.png";
 
 type Bereich = "start" | "eigene" | "toolbox" | "akten" | "kalender" | "beteiligte" | "suche" | "rechtsprechung" | "gesetze" | "einstellungen";
+
+// Die Bereiche werden erst beim ersten Öffnen geladen; die Startseite ist sofort da.
+const Akten = lazy(() => import("./Akten"));
+const Beteiligte = lazy(() => import("./Beteiligte"));
+const EigeneDaten = lazy(() => import("./EigeneDaten"));
+const Einstellungen = lazy(() => import("./Einstellungen"));
+const Gesetze = lazy(() => import("./Gesetze"));
+const Kalender = lazy(() => import("./Kalender"));
+const Rechtsprechung = lazy(() => import("./Rechtsprechung"));
+const Suche = lazy(() => import("./Suche"));
+const Toolbox = lazy(() => import("./Toolbox"));
 
 // Vergleich und Analyse sind Reiter in der geöffneten Akte; die Toolbox und Eigene Daten erreicht man über Start,
 // die Rechtsquellen (Verzeichnisse der Rechtsprechung) über die Einstellungen.
@@ -143,7 +148,7 @@ export default function App() {
       setBereich("einstellungen");
     } else if (ziel === "toolbox") {
       // Die Toolbox hat ein eigenes Fenster; im Browser (ohne Desktop-App) erscheint sie hier.
-      if (istDesktop) await invoke("toolbox_oeffnen");
+      if (istDesktop) await invoke("toolbox_oeffnen", { thema: fensterThema(darstellungLesen()) });
       else setBereich("toolbox");
     }
   }
@@ -157,16 +162,16 @@ export default function App() {
         Zum Inhalt springen
       </a>
       <nav className="navigation" aria-label="Bereiche">
-        {/* Auf der Startseite stehen Logo und Name groß im Kopfband; die Leiste zeigt dort nur JuraBox. */}
+        {/* Auf der Startseite stehen Logo und Name groß im Kopfband; die Leiste zeigt dort nur advOrdo. */}
         {bereich === "start" ? (
-          <div className="marke" title="JuraBox">
+          <div className="marke" title="advOrdo">
             <img className="marke-zeichen" src={jurabox} alt="" aria-hidden />
-            <span className="nav-text">JuraBox</span>
+            <span className="nav-text">advOrdo</span>
           </div>
         ) : (
-          <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "JuraBox"}>
+          <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "advOrdo"}>
             <img className="marke-zeichen" src={marke?.logo ?? jurabox} alt="" aria-hidden />
-            <span className="nav-text">{marke?.kurzbezeichnung || "JuraBox"}</span>
+            <span className="nav-text">{marke?.kurzbezeichnung || "advOrdo"}</span>
           </div>
         )}
         {BEREICHE.map((b, i) => (
@@ -270,6 +275,7 @@ export default function App() {
           className={bereich === "akten" && (akteId != null || anlegen) ? "inhalt ohne-rand" : "inhalt"}
           key={stand}
         >
+          <Suspense fallback={<p className="hinweis" role="status">Lade …</p>}>
           {bereich === "start" && (
             <Start
               onWahl={(z) => void starte(z)}
@@ -313,6 +319,7 @@ export default function App() {
               onAkten={() => setBereich("akten")}
             />
           )}
+          </Suspense>
         </main>
       </KiAn.Provider>
     </div>
