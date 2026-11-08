@@ -92,6 +92,8 @@ body { margin: 0; background: var(--hintergrund); }
 /* Hintergrund eines eigenen Logos (Einstellungen → Allgemeines): weißer Rahmen oder Farbakzent. */
 .logo-grund-weiss { background: #ffffff; }
 .logo-grund-akzent { background: var(--logo-akzent); }
+/* Leiste und Kopfband sind selbst schon im Farbakzent: dort ohne eigene Fläche, damit kein Kasten vom Verlauf absticht. */
+.marke-zeichen.logo-grund-akzent, .start-logo.logo-grund-akzent { background: transparent; }
 .marke.mit-logo .nav-text { white-space: normal; font-size: 15px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .eingeklappt .marke.mit-logo { margin-left: 0; justify-content: center; }
 .eingeklappt .marke.mit-logo .marke-zeichen { max-width: 40px; }
