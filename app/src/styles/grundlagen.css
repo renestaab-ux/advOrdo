@@ -13,6 +13,8 @@
   /* Gefüllte Knöpfe, Eingabefelder und das dunkle Kopfband; im Dunkelmodus eigene Werte für guten Kontrast. */
   --knopf: #24476b;
   --knopf-text: #ffffff;
+  /* Fläche hinter einem eigenen Logo im Farbakzent; hier auf :root festgelegt, weil die Leiste --knopf überschreibt. */
+  --logo-akzent: var(--knopf);
   --feld: #ffffff;
   --band: linear-gradient(100deg, #1b3550, #27507a);
   --band-text: #f3f6fa;
@@ -85,7 +87,10 @@ body { margin: 0; background: var(--hintergrund); }
 .eingeklappt .nav-text { display: none; }
 .eingeklappt .marke { margin-left: 5px; }
 /* Eigenes Logo statt des advOrdo-Zeichens; breite Logos dürfen breiter sein, eingeklappt passt es in die Leiste. */
-.marke.mit-logo .marke-zeichen { width: auto; height: 36px; max-width: 60px; object-fit: contain; background: #ffffff; border-radius: 6px; padding: 3px; }
+.marke.mit-logo .marke-zeichen { width: auto; height: 36px; max-width: 60px; object-fit: contain; border-radius: 6px; padding: 3px; }
+/* Hintergrund eines eigenen Logos (Einstellungen → Allgemeines): weißer Rahmen oder Farbakzent. */
+.logo-grund-weiss { background: #ffffff; }
+.logo-grund-akzent { background: var(--logo-akzent); }
 .marke.mit-logo .nav-text { white-space: normal; font-size: 15px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .eingeklappt .marke.mit-logo { margin-left: 0; justify-content: center; }
 .eingeklappt .marke.mit-logo .marke-zeichen { max-width: 40px; }

@@ -13,7 +13,7 @@
 .start-kopf { gap: 22px; padding-top: 14px; padding-bottom: 14px; }
 .start-kopf h1 { font-size: 24px; }
 .start-kopf > div { flex: 1; min-width: 0; }
-.start-logo { flex: none; height: 76px; max-width: 220px; object-fit: contain; background: #ffffff; border-radius: 8px; padding: 5px; }
+.start-logo { flex: none; height: 76px; max-width: 220px; object-fit: contain; border-radius: 8px; padding: 5px; }
 .kacheln { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 @media (max-width: 760px) { .kacheln { grid-template-columns: 1fr; } }
 .kachel { display: grid; grid-template-columns: 72px 1fr; grid-template-rows: auto auto; column-gap: 18px; align-items: center; text-align: left;

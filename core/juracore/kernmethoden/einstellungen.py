@@ -44,12 +44,14 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "eigene.aenderungen": lambda limit=50: eigene.aenderungen(k.akten, limit),
         "eigene.exportieren": lambda pfad: eigene.exportieren(k.akten, pfad),
         "eigene.importieren": lambda pfad, ersetzen=False: eigene.importieren(k.akten, pfad, ersetzen),
-        # Logo und Kurzbezeichnung für Leiste und Startseite (Einstellungen → Allgemeines), je Umgebung.
+        # Logo, Kurzbezeichnung und Logo-Hintergrund (Einstellungen → Allgemeines), je Umgebung.
         "marke.lesen": lambda: marke.lesen(k.umgebungen.ordner(), k.akten),
         "marke.logo_setzen": lambda pfad: marke.logo_setzen(k.umgebungen.ordner(), k.akten, pfad),
         "marke.logo_entfernen": lambda: marke.logo_entfernen(k.umgebungen.ordner(), k.akten),
         "marke.druckbild_setzen": lambda png: marke.druckbild_setzen(k.umgebungen.ordner(), k.akten, png),
         "marke.kurz_setzen": lambda text: marke.kurz_setzen(k.umgebungen.ordner(), k.akten, text),
+        "marke.hintergrund_setzen": lambda hintergrund: marke.hintergrund_setzen(
+            k.umgebungen.ordner(), k.akten, hintergrund),
         "ocr.status": ocr.status,
         "diagnose.liste": diagnose.liste,
         "diagnose.pruefen": lambda pruef_id: diagnose.pruefe(k, pruef_id),

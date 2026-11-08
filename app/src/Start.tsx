@@ -6,6 +6,7 @@ import {
   KalenderEintrag,
   KiModus,
   Marke,
+  logoGrundKlasse,
   NachrichtenListe,
   abstandText,
   akteTitel,
@@ -60,7 +61,7 @@ export default function Start({
   return (
     <div className="start">
       <header className="kopfband start-kopf">
-        {marke?.logo && <img className="start-logo" src={marke.logo} alt="Logo" />}
+        {marke?.logo && <img className={`start-logo ${logoGrundKlasse(marke)}`} src={marke.logo} alt="Logo" />}
         <div>
           <p className="kopfband-ueber">{marke?.name ? "Willkommen bei advOrdo" : "Startseite"}</p>
           <h1>{marke?.name || "Willkommen bei advOrdo"}</h1>

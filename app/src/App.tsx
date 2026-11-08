@@ -15,6 +15,7 @@ import { darstellungLesen, fensterThema } from "./darstellung";
 import {
   KiModus,
   Marke,
+  logoGrundKlasse,
   UmgebungsListe,
   aktiveUmgebung,
   istDesktop,
@@ -205,7 +206,12 @@ export default function App() {
           </div>
         ) : (
           <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "advOrdo"}>
-            <img className="marke-zeichen" src={marke?.logo ?? advordo} alt="" aria-hidden />
+            <img
+              className={marke?.logo ? `marke-zeichen ${logoGrundKlasse(marke)}` : "marke-zeichen"}
+              src={marke?.logo ?? advordo}
+              alt=""
+              aria-hidden
+            />
             <span className="nav-text">{marke?.kurzbezeichnung || "advOrdo"}</span>
           </div>
         )}

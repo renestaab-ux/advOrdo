@@ -23,7 +23,17 @@ import {
   modusSetzen,
   systemWillKontrast,
 } from "./darstellung";
-import { KiStatus, Marke, UmgebungsListe, groesseText, istDesktop, kern, unverschluesseltImNetz } from "./kern";
+import {
+  KiStatus,
+  LogoHintergrund,
+  logoGrundKlasse,
+  Marke,
+  UmgebungsListe,
+  groesseText,
+  istDesktop,
+  kern,
+  unverschluesseltImNetz,
+} from "./kern";
 
 const KONTEXTE = [8192, 16384, 32768];
 const KONTEXTE_EXTERN = [32768, 131072];
@@ -532,6 +542,11 @@ function Allgemeines() {
   );
 }
 
+const LOGO_HINTERGRUENDE: { id: LogoHintergrund; titel: string }[] = [
+  { id: "weiss", titel: "Weißer Rahmen" },
+  { id: "akzent", titel: "Farbakzent" },
+];
+
 /** Kanzlei- bzw. Firmenlogo und Kurzbezeichnung: oben in der Leiste klein, auf der Startseite groß mit dem Namen. */
 function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke) => void }) {
   const [kurz, setKurz] = useState(marke?.kurzbezeichnung ?? "");
@@ -580,7 +595,13 @@ function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke
       <div className="darstellung-gruppe">
         <h3>Kanzlei- oder Firmenlogo</h3>
         <div className="logo-zeile">
-          <div className="logo-vorschau">{marke?.logo ? <img src={marke.logo} alt="Logo" /> : <span className="leise">kein Logo</span>}</div>
+          <div className="logo-vorschau">
+            {marke?.logo ? (
+              <img className={logoGrundKlasse(marke)} src={marke.logo} alt="Logo" />
+            ) : (
+              <span className="leise">kein Logo</span>
+            )}
+          </div>
           <div className="aktionen">
             <button className="zweitrangig" onClick={() => void waehlen()} disabled={laeuft}>
               {marke?.logo ? "Anderes Logo wählen …" : "Logo wählen …"}
@@ -594,6 +615,28 @@ function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke
         </div>
         <p className="leise">PNG, JPG, SVG oder WebP bis 2 MB; am besten mit transparentem Hintergrund.</p>
       </div>
+
+      {marke?.logo && (
+        <div className="darstellung-gruppe">
+          <h3 id="logo-hintergrund">Hintergrund des Logos</h3>
+          <div className="wahl-reihe" role="group" aria-labelledby="logo-hintergrund">
+            {LOGO_HINTERGRUENDE.map((h) => (
+              <button
+                key={h.id}
+                aria-pressed={(marke.hintergrund ?? "weiss") === h.id}
+                onClick={() => void setze("marke.hintergrund_setzen", { hintergrund: h.id })}
+                disabled={laeuft}
+              >
+                {h.titel}
+              </button>
+            ))}
+          </div>
+          <p className="leise">
+            Ein dunkles oder farbiges Logo wirkt meist im weißen Rahmen am besten, ein helles oder weißes Logo auf dem
+            Farbakzent. Gilt für Leiste und Startseite, nicht für den Briefkopf in Word.
+          </p>
+        </div>
+      )}
 
       <form
         className="darstellung-gruppe"
