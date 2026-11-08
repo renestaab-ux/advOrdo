@@ -24,7 +24,7 @@ import {
   uhrText,
   zeitGeaendert,
 } from "./kern";
-import jurabox from "./bilder/jurabox-64.png";
+import advordo from "./bilder/advordo-128.png";
 
 type Bereich = "start" | "eigene" | "toolbox" | "akten" | "kalender" | "beteiligte" | "suche" | "rechtsprechung" | "gesetze" | "einstellungen";
 
@@ -165,12 +165,12 @@ export default function App() {
         {/* Auf der Startseite stehen Logo und Name groß im Kopfband; die Leiste zeigt dort nur advOrdo. */}
         {bereich === "start" ? (
           <div className="marke" title="advOrdo">
-            <img className="marke-zeichen" src={jurabox} alt="" aria-hidden />
+            <img className="marke-zeichen" src={advordo} alt="" aria-hidden />
             <span className="nav-text">advOrdo</span>
           </div>
         ) : (
           <div className={marke?.logo ? "marke mit-logo" : "marke"} title={marke?.kurzbezeichnung || "advOrdo"}>
-            <img className="marke-zeichen" src={marke?.logo ?? jurabox} alt="" aria-hidden />
+            <img className="marke-zeichen" src={marke?.logo ?? advordo} alt="" aria-hidden />
             <span className="nav-text">{marke?.kurzbezeichnung || "advOrdo"}</span>
           </div>
         )}
