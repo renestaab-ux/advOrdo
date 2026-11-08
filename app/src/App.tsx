@@ -56,6 +56,17 @@ const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
  * Nach Alt + Zahl: Fokus auf die Überschrift des neuen Bereichs, damit die Sprachausgabe sie vorliest (auf dem
  * Hauptbereich allein nannte Windows nur die gedrückte Zahl). Bereiche laden teils nach; daher kurz warten.
  */
+/** Kurze Ansage für Bildschirmleser über den versteckten Statusbereich #ansage. */
+function ansagen(text: string) {
+  const el = document.getElementById("ansage");
+  if (!el) return;
+  // Erst leeren, dann setzen: Sonst sagt der Bildschirmleser denselben Text nicht ein zweites Mal an.
+  el.textContent = "";
+  window.setTimeout(() => {
+    el.textContent = text;
+  }, 150);
+}
+
 function zurUeberschrift(alt: Element | null, versuch = 0) {
   window.setTimeout(() => {
     const inhalt = document.getElementById("inhalt");
@@ -163,6 +174,8 @@ export default function App() {
       bereichWaehlen(BEREICHE[i].id);
       // Danach liest der Bildschirmleser die neue Seite ab ihrer Überschrift.
       zurUeberschrift(alt);
+      // Die Windows-Sprachausgabe nennt beim Fokus auf der Überschrift teils nur „Überschrift Ebene 1“.
+      ansagen(BEREICHE[i].titel);
     }
     window.addEventListener("keydown", taste);
     return () => window.removeEventListener("keydown", taste);
@@ -209,6 +222,7 @@ export default function App() {
       }}>
         Zum Inhalt springen
       </a>
+      <div id="ansage" className="nur-vorlesen" role="status" aria-live="polite" aria-atomic="true" />
       <nav className="navigation" aria-label="Bereiche">
         {/* Auf der Startseite stehen Logo und Name groß im Kopfband; die Leiste zeigt dort nur advOrdo. */}
         {bereich === "start" ? (
