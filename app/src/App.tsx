@@ -52,6 +52,20 @@ const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
   { id: "einstellungen", titel: "Einstellungen", symbol: "einstellungen" },
 ];
 
+/**
+ * Kurze Ansage für Bildschirmleser über den versteckten Statusbereich #ansage. Nach Alt + Zahl nannte die
+ * Windows-Sprachausgabe sonst nur die gedrückte Zahl; mit dem Fokus auf der Überschrift las sie diese doppelt.
+ */
+function ansagen(text: string) {
+  const el = document.getElementById("ansage");
+  if (!el) return;
+  // Erst leeren, dann setzen: Sonst sagt der Bildschirmleser denselben Text nicht ein zweites Mal an.
+  el.textContent = "";
+  window.setTimeout(() => {
+    el.textContent = text;
+  }, 150);
+}
+
 const EINGEKLAPPT_SCHLUESSEL = "navigation.eingeklappt";
 /** Ab dieser Breite (CSS-Pixel) ist die Leiste immer eingeklappt, z. B. halbes Fenster bei Schriftgröße „Doppelt“. */
 const SCHMAL = "(max-width: 760px)";
@@ -134,8 +148,9 @@ export default function App() {
       if (i == null) return;
       e.preventDefault();
       bereichWaehlen(BEREICHE[i].id);
-      // Danach liest der Bildschirmleser die neue Seite ab ihrem Anfang.
+      // Danach liest der Bildschirmleser die neue Seite ab ihrem Anfang; der Name des Bereichs wird angesagt.
       requestAnimationFrame(() => document.getElementById("inhalt")?.focus());
+      ansagen(BEREICHE[i].titel);
     }
     window.addEventListener("keydown", taste);
     return () => window.removeEventListener("keydown", taste);
@@ -180,6 +195,7 @@ export default function App() {
       }}>
         Zum Inhalt springen
       </a>
+      <div id="ansage" className="nur-vorlesen" role="status" aria-live="polite" aria-atomic="true" />
       <nav className="navigation" aria-label="Bereiche">
         {/* Auf der Startseite stehen Logo und Name groß im Kopfband; die Leiste zeigt dort nur advOrdo. */}
         {bereich === "start" ? (
