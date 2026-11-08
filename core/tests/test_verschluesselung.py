@@ -46,7 +46,10 @@ def test_linux_unverschluesselt_und_ecryptfs(tmp_path):
     from pathlib import Path
     b = v._linux(Path("/boot/efi"), block, MOUNTINFO, GERAETE.__getitem__)
     assert b.stand == v.AUS
-    b = v._linux(Path("/home/rene/Privat/advOrdo"), block, MOUNTINFO, GERAETE.__getitem__)
+    # Der Pfad liegt unter tmp_path: _linux löst Verweise auf, und unter macOS ist /home ein Verweis.
+    privat = tmp_path / "Privat"
+    b = v._linux(privat / "advOrdo", block, MOUNTINFO.replace("/home/rene/Privat", str(privat)),
+                 GERAETE.__getitem__)
     assert b.stand == v.AN and b.verfahren == "ecryptfs"
 
 
