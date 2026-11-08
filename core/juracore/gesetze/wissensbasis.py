@@ -271,7 +271,7 @@ def schreibweise_loeschen(con: sqlite3.Connection, von: str) -> None:
 
 
 def vorschlaege(con: sqlite3.Connection, gesetz: str, liste: list[dict], anzahl: int = 3) -> list[dict]:
-    """Ähnlich geschriebene Gesetze zu einer unbekannten Abkürzung („Meinten Sie …?“).
+    """Ähnlich geschriebene Gesetze zu einer unbekannten Abkürzung („Könnte … gemeint sein?“).
 
     Verglichen wird mit den geladenen Gesetzen und der Gesetzesliste, in der Vergleichsform von
     ``db.schreibweise``. ``geladen`` sagt, ob das Gesetz schon in der Wissensbasis steht."""

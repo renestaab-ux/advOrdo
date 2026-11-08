@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
 import { GesetzVorschlag, Schreibweise, kern } from "./kern";
 
 // Vorschläge je Abkürzung nur einmal beim Kern erfragen; mehrere Zitate desselben Gesetzes teilen sie.
@@ -9,7 +9,7 @@ export function vorschlaegeVergessen() {
 }
 
 /**
- * „Meinten Sie …?“ unter einem Zitat mit unbekanntem Gesetz. Ein Klick legt eine eigene Schreibweise an; sie gilt
+ * „Könnte … gemeint sein?“ unter einem Zitat mit unbekanntem Gesetz. Ein Klick legt eine eigene Schreibweise an; sie gilt
  * danach für alle Akten, und die betroffenen Zitate werden sofort neu geprüft.
  */
 export function GesetzVorschlaege({
@@ -37,20 +37,22 @@ export function GesetzVorschlaege({
   if (!vorschlaege || vorschlaege.length === 0) return null;
   return (
     <div className="meinten-sie">
-      <span>Meinten Sie</span>
-      {vorschlaege.map((v) => (
-        <button
-          key={v.abk}
-          className="zweitrangig klein"
-          disabled={gesperrt}
-          title={`„${gesetz}“ künftig in allen Akten als ${v.abk} lesen${v.titel ? ` (${v.titel})` : ""}`}
-          onClick={() => onZuordnen(gesetz, v.abk)}
-        >
-          {v.abk}
-          {!v.geladen && <span className="leise"> (noch nicht geladen)</span>}
-        </button>
+      <span>Könnte</span>
+      {vorschlaege.map((v, i) => (
+        <Fragment key={v.abk}>
+          {i > 0 && <span>{i === vorschlaege.length - 1 ? "oder" : ","}</span>}
+          <button
+            className="zweitrangig klein"
+            disabled={gesperrt}
+            title={`„${gesetz}“ künftig in allen Akten als ${v.abk} lesen${v.titel ? ` (${v.titel})` : ""}`}
+            onClick={() => onZuordnen(gesetz, v.abk)}
+          >
+            {v.abk}
+            {!v.geladen && <span className="leise"> (noch nicht geladen)</span>}
+          </button>
+        </Fragment>
       ))}
-      <span>?</span>
+      <span>gemeint sein?</span>
     </div>
   );
 }

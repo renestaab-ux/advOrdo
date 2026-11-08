@@ -105,7 +105,7 @@ export function formatiereBuilddate(b: string | null): string {
   return `${b.slice(6, 8)}.${b.slice(4, 6)}.${b.slice(0, 4)}`;
 }
 
-/** „Meinten Sie …?“: ähnlich geschriebenes Gesetz aus Wissensbasis (``geladen``) oder Gesetzesliste. */
+/** „Könnte … gemeint sein?“: ähnlich geschriebenes Gesetz aus Wissensbasis (``geladen``) oder Gesetzesliste. */
 export interface GesetzVorschlag {
   abk: string;
   titel: string | null;

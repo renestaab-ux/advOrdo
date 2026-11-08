@@ -802,7 +802,7 @@ export default function Akte({
     if (ansicht === "dokument" && inhalt) await waehleDokModus(dokModus);
   }
 
-  /** „Meinten Sie …?“: eigene Schreibweise anlegen oder aufheben; die Zitate aller Akten werden neu geprüft. */
+  /** „Könnte … gemeint sein?“: eigene Schreibweise anlegen oder aufheben; die Zitate aller Akten werden neu geprüft. */
   async function zuordnen(von: string, nach: string | null) {
     await ausfuehren(nach ? `Ordne „${von}“ ${nach} zu …` : `Hebe Zuordnung von „${von}“ auf …`, () =>
       nach ? kern("gesetze.schreibweise_setzen", { von, nach }) : kern("gesetze.schreibweise_loeschen", { von }),
