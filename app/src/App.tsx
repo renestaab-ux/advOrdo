@@ -52,6 +52,30 @@ const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
   { id: "einstellungen", titel: "Einstellungen", symbol: "einstellungen" },
 ];
 
+/**
+ * Nach Alt + Zahl: Fokus auf die Überschrift des neuen Bereichs, damit die Sprachausgabe sie vorliest (auf dem
+ * Hauptbereich allein nannte Windows nur die gedrückte Zahl). Bereiche laden teils nach; daher kurz warten.
+ */
+function zurUeberschrift(alt: Element | null, versuch = 0) {
+  window.setTimeout(() => {
+    const inhalt = document.getElementById("inhalt");
+    const h1 = inhalt?.querySelector<HTMLElement>("h1");
+    // Die Überschrift des alten Bereichs kann noch kurz stehen; erst die neue nehmen.
+    if (h1 && h1 !== alt) {
+      h1.tabIndex = -1;
+      h1.focus();
+      // Lädt der Bereich danach nach und zeichnet die Überschrift neu, Fokus nachziehen.
+      window.setTimeout(() => {
+        if (document.activeElement === document.body) zurUeberschrift(null, versuch + 1);
+      }, 400);
+    } else if (versuch < 30) {
+      zurUeberschrift(alt, versuch + 1);
+    } else {
+      inhalt?.focus();
+    }
+  }, 30);
+}
+
 const EINGEKLAPPT_SCHLUESSEL = "navigation.eingeklappt";
 /** Ab dieser Breite (CSS-Pixel) ist die Leiste immer eingeklappt, z. B. halbes Fenster bei Schriftgröße „Doppelt“. */
 const SCHMAL = "(max-width: 760px)";
@@ -133,9 +157,12 @@ export default function App() {
       const i = bereichAusTaste(e, BEREICHE.length);
       if (i == null) return;
       e.preventDefault();
+      // Bleibt der Bereich derselbe, bleibt auch die Überschrift; sonst auf die neue warten.
+      const gleich = document.getElementById("inhalt")?.getAttribute("aria-label") === BEREICHE[i].titel;
+      const alt = gleich ? null : document.querySelector("#inhalt h1");
       bereichWaehlen(BEREICHE[i].id);
-      // Danach liest der Bildschirmleser die neue Seite ab ihrem Anfang.
-      requestAnimationFrame(() => document.getElementById("inhalt")?.focus());
+      // Danach liest der Bildschirmleser die neue Seite ab ihrer Überschrift.
+      zurUeberschrift(alt);
     }
     window.addEventListener("keydown", taste);
     return () => window.removeEventListener("keydown", taste);
@@ -171,6 +198,8 @@ export default function App() {
       else setBereich("toolbox");
     }
   }
+
+  const bereichTitel = BEREICHE.find((x) => x.id === bereich)?.titel ?? "Inhalt";
 
   return (
     <div className={eingeklappt ? "rahmen eingeklappt" : "rahmen"}>
@@ -291,6 +320,7 @@ export default function App() {
         <main
           id="inhalt"
           tabIndex={-1}
+          aria-label={bereichTitel}
           className={bereich === "akten" && (akteId != null || anlegen) ? "inhalt ohne-rand" : "inhalt"}
           key={stand}
         >
