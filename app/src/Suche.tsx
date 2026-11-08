@@ -435,7 +435,7 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
             <div
               ref={textRahmen}
               className="anm-rahmen"
-              onMouseUp={() => textRahmen.current && anm.beiAuswahl(textRahmen.current)}
+              {...anm.rahmenProps}
               {...anmerkungsHandler(anm.ereignisse)}
             >
               <DokumentAnsicht

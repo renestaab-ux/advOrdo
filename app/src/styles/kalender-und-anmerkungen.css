@@ -109,6 +109,10 @@ button.listen-posten .posten-titel { white-space: normal; }
 .anm-blase-blau { --anm-linie: var(--anm-linie-blau); background: var(--anm-blau); }
 .anm-blase-rot { --anm-linie: var(--anm-linie-rot); background: var(--anm-rot); }
 .anm-rahmen .dokument { user-select: text; }
+.anm-rahmen .abschnitt-ort { user-select: none; }
+/* Einfügemarke beim Markieren per Tastatur (textCursor.ts); der Text selbst zeigt keinen Cursor. */
+.text-marke { position: fixed; z-index: 30; width: 2px; background: var(--fokus, #b34700); pointer-events: none; }
+.text-marke[hidden] { display: none; }
 
 /* Original-PDF: Rechtecke über dem Seitenbild; Unter-/Durchstreichen als Linie. */
 .anm-rechteck { position: absolute; border-radius: 2px; mix-blend-mode: multiply; cursor: pointer; }
