@@ -238,6 +238,15 @@ export function DokModusLeiste({
           disabled={m.modus === "original" && !pdf}
           title={m.modus === "original" && !pdf ? "Die Originalansicht gibt es nur für PDF-Dateien." : undefined}
           onClick={() => onModus(m.modus)}
+          onKeyDown={(e) => {
+            // Eingabe, Leertaste oder Pfeil runter auf „Text“: direkt in den Dokumenttext zum Lesen und Markieren.
+            if (m.modus !== "text" || !["Enter", " ", "ArrowDown"].includes(e.key)) return;
+            e.preventDefault();
+            onModus("text");
+            const ansicht = e.currentTarget.closest(".akte-offen, main");
+            // Zwei Bilder warten: kam man aus einer anderen Ansicht, entsteht der Text erst jetzt.
+            requestAnimationFrame(() => requestAnimationFrame(() => ansicht?.querySelector<HTMLElement>(".anm-rahmen")?.focus()));
+          }}
         >
           {m.text}
         </button>

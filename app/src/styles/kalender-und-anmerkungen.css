@@ -113,6 +113,7 @@ button.listen-posten .posten-titel { white-space: normal; }
 /* Einfügemarke beim Markieren per Tastatur (textCursor.ts); der Text selbst zeigt keinen Cursor. */
 .text-marke { position: fixed; z-index: 30; width: 2px; background: var(--fokus, #b34700); pointer-events: none; }
 .text-marke[hidden] { display: none; }
+.anm-rahmen:focus-visible { outline: 3px solid var(--fokus, #b34700); outline-offset: 2px; }
 
 /* Original-PDF: Rechtecke über dem Seitenbild; Unter-/Durchstreichen als Linie. */
 .anm-rechteck { position: absolute; border-radius: 2px; mix-blend-mode: multiply; cursor: pointer; }
