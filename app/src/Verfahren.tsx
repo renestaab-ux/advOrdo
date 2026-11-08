@@ -3,6 +3,7 @@ import { OrtsverzeichnisKnopf, ZustaendigesGericht } from "./Gerichtsverzeichnis
 import { AktenOptionen, INSTANZ_VORGABE, Verfahren, datumLang, kern } from "./kern";
 import VerfahrenAusDokument from "./VerfahrenAusDokument";
 import Zeichen from "./Symbole";
+import { useBearbeitung } from "./ungespeichert";
 
 interface Entwurf {
   art: string;
@@ -32,6 +33,7 @@ const LEER: Entwurf = {
  * Aktenzeichen. Das Gericht steht danach auch unter den Beteiligten.
  */
 export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number; onGeaendert: () => void }) {
+  const verfahrenBearb = useBearbeitung("Verfahren");
   const [verfahren, setVerfahren] = useState<Verfahren[] | null>(null);
   const [optionen, setOptionen] = useState<AktenOptionen | null>(null);
   const [bearbeitet, setBearbeitet] = useState<{ id: number | null; e: Entwurf } | null>(null);
@@ -196,7 +198,7 @@ export default function VerfahrenKarte({ akteId, onGeaendert }: { akteId: number
         />
       )}
       {e && optionen && (
-        <form className="verfahren-formular" onSubmit={speichern}>
+        <form {...verfahrenBearb.formular} className="verfahren-formular" onSubmit={speichern}>
           {!bearbeitet?.id && (
             <p className="leise klein">
               Gericht und Aktenzeichen stehen schon in einem Dokument?{" "}

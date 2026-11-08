@@ -2,12 +2,14 @@ import { FormEvent, useEffect, useState } from "react";
 import { AktenEinstellungen as Werte, UmgebungsListe, istDesktop, kern } from "./kern";
 import { ERINNERUNGEN_AUS, testErinnerung } from "./erinnerungen";
 import { gemerkt, merke } from "./merken";
+import { useBearbeitung } from "./ungespeichert";
 
 /**
  * Aktenzeichen (Startnummer, Zusatz), welche anderen Umgebungen die Kollisionsprüfung durchsucht und ob die App an
  * Fristen erinnert.
  */
 export default function AktenEinstellungen({ umgebungen }: { umgebungen: UmgebungsListe | null }) {
+  const azBearb = useBearbeitung("Aktenzeichen-Einstellungen");
   const [werte, setWerte] = useState<Werte | null>(null);
   const [vorschlag, setVorschlag] = useState("");
   const [zusatz, setZusatz] = useState("");
@@ -52,7 +54,7 @@ export default function AktenEinstellungen({ umgebungen }: { umgebungen: Umgebun
   return (
     <section className="karte">
       <h2>Akten</h2>
-      <form onSubmit={aktenzeichenSpeichern}>
+      <form {...azBearb.formular} onSubmit={aktenzeichenSpeichern}>
         <p className="erklaerung">
           Aktenzeichen nach dem Schema Nummer/Jahr, z. B. 102/26. Nächstes Aktenzeichen: <strong>{vorschlag || "…"}</strong>.
           Wer eine bisherige Zählung fortführt, trägt die nächste Nummer des laufenden Jahres ein.

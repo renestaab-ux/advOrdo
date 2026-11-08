@@ -18,6 +18,7 @@ import {
   startwerte,
   zeitpunktDe,
 } from "./kern";
+import { useBearbeitung } from "./ungespeichert";
 
 // Karten der Organisationsformen, Wortlaut nach dem Konzept „Eigene Daten“ (Abschnitt 4).
 const FORMKARTEN: { form: Organisationsform; titel: string; text: string }[] = [
@@ -697,6 +698,7 @@ function Abschnitt({
   laeuft: boolean;
   onSpeichern: (daten: Werte, zusatz?: Werte) => Promise<Stand | null>;
 }) {
+  const abschnittBearb = useBearbeitung("Eigene Daten");
   const [entwurf, setEntwurf] = useState<Werte | null>(null);
   const [zusatz, setZusatz] = useState<Werte | null>(null);
 
@@ -727,7 +729,7 @@ function Abschnitt({
       </div>
       <p className="erklaerung">{verwendung}</p>
       {entwurf ? (
-        <form onSubmit={(e) => void speichern(e)}>
+        <form {...abschnittBearb.formular} onSubmit={(e) => void speichern(e)}>
           <Formular felder={felder} werte={entwurf} onAendern={setEntwurf} />
           {zusatzFelder && zusatz && <Formular felder={zusatzFelder} werte={zusatz} onAendern={setZusatz} />}
           <div className="aktionen">
@@ -766,6 +768,7 @@ function Berufstraeger({
   laeuft: boolean;
   mitArchiv?: boolean;
 }) {
+  const berufBearb = useBearbeitung("Berufsträger");
   const orgId = stand.organisation?.id;
   const [bearbeitet, setBearbeitet] = useState<{ id: number | null; daten: Werte; mitglied: Werte } | null>(null);
   const [loeschfrage, setLoeschfrage] = useState<EigenePerson | null>(null);
@@ -801,7 +804,7 @@ function Berufstraeger({
       </div>
       <p className="erklaerung">{VERWENDUNG.berufstraeger}</p>
       {bearbeitet && (
-        <form className="eintrag-formular" onSubmit={(e) => void speichern(e)}>
+        <form {...berufBearb.formular} className="eintrag-formular" onSubmit={(e) => void speichern(e)}>
           <Formular felder={personFelder} werte={bearbeitet.daten} onAendern={(d) => setBearbeitet({ ...bearbeitet, daten: d })} />
           <Formular
             felder={mitgliedFelder}
@@ -906,6 +909,7 @@ function Einheiten({
   laeuft: boolean;
   mitArchiv?: boolean;
 }) {
+  const einheitBearb = useBearbeitung("Einheit");
   const [bearbeitet, setBearbeitet] = useState<{ id: number | null; daten: Werte } | null>(null);
   const [loeschfrage, setLoeschfrage] = useState<EigeneOrganisation | null>(null);
   const eigeneFelder = felder.felder[art];
@@ -932,7 +936,7 @@ function Einheiten({
       </div>
       <p className="erklaerung">{VERWENDUNG[art]}</p>
       {bearbeitet && (
-        <form className="eintrag-formular" onSubmit={(e) => void speichern(e)}>
+        <form {...einheitBearb.formular} className="eintrag-formular" onSubmit={(e) => void speichern(e)}>
           <Formular felder={eigeneFelder} werte={bearbeitet.daten} onAendern={(d) => setBearbeitet({ ...bearbeitet, daten: d })} />
           <div className="aktionen">
             <button type="submit" disabled={laeuft}>
@@ -1017,6 +1021,7 @@ function Anwaelte({
   aufrufMitStand: AufrufMitStand;
   laeuft: boolean;
 }) {
+  const anwaltBearb = useBearbeitung("Anwalt");
   const [bearbeitet, setBearbeitet] = useState<{ id: number | null; daten: Werte } | null>(null);
   const personFelder = felder.felder.person_extern;
 
@@ -1055,7 +1060,7 @@ function Anwaelte({
         ))}
       </ul>
       {bearbeitet ? (
-        <form className="eintrag-formular" onSubmit={(e) => void speichern(e)}>
+        <form {...anwaltBearb.formular} className="eintrag-formular" onSubmit={(e) => void speichern(e)}>
           <Formular felder={personFelder} werte={bearbeitet.daten} onAendern={(d) => setBearbeitet({ ...bearbeitet, daten: d })} />
           <div className="aktionen">
             <button type="submit" disabled={laeuft}>

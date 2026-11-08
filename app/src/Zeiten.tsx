@@ -15,6 +15,7 @@ import {
 import ZeitVereinbarung from "./ZeitVereinbarung";
 import { useLaufenderTimer } from "./zeitTimer";
 import { LeerHinweis } from "./Symbole";
+import { useBearbeitung } from "./ungespeichert";
 
 const heute = () => new Date().toLocaleDateString("sv-SE"); // JJJJ-MM-TT in Ortszeit
 
@@ -43,6 +44,7 @@ export default function Zeiten({
   onEinstellungen: () => void;
   onKostennote: () => void;
 }) {
+  const zeitBearb = useBearbeitung("Zeiteintrag");
   const [liste, setListe] = useState<ZeitListe | null>(null);
   const [einst, setEinst] = useState<ZeitEinstellungen | null>(null);
   const [taetigkeit, setTaetigkeit] = useState("");
@@ -290,7 +292,7 @@ export default function Zeiten({
         )}
       </section>
 
-      <form className="karte zeit-formular" onSubmit={speichern}>
+      <form {...zeitBearb.formular} className="karte zeit-formular" onSubmit={speichern}>
         <h3>{bearbeitet ? "Eintrag ändern" : "Zeit von Hand erfassen"}</h3>
         <div className="schrift-wahl">
           <label className="feld kurz">
@@ -586,6 +588,7 @@ function ZeitDetails({
   onNotiz: (text: string) => Promise<boolean>;
   onVerknuepfen: (notizId: number | null) => Promise<boolean>;
 }) {
+  const notizBearb = useBearbeitung("Notiz zum Zeiteintrag");
   const [notiz, setNotiz] = useState<string | null>(null);
   // Vorhandene Notizen der Akte zur Auswahl; erst geladen, wenn man verknüpfen will.
   const [auswahl, setAuswahl] = useState<Notiz[] | null>(null);
@@ -625,7 +628,7 @@ function ZeitDetails({
           </p>
         )}
       {notiz !== null ? (
-        <form
+        <form {...notizBearb.formular}
           className="zeit-notiz"
           onSubmit={async (e) => {
             e.preventDefault();

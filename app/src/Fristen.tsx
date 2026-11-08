@@ -12,6 +12,7 @@ import {
   kern,
 } from "./kern";
 import { LeerHinweis } from "./Symbole";
+import { useBearbeitung } from "./ungespeichert";
 
 const ART_TEXT: Record<KalenderArt, string> = { frist: "Frist", termin: "Termin", wiedervorlage: "Wiedervorlage" };
 export const EINHEITEN: Record<FristBerechnung["einheit"], string> = { tage: "Tage", wochen: "Wochen", monate: "Monate", jahre: "Jahre" };
@@ -633,6 +634,7 @@ export function FolgeFormular({
   onVerlaengern: (datum: string, vermerk: string) => void;
   onTermin: (zustand: TerminZustand, vermerk: string, neu?: Record<string, unknown>) => void;
 }) {
+  const folgeBearb = useBearbeitung("Folgefrist");
   const { e, aktion, vorschlag } = folge;
   const [datum, setDatum] = useState(aktion === "verlegen" ? "" : e.datum);
   const [uhrzeit, setUhrzeit] = useState(e.uhrzeit ?? "");
@@ -656,7 +658,7 @@ export function FolgeFormular({
   }
 
   return (
-    <form className="karte kalender-formular" onSubmit={absenden}>
+    <form {...folgeBearb.formular} className="karte kalender-formular" onSubmit={absenden}>
       <h3>
         {ueberschrift}: {e.titel} <span className="leise">({datumLang(e.datum)}{e.uhrzeit && `, ${e.uhrzeit} Uhr`})</span>
       </h3>
@@ -740,6 +742,7 @@ export function EintragFormular({
   onAbbrechen: () => void;
   onGespeichert: (liste: KalenderEintrag[], e: Entwurf) => void;
 }) {
+  const eintragBearb = useBearbeitung("Frist oder Termin");
   const [e, setE] = useState<Entwurf>(start);
   const [ergebnis, setErgebnis] = useState<FristBerechnung | null>(null);
   const [rechenfehler, setRechenfehler] = useState<string | null>(null);
@@ -814,7 +817,7 @@ export function EintragFormular({
   const ende = berechnen ? ergebnis?.ende : e.datum;
 
   return (
-    <form className="karte kalender-formular" onSubmit={speichern}>
+    <form {...eintragBearb.formular} className="karte kalender-formular" onSubmit={speichern}>
       <h3>
         {e.id ? `${ART_TEXT[e.art]} bearbeiten` : `${ART_TEXT[e.art]} eintragen`}
         {e.vorschlag && <span className="leise"> (Vorschlag aus {e.dateiname})</span>}
