@@ -36,7 +36,7 @@ HINWEIS = (
     "Fassung des Amtsblatts der EU (EUR-Lex), ohne spätere Änderungen und Berichtigungen. "
     "© Europäische Union, https://eur-lex.europa.eu"
 )
-USER_AGENT = "advOrdo/0.1 (Wissensbasis-Import)"
+USER_AGENT = "advOrdo/0.1 (Wissensbasis-Import; advordo@staab.legal)"
 _CELEX = re.compile(r"^[1-9]\d{4}[A-Z]{1,2}\d{4}$")
 
 # Gliederungsebenen in absteigender Ordnung; eine neue Überschrift schließt alle tieferen.

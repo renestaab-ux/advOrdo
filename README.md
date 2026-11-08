@@ -661,3 +661,8 @@ Bestandteile Dritter behalten ihre eigenen Lizenzen, etwa die Schrift Liberation
 License 1.1, `core/juracore/ausgabe/schriften/OFL.txt`) und die eingebundenen Bibliotheken (MIT, BSD,
 Apache-2.0, MPL-2.0).
 
+
+## Kontakt
+
+Fragen, Hinweise und Fehlermeldungen an **advordo@staab.legal**. Sicherheitslücken bitte nicht öffentlich
+als Issue melden, sondern wie in [`SECURITY.md`](SECURITY.md) beschrieben.

@@ -33,7 +33,7 @@ from .saetze import Liste, zerlege_in_saetze
 BASIS = "https://www.gesetze-bayern.de"
 HERKUNFT = "gesetze-bayern.de"
 QUELLE = "bayern"
-USER_AGENT = "advOrdo/0.1 (Wissensbasis-Import)"
+USER_AGENT = "advOrdo/0.1 (Wissensbasis-Import; advordo@staab.legal)"
 HINWEIS = ("Nichtamtliche Fassung aus dem Bürgerservice BAYERN.RECHT (gesetze-bayern.de). "
            "Maßgeblich ist die Veröffentlichung im Gesetz- und Verordnungsblatt.")
 PAUSE = 1.0  # Sekunden zwischen zwei Abrufen

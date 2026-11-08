@@ -2,6 +2,21 @@
 
 Je Schrift 224 Werte für die Zeichencodes 32 bis 255 in WinAnsiEncoding (cp1252). Für Codes, die cp1252 nicht
 belegt, steht die Breite des Leerzeichens.
+
+Herkunft: Die Werte stammen aus den Core14-AFM-Dateien von Adobe (Helvetica.afm, Helvetica-Bold.afm).
+Übernommen sind nur die Zeichenbreiten, umsortiert nach Zeichencode; das ist eine Änderung gegenüber den
+AFM-Dateien. „Helvetica“ steht hier nur als Name der PDF-Standardschrift, die Schrift selbst wird nicht
+mitgeliefert. Helvetica is a trademark of Linotype-Hell AG and/or its subsidiaries.
+
+Hinweis von Adobe zu den AFM-Dateien:
+
+Copyright (c) 1985, 1987, 1989, 1990, 1997 Adobe Systems Incorporated. All Rights Reserved.
+
+This file and the 14 PostScript(R) AFM files it accompanies may be used, copied, and distributed for any
+purpose and without charge, with or without modification, provided that all copyright notices are retained;
+that the AFM files are not distributed without this file; that all modifications to this file or any of the
+AFM files are prominently noted in the modified file(s); and that this paragraph is not modified. Adobe
+Systems has no responsibility or obligation to support the use of the AFM files.
 """
 
 NORMAL = (

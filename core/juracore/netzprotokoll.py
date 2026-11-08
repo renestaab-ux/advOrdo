@@ -221,7 +221,7 @@ def zweck(anfrage: urllib.request.Request) -> str:
     teile = urllib.parse.urlsplit(anfrage.full_url)
     host, pfad = (teile.hostname or "").lower(), teile.path
     kennung = anfrage.get_header("User-agent") or ""
-    if "(Diagnose)" in kennung:
+    if "(Diagnose" in kennung:
         return "Verbindung prüfen (Diagnose)"
     if host.endswith("gesetze-im-internet.de"):
         if m := re.fullmatch(r"/([^/]+)/xml\.zip", pfad):
