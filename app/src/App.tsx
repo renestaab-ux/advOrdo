@@ -53,10 +53,9 @@ const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
 ];
 
 /**
- * Nach Alt + Zahl: Fokus auf die Überschrift des neuen Bereichs, damit die Sprachausgabe sie vorliest (auf dem
- * Hauptbereich allein nannte Windows nur die gedrückte Zahl). Bereiche laden teils nach; daher kurz warten.
+ * Kurze Ansage für Bildschirmleser über den versteckten Statusbereich #ansage. Nach Alt + Zahl nannte die
+ * Windows-Sprachausgabe sonst nur die gedrückte Zahl; mit dem Fokus auf der Überschrift las sie diese doppelt.
  */
-/** Kurze Ansage für Bildschirmleser über den versteckten Statusbereich #ansage. */
 function ansagen(text: string) {
   const el = document.getElementById("ansage");
   if (!el) return;
@@ -65,26 +64,6 @@ function ansagen(text: string) {
   window.setTimeout(() => {
     el.textContent = text;
   }, 150);
-}
-
-function zurUeberschrift(alt: Element | null, versuch = 0) {
-  window.setTimeout(() => {
-    const inhalt = document.getElementById("inhalt");
-    const h1 = inhalt?.querySelector<HTMLElement>("h1");
-    // Die Überschrift des alten Bereichs kann noch kurz stehen; erst die neue nehmen.
-    if (h1 && h1 !== alt) {
-      h1.tabIndex = -1;
-      h1.focus();
-      // Lädt der Bereich danach nach und zeichnet die Überschrift neu, Fokus nachziehen.
-      window.setTimeout(() => {
-        if (document.activeElement === document.body) zurUeberschrift(null, versuch + 1);
-      }, 400);
-    } else if (versuch < 30) {
-      zurUeberschrift(alt, versuch + 1);
-    } else {
-      inhalt?.focus();
-    }
-  }, 30);
 }
 
 const EINGEKLAPPT_SCHLUESSEL = "navigation.eingeklappt";
@@ -168,13 +147,9 @@ export default function App() {
       const i = bereichAusTaste(e, BEREICHE.length);
       if (i == null) return;
       e.preventDefault();
-      // Bleibt der Bereich derselbe, bleibt auch die Überschrift; sonst auf die neue warten.
-      const gleich = document.getElementById("inhalt")?.getAttribute("aria-label") === BEREICHE[i].titel;
-      const alt = gleich ? null : document.querySelector("#inhalt h1");
       bereichWaehlen(BEREICHE[i].id);
-      // Danach liest der Bildschirmleser die neue Seite ab ihrer Überschrift.
-      zurUeberschrift(alt);
-      // Die Windows-Sprachausgabe nennt beim Fokus auf der Überschrift teils nur „Überschrift Ebene 1“.
+      // Danach liest der Bildschirmleser die neue Seite ab ihrem Anfang; der Name des Bereichs wird angesagt.
+      requestAnimationFrame(() => document.getElementById("inhalt")?.focus());
       ansagen(BEREICHE[i].titel);
     }
     window.addEventListener("keydown", taste);
@@ -211,8 +186,6 @@ export default function App() {
       else setBereich("toolbox");
     }
   }
-
-  const bereichTitel = BEREICHE.find((x) => x.id === bereich)?.titel ?? "Inhalt";
 
   return (
     <div className={eingeklappt ? "rahmen eingeklappt" : "rahmen"}>
@@ -334,7 +307,6 @@ export default function App() {
         <main
           id="inhalt"
           tabIndex={-1}
-          aria-label={bereichTitel}
           className={bereich === "akten" && (akteId != null || anlegen) ? "inhalt ohne-rand" : "inhalt"}
           key={stand}
         >
