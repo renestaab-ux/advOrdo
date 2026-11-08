@@ -10,7 +10,7 @@ import { useLaufenderTimer } from "./zeitTimer";
 import TimerHinweise from "./TimerHinweise";
 import Hintergrund from "./Hintergrund";
 import { KiAn } from "./kiSchalter";
-import { bereichAusTaste } from "./barrierefrei";
+import { bereichAusTaste, useReiterTasten } from "./barrierefrei";
 import { darstellungLesen, fensterThema } from "./darstellung";
 import {
   KiModus,
@@ -53,12 +53,31 @@ const BEREICHE: { id: Bereich; titel: string; symbol: SymbolName }[] = [
 ];
 
 const EINGEKLAPPT_SCHLUESSEL = "navigation.eingeklappt";
+/** Ab dieser Breite (CSS-Pixel) ist die Leiste immer eingeklappt, z. B. halbes Fenster bei Schriftgröße „Doppelt“. */
+const SCHMAL = "(max-width: 760px)";
+
+function useSchmal(): boolean {
+  const [schmal, setSchmal] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(SCHMAL).matches);
+  useEffect(() => {
+    const m = window.matchMedia?.(SCHMAL);
+    if (!m?.addEventListener) return;
+    const aendern = () => setSchmal(m.matches);
+    m.addEventListener("change", aendern);
+    return () => m.removeEventListener("change", aendern);
+  }, []);
+  return schmal;
+}
 
 export default function App() {
   const [bereich, setBereich] = useState<Bereich>("start");
   // Die geöffnete Akte; null zeigt die Aktenübersicht.
   const [akteId, setAkteId] = useState<number | null>(null);
-  const [eingeklappt, setEingeklappt] = useState(() => gemerkt(EINGEKLAPPT_SCHLUESSEL));
+  const [eingeklapptGewaehlt, setEingeklappt] = useState(() => gemerkt(EINGEKLAPPT_SCHLUESSEL));
+  // Im schmalen Fenster ist die Leiste eingeklappt, damit der Inhalt Platz hat (WCAG 1.4.10).
+  const schmal = useSchmal();
+  // Pfeiltasten in allen Reiterleisten (Akte, Einstellungen, Dokumentansicht …).
+  useReiterTasten();
+  const eingeklappt = eingeklapptGewaehlt || schmal;
   // Ob Dokumentinhalte das Gerät verlassen (externe KI gewählt); immer sichtbar in der Navigation.
   const [modus, setModus] = useState<KiModus | null>(null);
   const ladeModus = useCallback(() => {
@@ -123,8 +142,8 @@ export default function App() {
   }, []);
 
   function einklappen() {
-    setEingeklappt(!eingeklappt);
-    merke(EINGEKLAPPT_SCHLUESSEL, !eingeklappt);
+    setEingeklappt(!eingeklapptGewaehlt);
+    merke(EINGEKLAPPT_SCHLUESSEL, !eingeklapptGewaehlt);
   }
 
   function oeffneAkte(id: number | null, reiter?: Reiter) {
@@ -255,7 +274,7 @@ export default function App() {
               </span>
             </button>
           )}
-          <button
+          {!schmal && <button
             className="nav-eintrag einklappen"
             onClick={einklappen}
             title={eingeklappt ? "Leiste ausklappen" : "Leiste einklappen"}
@@ -263,7 +282,7 @@ export default function App() {
           >
             <Zeichen name={eingeklappt ? "ausklappen" : "einklappen"} />
             <span className="nav-text">Einklappen</span>
-          </button>
+          </button>}
         </div>
       </nav>
       <TimerHinweise onAkte={(id) => oeffneAkte(id, "zeiten")} />

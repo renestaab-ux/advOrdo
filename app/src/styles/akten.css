@@ -49,6 +49,8 @@ button.segment-knopf.aktiv { background: var(--knopf); color: var(--knopf-text);
 .zuletzt-karte strong { display: inline-flex; align-items: flex-start; gap: 6px; }
 .zuletzt-karte strong .symbol { flex: none; color: var(--akzent); margin-top: 2px; }
 .akten-tabelle { font-size: 14px; }
+/* Im schmalen Fenster blättert nur die Tabelle waagerecht, nicht die Seite (WCAG 1.4.10, Ausnahme für Datentabellen). */
+.tabelle-rahmen { overflow-x: auto; }
 .akten-tabelle th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
 .akten-tabelle td { padding: 10px 12px; }
 .akten-tabelle th { padding: 8px 12px; background: color-mix(in srgb, var(--text-leise) 6%, transparent); }
@@ -166,6 +168,17 @@ button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, 
 /* Sehr schmal: Angaben im Kopf weglassen, sie stehen auch in Stammdaten und Beteiligten. */
 @media (max-width: 900px) {
   .akte-kopf-angabe { display: none; }
+}
+/* Sehr schmal (z. B. halbes Fenster bei Schriftgröße „Doppelt“, WCAG 1.4.10): alles untereinander,
+   die Filter als Zeile über der Liste. Nichts verlangt waagerechtes Blättern. */
+@media (max-width: 760px) {
+  .akte-dokumente, .akte-dokumente.filter-zu { grid-template-columns: minmax(0, 1fr); grid-template-areas: "filter" "liste" "offen"; }
+  .akte-filter, .filter-zu .akte-filter { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+    border-right: none; border-bottom: 1px solid var(--linie); }
+  .akte-filter h3 { flex-basis: 100%; margin: 6px 0 0; }
+  .filter-beteiligte { flex-direction: row; flex-wrap: wrap; gap: 4px 12px; }
+  button.leisten-knopf { align-self: center; }
+  .akte-dokumente > * { padding: 10px 12px; }
 }
 .zitat-kurz { display: inline-flex; gap: 8px; font-variant-numeric: tabular-nums; }
 .zitat-kurz .zitat-zahl { margin: 0; font-weight: 600; }

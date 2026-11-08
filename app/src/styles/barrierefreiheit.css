@@ -131,13 +131,15 @@ button.lz-griff { background: none; border: none; padding: 2px; color: var(--tex
 .trenner::before { content: ""; position: absolute; inset: 0 -9px; }
 li button.link:not(.klein), td button.link { min-height: 24px; }
 
-/* WCAG 1.4.4/1.4.10: Bei „Doppelt“ (200 %) bleibt das Fenster schmal; Leiste schmaler, Kopfband und Reiter brechen um,
-   statt seitlich abgeschnitten zu werden. Tabellen dürfen weiter seitlich rollen (Ausnahme in 1.4.10). */
+/* WCAG 1.4.4/1.4.10: Bei „Doppelt“ (200 %) bleibt das Fenster schmal; die Leiste ist dann eingeklappt (App.tsx),
+   Kopfband und Reiter brechen um, statt seitlich abgeschnitten zu werden. Tabellen dürfen in ihrem Rahmen seitlich
+   rollen (Ausnahme in 1.4.10). Die Akte steht untereinander (akten.css). */
 @media (max-width: 760px) {
-  .rahmen:not(.eingeklappt) { grid-template-columns: 170px minmax(0, 1fr); }
   .kopfband { flex-wrap: wrap; gap: 10px 16px; padding: 14px 16px; }
   .akte-reiter { flex-wrap: wrap; overflow-x: visible; padding-left: 12px; padding-right: 12px; }
   .inhalt { padding: 16px; }
+  .start { margin: -16px -16px 0; }
+  .start-inhalt { padding: 16px; }
   .nav-eintrag, .modus { white-space: normal; }
 }
 .feld-hinweis.warnhinweis { color: var(--warnung); }

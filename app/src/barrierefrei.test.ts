@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bereichAusTaste, naechsterImKreis, trennerSchritt } from "./barrierefrei";
+import { bereichAusTaste, naechsterImKreis, reiterZiel, trennerSchritt } from "./barrierefrei";
 
 const taste = (code: string, mehr: Partial<{ altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }> = {}) => ({
   altKey: true,
@@ -52,5 +52,21 @@ describe("trennerSchritt", () => {
     expect(trennerSchritt("ArrowLeft", true, 880, 260, 900, 360)).toBe(900);
     expect(trennerSchritt("Home", false, 700, 260, 900, 360)).toBe(360);
     expect(trennerSchritt("Enter", false, 700, 260, 900, 360)).toBeNull();
+  });
+});
+
+describe("reiterZiel", () => {
+  it("geht waagerecht mit links/rechts weiter und läuft am Ende herum", () => {
+    expect(reiterZiel("ArrowRight", 0, 3, false)).toBe(1);
+    expect(reiterZiel("ArrowRight", 2, 3, false)).toBe(0);
+    expect(reiterZiel("ArrowLeft", 0, 3, false)).toBe(2);
+    expect(reiterZiel("ArrowDown", 0, 3, false)).toBeNull();
+  });
+  it("nimmt bei senkrechter Leiste hoch/runter, Pos1 und Ende immer", () => {
+    expect(reiterZiel("ArrowDown", 1, 3, true)).toBe(2);
+    expect(reiterZiel("ArrowUp", 1, 3, true)).toBe(0);
+    expect(reiterZiel("ArrowRight", 1, 3, true)).toBeNull();
+    expect(reiterZiel("Home", 2, 3, true)).toBe(0);
+    expect(reiterZiel("End", 0, 3, false)).toBe(2);
   });
 });
