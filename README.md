@@ -6,6 +6,10 @@ Wissensbasis aus Gesetzen (später auch Rechtsprechung). Leitprinzip: **Beleg vo
 Behauptung**. Jede Aussage verweist auf eine Fundstelle im Dokument oder in einer
 Rechtsquelle mit Fassungsstand.
 
+**Der Name:** „adv“ steht für *advocatus*, lateinisch für den Anwalt, „Ordo“ für lateinisch *ordo*, die Ordnung.
+Das große O ist doppelt besetzt: Es schließt „Advo“ ab, wie man den Anwalt auch kurz nennt, und beginnt „Ordo“.
+advOrdo bringt also Ordnung in die Anwaltsarbeit: Akten, Fristen, Belege und Rechtsquellen an einem Ort.
+
 Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzung in `docs/architektur.md`.
 
 Die App hieß früher „Juristischer Datenabgleich“, danach „JuraBox“. Interne Bezeichner tragen die alten
@@ -495,6 +499,20 @@ Hinweis auf Datenschutz- und Berufsrecht bestätigt wurde. Danach API-Schlüssel
 externen Anbieter wählen. Solange er gewählt ist, steht links unten „KI-Modus: Externer Anbieter“, und
 Analyse und Chat weisen darauf hin, dass Dokumenttexte das Gerät verlassen. Schalter aus stellt sofort
 wieder auf lokal.
+
+**Berufsrecht und Datenschutz.** Mit externer KI gehen Fragen und die Texte der befragten Dokumente an den
+gewählten Anbieter, oft außerhalb der EU. Vor dem Einsatz mit Mandatsdaten musst du das selbst klären; die App
+prüft es nicht:
+
+- Datenschutz: Rechtsgrundlage und Vertrag zur Auftragsverarbeitung mit dem Anbieter (Art. 28 DSGVO), bei
+  Übermittlung in Drittländer die Voraussetzungen der Art. 44 ff. DSGVO.
+- Verschwiegenheit: § 43a Abs. 2 BRAO und § 2 BORA. Dienstleister dürfen Mandatsgeheimnisse nur unter den
+  Voraussetzungen des § 43e BRAO erfahren: Vereinbarung in Textform, Verpflichtung zur Verschwiegenheit, bei
+  Anbietern im Ausland vergleichbarer Geheimnisschutz. Sonst droht eine Strafbarkeit nach § 203 StGB.
+- Wo möglich: Dokumente vorher anonymisieren oder die Einwilligung der Mandantschaft einholen.
+
+Derselbe Hinweis steht in der App vor dem Einschalten und muss dort bestätigt werden. Für Rechtsabteilungen und
+andere Berufsgruppen gelten die jeweiligen Verschwiegenheitsregeln entsprechend.
 
 Die Schlüssel liegen im Schlüsselbund des Systems (Windows: Anmeldeinformationsverwaltung, macOS:
 Schlüsselbund, Linux: Secret Service wie GNOME-Schlüsselbund oder KWallet), je Arbeitsumgebung getrennt,
