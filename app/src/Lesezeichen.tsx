@@ -675,26 +675,29 @@ function Schieber({
   onSchritt: (richtung: -1 | 1) => void;
 }) {
   return (
-    <span className="lz-schieber">
+    // Pfeil hoch/runter wirkt auf dem Griff und auf ▲ ▼ gleich; der Fokus bleibt beim verschobenen Eintrag.
+    <span
+      className="lz-schieber"
+      onKeyDown={(e) => {
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          onSchritt(e.key === "ArrowUp" ? -1 : 1);
+        }
+      }}
+    >
       <button
         type="button"
         className="lz-griff"
         title="Ziehen oder mit Pfeil hoch/runter verschieben"
         aria-label={`${titel} verschieben, Pfeil hoch oder runter`}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-            e.preventDefault();
-            onSchritt(e.key === "ArrowUp" ? -1 : 1);
-          }
-        }}
         {...ziehen}
       >
         <Zeichen name="griff" groesse={14} />
       </button>
-      <button type="button" className="lz-knopf lz-schritt" aria-label={`${titel} nach oben`} title="Nach oben" onClick={() => onSchritt(-1)}>
+      <button type="button" className="lz-knopf lz-schritt" aria-label={`${titel} nach oben, auch Pfeil hoch`} title="Nach oben (Pfeil hoch)" onClick={() => onSchritt(-1)}>
         ▲
       </button>
-      <button type="button" className="lz-knopf lz-schritt" aria-label={`${titel} nach unten`} title="Nach unten" onClick={() => onSchritt(1)}>
+      <button type="button" className="lz-knopf lz-schritt" aria-label={`${titel} nach unten, auch Pfeil runter`} title="Nach unten (Pfeil runter)" onClick={() => onSchritt(1)}>
         ▼
       </button>
     </span>

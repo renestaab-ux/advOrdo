@@ -488,92 +488,94 @@ function AktenUebersicht({
       {akten == null && !fehler && <p className="status" role="status">Lade Akten …</p>}
 
       {sichtbar.length > 0 && (
-        <table className="dokumente akten-tabelle">
-          <thead>
-            <tr>
-              {(
-                [
-                  ["az", "Az."],
-                  ["name", "Kurzbezeichnung"],
-                  ["mandant", "Mandant"],
-                  ["gegner", "Gegner"],
-                  ["gegenstand", "Gegenstand"],
-                  ["gericht", "Gericht · Az."],
-                  ["frist", "Nächste Frist"],
-                  ["status", "Status"],
-                  ["bearbeitet", "Bearbeitet"],
-                ] as const
-              ).map(([k, t]) => (
-                <SortKopf key={k} spalte={k} titel={t} sortierung={sortierung} onSortieren={sortieren} />
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sichtbar.map((a) => (
-              <tr key={a.id} onClick={() => onOeffnen(a.id)} className="klickbar">
-                <td className="az">{a.aktenzeichen ?? "–"}</td>
-                <td>
-                  <button className="link" onClick={() => onOeffnen(a.id)}>
-                    {a.name}
-                  </button>
-                  {!a.aktenzeichen && (
-                    <button
-                      className="marke-fehlt"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOeffnen(a.id, "stammdaten");
-                      }}
-                      title="Stammdaten öffnen und ein Aktenzeichen vergeben"
-                    >
-                      Aktenzeichen fehlt
-                    </button>
-                  )}
-                </td>
-                <td>{namen(a.mandanten)}</td>
-                <td>{namen(a.gegner)}</td>
-                <td>{a.gegenstand || "–"}</td>
-                <td>
-                  {a.gerichte.length > 0 ? (
-                    a.gerichte.map((g) => (
-                      <div key={g.name + g.aktenzeichen}>
-                        {g.name}
-                        {g.aktenzeichen && <div className="leise">{g.aktenzeichen}</div>}
-                      </div>
-                    ))
-                  ) : (
-                    <span className="leise">–</span>
-                  )}
-                </td>
-                <td>
-                  {a.naechste ? (
-                    <button
-                      className={`naechste-frist ${a.naechste.lage}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOeffnen(a.id, "fristen");
-                      }}
-                      title={`${a.naechste.art_text}: ${a.naechste.titel}`}
-                    >
-                      <span className="frist-datum">
-                        <FristZeichen lage={a.naechste.lage} />
-                        {datumLang(a.naechste.datum)}
-                      </span>
-                      <span className="leise">
-                        {a.naechste.titel} · {abstandText({ ...a.naechste, erledigt_am: null })}
-                      </span>
-                    </button>
-                  ) : (
-                    <span className="leise">–</span>
-                  )}
-                </td>
-                <td>
-                  <span className={`status-marke ${a.status}`}>{optionen?.status[a.status] ?? a.status}</span>
-                </td>
-                <td className="leise">{bearbeitetText(bearbeitet(a))}</td>
+        <div className="tabelle-rahmen" role="region" aria-label="Aktenliste" tabIndex={0}>
+          <table className="dokumente akten-tabelle">
+            <thead>
+              <tr>
+                {(
+                  [
+                    ["az", "Az."],
+                    ["name", "Kurzbezeichnung"],
+                    ["mandant", "Mandant"],
+                    ["gegner", "Gegner"],
+                    ["gegenstand", "Gegenstand"],
+                    ["gericht", "Gericht · Az."],
+                    ["frist", "Nächste Frist"],
+                    ["status", "Status"],
+                    ["bearbeitet", "Bearbeitet"],
+                  ] as const
+                ).map(([k, t]) => (
+                  <SortKopf key={k} spalte={k} titel={t} sortierung={sortierung} onSortieren={sortieren} />
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sichtbar.map((a) => (
+                <tr key={a.id} onClick={() => onOeffnen(a.id)} className="klickbar">
+                  <td className="az">{a.aktenzeichen ?? "–"}</td>
+                  <td>
+                    <button className="link" onClick={() => onOeffnen(a.id)}>
+                      {a.name}
+                    </button>
+                    {!a.aktenzeichen && (
+                      <button
+                        className="marke-fehlt"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOeffnen(a.id, "stammdaten");
+                        }}
+                        title="Stammdaten öffnen und ein Aktenzeichen vergeben"
+                      >
+                        Aktenzeichen fehlt
+                      </button>
+                    )}
+                  </td>
+                  <td>{namen(a.mandanten)}</td>
+                  <td>{namen(a.gegner)}</td>
+                  <td>{a.gegenstand || "–"}</td>
+                  <td>
+                    {a.gerichte.length > 0 ? (
+                      a.gerichte.map((g) => (
+                        <div key={g.name + g.aktenzeichen}>
+                          {g.name}
+                          {g.aktenzeichen && <div className="leise">{g.aktenzeichen}</div>}
+                        </div>
+                      ))
+                    ) : (
+                      <span className="leise">–</span>
+                    )}
+                  </td>
+                  <td>
+                    {a.naechste ? (
+                      <button
+                        className={`naechste-frist ${a.naechste.lage}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOeffnen(a.id, "fristen");
+                        }}
+                        title={`${a.naechste.art_text}: ${a.naechste.titel}`}
+                      >
+                        <span className="frist-datum">
+                          <FristZeichen lage={a.naechste.lage} />
+                          {datumLang(a.naechste.datum)}
+                        </span>
+                        <span className="leise">
+                          {a.naechste.titel} · {abstandText({ ...a.naechste, erledigt_am: null })}
+                        </span>
+                      </button>
+                    ) : (
+                      <span className="leise">–</span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`status-marke ${a.status}`}>{optionen?.status[a.status] ?? a.status}</span>
+                  </td>
+                  <td className="leise">{bearbeitetText(bearbeitet(a))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {akten != null && sichtbar.length === 0 && (
         alle.length === 0 ? (

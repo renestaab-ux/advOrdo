@@ -85,3 +85,43 @@ export function trennerSchritt(taste: string, gross: boolean, breite: number, mi
   else return null;
   return Math.min(Math.max(neu, min), max);
 }
+
+/**
+ * Pfeiltasten in einer Reiterleiste (WAI-ARIA „Tabs“): links/rechts, bei senkrechter Leiste hoch/runter, Pos1 und
+ * Ende. Gibt den Index des nächsten Reiters zurück (am Ende geht es vorn weiter) oder null für andere Tasten.
+ */
+export function reiterZiel(taste: string, index: number, anzahl: number, senkrecht: boolean): number | null {
+  if (anzahl === 0) return null;
+  const vor = senkrecht ? "ArrowDown" : "ArrowRight";
+  const zurueck = senkrecht ? "ArrowUp" : "ArrowLeft";
+  if (taste === vor) return (index + 1) % anzahl;
+  if (taste === zurueck) return (index - 1 + anzahl) % anzahl;
+  if (taste === "Home") return 0;
+  if (taste === "End") return anzahl - 1;
+  return null;
+}
+
+/**
+ * Für alle Reiterleisten der Seite (role="tablist"): Pfeiltaste wählt den nächsten Reiter und setzt den Fokus darauf.
+ * Ein Ereignis an document genügt, so braucht nicht jede Leiste eigenen Code.
+ */
+export function useReiterTasten() {
+  useEffect(() => {
+    function taste(e: KeyboardEvent) {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const reiter = (e.target as HTMLElement | null)?.closest?.<HTMLElement>('[role="tab"]');
+      const leiste = reiter?.closest<HTMLElement>('[role="tablist"]');
+      if (!reiter || !leiste) return;
+      const alle = Array.from(leiste.querySelectorAll<HTMLElement>('[role="tab"]')).filter(
+        (r) => r.closest('[role="tablist"]') === leiste && !r.hasAttribute("disabled") && r.getAttribute("aria-disabled") !== "true",
+      );
+      const ziel = reiterZiel(e.key, alle.indexOf(reiter), alle.length, leiste.getAttribute("aria-orientation") === "vertical");
+      if (ziel == null) return;
+      e.preventDefault();
+      alle[ziel].focus();
+      alle[ziel].click();
+    }
+    document.addEventListener("keydown", taste);
+    return () => document.removeEventListener("keydown", taste);
+  }, []);
+}

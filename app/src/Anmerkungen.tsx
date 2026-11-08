@@ -18,11 +18,12 @@ import {
   markdownBloecke,
   STILE,
 } from "./anmerkungLogik";
-import { useDialog } from "./barrierefrei";
+import { fokussierbare, useDialog } from "./barrierefrei";
 import { istDesktop, kern } from "./kern";
 import type { LesezeichenStelle } from "./Lesezeichen";
 import Zeichen from "./Symbole";
 import { PdfKopieKnopf } from "./PdfMarkiert";
+import { auswahlIn, auswahlSchritt, markeAn, markeOben, markeSichtbar, markeZeigen, strichVerbergen, strichZeigen } from "./textCursor";
 
 // --- Bedeutung der Farben (je Arbeitsumgebung, im Kern gespeichert) ----------------------------------------------------
 
@@ -174,10 +175,12 @@ function lageVon(rect: DOMRect): Lage {
 /** Hält ein schwebendes Fenster im sichtbaren Bereich: über der Stelle, sonst darunter. */
 function useSchwebend(lage: Lage, ueber: boolean) {
   const ref = useRef<HTMLDivElement>(null);
-  const [stil, setStil] = useState<{ left: number; top: number; visibility?: "hidden" }>({
+  // Bis zur Messung durchsichtig, nicht „visibility: hidden“: sonst nimmt das Fenster beim Öffnen keinen Fokus an
+  // (Kommentar-Feld, Escape).
+  const [stil, setStil] = useState<{ left: number; top: number; opacity?: number }>({
     left: lage.x,
     top: lage.oben,
-    visibility: "hidden",
+    opacity: 0,
   });
   useLayoutEffect(() => {
     const el = ref.current;
@@ -199,12 +202,15 @@ function AuswahlMenue({
   onMarkieren,
   onKommentar,
   onLesezeichen,
+  onSchliessen,
 }: {
   lage: Lage;
   bedeutungen: Bedeutungen;
   onMarkieren: (farbe: AnmerkFarbe, stil: AnmerkStil) => void;
   onKommentar: () => void;
   onLesezeichen?: () => void;
+  /** Escape im Menü: schließen, der Fokus geht zurück in den Text. */
+  onSchliessen: () => void;
 }) {
   const { ref, stil } = useSchwebend(lage, true);
   // Sofort sichtbare Erklärung unter den Knöpfen; der Tooltip des Systems kommt spät oder gar nicht.
@@ -219,6 +225,21 @@ function AuswahlMenue({
       role="toolbar"
       aria-label="Auswahl markieren"
       onMouseDown={(e) => e.preventDefault() /* Auswahl im Text behalten */}
+      onKeyDown={(e) => {
+        // Symbolleiste: Pfeil links/rechts wandert durch die Knöpfe, Escape schließt.
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          onSchliessen();
+          return;
+        }
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const knoepfe = ref.current ? fokussierbare(ref.current) : [];
+        const i = knoepfe.indexOf(document.activeElement as HTMLElement);
+        if (i < 0 || knoepfe.length === 0) return;
+        e.preventDefault();
+        knoepfe[(i + (e.key === "ArrowRight" ? 1 : knoepfe.length - 1)) % knoepfe.length].focus();
+      }}
     >
       {FARBEN.map((f) => (
         <button
@@ -471,6 +492,10 @@ export function useAnmerkungen(
   const [fehler, setFehler] = useState<string | null>(null);
   const [aktiv, setAktiv] = useState<number | null>(null);
   const vorschauTakt = useRef<number>();
+  // Markieren per Tastatur: Textrahmen, ob das Menü per Tastatur betreten wurde, und wohin die Marke danach kommt.
+  const rahmen = useRef<HTMLElement | null>(null);
+  const perTastatur = useRef(false);
+  const zurueckAn = useRef<number | null>(null);
 
   const laden = useCallback(async () => {
     if (dokumentId == null || !istDesktop) {
@@ -532,9 +557,24 @@ export function useAnmerkungen(
     onGeaendert?.();
   }
 
+  /** Nach Menü oder Editor: Fokus und Einfügemarke zurück in den Text, wenn per Tastatur gearbeitet wurde. */
+  function zurueckInDenText() {
+    const root = rahmen.current;
+    if (!perTastatur.current || !root || !document.contains(root)) return;
+    requestAnimationFrame(() => {
+      const fokus = document.activeElement;
+      if (fokus && fokus !== document.body && document.contains(fokus) && !fokus.closest(".anm-menue")) return;
+      root.focus({ preventScroll: true });
+      if (zurueckAn.current != null) markeAn(root, zurueckAn.current);
+      strichZeigen();
+      perTastatur.current = false;
+    });
+  }
+
   async function anlegen(farbe: AnmerkFarbe, stil: AnmerkStil, mitKommentar: boolean) {
     if (!menue || dokumentId == null) return;
     const { lage } = menue;
+    if ("ende" in menue) zurueckAn.current = menue.ende;
     setMenue(null);
     window.getSelection()?.removeAllRanges();
     try {
@@ -558,13 +598,16 @@ export function useAnmerkungen(
       await geaendert();
       setAktiv(neu.id);
       if (mitKommentar) setEditor({ id: neu.id, lage });
+      else zurueckInDenText();
     } catch (e) {
       setFehler(String(e));
     }
   }
 
-  /** Nach dem Loslassen der Maus im Text: Menü über der Auswahl zeigen. */
+  /** Nach dem Loslassen der Maus (oder der Umschalttaste) im Text: Menü über der Auswahl zeigen. */
   function beiAuswahl(root: HTMLElement) {
+    rahmen.current = root;
+    perTastatur.current = false;
     const a = auswahlImDokument(root);
     if (!a) return;
     setVorschau(null);
@@ -579,6 +622,74 @@ export function useAnmerkungen(
     setFehler(null);
     setMenue(seite && rect ? { seite, lage: lageVon(rect) } : null);
   }
+
+  /** Menü über der Auswahl per Tastatur betreten (Tab, Umschalt + F10 oder Kontextmenü-Taste). */
+  function insMenue(root: HTMLElement): boolean {
+    if (!menue) beiAuswahl(root);
+    if (!auswahlImDokument(root)) return false;
+    perTastatur.current = true;
+    zurueckAn.current = auswahlImDokument(root)?.ende ?? null;
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(".anm-menue button")?.focus());
+    return true;
+  }
+
+  /**
+   * Textrahmen einer Ansicht per Tastatur bedienbar machen: Pfeile bewegen die Einfügemarke, Umschalt + Pfeil markiert,
+   * Strg + A wählt den ganzen Text, Tab führt ins Menü, Escape hebt die Auswahl auf.
+   */
+  const rahmenProps = {
+    tabIndex: 0,
+    role: "document",
+    "aria-label": "Dokumenttext. Markieren mit Umschalt und Pfeiltasten, danach Tab für das Markiermenü.",
+    onMouseUp: (e: { currentTarget: HTMLElement }) => beiAuswahl(e.currentTarget),
+    onFocus: (e: { currentTarget: HTMLElement; target: EventTarget }) => {
+      const root = e.currentTarget;
+      rahmen.current = root;
+      // Nur bei Tastaturfokus; ein Mausklick setzt die Auswahl selbst.
+      if (e.target !== root || !root.matches(":focus-visible")) return;
+      if (!auswahlIn(root)) markeOben(root);
+      strichZeigen();
+    },
+    onBlur: () => strichVerbergen(),
+    onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
+      const root = e.currentTarget;
+      if (e.target !== root || e.altKey || e.metaKey) return;
+      const sel = window.getSelection();
+      if (!sel) return;
+      if ((e.key === "Tab" && !e.shiftKey && !e.ctrlKey && menue) || (e.key === "F10" && e.shiftKey) || e.key === "ContextMenu") {
+        if (insMenue(root)) e.preventDefault();
+        return;
+      }
+      if (e.key === "Escape" && !sel.isCollapsed && auswahlIn(root)) {
+        e.preventDefault();
+        sel.collapseToEnd();
+        strichZeigen();
+        return;
+      }
+      if (e.ctrlKey && (e.key === "a" || e.key === "A")) {
+        const text = root.querySelector(".dokument") ?? root;
+        e.preventDefault();
+        sel.selectAllChildren(text);
+        return;
+      }
+      const schritt = auswahlSchritt(e.key, e.shiftKey, e.ctrlKey);
+      if (!schritt) return;
+      e.preventDefault();
+      // Marke fehlt oder ist aus dem Blick geblättert: oben im sichtbaren Text neu ansetzen.
+      if (!auswahlIn(root) || (sel.isCollapsed && !markeSichtbar(root))) markeOben(root);
+      sel.modify(schritt.art, schritt.richtung, schritt.einheit);
+      markeZeigen(root);
+      // Nach dem Blättern neu messen.
+      requestAnimationFrame(strichZeigen);
+    },
+    onKeyUp: (e: KeyboardEvent<HTMLElement>) => {
+      const root = e.currentTarget;
+      if (e.target !== root) return;
+      if (e.key === "Shift" || (e.shiftKey && auswahlSchritt(e.key, true, false)) || (e.ctrlKey && (e.key === "a" || e.key === "A"))) {
+        if (!window.getSelection()?.isCollapsed) beiAuswahl(root);
+      }
+    },
+  };
 
   const ereignisse: AnmerkungsEreignisse = {
     onZeigen: (id, el) => {
@@ -611,12 +722,19 @@ export function useAnmerkungen(
           bedeutungen={bedeutungen}
           onMarkieren={(f, s) => void anlegen(f, s, false)}
           onKommentar={() => void anlegen("gelb", "flaeche", true)}
+          onSchliessen={() => {
+            setMenue(null);
+            zurueckAn.current = null;
+            zurueckInDenText();
+          }}
           onLesezeichen={
             onLesezeichen &&
             (() => {
               const m = menue;
               setMenue(null);
               window.getSelection()?.removeAllRanges();
+              zurueckAn.current = "ende" in m ? m.ende : null;
+              zurueckInDenText();
               onLesezeichen(
                 "seite" in m ? { seite: m.seite.seite, wort_von: m.seite.von, wort_bis: m.seite.bis } : { start: m.start, ende: m.ende },
               );
@@ -631,7 +749,10 @@ export function useAnmerkungen(
           anmerkung={imEditor}
           bedeutungen={bedeutungen}
           lage={editor.lage}
-          onSchliessen={() => setEditor(null)}
+          onSchliessen={() => {
+            setEditor(null);
+            zurueckInDenText();
+          }}
           onSpeichern={async (farbe, stil, kommentar) => {
             try {
               await kern("anmerkungen.aendern", {
@@ -643,6 +764,7 @@ export function useAnmerkungen(
               });
               setEditor(null);
               await geaendert();
+              zurueckInDenText();
             } catch (e) {
               setFehler(String(e));
             }
@@ -653,6 +775,7 @@ export function useAnmerkungen(
               setEditor(null);
               setAktiv(null);
               await geaendert();
+              zurueckInDenText();
             } catch (e) {
               setFehler(String(e));
             }
@@ -670,7 +793,19 @@ export function useAnmerkungen(
     onAuswahl: beiSeitenAuswahl,
   };
 
-  return { liste, stand, aktiv, setAktiv, bedeutungen, beiAuswahl, ereignisse, schicht, original, oeffneEditor: ereignisse.onKlick };
+  return {
+    liste,
+    stand,
+    aktiv,
+    setAktiv,
+    bedeutungen,
+    beiAuswahl,
+    rahmenProps,
+    ereignisse,
+    schicht,
+    original,
+    oeffneEditor: ereignisse.onKlick,
+  };
 }
 
 /** Mausereignisse eines Bereichs mit Markierungen ([data-anmerkung]) an die Steuerung weitergeben. */

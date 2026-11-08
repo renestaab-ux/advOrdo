@@ -1375,7 +1375,7 @@ export default function Akte({
                   <div
                     ref={textRahmen}
                     className="anm-rahmen"
-                    onMouseUp={() => textRahmen.current && anm.beiAuswahl(textRahmen.current)}
+                    {...anm.rahmenProps}
                     {...anmerkungsHandler(anm.ereignisse)}
                   >
                     <DokumentAnsicht
