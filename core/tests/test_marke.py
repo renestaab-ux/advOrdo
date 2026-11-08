@@ -20,7 +20,8 @@ def con(tmp_path):
 
 
 def test_ohne_logo(tmp_path, con):
-    assert marke.lesen(tmp_path, con) == {"logo": None, "kurzbezeichnung": "", "name": "", "druckbild": False}
+    assert marke.lesen(tmp_path, con) == {"logo": None, "kurzbezeichnung": "", "name": "", "druckbild": False,
+                                       "hintergrund": "weiss"}
 
 
 def test_logo_setzen_ersetzen_entfernen(tmp_path, con):
@@ -58,3 +59,20 @@ def test_kurzbezeichnung_und_name(tmp_path, con):
                                    "berufsbezeichnung": "Rechtsanwältin"})
     eigene.organisation_speichern(con, {"strasse": "Musterweg 1", "plz": "10115", "ort": "Berlin"})
     assert marke.lesen(tmp_path, con)["name"] == "Rechtsanwältin Erika Muster"
+
+
+def test_hintergrund_neben_kurzbezeichnung(tmp_path, con):
+    marke.kurz_setzen(tmp_path, con, "Muster")
+    m = marke.hintergrund_setzen(tmp_path, con, "akzent")
+    assert (m["hintergrund"], m["kurzbezeichnung"]) == ("akzent", "Muster")
+    # Die Kurzbezeichnung zu ändern lässt den Hintergrund stehen.
+    assert marke.kurz_setzen(tmp_path, con, "Neu")["hintergrund"] == "akzent"
+    with pytest.raises(ValueError, match="weiß"):
+        marke.hintergrund_setzen(tmp_path, con, "rot")
+
+
+def test_hintergrund_unbekannt_oder_kaputt(tmp_path, con):
+    (tmp_path / "marke.json").write_text('{"hintergrund": "rot"}', encoding="utf-8")
+    assert marke.lesen(tmp_path, con)["hintergrund"] == "weiss"
+    (tmp_path / "marke.json").write_text("[1, 2]", encoding="utf-8")
+    assert marke.lesen(tmp_path, con)["kurzbezeichnung"] == ""

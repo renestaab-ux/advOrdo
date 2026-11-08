@@ -107,7 +107,7 @@
 .logo-zeile { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 6px; }
 .logo-vorschau { width: 180px; height: 120px; padding: 8px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--linie); border-radius: 8px; background: var(--feld); }
 /* Feste Größe statt max-%: so bleibt auch ein SVG mit eigener Breite und Höhe im Rahmen. */
-.logo-vorschau img { width: 100%; height: 100%; object-fit: contain; }
+.logo-vorschau img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; padding: 4px; }
 /* Startseite: Logo groß, daneben der Name aus „Eigene Daten“. */
 
 /* Bereich „Rechtsprechung“: Sammlung links, Volltext rechts. */

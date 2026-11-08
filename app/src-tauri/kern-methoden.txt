@@ -167,6 +167,7 @@ lesezeichen.ordner_loeschen
 lesezeichen.ordner_umbenennen
 lesezeichen.seite
 marke.druckbild_setzen
+marke.hintergrund_setzen
 marke.kurz_setzen
 marke.lesen
 marke.logo_entfernen
