@@ -130,7 +130,12 @@ def _werte_anweisung(t: belege.Text, stueck: list) -> str:
         "27.06.2025“. Unterscheide genau: Kilometerstand bei Übergabe ist nicht der heutige Kilometerstand, eine "
         "Anzahlung ist nicht der Kaufpreis, das Datum eines Schreibens ist nicht das Datum des Ereignisses, von dem "
         "es berichtet („mit Schreiben vom 23.06.2025 gesetzte Frist“: 23.06.2025 ist das Datum des Schreibens, nicht "
-        "die Frist), eine eingeklagte Forderung ist nicht der vom Gericht zugesprochene Betrag.\n"
+        "die Frist), eine eingeklagte Forderung ist nicht der vom Gericht zugesprochene Betrag. Bei Geldbeträgen in "
+        "Klageanträgen und Forderungen nenne, wofür der Betrag verlangt wird (z. B. „Zinsschaden aus "
+        "Zwischenfinanzierung“, „außergerichtliche Rechtsverfolgungskosten“). Steht das im Antrag nicht („weitere "
+        "12.517,60 Euro“), nimm den Gegenstand aus der Gliederung oder Begründung, in der derselbe Betrag steht; "
+        "sonst „Klageantrag Ziff. 3“. Wörter wie „weitere Forderung“, „zusätzliche Forderung“ oder „Betrag“ allein "
+        "sind kein Bezug.\n"
         "- haltung: behauptet (der Verfasser stellt den Wert als zutreffend dar), bestritten (der Verfasser "
         "bestreitet oder verneint genau diesen Wert, z. B. „betrug nicht 64.800 km“, „Bestritten wird, dass … am "
         "12.05.2025 …“), unstreitig, festgestellt (vom Gericht). Was der Verfasser dem Bestrittenen als eigene "
@@ -302,7 +307,8 @@ def _ordne_bezuege(analyse: Analyse, eintraege: list[dict], luecken: list[int]) 
             "- Verschiedene Sachen gehören in verschiedene Gruppen, auch wenn sie ähnlich klingen: Kilometerstand bei "
             "Übergabe und heutiger Kilometerstand; Kaufpreis und Anzahlung; Frist zur Nacherfüllung und Frist zur "
             "Zahlung; Datum eines Schreibens und Datum des Ereignisses, von dem es berichtet; eingeklagte Forderung "
-            "und vom Gericht zugesprochener Betrag.\n"
+            "und vom Gericht zugesprochener Betrag; Beträge verschiedener Klageanträge oder verschiedener "
+            "Schadensposten (Zinsschaden und Rechtsverfolgungskosten), auch wenn beide „weitere“ Forderung heißen.\n"
             "- titel: der Bezug in wenigen Wörtern, wie er über der Gegenüberstellung stehen soll.\n"
             "- bezuege: die Kennungen (z. B. B3) der Bezüge dieser Gruppe; jeder Bezug in höchstens einer Gruppe.\n"
             "Bezüge, die zu keinem anderen passen, lässt du weg.\n\n"
@@ -407,7 +413,8 @@ def _bewerte(analyse: Analyse, merkmale: list[dict], luecken: list[int]) -> None
             "Aufgabe: Schätze jede Gruppe ein.\n"
             "- einschaetzung: abweichung (die Dokumente machen zu derselben Sache verschiedene Angaben) oder "
             "verschiedenes (bei genauem Lesen meinen die Werte verschiedene Dinge oder Zeitpunkte, z. B. "
-            "Kilometerstand bei Übergabe und bei der späteren Untersuchung).\n"
+            "Kilometerstand bei Übergabe und bei der späteren Untersuchung; Beträge aus verschiedenen "
+            "Klageanträgen oder für verschiedene Schadensposten, etwa Zinsschaden und Rechtsverfolgungskosten).\n"
             "- erklaerung: ein Satz, was abweicht und wer was angibt, bzw. warum es Verschiedenes ist.\n"
             "- kennung: die Kennung der Gruppe (z. B. M2).\n\n"
             "Gruppen:\n" + "\n".join(zeilen[i] for i in block),
@@ -570,6 +577,7 @@ def zusammenfuehren(con, akte_id: int, dokument_ids: list[int] | None, ki_teil: 
             m["erklaerung"] = m["erklaerung"] if m["status"] == VERSCHIEDEN else ""
         m.pop("einschaetzung", None)
         ergebnis.append(m)
+    regeln.zahlendreher_hinweise(con, akte_id, dokument_ids, ergebnis)
     rang = {regeln.ABWEICHEND: 0, VERSCHIEDEN: 1, regeln.UEBEREINSTIMMEND: 2, regeln.EINZELN: 3}
     ergebnis.sort(key=lambda m: (rang[m["status"]], m["quelle"] != KI, -m["dokumente"], m["titel"].casefold()))
 

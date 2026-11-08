@@ -1,7 +1,7 @@
 import pytest
 
 from juracore.abgleich import abgleich as ab
-from juracore.abgleich.angaben import anzeige, finde_angaben, finde_werte, saetze, vereinbar
+from juracore.abgleich.angaben import anzeige, finde_angaben, finde_werte, saetze, vereinbar, zahlendreher
 from juracore.dokumente import akte
 
 from .conftest import schreibe_pdf
@@ -48,6 +48,17 @@ def test_monat_ist_mit_datum_desselben_monats_vereinbar():
 
 
 # --- Angaben --------------------------------------------------------------------------------------
+
+
+def test_zahlendreher():
+    assert zahlendreher("betrag", "69415.80", "betrag", "96415.80")
+    assert zahlendreher("datum", "2019-03-01", "datum", "2019-03-10")  # 01.03. und 10.03.
+    assert zahlendreher("km", "68400", "km", "64800")
+    assert not zahlendreher("betrag", "14900.00", "betrag", "14990.00")  # andere Ziffer, kein Dreher
+    assert not zahlendreher("betrag", "69415.80", "betrag", "69415.80")
+    assert not zahlendreher("betrag", "1234.00", "betrag", "4231.00")  # nicht nebeneinander
+    assert not zahlendreher("betrag", "4100.00", "km", "1400")
+    assert not zahlendreher("code", "P17BF", "code", "P71BF")
 
 
 def test_wert_gehoert_zum_naechsten_merkmal():
@@ -222,6 +233,30 @@ def test_verschiedene_vertraege_werden_nicht_verglichen(akten, con, tmp_path):
         "Generalplanervertrag vom (Anlage K 18)": "einzeln",
         "Generalplanervertrag vom (Anlage K 20)": "einzeln",
     }
+
+
+def test_zahlendreher_wird_benannt(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Gutachten")
+    _einlesen(
+        akten, con, tmp_path, a["id"], "klage.pdf",
+        [["Inhaltsverzeichnis: Kaufpreis (14.900,00 €)"],
+         ["(3) Mit Kaufvertrag vom 14.03.2025 erwarb die Klägerin den Pkw zum Preis von 19.400,00 €.",
+          "Die Klägerin hat den Kaufpreis von 19.400,00 € bar bezahlt."]],
+        ["Kläger"],
+    )  # fmt: skip
+    _einlesen(
+        akten, con, tmp_path, a["id"], "ruecktritt.pdf",
+        [["Wir fordern Sie auf, den Kaufpreis in Höhe von 14.990,00 € zu erstatten."]],
+        ["Kläger"],
+    )
+    merkmale = {m["titel"]: m for m in ab.abgleich(akten, a["id"])["merkmale"]}
+    kaufpreis = merkmale["Kaufpreis"]
+    assert {w["anzeige"] for w in kaufpreis["werte"]} >= {"19.400,00 €", "14.900,00 €", "14.990,00 €"}
+    assert kaufpreis["hinweis"] == (
+        "Möglicher Zahlendreher: 19.400,00 € und 14.900,00 € unterscheiden sich nur durch zwei vertauschte Ziffern. "
+        "19.400,00 € steht zweimal im Text, 14.900,00 € einmal."
+    )
+    assert merkmale["Kaufvertrag vom"]["hinweis"] == ""
 
 
 def test_unbekannte_akte(akten):
