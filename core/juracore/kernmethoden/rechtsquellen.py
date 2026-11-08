@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from .. import db, gerichte, justizadressen
-from ..dokumente import urteile
+from ..dokumente import akte, urteile
 from ..gesetze import quelle, wissensbasis
 from ..rechtsprechung import online, verzeichnis
 
@@ -29,6 +29,11 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
                 k.con, gesetz, nummer, fassung_id, typ
             ),
         "zitat.aufloesen": lambda zitat, fassung_id=None: wissensbasis.loese_zitat(k.con, zitat, fassung_id),
+        "gesetze.vorschlaege": lambda gesetz: wissensbasis.vorschlaege(
+                k.con, gesetz, quelle.voreinstellung(k.eigene_liste)),
+        "gesetze.schreibweisen": lambda: wissensbasis.schreibweisen(k.con),
+        "gesetze.schreibweise_setzen": lambda von, nach: _schreibweise_setzen(k, von, nach),
+        "gesetze.schreibweise_loeschen": lambda von: _schreibweise_loeschen(k, von),
         "rechtsprechung.quellen": lambda: online.einstellungen(k.quellen_datei),
         "rechtsprechung.quellen_setzen": lambda neuris: online.einstellungen_setzen(k.quellen_datei, neuris),
         "rechtsprechung.eigene": lambda: urteile.uebersicht(k.akten),
@@ -64,3 +69,16 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "gerichte.suche_einstellungen_setzen": lambda aktiv: justizadressen.einstellungen_setzen(
                 k.gerichtssuche_datei, aktiv),
     }
+
+
+def _schreibweise_setzen(k: Kern, von: str, nach: str) -> dict:
+    """Eigene Schreibweise merken und betroffene Zitate in allen Akten sofort neu prüfen."""
+    alt = wissensbasis.gemeintes_gesetz(k.con, von)
+    neu = wissensbasis.schreibweise_setzen(k.con, von, nach)
+    geprueft = akte.normzitate_eines_gesetzes_neu_pruefen(k.akten, k.con, [von, *([alt] if alt else [])])
+    return neu | geprueft
+
+
+def _schreibweise_loeschen(k: Kern, von: str) -> dict:
+    wissensbasis.schreibweise_loeschen(k.con, von)
+    return akte.normzitate_eines_gesetzes_neu_pruefen(k.akten, k.con, [von])

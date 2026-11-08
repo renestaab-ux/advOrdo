@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Auswahl, DokModus, Ergaenzung } from "./Akte";
 import { OriginalAnmerkungen, SeitenAuswahl, anmerkungsHandler } from "./Anmerkungen";
+import { GesetzVorschlaege } from "./Schreibweisen";
 import Zeichen from "./Symbole";
 import {
   Anmerkung,
@@ -507,10 +508,15 @@ export function OriginalAnsicht({
 export function NormenAnsicht({
   normen,
   onFundstelle,
+  onZuordnen,
+  gesperrt,
   leer = "In dieser Akte wurden keine Normzitate erkannt.",
 }: {
   normen: NormEintrag[];
   onFundstelle: (dokumentId: number, abschnitt: number) => void;
+  /** Eigene Schreibweise anlegen (``nach``) oder aufheben (null). */
+  onZuordnen?: (von: string, nach: string | null) => void;
+  gesperrt?: boolean;
   leer?: string;
 }) {
   if (normen.length === 0) return <p className="leer">{leer}</p>;
@@ -522,7 +528,22 @@ export function NormenAnsicht({
             <span className={`marke-status ${n.status}`}>{STATUS_TEXT[n.status]}</span> <strong>{n.zitat}</strong>
             {n.titel && <span className="titel"> – {n.titel}</span>}
           </div>
-          {n.status !== "belegt" && n.hinweis && <div className="hinweis">{n.hinweis}</div>}
+          {(n.status !== "belegt" || n.gemeint) && n.hinweis && (
+            <div className={n.status === "belegt" ? "titel" : "hinweis"}>
+              {n.hinweis}
+              {n.gemeint && onZuordnen && (
+                <>
+                  {" "}
+                  <button className="link" disabled={gesperrt} onClick={() => onZuordnen(n.gesetz, null)}>
+                    Zuordnung aufheben
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {n.status === "unbekanntes_gesetz" && !n.gemeint && onZuordnen && (
+            <GesetzVorschlaege gesetz={n.gesetz} gesperrt={gesperrt} onZuordnen={(von, nach) => onZuordnen(von, nach)} />
+          )}
           <div className="fundstellen">
             {n.fundstellen.map((f, i) => (
               <button key={i} className="link" onClick={() => onFundstelle(f.dokument_id, f.abschnitt)}>

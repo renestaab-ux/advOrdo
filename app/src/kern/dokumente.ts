@@ -435,6 +435,8 @@ export interface NormEintrag {
   norm: string | null;
   titel: string | null;
   hinweis: string | null;
+  /** Über eine eigene Schreibweise zugeordnetes Gesetz; ``gesetz`` bleibt die Schreibweise im Text. */
+  gemeint: string | null;
   fundstellen: Fundstelle[];
 }
 

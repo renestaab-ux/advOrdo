@@ -16,7 +16,7 @@ import {
   kern,
   kernImHintergrund,
 } from "./kern";
-
+import { EigeneSchreibweisen } from "./Schreibweisen";
 export default function Gesetze() {
   const [gesetze, setGesetze] = useState<GesetzEintrag[]>([]);
   const [verfuegbar, setVerfuegbar] = useState<Voreinstellung[]>([]);
@@ -253,6 +253,11 @@ export default function Gesetze() {
       ) : (
         <p className="leer">Noch keine Gesetze in der Wissensbasis. Lade die Voreinstellung, um zu beginnen.</p>
       )}
+
+      <EigeneSchreibweisen
+        gesetze={[...new Set([...gesetze.map((g) => g.abk), ...alle.map((v) => v.abk)])]}
+        gesperrt={!!laeuft}
+      />
 
       <form className="suche" onSubmit={suchen}>
         <input

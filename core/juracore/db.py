@@ -67,6 +67,13 @@ CREATE TABLE IF NOT EXISTS satz (
     nummern     TEXT NOT NULL               -- JSON-Liste [[Nr, Text], …]
 );
 
+-- Eigene Schreibweisen: „AVBFernwärmV“ im Schriftsatz meint „AVBFernwärmeV“ (gilt für alle Akten).
+CREATE TABLE IF NOT EXISTS schreibweise (
+    von         TEXT PRIMARY KEY,           -- Abkürzung, wie sie in Schriftsätzen steht
+    nach        TEXT NOT NULL,              -- gemeintes Gesetz (Abkürzung der Wissensbasis bzw. der Liste)
+    angelegt_am TEXT NOT NULL
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS norm_fts USING fts5(
     bezeichnung, titel, text,
     content='norm', content_rowid='id',

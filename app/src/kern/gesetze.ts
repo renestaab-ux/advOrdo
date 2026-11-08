@@ -104,3 +104,18 @@ export function formatiereBuilddate(b: string | null): string {
   if (!b || b.length < 8) return "unbekannt";
   return `${b.slice(6, 8)}.${b.slice(4, 6)}.${b.slice(0, 4)}`;
 }
+
+/** „Könnte … gemeint sein?“: ähnlich geschriebenes Gesetz aus Wissensbasis (``geladen``) oder Gesetzesliste. */
+export interface GesetzVorschlag {
+  abk: string;
+  titel: string | null;
+  geladen: boolean;
+  aehnlichkeit: number;
+}
+
+/** Eigene Schreibweise: ``von`` im Schriftsatz meint das Gesetz ``nach`` (gilt für alle Akten). */
+export interface Schreibweise {
+  von: string;
+  nach: string;
+  angelegt_am: string;
+}

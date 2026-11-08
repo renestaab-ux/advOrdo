@@ -65,6 +65,7 @@ import {
   urteilHerkunft,
   urteilTitel,
 } from "./kern";
+import { vorschlaegeVergessen } from "./Schreibweisen";
 import { useKiAn } from "./kiSchalter";
 import { Lesezeichen } from "./lesezeichenLogik";
 import { gemerkt, merke } from "./merken";
@@ -801,6 +802,20 @@ export default function Akte({
     if (ansicht === "dokument" && inhalt) await waehleDokModus(dokModus);
   }
 
+  /** „Könnte … gemeint sein?“: eigene Schreibweise anlegen oder aufheben; die Zitate aller Akten werden neu geprüft. */
+  async function zuordnen(von: string, nach: string | null) {
+    await ausfuehren(nach ? `Ordne „${von}“ ${nach} zu …` : `Hebe Zuordnung von „${von}“ auf …`, () =>
+      nach ? kern("gesetze.schreibweise_setzen", { von, nach }) : kern("gesetze.schreibweise_loeschen", { von }),
+    );
+    vorschlaegeVergessen();
+    await ladeDokumente();
+    if (ansicht === "normen") await ladeNormen(null);
+    if (ansicht === "dokument" && inhalt) {
+      await oeffneDokument(inhalt.dokument.id);
+      await waehleDokModus(dokModus);
+    }
+  }
+
   async function waehleZitat(zitat: NormZitat, abschnitt: Abschnitt) {
     const ort = `${inhalt?.dokument.dateiname ?? ""}, ${fundstelle({ ...abschnitt, seite: zitat.seite ?? abschnitt.seite })}`;
     setAuswahl({ zitat, ort, beleg: null });
@@ -1032,7 +1047,7 @@ export default function Akte({
       <div className="akte-reiterinhalt">
         {meldungen}
         {reiter === "normen" &&
-          arbeitsflaeche(normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} />)}
+          arbeitsflaeche(normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} onZuordnen={zuordnen} gesperrt={!!laeuft} />)}
         {reiter === "rechtsprechung" && arbeitsflaeche(rechtsprechungAnsicht())}
         {kiAn && reiter === "chat" && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
         {reiter === "anmerkungen" && (
@@ -1402,7 +1417,13 @@ export default function Akte({
                   />
                 )}
                 {dokModus === "normen" && normen && (
-                  <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} leer="In diesem Dokument wurden keine Normzitate erkannt." />
+                  <NormenAnsicht
+                    normen={normen}
+                    onFundstelle={oeffneDokument}
+                    onZuordnen={zuordnen}
+                    gesperrt={!!laeuft}
+                    leer="In diesem Dokument wurden keine Normzitate erkannt."
+                  />
                 )}
                 {dokModus === "rechtsprechung" &&
                   rechtsprechungAnsicht("In diesem Dokument wurden keine Rechtsprechungszitate erkannt.", inhalt.dokument.id)}

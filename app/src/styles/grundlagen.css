@@ -132,6 +132,12 @@ button.link { background: none; border: none; padding: 0; color: var(--akzent); 
 .bestand-klappe { margin: 16px 0 0; font-size: 13px; }
 .bestand-klappe summary { cursor: pointer; font-weight: 600; }
 .bestand-klappe .bestand { margin-top: 8px; }
+.schreibweisen { margin: 16px 0 0; font-size: 13px; }
+.schreibweisen summary { cursor: pointer; font-weight: 600; }
+.schreibweisen-liste { padding-left: 18px; }
+.schreibweise-neu { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 640px; }
+.schreibweise-neu input { flex: 1 1 140px; font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--linie);
+  background: var(--flaeche); color: var(--text); }
 .gesetzespakete h2 { font-size: 15px; margin: 0 0 4px; }
 .gesetzespakete > .leise { margin: 0 0 8px; }
 .paket { padding: 8px 12px; margin: 6px 0; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; }

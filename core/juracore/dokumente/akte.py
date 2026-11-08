@@ -29,6 +29,7 @@ import stat
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .. import db
 from ..db import SPERRE_SEKUNDEN
 from ..gesetze import wissensbasis
 from ..gesetze.zitate import finde_zitate
@@ -38,7 +39,7 @@ from . import datum, lesen
 from .modell import Dokument
 from .ocr import Tesseract
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 _URTEIL = """
 -- Entscheidungen im Volltext: selbst ergänzt (z. B. PDF aus juris) oder geladen. Gehören zu einer Akte oder
@@ -182,7 +183,8 @@ CREATE TABLE IF NOT EXISTS normzitat (
     fassung_id      INTEGER,                -- Fassung der Wissensbasis bei der Prüfung
     norm            TEXT,
     titel           TEXT,
-    hinweis         TEXT
+    hinweis         TEXT,
+    gemeint         TEXT                    -- über eine eigene Schreibweise zugeordnetes Gesetz
 );
 CREATE INDEX IF NOT EXISTS normzitat_abschnitt ON normzitat (abschnitt_id);
 
@@ -284,7 +286,8 @@ def _migriere(con: sqlite3.Connection) -> None:
         # Dokumente aus älteren Versionen: Rechtsprechungszitate werden beim nächsten Abruf nachgetragen.
         con.execute("ALTER TABLE dokument ADD COLUMN urteile_erkannt INTEGER")
     # Zwischenstände von Schema 4 (Entwicklungsversion) um die späteren Spalten ergänzen.
-    for tabelle, spalte, typ in (("urteilszitat", "rn_zitiert", "INTEGER"), ("urteil", "doknr", "TEXT"),
+    for tabelle, spalte, typ in (("urteilszitat", "rn_zitiert", "INTEGER"), ("normzitat", "gemeint", "TEXT"),
+                                 ("urteil", "doknr", "TEXT"),
                                  ("urteil", "kopf", "TEXT"), ("urteil_abschnitt", "teil", "TEXT"),
                                  ("seite", "woerter", "TEXT"),
                                  ("dokument", "titel", "TEXT"), ("dokument", "art", "TEXT"),
@@ -538,8 +541,8 @@ def _verknuepfe_zitate(con: sqlite3.Connection, wissen: sqlite3.Connection, doku
             start, ende = z.fundstelle_im_text
             con.execute(
                 """INSERT INTO normzitat (abschnitt_id, start, ende, treffer_start, treffer_ende, seite, zitat,
-                                          gesetz, status, fassung_id, norm, titel, hinweis)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                          gesetz, status, fassung_id, norm, titel, hinweis, gemeint)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     a["id"],
                     start,
@@ -554,6 +557,7 @@ def _verknuepfe_zitate(con: sqlite3.Connection, wissen: sqlite3.Connection, doku
                     beleg.get("norm"),
                     beleg.get("titel"),
                     beleg["hinweis"],
+                    beleg.get("gemeint"),
                 ),
             )
 
@@ -595,6 +599,28 @@ def zitate_neu_pruefen(con: sqlite3.Connection, wissen: sqlite3.Connection, akte
             )
             _verknuepfe_zitate(con, wissen, dokument_id)
             _verknuepfe_urteile(con, wissen, dokument_id)
+    return {"dokumente": len(dokumente)}
+
+
+def normzitate_eines_gesetzes_neu_pruefen(con: sqlite3.Connection, wissen: sqlite3.Connection,
+                                         gesetze: list[str]) -> dict:
+    """Prüft in allen Akten die Normzitate der Dokumente neu, die eines der ``gesetze`` zitieren (wie im Text
+    geschrieben oder darüber zugeordnet), z. B. nachdem eine eigene Schreibweise angelegt oder gelöscht wurde."""
+    gesucht = {db.schreibweise(g) for g in gesetze}
+    with con:
+        dokumente = sorted({
+            r["dokument_id"]
+            for r in con.execute(
+                """SELECT DISTINCT a.dokument_id, z.gesetz, z.gemeint
+                   FROM normzitat z JOIN abschnitt a ON a.id = z.abschnitt_id""")
+            if db.schreibweise(r["gesetz"]) in gesucht or (r["gemeint"] and db.schreibweise(r["gemeint"]) in gesucht)
+        })
+        for dokument_id in dokumente:
+            con.execute(
+                "DELETE FROM normzitat WHERE abschnitt_id IN (SELECT id FROM abschnitt WHERE dokument_id = ?)",
+                (dokument_id,),
+            )
+            _verknuepfe_zitate(con, wissen, dokument_id)
     return {"dokumente": len(dokumente)}
 
 
@@ -743,7 +769,7 @@ def normen(con: sqlite3.Connection, akte_id: int, dokument_id: int | None = None
     for z in zeilen:
         g = gruppen.setdefault(
             z["zitat"],
-            {k: z[k] for k in ("zitat", "gesetz", "status", "fassung_id", "norm", "titel", "hinweis")}
+            {k: z[k] for k in ("zitat", "gesetz", "status", "fassung_id", "norm", "titel", "hinweis", "gemeint")}
             | {"fundstellen": []},
         )
         g["fundstellen"].append(

@@ -116,9 +116,13 @@ gesetze.liste
 gesetze.norm
 gesetze.paket_schalten
 gesetze.pakete
+gesetze.schreibweise_loeschen
+gesetze.schreibweise_setzen
+gesetze.schreibweisen
 gesetze.suche
 gesetze.verfuegbar
 gesetze.voreinstellung
+gesetze.vorschlaege
 hintergrund.abbrechen
 hintergrund.auftrag
 hintergrund.starten

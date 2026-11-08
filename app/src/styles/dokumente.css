@@ -79,6 +79,9 @@ button.zitat.unbekanntes_gesetz { border-color: var(--warnung); border-bottom-st
 button.zitat.gewaehlt, button.zitat:hover { background: color-mix(in srgb, var(--akzent) 15%, transparent); }
 .normen { list-style: none; padding: 0; }
 .normen li { padding: 10px 0; border-bottom: 1px solid var(--linie); }
+/* „Könnte … gemeint sein?“ unter einem Zitat mit unbekanntem Gesetz (Schreibweisen.tsx). */
+.meinten-sie { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; }
+.meinten-sie button.klein { padding: 2px 10px; font-size: 13px; }
 .fundstellen { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12px; }
 .fundstellen .link { font-weight: 400; }
 @media (max-width: 1100px) {
