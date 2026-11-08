@@ -110,6 +110,25 @@ def vereinbar(art_a: str, a: str, art_b: str, b: str) -> bool:
     return False
 
 
+def zahlendreher(art_a: str, a: str, art_b: str, b: str) -> bool:
+    """Ob sich zwei Werte nur durch zwei vertauschte, nebeneinanderstehende Ziffern unterscheiden.
+
+    Verglichen wird in der Schreibweise, in der die Werte im Text stehen (69.415,80 € und 96.415,80 €; beim Datum
+    Tag, Monat, Jahr). Fehlercodes und Monatsangaben bleiben außen vor.
+    """
+    if art_a != art_b or art_a not in (DATUM, BETRAG, KM) or a == b:
+        return False
+    x = re.sub(r"\D", "", anzeige(art_a, a))
+    y = re.sub(r"\D", "", anzeige(art_b, b))
+    if len(x) != len(y):
+        return False
+    anders = [i for i in range(len(x)) if x[i] != y[i]]
+    if len(anders) != 2 or anders[1] != anders[0] + 1:
+        return False
+    i, j = anders
+    return x[i] == y[j] and x[j] == y[i]
+
+
 def anzeige(art: str, wert: str) -> str:
     """Normalisierten Wert lesbar machen, z. B. für Überschriften der Gegenüberstellung."""
     if art == DATUM:

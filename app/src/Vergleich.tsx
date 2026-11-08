@@ -421,6 +421,7 @@ function MerkmalKarte({
         ))}
       </header>
       {merkmal.erklaerung && <p className="ki-erklaerung">Einschätzung des Modells: {merkmal.erklaerung}</p>}
+      {merkmal.hinweis && <p className="zahlendreher">{merkmal.hinweis}</p>}
       <div className="werte">
         {merkmal.werte.map((w) => {
           const bezuege = [...new Set(w.fundstellen.map((f) => f.bezug).filter((b): b is string => !!b))].filter(

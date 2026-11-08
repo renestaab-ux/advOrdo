@@ -179,6 +179,7 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .ki-aussagen > li.ohne_beleg { color: var(--text-leise); }
 .merkmal.spannung { border-left-color: color-mix(in srgb, var(--warnung) 50%, var(--linie)); }
 .ki-erklaerung { font-size: 13px; color: var(--text-leise); margin: 0 0 10px; font-style: italic; }
+.merkmal .zahlendreher { font-size: 13px; margin: 0 0 10px; padding: 4px 10px; border-left: 3px solid var(--warnung); background: color-mix(in srgb, var(--warnung) 10%, transparent); }
 .ki-angabe { font-weight: 400; font-variant-numeric: normal; font-size: 13px; }
 .analyse .wert { grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.2fr); }
 .chronologie { list-style: none; padding: 0; margin: 8px 0; max-width: 900px; border-left: 2px solid var(--linie); }

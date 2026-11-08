@@ -40,6 +40,8 @@ export interface AbgleichMerkmal {
   quelle?: "ki" | "regel";
   /** Nur beim Vergleich mit KI: Einschätzung der Abweichung durch das Modell. */
   erklaerung?: string;
+  /** Möglicher Zahlendreher zwischen zwei Werten, mit der Häufigkeit beider Werte im Text; sonst leer. */
+  hinweis?: string;
 }
 
 export interface Abgleich {

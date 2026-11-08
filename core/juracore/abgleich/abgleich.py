@@ -18,10 +18,11 @@ import json
 import re
 import sqlite3
 from bisect import bisect_right
+from collections import Counter
 from itertools import combinations
 
 from ..dokumente import akte
-from .angaben import MERKMALE, anzeige, finde_angaben, vereinbar
+from .angaben import MERKMALE, anzeige, finde_angaben, finde_werte, vereinbar, zahlendreher
 
 ABWEICHEND = "abweichend"
 UEBEREINSTIMMEND = "uebereinstimmend"
@@ -136,10 +137,7 @@ def _vertraege_trennen(angaben: list[dict]) -> None:
             a["titel"] += f" (Anlage {a['anlage']})" if a["anlage"] else " (ohne Anlagenangabe)"
 
 
-def angaben_der_akte(
-    con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | None = None
-) -> tuple[int, list[dict]]:
-    """Alle regelbasiert erkannten Angaben der (gewählten) Dokumente einer Akte und die Zahl der Dokumente."""
+def _dokumente(con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | None) -> list[sqlite3.Row]:
     if con.execute("SELECT 1 FROM akte WHERE id = ?", (akte_id,)).fetchone() is None:
         raise LookupError(f"Akte {akte_id} gibt es nicht.")
     dokumente = con.execute(
@@ -150,7 +148,14 @@ def angaben_der_akte(
         dokumente = [d for d in dokumente if d["id"] in gewaehlt]
         if len(dokumente) != len(gewaehlt):
             raise LookupError("Mindestens eines der gewählten Dokumente gehört nicht zu dieser Akte.")
+    return dokumente
 
+
+def angaben_der_akte(
+    con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | None = None
+) -> tuple[int, list[dict]]:
+    """Alle regelbasiert erkannten Angaben der (gewählten) Dokumente einer Akte und die Zahl der Dokumente."""
+    dokumente = _dokumente(con, akte_id, dokument_ids)
     angaben: list[dict] = []
     for dok in dokumente:
         parteien = [t["name"] for t in akte._tags(con, dok["id"]) if t["name"] in PARTEIEN]
@@ -175,6 +180,53 @@ def wert_eintrag(werte: dict, art: str, wert: str) -> dict:
     return werte.setdefault(wert, {"wert": wert, "art": art, "anzeige": anzeige(art, wert), "fundstellen": []})
 
 
+def _haeufigkeit(con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | None) -> Counter:
+    """Wie oft jeder Wert im Text der (gewählten) Dokumente steht, gleich in welchem Zusammenhang."""
+    zaehlung: Counter = Counter()
+    for dok in _dokumente(con, akte_id, dokument_ids):
+        abschnitte = con.execute(
+            "SELECT text FROM abschnitt WHERE dokument_id = ? ORDER BY nr", (dok["id"],)
+        ).fetchall()
+        text, _ = _textfluss(abschnitte)
+        zaehlung.update((w.art, w.wert) for w in finde_werte(text))
+    return zaehlung
+
+
+_MAL = {1: "einmal", 2: "zweimal", 3: "dreimal", 4: "viermal"}
+
+
+def _mal(n: int) -> str:
+    return _MAL.get(n, f"{n}-mal")
+
+
+def zahlendreher_hinweise(
+    con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | None, merkmale: list[dict]
+) -> None:
+    """Setzt ``hinweis`` bei Merkmalen, deren Werte sich nur durch zwei vertauschte Ziffern unterscheiden.
+
+    Dazu kommt, wie oft jeder der beiden Werte im Text steht. Welcher Wert richtig ist, sagt der Hinweis nicht;
+    das entscheidet der Mensch anhand der Fundstellen.
+    """
+    zaehlung: Counter | None = None
+    for m in merkmale:
+        saetze = []
+        for a, b in combinations(m["werte"], 2):
+            if not zahlendreher(a["art"], a["wert"], b["art"], b["wert"]):
+                continue
+            if zaehlung is None:
+                zaehlung = _haeufigkeit(con, akte_id, dokument_ids)
+            na, nb = zaehlung[(a["art"], a["wert"])], zaehlung[(b["art"], b["wert"])]
+            if nb > na:
+                a, b, na, nb = b, a, nb, na
+            satz = (f"Möglicher Zahlendreher: {a['anzeige']} und {b['anzeige']} unterscheiden sich nur durch zwei "
+                    "vertauschte Ziffern.")
+            if na and nb:
+                satz += (f" Beide stehen je {_mal(na)} im Text." if na == nb
+                         else f" {a['anzeige']} steht {_mal(na)} im Text, {b['anzeige']} {_mal(nb)}.")
+            saetze.append(satz)
+        m["hinweis"] = " ".join(saetze)
+
+
 STATUS_RANG = {ABWEICHEND: 0, UEBEREINSTIMMEND: 1, EINZELN: 2}
 
 
@@ -190,7 +242,9 @@ def abgleich(con: sqlite3.Connection, akte_id: int, dokument_ids: list[int] | No
         wert_eintrag(m["werte"], angabe["art"], angabe["wert"])["fundstellen"].append(angabe["fundstelle"])
 
     ergebnis = [bewerte({**m, "werte": list(m["werte"].values())}) for m in merkmale.values()]
-    ergebnis = [{k: m[k] for k in ("merkmal", "titel", "status", "einordnung", "dokumente", "werte")} for m in ergebnis]
+    zahlendreher_hinweise(con, akte_id, dokument_ids, ergebnis)
+    schluessel = ("merkmal", "titel", "status", "einordnung", "dokumente", "werte", "hinweis")
+    ergebnis = [{k: m[k] for k in schluessel} for m in ergebnis]
     rang = {m.schluessel: i for i, m in enumerate(MERKMALE)}
     ergebnis.sort(key=lambda m: (STATUS_RANG[m["status"]], rang.get(m["merkmal"], len(rang)), m["titel"]))
     return {

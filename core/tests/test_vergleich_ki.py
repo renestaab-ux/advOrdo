@@ -131,6 +131,7 @@ def test_bezug_statt_merkmalswort(akten, con, tmp_path):
     assert {w["wert"] for w in km["werte"]} == {"68400", "64800"}
     assert km["einordnung"] == ["zwischen_parteien"]
     assert km["erklaerung"] == "Einschätzung zu Kilometerstand bei Übergabe."
+    assert km["hinweis"].startswith("Möglicher Zahlendreher: 68.400 km und 64.800 km unterscheiden sich nur durch")
     f = next(w for w in km["werte"] if w["wert"] == "64800")["fundstellen"][0]
     assert f["bezug"] == "Tachostand bei Auslieferung" and f["haltung"] == "behauptet" and f["quelle"] == "ki"
     assert f["ausschnitt"]["wert"] == "64.800 km"
@@ -141,7 +142,7 @@ def test_bezug_statt_merkmalswort(akten, con, tmp_path):
 
     # Den Kaufpreis im Rücktrittsschreiben findet nur die Regel; er kommt in das Merkmal des Modells.
     preis = _merkmal(e, "Kaufpreis des Fahrzeugs")
-    assert preis["status"] == "abweichend"
+    assert preis["status"] == "abweichend" and preis["hinweis"] == ""
     regel = next(w for w in preis["werte"] if w["wert"] == "14990.00")["fundstellen"][0]
     assert regel["quelle"] == "regel" and regel["dateiname"] == "04_Ruecktritt.md"
     # Was beide finden, steht nur einmal da.
