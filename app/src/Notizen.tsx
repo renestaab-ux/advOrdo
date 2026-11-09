@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { AktenDokument, Notiz, dokumentName, kern, zeitpunkt } from "./kern";
 import { LeerHinweis } from "./Symbole";
 import { useBearbeitung } from "./ungespeichert";
+import { useFremdeAenderung } from "./aenderungen";
 
 /** Reiter „Notizen“: kurze Vermerke zur Akte oder zu einem Dokument; wichtige werden oben angeheftet.
  *  Mit ``dokumentId`` (Ansicht „Details“) nur die Notizen zu diesem Dokument, neue gehören zu ihm. */
@@ -23,6 +24,10 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
     if (festesDokument == null)
       void kern<AktenDokument[]>("akten.dokumente", { akte_id: akteId }).then(setDokumente, () => undefined);
   }, [akteId, festesDokument]);
+  // Notizen aus einem anderen Fenster (Arbeitsfenster der Akte oder Hauptfenster).
+  useFremdeAenderung(["notizen"], () => {
+    void kern<Notiz[]>("akten.notizen", { akte_id: akteId }).then(setNotizen, (e) => setFehler(String(e)));
+  });
 
   async function mit(f: () => Promise<Notiz[]>) {
     setFehler(null);

@@ -1,6 +1,7 @@
 // Zugriff auf den Python-Analysekern. Die Desktop-App leitet jeden Aufruf
 // per Tauri-Befehl an den Kernprozess weiter (JSON über stdin/stdout, kein Netzwerkport).
 import { invoke } from "@tauri-apps/api/core";
+import { aenderungMelden } from "../aenderungen";
 
 export const istDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -10,6 +11,8 @@ export async function kern<T>(methode: string, params: Record<string, unknown> =
   }
   const ergebnis = await invoke<T>("kern_aufruf", { methode, params });
   if (methode.startsWith("ki.") || methode === "akten.metadaten_ki") kiPruefen(ergebnis);
+  // Andere Fenster (Arbeitsfenster der Akten) laden geänderte Notizen, Anmerkungen und Lesezeichen nach.
+  void aenderungMelden(methode);
   return ergebnis;
 }
 

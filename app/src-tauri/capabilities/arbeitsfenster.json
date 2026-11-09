@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "arbeitsfenster",
+  "description": "Arbeitsfenster der Akten (akte-<id>): eigene Befehle, Hell/Dunkel und Vergrößerung wie im Hauptfenster, die Lage des Fensters lesen (zum Merken) und das Fenster nach einer Rückfrage zu ungespeicherten Eingaben selbst schließen. Keine Datei- oder Netzwerkrechte; gelesen und geschrieben wird ausschließlich im Kern.",
+  "windows": ["akte-*"],
+  "permissions": ["core:default", "core:window:allow-set-theme", "core:webview:allow-set-webview-zoom", "core:window:allow-destroy"]
+}

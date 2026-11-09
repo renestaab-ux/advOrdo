@@ -183,6 +183,12 @@ const PFADE = {
       <circle cx="15" cy="18" r="1.1" />
     </>
   ),
+  spalten: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+      <path d="M9.2 4.5v15M14.8 4.5v15" />
+    </>
+  ),
   kommentar: <path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 19 17h-7.5L7 20.5V17H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z" />,
 } satisfies Record<string, ReactNode>;
 

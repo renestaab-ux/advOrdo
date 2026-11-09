@@ -1,4 +1,5 @@
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useFremdeAenderung } from "./aenderungen";
 import { Druckansicht, istDesktop, kern } from "./kern";
 import { AusgabeKnoepfe } from "./Export";
 import { PdfKopienAkte } from "./PdfMarkiert";
@@ -64,6 +65,9 @@ export function useLesezeichen(dokumentId: number | null) {
   useEffect(() => {
     void laden();
   }, [laden]);
+  useFremdeAenderung(["lesezeichen"], () => {
+    void laden().then(() => setStand((s) => s + 1));
+  });
 
   async function aendern(aufruf: () => Promise<unknown>) {
     try {
@@ -295,6 +299,8 @@ export function OrdnerAnsicht({
   useEffect(() => {
     if (istDesktop) void laden();
   }, [laden]);
+  // Änderungen aus einem anderen Fenster (Arbeitsfenster der Akte oder Hauptfenster).
+  useFremdeAenderung(["anmerkungen", "lesezeichen"], () => void laden());
 
   async function aufruf(f: () => Promise<unknown>) {
     try {
