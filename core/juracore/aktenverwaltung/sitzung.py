@@ -83,7 +83,23 @@ _WOCHENTAGE = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samst
 
 def einrichten(con: sqlite3.Connection) -> None:
     con.executescript(_SCHEMA)
+    spalten = {z[1] for z in con.execute("PRAGMA table_info(sitzung)")}
+    if "person_id" not in spalten:
+        # Wer den Termin wahrnimmt (Person aus „Eigene Daten“); der Name bleibt erhalten, falls sie später wegfällt.
+        con.execute("ALTER TABLE sitzung ADD COLUMN person_id INTEGER")
+        con.execute("ALTER TABLE sitzung ADD COLUMN wahrgenommen_von TEXT")
     con.commit()
+
+
+def _person_name(con: sqlite3.Connection, person_id: int) -> str:
+    try:
+        z = con.execute("SELECT daten FROM eigene_person WHERE id = ?", (person_id,)).fetchone()
+    except sqlite3.OperationalError:
+        z = None
+    if z is None:
+        raise LookupError("Diese Person gibt es in „Eigene Daten“ nicht.")
+    d = json.loads(z["daten"])
+    return " ".join(t for t in (d.get("titel"), d.get("vorname"), d.get("nachname")) if t) or "(ohne Namen)"
 
 
 def _jetzt() -> datetime:
@@ -232,8 +248,9 @@ def termine_heute(con: sqlite3.Connection, akte_id: int, heute: date | None = No
 
 
 def beginnen(con: sqlite3.Connection, akte_id: int, kalender_id: int | None = None, titel: str = "",
-             jetzt: datetime | None = None) -> dict:
-    """Beginnt eine Sitzung; läuft schon eine, bleibt es bei ihr."""
+             jetzt: datetime | None = None, person_id: int | None = None) -> dict:
+    """Beginnt eine Sitzung; läuft schon eine, bleibt es bei ihr. ``person_id``: wer den Termin wahrnimmt
+    (Person aus „Eigene Daten“); ohne Angabe der Sachbearbeiter der Akte."""
     _akte_pruefen(con, akte_id)
     laufend = aktiv(con, akte_id)
     if laufend is not None:
@@ -245,9 +262,22 @@ def beginnen(con: sqlite3.Connection, akte_id: int, kalender_id: int | None = No
         if k is None:
             raise LookupError(f"Termin {kalender_id} gibt es in dieser Akte nicht.")
         name = name or " · ".join(t for t in (k["titel"], k["ort"]) if t)
+    person: int | None = None
+    wer: str | None = None
+    if person_id not in (None, ""):
+        person = int(person_id)
+        wer = _person_name(con, person)
+    else:
+        sb = con.execute("SELECT sachbearbeiter_id FROM akte WHERE id = ?", (akte_id,)).fetchone()[0]
+        try:
+            wer, person = (_person_name(con, sb), sb) if sb is not None else (None, None)
+        except LookupError:
+            pass
     with con:
-        sid = con.execute("INSERT INTO sitzung (akte_id, kalender_id, titel, beginn) VALUES (?, ?, ?, ?)",
-                          (akte_id, kalender_id, name or "Termin", (jetzt or _jetzt()).isoformat())).lastrowid
+        sid = con.execute(
+            "INSERT INTO sitzung (akte_id, kalender_id, titel, beginn, person_id, wahrgenommen_von)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (akte_id, kalender_id, name or "Termin", (jetzt or _jetzt()).isoformat(), person, wer)).lastrowid
     return _sitzung(con, sid)
 
 
@@ -316,6 +346,8 @@ def protokoll(s: dict, ende: str | None = None) -> str:
     kopf += f"–{_uhrzeit(bis)} Uhr" if bis else " Uhr"
     if s.get("titel"):
         kopf += f" ({s['titel']})"
+    if s.get("wahrgenommen_von"):
+        kopf += f", wahrgenommen von {s['wahrgenommen_von']}"
     zeilen = [kopf]
     for n in s["notizen"]:
         art = "" if n["art"] == "notiz" else f"{NOTIZ_ARTEN[n['art']]}: "
@@ -436,5 +468,11 @@ def abschluss(con: sqlite3.Connection, sitzung_id: int, land: str = "BY", jetzt:
     """Was „Termin beenden“ vorschlägt: Protokolltext, Dauer und Fristen. Ändert nichts."""
     s = _sitzung(con, sitzung_id)
     bis = (jetzt or _jetzt()).isoformat()
+    bearbeiter = None
+    if s.get("person_id") is not None:
+        z = con.execute("SELECT id FROM zeit_bearbeiter WHERE person_id = ? AND archiviert_am IS NULL"
+                        " ORDER BY id LIMIT 1", (s["person_id"],)).fetchone()
+        bearbeiter = z["id"] if z else None
     return {"protokoll": protokoll(s, s["ende"] or bis), "minuten": minuten(s, jetzt),
-            "fristen": fristvorschlaege(s, land), "taetigkeit": f"Terminwahrnehmung: {s['titel']}"}
+            "fristen": fristvorschlaege(s, land), "taetigkeit": f"Terminwahrnehmung: {s['titel']}",
+            "bearbeiter_id": bearbeiter}

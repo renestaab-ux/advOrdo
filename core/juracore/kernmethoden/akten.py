@@ -76,8 +76,8 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "sitzung.aktiv": lambda akte_id: sitzung.aktiv(k.akten, akte_id),
         "sitzung.liste": lambda akte_id: sitzung.sitzungen(k.akten, akte_id),
         "sitzung.termine_heute": lambda akte_id: sitzung.termine_heute(k.akten, akte_id),
-        "sitzung.beginnen": lambda akte_id, kalender_id=None, titel="": sitzung.beginnen(
-                k.akten, akte_id, kalender_id, titel),
+        "sitzung.beginnen": lambda akte_id, kalender_id=None, titel="", person_id=None: sitzung.beginnen(
+                k.akten, akte_id, kalender_id, titel, person_id=person_id),
         "sitzung.notiz_anlegen": lambda sitzung_id, text, art="notiz", dokument_id=None: sitzung.notiz_anlegen(
                 k.akten, sitzung_id, text, art, dokument_id),
         "sitzung.notiz_aendern": lambda notiz_id, text, art=None: sitzung.notiz_aendern(k.akten, notiz_id, text, art),

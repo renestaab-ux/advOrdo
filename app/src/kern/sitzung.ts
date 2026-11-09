@@ -51,6 +51,9 @@ export interface Sitzung {
   titel: string;
   beginn: string;
   ende: string | null;
+  /** Wer den Termin wahrnimmt (Person aus „Eigene Daten“), mit Namen zum Zeitpunkt des Beginns. */
+  person_id: number | null;
+  wahrgenommen_von: string | null;
   uebernommen: { notiz: boolean; zeit: number | null; fristen: number } | null;
   notizen: TerminNotiz[];
 }
@@ -87,6 +90,8 @@ export interface SitzungsAbschluss {
   minuten: number;
   fristen: FristVorschlag[];
   taetigkeit: string;
+  /** Bearbeiter der Zeiterfassung, der zur wahrnehmenden Person gehört; sonst null. */
+  bearbeiter_id: number | null;
 }
 
 /** Uhrzeit „10:34“ aus einem ISO-Zeitpunkt. */

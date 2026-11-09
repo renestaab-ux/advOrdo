@@ -29,6 +29,7 @@ import {
   uhrzeitVon,
   fristenLand,
   type FristBerechnung,
+  type AktenOptionen,
 } from "./kern";
 import { useKiAn } from "./kiSchalter";
 import { useBearbeitung } from "./ungespeichert";
@@ -76,10 +77,13 @@ export function TerminUhr({ beginn }: { beginn: string }) {
 
 export function TerminBeginnen({
   akteId,
+  sachbearbeiterId,
   onBegonnen,
   onAbbrechen,
 }: {
   akteId: number;
+  /** Vorauswahl für „Termin nimmt wahr“: der Sachbearbeiter der Akte. */
+  sachbearbeiterId: number | null;
   onBegonnen: (s: Sitzung) => void;
   onAbbrechen: () => void;
 }) {
@@ -87,6 +91,14 @@ export function TerminBeginnen({
   const [wahl, setWahl] = useState<string>("");
   const [titel, setTitel] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
+  const [personen, setPersonen] = useState<{ id: number; name: string }[]>([]);
+  const [person, setPerson] = useState(sachbearbeiterId == null ? "" : String(sachbearbeiterId));
+  useEffect(() => {
+    kern<AktenOptionen>("akten.optionen").then(
+      (o) => setPersonen(o.sachbearbeiter),
+      () => setPersonen([]),
+    );
+  }, []);
   useEffect(() => {
     kern<TerminHeute[]>("sitzung.termine_heute", { akte_id: akteId }).then(
       (t) => {
@@ -101,7 +113,12 @@ export function TerminBeginnen({
     e.preventDefault();
     try {
       onBegonnen(
-        await kern<Sitzung>("sitzung.beginnen", { akte_id: akteId, kalender_id: wahl ? Number(wahl) : null, titel }),
+        await kern<Sitzung>("sitzung.beginnen", {
+          akte_id: akteId,
+          kalender_id: wahl ? Number(wahl) : null,
+          titel,
+          person_id: person ? Number(person) : null,
+        }),
       );
     } catch (x) {
       setFehler(String(x));
@@ -138,6 +155,22 @@ export function TerminBeginnen({
               <input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder="z. B. LG Freiburg, Saal 2.14" />
             </label>
           )}
+          <label className="feld">
+            Termin nimmt wahr
+            <select value={person} onChange={(e) => setPerson(e.target.value)}>
+              {person && !personen.some((p) => String(p.id) === person) && <option value={person}>Sachbearbeiter der Akte</option>}
+              {personen.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.id === sachbearbeiterId ? " (Sachbearbeiter der Akte)" : ""}
+                </option>
+              ))}
+              <option value="">ohne Angabe</option>
+            </select>
+            {personen.length === 0 && (
+              <span className="leise klein">Personen legst du unter Einstellungen › Eigene Daten an.</span>
+            )}
+          </label>
           {fehler && <p className="fehler">{fehler}</p>}
           <div className="aktionen">
             <button type="submit" autoFocus>
@@ -189,6 +222,8 @@ export function TerminBeenden({
         setMinuten(String(a.minuten));
         setTaetigkeit(a.taetigkeit);
         setFristen(a.fristen.map((f) => ({ ...f, an: f.beginn_offen == null })));
+        // Zeit für den, der den Termin wahrgenommen hat.
+        if (a.bearbeiter_id != null) setBearbeiter(String(a.bearbeiter_id));
       },
       (e) => setFehler(String(e)),
     );
@@ -196,7 +231,7 @@ export function TerminBeenden({
       (z) => {
         setZeitE(z);
         const b = z.standard_bearbeiter_id ?? z.bearbeiter.find((x) => !x.archiviert)?.id ?? null;
-        setBearbeiter(b == null ? "" : String(b));
+        setBearbeiter((alt) => alt || (b == null ? "" : String(b)));
         if (b == null) setZeitAn(false);
       },
       () => setZeitAn(false),

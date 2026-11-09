@@ -275,7 +275,9 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
       <header className="kopfband af-kopf">
         <div className="af-kopf-titel">
           <p className="kopfband-ueber">
-            {sitzung ? `Termin · ${sitzung.titel} · seit ${sitzung.beginn.slice(11, 16)} Uhr` : "Arbeitsfenster"} ·{" "}
+            {sitzung
+              ? `Termin · ${sitzung.titel} · seit ${sitzung.beginn.slice(11, 16)} Uhr${sitzung.wahrgenommen_von ? ` · ${sitzung.wahrgenommen_von}` : ""}`
+              : "Arbeitsfenster"} ·{" "}
             {akte?.aktenzeichen ? `Akte ${akte.aktenzeichen}` : "Akte ohne Aktenzeichen"}
             {gericht && ` · ${gericht.name}${gericht.aktenzeichen ? ` ${gericht.aktenzeichen}` : ""}`}
             {akte?.gegenstandswert && ` · Wert ${betragAnzeige(akte.gegenstandswert)} €`}
@@ -383,7 +385,7 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
         ))}
       </div>
 
-      {beginnen && <TerminBeginnen akteId={akteId} onBegonnen={terminBegonnen} onAbbrechen={() => setBeginnen(false)} />}
+      {beginnen && <TerminBeginnen akteId={akteId} sachbearbeiterId={akte?.sachbearbeiter_id ?? null} onBegonnen={terminBegonnen} onAbbrechen={() => setBeginnen(false)} />}
       {beenden && sitzung && <TerminBeenden sitzung={sitzung} onBeendet={terminBeendet} onAbbrechen={() => setBeenden(false)} />}
       {springen && (
         <Springen akteId={akteId} dokumente={dokumente} offen={offeneDokumente} onZiel={springeZu} onSchliessen={() => setSpringen(false)} />

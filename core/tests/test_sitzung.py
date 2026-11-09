@@ -172,3 +172,27 @@ def test_fristbeginn_ab_zustellung_bleibt_offen(con):
     fristen = sitzung.fristvorschlaege(s)
     assert [(f["beginn_offen"], f["datum"], f["bezugstag"], f["anzahl"]) for f in fristen] == [
         ("Zustellung Protokoll", None, None, 2), ("Zugang des Gutachtens", None, None, 4)]
+
+
+def test_wahrnehmung_durch_sachbearbeiter_oder_gewaehlte_person(con):
+    import json as _json
+    a, _ = _akte_mit_dokument(con)
+    with con:
+        p1 = con.execute("INSERT INTO eigene_person (daten, angelegt_am, geaendert_am) VALUES (?, '', '')",
+                         (_json.dumps({"titel": "RA", "vorname": "Albrecht", "nachname": "Tiedemann"}),)).lastrowid
+        p2 = con.execute("INSERT INTO eigene_person (daten, angelegt_am, geaendert_am) VALUES (?, '', '')",
+                         (_json.dumps({"titel": "RAin", "vorname": "Jana", "nachname": "Kolb"}),)).lastrowid
+        con.execute("UPDATE akte SET sachbearbeiter_id = ? WHERE id = ?", (p1, a))
+        b2 = con.execute("INSERT INTO zeit_bearbeiter (name, person_id) VALUES ('RAin Kolb', ?)", (p2,)).lastrowid
+    s = sitzung.beginnen(con, a, titel="LG Freiburg", jetzt=BEGINN)
+    assert (s["person_id"], s["wahrgenommen_von"]) == (p1, "RA Albrecht Tiedemann")
+    assert sitzung.abschluss(con, s["id"], jetzt=BEGINN)["bearbeiter_id"] is None
+    sitzung.beenden(con, s["id"], protokoll_uebernehmen=False, jetzt=BEGINN)
+
+    s = sitzung.beginnen(con, a, titel="LG Freiburg", jetzt=BEGINN, person_id=p2)
+    vorschlag = sitzung.abschluss(con, s["id"], jetzt=BEGINN)
+    assert vorschlag["bearbeiter_id"] == b2
+    assert vorschlag["protokoll"].splitlines()[0].endswith("(LG Freiburg), wahrgenommen von RAin Jana Kolb")
+    sitzung.beenden(con, s["id"], protokoll_uebernehmen=False, jetzt=BEGINN)
+    with pytest.raises(LookupError, match="Eigene Daten"):
+        sitzung.beginnen(con, a, person_id=9999)
