@@ -320,3 +320,25 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 .karte, .kachel, .beleg, .norm, .dokument, .ki-dokument, .rechner-ergebnis, .formkarte, .dokumente { border-color: var(--linie); box-shadow: var(--schatten); }
 .kachel:hover:not(:disabled), .formkarte.gewaehlt { box-shadow: 0 0 0 1px var(--akzent), var(--schatten); }
 .darstellung-segment { margin: 6px 0 4px; }
+
+/* Einstellungen → Über advOrdo */
+.ueber .karte { max-width: 900px; }
+.ueber-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; }
+.ueber-kopf h2 { font-size: 26px; margin: 0; }
+/* Das Logo hat einen weißen Grund; im dunklen Design steht es deshalb auf einer weißen Fläche. */
+.ueber-logo { flex: 0 0 auto; background: #fff; border-radius: 10px; padding: 10px; border: 1px solid var(--linie); }
+.ueber-logo img { display: block; width: 180px; height: auto; }
+.ueber-leitsatz { margin: 2px 0 12px; color: var(--text-leise); font-size: 16px; }
+.ueber-daten { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0; }
+.ueber-daten dt { color: var(--text-leise); }
+.ueber-daten dd { margin: 0; overflow-wrap: anywhere; }
+.ueber h3 { font-size: 15px; margin: 16px 0 6px; }
+.ueber ul { margin: 6px 0 0; padding-left: 20px; }
+.ueber li + li { margin-top: 6px; }
+.ueber-tabelle { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+.ueber-tabelle th, .ueber-tabelle td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0; }
+.ueber-tabelle thead th { font-weight: 600; border-bottom: 1px solid var(--linie); }
+.ueber-tabelle tbody th { font-weight: 500; width: 32%; }
+.ueber-tabelle tbody tr + tr > * { border-top: 1px solid var(--linie); }
+.ueber-adresse { display: block; color: var(--text-leise); font-weight: 400; font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .ueber-logo img { width: 140px; } .ueber-tabelle tbody th { width: auto; } }

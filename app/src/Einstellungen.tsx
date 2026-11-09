@@ -9,6 +9,7 @@ import Gerichtsverzeichnis, { GerichtssucheKarte } from "./Gerichtsverzeichnis";
 import Programme from "./Programme";
 import Rechtsquellen from "./Rechtsquellen";
 import SchriftVorlagenEinstellungen from "./SchriftVorlagen";
+import Ueber from "./Ueber";
 import Umgebungen from "./Umgebungen";
 import {
   AKZENTE,
@@ -50,9 +51,10 @@ export type EinstellungsReiter =
   | "ki"
   | "extern"
   | "programme"
-  | "diagnose";
+  | "diagnose"
+  | "ueber";
 
-// Ein Reiter je Thema; „Diagnose“ steht immer zuletzt.
+// Ein Reiter je Thema; „Diagnose“ und „Über advOrdo“ stehen abgesetzt am Ende.
 const REITER: { id: EinstellungsReiter; titel: string }[] = [
   { id: "allgemeines", titel: "Allgemeines" },
   { id: "umgebungen", titel: "Arbeitsumgebungen" },
@@ -66,6 +68,7 @@ const REITER: { id: EinstellungsReiter; titel: string }[] = [
   { id: "extern", titel: "Externe KI" },
   { id: "programme", titel: "Programme" },
   { id: "diagnose", titel: "Diagnose" },
+  { id: "ueber", titel: "Über advOrdo" },
 ];
 
 /**
@@ -183,6 +186,9 @@ export default function Einstellungen({
         <LogoKarte marke={marke} onMarke={onMarke} />
       </>
     );
+  } else if (reiter === "ueber") {
+    // Braucht den Kern nicht und erscheint deshalb auch in der Vorschau im Browser.
+    inhalt = <Ueber />;
   } else if (!istDesktop) {
     inhalt = (
       <section className="hinweis-box">

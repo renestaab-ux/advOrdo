@@ -4,6 +4,7 @@ import type { EinstellungsReiter } from "./Einstellungen";
 import Start, { StartZiel } from "./Start";
 import Zeichen, { SymbolName } from "./Symbole";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { gemerkt, merke } from "./merken";
 import { useErinnerungen } from "./erinnerungen";
 import { useLaufenderTimer } from "./zeitTimer";
@@ -133,6 +134,23 @@ export default function App() {
     if (reiter) setEinstellungsReiter(reiter);
     setBereich("einstellungen");
   }
+
+  // macOS: „Über advOrdo“ im App-Menü öffnet die Infoseite in den Einstellungen (menue.rs).
+  useEffect(() => {
+    if (!istDesktop) return;
+    let aus: (() => void) | undefined;
+    let beendet = false;
+    void getCurrentWebviewWindow()
+      .listen("ueber-oeffnen", () => {
+        setEinstellungsReiter("ueber");
+        setBereich("einstellungen");
+      })
+      .then((f) => (beendet ? f() : (aus = f)));
+    return () => {
+      beendet = true;
+      aus?.();
+    };
+  }, []);
 
   // Leiste aufrufen wie ein Klick darauf; auch für die Tastenkürzel Alt + 1 … 8.
   function bereichWaehlen(b: Bereich) {
