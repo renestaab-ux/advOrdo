@@ -387,7 +387,8 @@ details.kurz-hinweis p { margin: 4px 0; }
 .af-dokument { display: flex; flex-direction: column; gap: 10px; min-height: 100%; }
 .af-modus { align-self: flex-start; }
 .af-dokument .dokument { max-width: none; }
-.af-dokliste ul { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.af-dokliste table.dokumente { width: 100%; margin-top: 8px; }
+.af-dokliste .dok-name { text-align: left; }
 .af-volltext .akte-seite.volltext { width: auto; position: static; max-height: none; }
 
 /* Terminmodus des Arbeitsfensters (Termin.tsx): größere Schrift, Uhr, Sitzungsblatt, Terminsnotizen, Springen, Sichtschutz. */
@@ -457,3 +458,4 @@ button.af-chip.aktiv { background: var(--knopf); color: var(--knopf-text); borde
 .terminsprotokoll .af-tn-liste { gap: 6px; }
 .terminsprotokoll .af-tn-liste li > div { white-space: pre-wrap; }
 .terminsprotokoll .tp-bezug { color: var(--akzent); }
+.af-tn-liste button.link, .af-belege button.link { text-align: left; }

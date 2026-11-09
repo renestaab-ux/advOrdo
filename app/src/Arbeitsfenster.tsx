@@ -41,6 +41,8 @@ import {
   fundstelle,
   istDesktop,
   kern,
+  lesartText,
+  sortiereTags,
   urteilHerkunft,
 } from "./kern";
 import { OrdnerAnsicht, type OrdnerAnsichtArt } from "./Lesezeichen";
@@ -613,16 +615,59 @@ function DokumentSpalte({ spalte, dokumente, onSetzen }: { spalte: Spalte; dokum
     return (
       <div className="af-dokliste">
         <p className="leise">Welches Dokument soll diese Spalte zeigen?</p>
-        <ul>
-          {dokumente.map((d) => (
-            <li key={d.id}>
-              <button className="link" onClick={() => onSetzen({ art: "dokument", dokumentId: d.id, modus: "text" })}>
-                {dokumentName(d)}
-              </button>
-              {d.datum && <span className="leise"> · {datumDe(d.datum)}</span>}
-            </li>
-          ))}
-        </ul>
+        {dokumente.length > 0 && (
+          <table className="dokumente kompakt">
+            <colgroup>
+              <col className="spalte-datum" />
+              <col />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Dokument</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dokumente.map((d) => (
+                <tr
+                  key={d.id}
+                  className="klickbar"
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest("button")) onSetzen({ art: "dokument", dokumentId: d.id, modus: "text" });
+                  }}
+                >
+                  <td>{d.datum ? datumDe(d.datum) : <span className="leise">–</span>}</td>
+                  <td>
+                    <div className="dok-name-zeile">
+                      <span className="dok-symbol">
+                        <Zeichen name="dokumente" groesse={16} />
+                      </span>
+                      <button className="link dok-name" onClick={() => onSetzen({ art: "dokument", dokumentId: d.id, modus: "text" })}>
+                        {dokumentName(d)}
+                      </button>
+                    </div>
+                    <div className="herkunft">
+                      {d.art && <span className="art-chip">{d.art}</span>}
+                      {d.absender && <>von {d.absender.wert === "eigene" ? "uns" : d.absender.name} · </>}
+                      {d.titel && <>{d.dateiname} · </>}
+                      {lesartText(d)}
+                      {d.seiten != null && <> · {d.seiten} S.</>}
+                    </div>
+                    {d.tags.length > 0 && (
+                      <div className="tags">
+                        {sortiereTags(d.tags).map((t) => (
+                          <span key={t.name} className={`tag ${t.quelle}`}>
+                            {t.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
         {dokumente.length === 0 && <p className="leer">Diese Akte enthält noch keine Dokumente.</p>}
       </div>
     );
