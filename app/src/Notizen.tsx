@@ -7,7 +7,16 @@ import { protokollLesen } from "./terminsprotokoll";
 
 /** Reiter „Notizen“: kurze Vermerke zur Akte oder zu einem Dokument; wichtige werden oben angeheftet.
  *  Mit ``dokumentId`` (Ansicht „Details“) nur die Notizen zu diesem Dokument, neue gehören zu ihm. */
-export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId: number; dokumentId?: number }) {
+export default function Notizen({
+  akteId,
+  dokumentId: festesDokument,
+  onDokument,
+}: {
+  akteId: number;
+  dokumentId?: number;
+  /** Öffnet ein Dokument (Verweise im Terminsprotokoll); ohne Angabe sind die Verweise schlichter Text. */
+  onDokument?: (dokumentId: number) => void;
+}) {
   const neuBearb = useBearbeitung("Neue Notiz");
   const notizBearb = useBearbeitung("Notiz");
   const [alle, setNotizen] = useState<Notiz[] | null>(null);
@@ -145,7 +154,7 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
               </form>
             ) : (
               <>
-                <NotizText text={n.text} />
+                <NotizText text={n.text} dokumente={dokumente} onDokument={onDokument} />
                 <div className="notiz-fuss">
                   <span className="leise klein">
                     {n.angeheftet && "📌 angeheftet · "}
@@ -179,7 +188,15 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
 }
 
 /** Text einer Notiz; ein Terminsprotokoll erscheint so gegliedert wie im Terminmodus. */
-function NotizText({ text }: { text: string }) {
+function NotizText({
+  text,
+  dokumente,
+  onDokument,
+}: {
+  text: string;
+  dokumente: AktenDokument[];
+  onDokument?: (dokumentId: number) => void;
+}) {
   const p = protokollLesen(text);
   if (!p) return <p className="notiz-text">{text}</p>;
   return (
@@ -192,11 +209,39 @@ function NotizText({ text }: { text: string }) {
             <div>
               {e.art && <strong>{e.art}: </strong>}
               {e.text}
-              {e.bezug && <span className="tp-bezug"> ↳ {e.bezug}</span>}
+              {e.bezug && <ProtokollBezug name={e.bezug} dokumente={dokumente} onDokument={onDokument} />}
             </div>
           </li>
         ))}
       </ol>
     </div>
+  );
+}
+
+/** Dokumentverweis einer Protokollzeile: Link, wenn das Dokument in der Akte zu finden ist, sonst schlichter Text. */
+function ProtokollBezug({
+  name,
+  dokumente,
+  onDokument,
+}: {
+  name: string;
+  dokumente: AktenDokument[];
+  onDokument?: (dokumentId: number) => void;
+}) {
+  const d = dokumente.find((x) => x.titel === name) ?? dokumente.find((x) => x.dateiname === name || dokumentName(x) === name);
+  if (!d || !onDokument)
+    return (
+      <span className="tp-bezug-text" title={d ? undefined : "Dieses Dokument ist nicht mehr in der Akte."}>
+        {" "}
+        ↳ {name}
+      </span>
+    );
+  return (
+    <>
+      {" "}
+      <button className="link tp-bezug" onClick={() => onDokument(d.id)} title="Dokument öffnen">
+        ↳ {name}
+      </button>
+    </>
   );
 }

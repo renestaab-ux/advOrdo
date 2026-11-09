@@ -462,5 +462,6 @@ button.af-chip.aktiv { background: var(--knopf); color: var(--knopf-text); borde
 .terminsprotokoll .tp-kopf { font-weight: 600; margin: 0 0 8px; }
 .terminsprotokoll .af-tn-liste { gap: 6px; }
 .terminsprotokoll .af-tn-liste li > div { white-space: pre-wrap; }
-.terminsprotokoll .tp-bezug { color: var(--akzent); }
+.terminsprotokoll .tp-bezug { text-align: left; }
+.terminsprotokoll .tp-bezug-text { color: var(--text-leise); }
 .af-tn-liste button.link, .af-belege button.link { text-align: left; }
