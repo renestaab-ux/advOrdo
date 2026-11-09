@@ -135,3 +135,29 @@ def test_termine_heute(con):
     [t] = sitzung.termine_heute(con, a, date(2026, 11, 24))
     s = sitzung.beginnen(con, a, kalender_id=t["id"], jetzt=BEGINN)
     assert s["titel"] == "Mündliche Verhandlung · Saal 2.14" and s["kalender_id"] == t["id"]
+
+
+def test_fristvorschlag_mit_festem_datum(con):
+    a, _ = _akte_mit_dokument(con)
+    s = sitzung.beginnen(con, a, jetzt=BEGINN)
+    um = datetime(2026, 11, 24, 11, 0)
+    sitzung.notiz_anlegen(con, s["id"], "Stellungnahme zum Gutachten bis zum 15.12.2026.", "auflage", jetzt=um)
+    sitzung.notiz_anlegen(con, s["id"], "Schriftsatznachlass bis 19. Dezember (Schreiben vom 23.06.2025).", "auflage",
+                          jetzt=um)
+    sitzung.notiz_anlegen(con, s["id"], "Frist zur Zahlung bis 15.1.", "notiz", jetzt=um)
+    s = sitzung.notiz_anlegen(con, s["id"], "Auflage: Unterlagen binnen zwei Wochen, spätestens 4.12.26", "auflage",
+                              jetzt=um)
+    fristen = sitzung.fristvorschlaege(s)
+    assert [(f["art"], f["datum"]) for f in fristen] == [
+        ("datum", "2026-12-15"), ("datum", "2026-12-19"), ("datum", "2027-01-15"), ("datum", "2026-12-04")]
+    assert [f["kein_werktag"] for f in fristen] == [None, "Samstag", None, None]
+    assert fristen[0]["anzahl"] is None
+
+
+def test_fristvorschlag_monate_und_vergangenes_datum(con):
+    a, _ = _akte_mit_dokument(con)
+    s = sitzung.beginnen(con, a, jetzt=BEGINN)
+    s = sitzung.notiz_anlegen(con, s["id"], "Frist zwei Monate, Bezug Schreiben vom 01.10.2026", "auflage",
+                              jetzt=datetime(2026, 11, 24, 11, 0))
+    [f] = sitzung.fristvorschlaege(s)
+    assert (f["art"], f["anzahl"], f["einheit"], f["datum"]) == ("dauer", 2, "monate", "2027-01-25")

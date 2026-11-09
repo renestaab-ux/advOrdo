@@ -27,6 +27,7 @@ import {
   kern,
   laufzeit,
   uhrzeitVon,
+  fristenLand,
 } from "./kern";
 import { useKiAn } from "./kiSchalter";
 import { useBearbeitung } from "./ungespeichert";
@@ -178,7 +179,7 @@ export function TerminBeenden({
   const [laeuft, setLaeuft] = useState(false);
 
   useEffect(() => {
-    kern<SitzungsAbschluss>("sitzung.abschluss", { sitzung_id: sitzung.id }).then(
+    kern<SitzungsAbschluss>("sitzung.abschluss", { sitzung_id: sitzung.id, land: fristenLand() }).then(
       (a) => {
         setAbschluss(a);
         setMinuten(String(a.minuten));
@@ -283,9 +284,18 @@ export function TerminBeenden({
                   <input type="date" value={f.datum} onChange={(e) => setFristen(fristen.map((x, j) => (j === i ? { ...x, datum: e.target.value } : x)))} />
                 </label>
                 <p className="leise af-breit">
-                  {f.anzahl} {f.einheit === "tage" ? "Tage" : f.einheit === "wochen" ? "Wochen" : "Monate"} ab {datumDe(f.bezugstag)}
-                  {f.verschoben && f.grund ? ` · verschoben: ${f.grund}` : ""} · {f.quelle}. Bitte prüfen, der Beginn kann abweichen
-                  (etwa ab Zustellung des Protokolls).
+                  {f.art === "datum" ? (
+                    <>
+                      Festes Datum aus der Notiz · {f.quelle}.
+                      {f.kein_werktag ? ` Achtung: Der Tag ist ein ${f.kein_werktag}, bitte prüfen (§ 222 Abs. 2 ZPO).` : ""}
+                    </>
+                  ) : (
+                    <>
+                      {f.anzahl} {f.einheit === "tage" ? "Tage" : f.einheit === "wochen" ? "Wochen" : "Monate"} ab {datumDe(f.bezugstag)}
+                      {f.verschoben && f.grund ? ` · verschoben: ${f.grund}` : ""} · {f.quelle}. Bitte prüfen, der Beginn kann
+                      abweichen (etwa ab Zustellung des Protokolls).
+                    </>
+                  )}
                 </p>
               </div>
             ))}

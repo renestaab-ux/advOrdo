@@ -66,12 +66,16 @@ export interface TerminHeute {
 export interface FristVorschlag {
   notiz_id: number;
   titel: string;
-  anzahl: number;
-  einheit: string;
+  /** "datum": festes Datum aus der Notiz; "dauer": Dauer ab dem Termintag über den Fristenrechner. */
+  art: "datum" | "dauer";
+  anzahl: number | null;
+  einheit: string | null;
   bezugstag: string;
   datum: string;
   verschoben: boolean;
   grund: string | null;
+  /** Bei festem Datum: Wochentag oder Feiertag, wenn der Tag kein Werktag ist. */
+  kein_werktag: string | null;
   quelle: string;
 }
 

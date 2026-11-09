@@ -15,6 +15,7 @@ import sqlite3
 from datetime import date, datetime
 
 from .. import zeiterfassung
+from ..rechner.feiertage import feiertage
 from . import kalender, notizen
 
 _SCHEMA = """
@@ -67,6 +68,13 @@ _ZAHLWORTE = {"ein": 1, "eine": 1, "einen": 1, "einer": 1, "zwei": 2, "drei": 3,
 _EINHEIT = {"tag": "tage", "tage": "tage", "tagen": "tage", "woche": "wochen", "wochen": "wochen",
             "monat": "monate", "monate": "monate", "monaten": "monate", "monats": "monate"}
 _FRIST = re.compile(r"\b(\d{1,3}|" + "|".join(_ZAHLWORTE) + r")\s+(" + "|".join(_EINHEIT) + r")\b", re.IGNORECASE)
+_MONATE = {"januar": 1, "jan": 1, "jänner": 1, "februar": 2, "feb": 2, "märz": 3, "mär": 3, "maerz": 3, "april": 4,
+           "apr": 4, "mai": 5, "juni": 6, "jun": 6, "juli": 7, "jul": 7, "august": 8, "aug": 8, "september": 9,
+           "sep": 9, "sept": 9, "oktober": 10, "okt": 10, "november": 11, "nov": 11, "dezember": 12, "dez": 12}
+# „15.12.2026“, „15.12.26“, „15.12.“, „15. Dezember 2026“, „15. Dez.“
+_DATUM = re.compile(r"(?<![\d.])(\d{1,2})\.\s*(?:(\d{1,2})\.|(" + "|".join(sorted(_MONATE, key=len, reverse=True))
+                    + r")\b\.?)\s*(\d{4}|\d{2}(?!\d))?", re.IGNORECASE)
+_WOCHENTAGE = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 
 
 def einrichten(con: sqlite3.Connection) -> None:
@@ -313,25 +321,58 @@ def protokoll(s: dict, ende: str | None = None) -> str:
     return "\n".join(zeilen)
 
 
+def _festes_datum(text: str, termintag: date) -> date | None:
+    """Erstes Datum im Text, das nach dem Termintag liegt; ohne Jahr das nächste passende nach dem Termin.
+    Frühere Daten („Schreiben vom 23.06.2025“) sind keine Fristen."""
+    for t in _DATUM.finditer(text):
+        tag_, monat = int(t.group(1)), int(t.group(2)) if t.group(2) else _MONATE[t.group(3).lower()]
+        jahr_text = t.group(4)
+        jahre = ([int(jahr_text) + (2000 if len(jahr_text) == 2 else 0)] if jahr_text
+                 else [termintag.year, termintag.year + 1])
+        for jahr in jahre:
+            try:
+                d = date(jahr, monat, tag_)
+            except ValueError:
+                break
+            if d > termintag:
+                return d
+    return None
+
+
+def _feiertag(d: date, land: str) -> str | None:
+    if d.weekday() >= 5:
+        return _WOCHENTAGE[d.weekday()]
+    return feiertage(d.year, "BY" if land == "BY-ohne" else land, maria_himmelfahrt_bayern=land != "BY-ohne").get(d)
+
+
 def fristvorschlaege(s: dict, land: str = "BY") -> list[dict]:
-    """Fristen aus den Notizen „Frist / Auflage“ (und anderen mit einer Dauer), z. B. „Schriftsatznachlass 3 Wochen“.
-    Bezugstag ist der Tag des Termins; das Ende rechnet der Fristenrechner. Nur Vorschläge: Übernommen wird, was im
-    Dialog ausgewählt und gegebenenfalls korrigiert wird."""
+    """Fristen aus den Notizen „Frist / Auflage“ (andere Arten nur mit Stichwort wie „Frist“ oder „Nachlass“).
+    Ein festes Datum („bis zum 15.12.2026“) gilt so, wie es dasteht; sonst eine Dauer („drei Wochen“) ab dem Termintag,
+    deren Ende der Fristenrechner bestimmt. Nur Vorschläge: Übernommen wird, was im Dialog ausgewählt und
+    gegebenenfalls korrigiert wird."""
     aus: list[dict] = []
     tag = s["beginn"][:10]
     for n in s["notizen"]:
+        if n["art"] != "auflage" and not re.search(r"frist|nachlass|stellungnahme|auflage", n["text"], re.IGNORECASE):
+            continue
+        quelle = f"Terminsnotiz {_uhrzeit(n['zeit'])} Uhr vom {_datum_de(tag)}"
+        titel = _einzeilig(n["text"])[:120]
+        fest = _festes_datum(n["text"], date.fromisoformat(tag))
+        if fest is not None:
+            aus.append({"notiz_id": n["id"], "titel": titel, "art": "datum", "anzahl": None, "einheit": None,
+                        "bezugstag": tag, "datum": fest.isoformat(), "verschoben": False, "grund": None,
+                        "kein_werktag": _feiertag(fest, land), "quelle": quelle})
+            continue
         treffer = _FRIST.search(n["text"])
-        if not treffer or (n["art"] != "auflage" and not re.search(r"frist|nachlass|stellungnahme|auflage",
-                                                                   n["text"], re.IGNORECASE)):
+        if not treffer:
             continue
         zahl = treffer.group(1).lower()
         anzahl = int(zahl) if zahl.isdigit() else _ZAHLWORTE[zahl]
         einheit = _EINHEIT[treffer.group(2).lower()]
         r = kalender.berechne(tag, anzahl, einheit, land)
-        titel = _einzeilig(n["text"])
-        aus.append({"notiz_id": n["id"], "titel": titel[:120], "anzahl": anzahl, "einheit": einheit,
+        aus.append({"notiz_id": n["id"], "titel": titel, "art": "dauer", "anzahl": anzahl, "einheit": einheit,
                     "bezugstag": tag, "datum": r["ende"], "verschoben": r["verschoben"], "grund": r["grund"],
-                    "quelle": f"Terminsnotiz {_uhrzeit(n['zeit'])} Uhr vom {_datum_de(tag)}"})
+                    "kein_werktag": None, "quelle": quelle})
     return aus
 
 
