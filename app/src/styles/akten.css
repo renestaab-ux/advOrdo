@@ -360,3 +360,32 @@ details.kurz-hinweis p { margin: 4px 0; }
 .kachel-fristen .start-frist .link { font-weight: 600; }
 .kachel-fristen .start-frist.abgelaufen .leise, .kachel-fristen .start-frist.heute .leise { color: var(--fehler); }
 .kachel-fristen .start-frist.bald .leise, .kachel-fristen .start-frist.vorfrist .leise { color: var(--warnung); }
+
+/* Arbeitsfenster einer Akte (eigenes Fenster, Arbeitsfenster.tsx): Kopf, Leiste und 1 bis 4 Spalten. */
+.arbeitsfenster { display: flex; flex-direction: column; height: 100vh; background: var(--hintergrund); }
+.af-kopf { gap: 10px 28px; padding: 12px 20px; }
+.af-kopf h1 { font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.af-kopf .af-kopf-titel { flex: 1 1 260px; min-width: 0; }
+.af-kopf .kopfband-ueber { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.af-leiste { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 6px 16px; background: var(--flaeche); border-bottom: 1px solid var(--linie); font-size: 14px; }
+.af-leiste .segment-knopf { min-width: 34px; justify-content: center; }
+.af-tipp { margin-left: auto; color: var(--text-leise); font-size: 13px; }
+.af-fehler { margin: 8px 16px; }
+.af-spalten { flex: 1; min-height: 0; display: flex; }
+.af-spalte { min-width: 0; display: flex; flex-direction: column; background: var(--flaeche); }
+.af-spalte:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
+.af-spalten-kopf { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--linie);
+  background: color-mix(in srgb, var(--akzent) 4%, var(--flaeche)); min-width: 0; }
+.af-spalten-kopf select { min-width: 0; max-width: 100%; }
+.af-spalten-kopf .af-dok-wahl { flex: 1 1 auto; }
+.af-nr { flex: none; background: var(--knopf); color: var(--knopf-text); border-radius: 4px; font-size: 12px; font-weight: 600; padding: 1px 7px; }
+.af-kopf-rest { flex: 1 1 0; }
+.af-zu { flex: none; }
+.af-spalten-inhalt { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 20px; }
+.af-trenner { flex: 0 0 6px; cursor: col-resize; background: var(--linie); touch-action: none; }
+.af-trenner:hover, .af-trenner:focus-visible { background: var(--akzent); outline: none; }
+.af-dokument { display: flex; flex-direction: column; gap: 10px; min-height: 100%; }
+.af-modus { align-self: flex-start; }
+.af-dokument .dokument { max-width: none; }
+.af-dokliste ul { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.af-volltext .akte-seite.volltext { width: auto; position: static; max-height: none; }

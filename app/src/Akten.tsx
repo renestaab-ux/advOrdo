@@ -3,6 +3,7 @@ import Akte, { AkteReiter } from "./Akte";
 import { Rueckfrage } from "./Rueckfrage";
 import AkteStammdaten from "./AkteStammdaten";
 import Analyse from "./Analyse";
+import { ArbeitsfensterKnopf } from "./Arbeitsfenster";
 import AusDokument from "./AusDokument";
 import Fristen from "./Fristen";
 import Notizen from "./Notizen";
@@ -694,6 +695,7 @@ function AkteRahmen({
             </strong>
           </button>
         )}
+        <ArbeitsfensterKnopf akte={akte} onFehler={setFehler} />
         <button
           className={reiter === "stammdaten" ? "kopf-knopf aktiv" : "kopf-knopf"}
           onClick={() => onReiter(reiter === "stammdaten" ? "dokumente" : "stammdaten")}

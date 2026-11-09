@@ -1,4 +1,5 @@
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFremdeAenderung } from "./aenderungen";
 import {
   Anmerkung,
   AnmerkFarbe,
@@ -526,6 +527,10 @@ export function useAnmerkungen(
     setAktiv(null);
     void laden();
   }, [laden]);
+  // Änderungen aus einem anderen Fenster; die Originalansicht zeichnet ihre Markierungen dann neu.
+  useFremdeAenderung(["anmerkungen"], () => {
+    void laden().then(() => setStand((s) => s + 1));
+  });
 
   // Menü schließen, sobald die Auswahl weg ist oder gescrollt wird.
   useEffect(() => {
