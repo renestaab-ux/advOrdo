@@ -43,6 +43,12 @@ class Dokument:
     seiten: list[Seite]
     abschnitte: list[Abschnitt]
     hinweise: list[str] = field(default_factory=list)
+    umbruch_seiten: int | None = None  # DOCX: Seiten laut Umbrüchen in der Datei, wenn es welche gibt
+
+    @property
+    def seitenzahl(self) -> int | None:
+        """Anzahl der Seiten für die Anzeige; None, wenn die Datei keine Seiten kennt."""
+        return self.umbruch_seiten or max((s.nr for s in self.seiten if s.nr), default=None)
 
     @property
     def lesart(self) -> str:

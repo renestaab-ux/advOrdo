@@ -167,7 +167,7 @@ def uebernehmen(
         con.execute(
             """UPDATE dokument SET format = ?, sha256 = ?, groesse = ?, original = ?, seiten = ?, lesart = ?,
                                    ocr_konfidenz = ?, hinweise = ? WHERE id = ?""",
-            (fmt, sha, groesse, str(original), max((s.nr for s in dok.seiten if s.nr), default=None), dok.lesart,
+            (fmt, sha, groesse, str(original), dok.seitenzahl, dok.lesart,
              dok.ocr_konfidenz, json.dumps(dok.hinweise, ensure_ascii=False), dokument_id),
         )
         akte.inhalt_speichern(con, dokument_id, dok, fmt, original, pfad)

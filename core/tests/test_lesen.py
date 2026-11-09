@@ -2,7 +2,7 @@ import zipfile
 
 import pytest
 
-from juracore.dokumente import lesen, ocr
+from juracore.dokumente import akte, lesen, ocr
 from juracore.dokumente.modell import LEER, TEXTEBENE
 
 from .conftest import schreibe_pdf
@@ -83,6 +83,7 @@ def test_docx_ohne_umbrueche_hat_keine_seiten(tmp_path):
     dok = lesen.lies(_docx(tmp_path / "a.docx", _p("(1) Text")))
     assert dok.abschnitte[0].seite is None
     assert "Randnummer" in dok.hinweise[0]
+    assert dok.seitenzahl is None
 
 
 def test_docx_harter_umbruch_zaehlt_nur_einmal(tmp_path):
@@ -95,11 +96,28 @@ def test_docx_harter_umbruch_zaehlt_nur_einmal(tmp_path):
         + _p("Seite drei", "<w:pPr><w:pageBreakBefore/></w:pPr>" + gerendert)
         + "<w:p><w:r><w:t>Lang</w:t></w:r>" + gerendert + "<w:r><w:t>weiter</w:t></w:r></w:p>"  # weicher Umbruch
         + _p("Seite vier")
+        + _p("\u200b")  # leerer Absatz mit unsichtbarem Zeichen
     )
     dok = lesen.lies(_docx(tmp_path / "a.docx", body))
     assert [(a.text, a.seite) for a in dok.abschnitte] == [
         ("Seite eins", 1), ("Seite zwei", 2), ("Seite drei", 3), ("Langweiter", 3), ("Seite vier", 4),
     ]
+    assert dok.seitenzahl == 4  # erscheint in der Dokumentliste und im Kopf der Dokumentansicht
+
+
+def test_docx_seitenzahl_wird_nachgetragen(tmp_path, con):
+    akten = akte.oeffne(tmp_path / "akten.sqlite")
+    a = akte.akte_anlegen(akten, "Alt")
+    body = _p("eins") + "<w:p><w:r><w:br w:type='page'/></w:r></w:p>" + _p("zwei")
+    d = akte.importiere(akten, con, a["id"], _docx(tmp_path / "a.docx", body), tmp_path / "ablage", ocr=False)
+    assert akten.execute("SELECT seiten FROM dokument").fetchone()[0] == 2
+    # Wie eine Word-Datei, eingelesen vor der Seitenzählung.
+    with akten:
+        akten.execute("UPDATE dokument SET seiten = NULL WHERE id = ?", (d["dokument_id"],))
+    akten.close()
+    akten = akte.oeffne(tmp_path / "akten.sqlite")
+    assert akten.execute("SELECT seiten FROM dokument").fetchone()[0] == 2
+    akten.close()
 
 
 def test_docx_verschachtelte_tabelle_und_kopfzeilen(tmp_path):
