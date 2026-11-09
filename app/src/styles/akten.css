@@ -447,3 +447,9 @@ button.af-chip.aktiv { background: var(--knopf); color: var(--knopf-text); borde
 .af-tn-liste time { flex: none; min-width: 44px; font-weight: 600; color: var(--akzent); font-variant-numeric: tabular-nums; }
 .af-tn-aktionen { display: inline-flex; gap: 10px; margin-left: 10px; font-size: 12px; opacity: 0.75; }
 .af-frueher { margin-bottom: 6px; }
+
+/* Terminsprotokoll als Aktennotiz: gegliedert wie im Terminmodus. */
+.terminsprotokoll .tp-kopf { font-weight: 600; margin: 0 0 8px; }
+.terminsprotokoll .af-tn-liste { gap: 6px; }
+.terminsprotokoll .af-tn-liste li > div { white-space: pre-wrap; }
+.terminsprotokoll .tp-bezug { color: var(--akzent); }
