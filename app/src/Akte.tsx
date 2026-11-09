@@ -24,6 +24,7 @@ import {
 } from "./DokumentAnsicht";
 import DokumentDetails, { DetailsGriff } from "./DokumentDetails";
 import DokumentExtern, { UebernahmeFrage } from "./DokumentExtern";
+import { dokumentPasst } from "./dokumentSuche";
 import { GegenueberstellungBereich } from "./Gegenueberstellung";
 import { BelegAnsicht } from "./Gesetze";
 import { Bildlaufmarken, LesezeichenLeiste, OrdnerAnsicht, OrdnerAnsichtArt, useLesezeichen } from "./Lesezeichen";
@@ -216,6 +217,8 @@ export default function Akte({
   const [filter, setFilter] = useState<Filter>(KEIN_FILTER);
   const [filterZu, setFilterZu] = useState(() => gemerkt(FILTER_SCHLUESSEL));
   const [nachDatum, setNachDatum] = useState(true);
+  // Suchfeld über der Dokumentliste: Titel, Dateiname, Ordner, Art, Absender, Tags und Datum.
+  const [dokSuche, setDokSuche] = useState("");
   const [tagEdit, setTagEdit] = useState<{ id: number; text: string } | null>(null);
   const [ergaenzung, setErgaenzung] = useState<Ergaenzung | null>(null);
   const [volltext, setVolltext] = useState<UrteilVolltext | null>(null);
@@ -859,7 +862,8 @@ export default function Akte({
       (filter.tag == null || (filter.tag === "" ? d.tags.length === 0 : d.tags.some((t) => t.name === filter.tag))) &&
       (!filter.unbelegt || unbelegt(d)) &&
       (filter.art == null || (d.art ?? "") === filter.art) &&
-      (filter.absender == null || absenderSchluessel(d) === filter.absender),
+      (filter.absender == null || absenderSchluessel(d) === filter.absender) &&
+      dokumentPasst(d, dokSuche),
   );
   // Zeitlich geordnet: neueste zuerst wie in einer Papierakte von oben; Dokumente ohne Datum am Ende.
   const sichtbar = nachDatum
@@ -1198,6 +1202,29 @@ export default function Akte({
           </LeerHinweis>
         )}
         {dokumente.length > 0 && (
+          <div className="dok-suche" role="search">
+            <input
+              type="search"
+              value={dokSuche}
+              onChange={(e) => setDokSuche(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && dokSuche) {
+                  e.stopPropagation();
+                  setDokSuche("");
+                }
+              }}
+              placeholder="Dokument suchen: Titel, Dateiname, Art, Absender, Datum …"
+              aria-label="Dokument in dieser Akte suchen"
+              title="Findet auch Wortteile, z. B. „protokoll“ in „Diagnoseprotokoll“. Den Inhalt der Dokumente durchsucht der Bereich „Suche“."
+            />
+            {dokSuche.trim() && (
+              <span className="dok-suche-zahl" aria-live="polite">
+                {sichtbar.length} von {dokumente.length}
+              </span>
+            )}
+          </div>
+        )}
+        {dokumente.length > 0 && (
           <table className="dokumente kompakt">
             <colgroup>
               <col className="spalte-datum" />
@@ -1310,7 +1337,13 @@ export default function Akte({
             </tbody>
           </table>
         )}
-        {dokumente.length > 0 && sichtbar.length === 0 && <p className="leer">Kein Dokument passt zu diesem Filter.</p>}
+        {dokumente.length > 0 && sichtbar.length === 0 && (
+          <p className="leer">
+            {dokSuche.trim()
+              ? `Kein Dokument passt zu „${dokSuche.trim()}“${gefiltertAktiv ? " und dem gewählten Filter" : ""}. Den Text der Dokumente durchsucht der Bereich „Suche“.`
+              : "Kein Dokument passt zu diesem Filter."}
+          </p>
+        )}
       </section>
 
       <Trenner

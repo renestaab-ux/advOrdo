@@ -11,6 +11,9 @@ import json
 import re
 import sqlite3
 import time
+import unicodedata
+from collections.abc import Callable
+from typing import NamedTuple
 
 from . import akte
 
@@ -20,31 +23,104 @@ _UMFELD = 70  # Zeichen vor und nach dem ersten Treffer im Ausschnitt
 MAX_ABSCHNITTE = 5000
 
 
-def abfrage(suchtext: str) -> str:
-    """Nutzereingabe als sichere FTS5-Abfrage: Wörter (alle müssen vorkommen), „genaue Wortfolge“, Wortanfang*."""
+MAX_WORTFORMEN = 200  # so viele Wortformen höchstens je Platzhalter am Wortanfang (*protokoll*)
+
+# Liefert zu einem Muster wie "*protokoll*" die Wörter des Suchindex, die darauf passen.
+Wortformen = Callable[[str], list[str]]
+
+
+class Abfrage(NamedTuple):
+    """FTS5-Abfrage samt den Wortformen, die für Platzhalter am Wortanfang eingesetzt wurden."""
+
+    fts: str
+    # Muster in der Schreibweise der Eingabe ("*protokoll*") -> gefundene Wörter des Index.
+    wortformen: dict[str, list[str]]
+    # Ein Platzhalter passte auf mehr als MAX_WORTFORMEN Wörter; nur die häufigsten wurden gesucht.
+    gekuerzt: bool = False
+    # Ein Platzhalter passte auf kein Wort: die Suche kann nichts finden.
+    leer: bool = False
+
+
+def abfrage(suchtext: str, wortformen: Wortformen | None = None) -> str:
+    """Nutzereingabe als sichere FTS5-Abfrage: Wörter (alle müssen vorkommen), „genaue Wortfolge“, Wortanfang*.
+
+    Platzhalter am Wortanfang (*protokoll, *protokoll*) brauchen ``wortformen``; ohne sie bleibt nur das Wort selbst.
+    """
+    return abfrage_mit_formen(suchtext, wortformen).fts
+
+
+def abfrage_mit_formen(suchtext: str, wortformen: Wortformen | None = None) -> Abfrage:
+    """Wie ``abfrage``; ``*`` steht für beliebig viele Buchstaben am Anfang, Ende oder in der Mitte eines Wortes.
+
+    „Protokoll*“ nutzt die Präfixsuche von FTS5. „*protokoll“ und „*protokoll*“ findet FTS5 nicht von selbst, weil der
+    Index ganze Wörter enthält („Diagnoseprotokoll“ ist ein Wort). Dafür sucht ``wortformen`` im Wörterverzeichnis des
+    Index die passenden Wörter, und die Abfrage verlangt eines davon (ODER).
+    """
     teile: list[str] = []
+    formen: dict[str, list[str]] = {}
+    gekuerzt = leer = False
     for phrase, wort in re.findall(r'"([^"]*)"?|(\S+)', suchtext):
         if phrase:
             woerter = _woerter(phrase)
             if woerter:
                 teile.append('"' + " ".join(woerter) + '"')
             continue
-        praefix = wort.endswith("*")
-        for i, w in enumerate(woerter := _woerter(wort)):
-            teile.append(f'"{w}"*' if praefix and i == len(woerter) - 1 else f'"{w}"')
-    return " ".join(teile)
+        # Bindestrich, Schrägstrich usw. trennen Wörter; ein * gehört zu dem Wortteil, an dem er steht.
+        for stueck in (st for st in re.split(r"[^\w*]+|_", wort) if st.strip("*")):
+            kern = stueck.strip("*")
+            if "*" not in kern and not stueck.startswith("*"):
+                teile.append(f'"{kern}"*' if stueck.endswith("*") else f'"{kern}"')
+                continue
+            if wortformen is None:
+                woerter = _woerter(kern)
+                teile.extend(f'"{w}"' for w in woerter[:-1])
+                teile.append(f'"{woerter[-1]}"*' if stueck.endswith("*") else f'"{woerter[-1]}"')
+                continue
+            muster = re.sub(r"\*+", "*", stueck)
+            gefunden = wortformen(_index_schreibweise(muster))
+            formen[muster] = gefunden[:MAX_WORTFORMEN]
+            gekuerzt = gekuerzt or len(gefunden) > MAX_WORTFORMEN
+            if not gefunden:
+                leer = True
+            else:
+                teile.append("(" + " OR ".join(f'"{w}"' for w in gefunden[:MAX_WORTFORMEN]) + ")")
+    # Ausdrücklich AND: FTS5 verbindet geklammerte ODER-Gruppen nicht stillschweigend.
+    return Abfrage(" AND ".join(teile), formen, gekuerzt, leer)
+
+
+def _index_schreibweise(text: str) -> str:
+    """Klein und ohne diakritische Zeichen, so wie der Tokenizer (unicode61, remove_diacritics 2) die Wörter ablegt."""
+    zerlegt = unicodedata.normalize("NFD", text.lower())
+    return unicodedata.normalize("NFC", "".join(z for z in zerlegt if not unicodedata.combining(z)))
 
 
 def _woerter(text: str) -> list[str]:
     return "".join(c if c.isalnum() else " " for c in text).split()
 
 
+def wortformen(con: sqlite3.Connection, tabelle: str) -> Wortformen:
+    """Sucht im Wörterverzeichnis des FTS5-Index ``tabelle`` die Wörter zu einem Muster mit * (häufigste zuerst)."""
+    vokabular = f"{tabelle}_woerter"
+    con.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS temp.{vokabular} USING fts5vocab(main, {tabelle}, 'row')")
+
+    def suchen(muster: str) -> list[str]:
+        # GLOB unterscheidet Groß- und Kleinschreibung; die Wörter im Index sind schon klein geschrieben.
+        return [z[0] for z in con.execute(
+            f"SELECT term FROM temp.{vokabular} WHERE term GLOB ? ORDER BY doc DESC, term LIMIT ?",
+            (muster, MAX_WORTFORMEN + 1))]
+
+    return suchen
+
+
 def suche(con: sqlite3.Connection, suchtext: str, akte_id: int | None = None) -> dict:
     """Treffer gruppiert nach Dokument und Seite; Rang 1 ist die relevanteste Seite (BM25)."""
     beginn = time.perf_counter()
-    fts = abfrage(suchtext)
-    if not fts:
-        return {"dokumente": [], "seiten": 0, "treffer": 0, "dauer_ms": 0, "gekuerzt": False}
+    a = abfrage_mit_formen(suchtext, wortformen(con, "abschnitt_fts"))
+    fts = a.fts
+    platzhalter = {"wortformen": a.wortformen, "wortformen_gekuerzt": a.gekuerzt}
+    if not fts or a.leer:
+        return {"dokumente": [], "seiten": 0, "treffer": 0, "dauer_ms": round((time.perf_counter() - beginn) * 1000),
+                "gekuerzt": False, **platzhalter}
     zeilen = con.execute(
         f"""SELECT a.dokument_id, a.nr, a.seite, a.rn, a.seitenwechsel,
                   highlight(abschnitt_fts, 0, '{_AUF}', '{_ZU}') AS markiert, bm25(abschnitt_fts) AS gewicht
@@ -110,6 +186,7 @@ def suche(con: sqlite3.Connection, suchtext: str, akte_id: int | None = None) ->
         "treffer": sum(d["treffer"] for d in ergebnis),
         "dauer_ms": round((time.perf_counter() - beginn) * 1000),
         "gekuerzt": gekuerzt,
+        **platzhalter,
     }
 
 

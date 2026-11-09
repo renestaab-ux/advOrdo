@@ -38,7 +38,7 @@ from . import lesen
 from .akte import _entferne_datei, _jetzt, _sha256
 from .modell import Dokument
 from .ocr import Tesseract
-from .suche import _AUF, _ZU, _ausschnitt, _treffer, abfrage
+from .suche import _AUF, _ZU, _ausschnitt, _treffer, abfrage_mit_formen, wortformen
 
 MANUELL = "manuell"
 RII = "rii"
@@ -426,8 +426,9 @@ MAX_TREFFER = 200
 def suche(con: sqlite3.Connection, suchtext: str) -> dict:
     """Volltextsuche in den gespeicherten Entscheidungen: je Entscheidung die Fundstellen mit Randnummer."""
 
-    fts = abfrage(suchtext)
-    if not fts:
+    a = abfrage_mit_formen(suchtext, wortformen(con, "urteil_fts"))
+    fts = a.fts
+    if not fts or a.leer:  # leer: ein *Platzhalter passt auf kein Wort
         return {"urteile": [], "treffer": 0}
     zeilen = con.execute(
         f"""SELECT u.id AS urteil_id, u.sha256, a.nr, a.rn, bm25(urteil_fts) AS gewicht,
