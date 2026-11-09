@@ -49,8 +49,8 @@ Danach eine neue PowerShell öffnen (damit die neuen Programme gefunden werden):
 
 ```powershell
 gh auth login
-gh repo clone renestaab-ux/juristischer-datenabgleich
-cd juristischer-datenabgleich
+gh repo clone renestaab-ux/advOrdo
+cd advOrdo
 py -3.12 -m venv .venv
 .venv\Scripts\pip install -e "core[dev]"
 .venv\Scripts\pytest core
