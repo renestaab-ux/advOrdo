@@ -125,3 +125,32 @@ export function useReiterTasten() {
     return () => document.removeEventListener("keydown", taste);
   }, []);
 }
+
+/**
+ * Kurze Ansage für Bildschirmleser über den versteckten Statusbereich #ansage. Nach Alt + Zahl nannte die
+ * Windows-Sprachausgabe sonst nur die gedrückte Zahl; mit dem Fokus auf der Überschrift las sie diese doppelt.
+ */
+export function ansagen(text: string) {
+  const el = document.getElementById("ansage");
+  if (!el) return;
+  // Erst leeren, dann setzen: Sonst sagt der Bildschirmleser denselben Text nicht ein zweites Mal an.
+  el.textContent = "";
+  window.setTimeout(() => {
+    el.textContent = text;
+  }, 150);
+}
+
+/**
+ * Fokus auf eine Ergebnismeldung setzen, sobald ``wert`` gesetzt wird. Eine Statusmeldung nach einem Dateidialog
+ * liest die Windows-Sprachausgabe nicht vor, auch nicht über #ansage; ein fokussiertes Element liest sie immer.
+ * Das Element braucht ``tabIndex={-1}``.
+ */
+export function useFokusAuf<T extends HTMLElement>(wert: unknown) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    if (!wert) return;
+    const id = requestAnimationFrame(() => ref.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [wert]);
+  return ref;
+}

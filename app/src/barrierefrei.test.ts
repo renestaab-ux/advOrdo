@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { bereichAusTaste, naechsterImKreis, reiterZiel, trennerSchritt } from "./barrierefrei";
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from "vitest";
+import { ansagen, bereichAusTaste, naechsterImKreis, reiterZiel, trennerSchritt } from "./barrierefrei";
 
 const taste = (code: string, mehr: Partial<{ altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }> = {}) => ({
   altKey: true,
@@ -68,5 +69,42 @@ describe("reiterZiel", () => {
     expect(reiterZiel("ArrowRight", 1, 3, true)).toBeNull();
     expect(reiterZiel("Home", 2, 3, true)).toBe(0);
     expect(reiterZiel("End", 0, 3, false)).toBe(2);
+  });
+});
+
+describe("ansagen", () => {
+  it("setzt den Text verzögert in den Statusbereich, auch zweimal denselben", () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = '<div id="ansage" role="status"></div>';
+    const el = document.getElementById("ansage")!;
+    ansagen("Brief.docx liegt jetzt unter Dokumente.");
+    expect(el.textContent).toBe("");
+    vi.advanceTimersByTime(200);
+    expect(el.textContent).toBe("Brief.docx liegt jetzt unter Dokumente.");
+    ansagen("Brief.docx liegt jetzt unter Dokumente.");
+    expect(el.textContent).toBe("");
+    vi.advanceTimersByTime(200);
+    expect(el.textContent).toBe("Brief.docx liegt jetzt unter Dokumente.");
+    vi.useRealTimers();
+  });
+});
+
+describe("useFokusAuf", () => {
+  it("setzt den Fokus auf die Meldung, sobald es ein Ergebnis gibt", async () => {
+    const { act, createElement } = await import("react");
+    const { createRoot } = await import("react-dom/client");
+    const { useFokusAuf } = await import("./barrierefrei");
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    function Meldung({ ergebnis }: { ergebnis: string | null }) {
+      const ref = useFokusAuf<HTMLDivElement>(ergebnis);
+      return ergebnis ? createElement("div", { ref, tabIndex: -1, id: "m" }, ergebnis) : null;
+    }
+    document.body.innerHTML = "<div id='w'></div>";
+    const root = createRoot(document.getElementById("w")!);
+    act(() => root.render(createElement(Meldung, { ergebnis: null })));
+    act(() => root.render(createElement(Meldung, { ergebnis: "Gespeichert unter C:\\Briefe\\Brief.docx." })));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(document.activeElement?.id).toBe("m");
+    act(() => root.unmount());
   });
 });

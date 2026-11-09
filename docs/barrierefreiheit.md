@@ -108,7 +108,7 @@ Stand: **erfüllt** = umgesetzt und automatisch bestätigt · **umgesetzt** = um
 | 3.3.7 | Redundante Eingabe | A | umgesetzt | „Akte aus Dokument“ und Eigene Daten füllen Angaben vor; im Ablauf wird nichts doppelt abgefragt |
 | 3.3.8 | Barrierefreie Authentifizierung (Minimum) | AA | erfüllt | keine Anmeldung; API-Schlüssel für externe KI lassen sich einfügen |
 | 4.1.2 | Name, Rolle, Wert | A | erfüllt | native Elemente; Schalter mit `aria-pressed`, Reiter mit `aria-selected`, Trennlinie mit `aria-valuenow`; axe |
-| 4.1.3 | Statusmeldungen | AA | erfüllt | `role="status"` für Laden und Warteanzeige (nur Beginn und Ende), `role="alert"` für Fehler |
+| 4.1.3 | Statusmeldungen | AA | erfüllt | `role="status"` für Laden und Warteanzeige (nur Beginn und Ende), `role="alert"` für Fehler. Nach einem Dateidialog liest die Windows-Sprachausgabe Statusmeldungen nicht vor; die Ergebnismeldung bei Schriftstück und Kostennote bekommt deshalb den Fokus (09.11.2026) |
 
 ## EN 301 549, Anforderungen über WCAG hinaus
 

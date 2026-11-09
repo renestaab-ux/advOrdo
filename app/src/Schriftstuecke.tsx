@@ -10,6 +10,7 @@ import {
   kern,
 } from "./kern";
 import Kostennote from "./Kostennote";
+import { useFokusAuf } from "./barrierefrei";
 
 /**
  * Reiter „Schriftstücke“: Brief oder Schriftsatz aus einer Vorlage erzeugen, gefüllt mit Briefkopf (Eigene Daten),
@@ -41,6 +42,8 @@ export default function Schriftstuecke({
   const [verfahrenId, setVerfahrenId] = useState<number | null>(null);
   const [vorschau, setVorschau] = useState<SchriftVorschau | null>(null);
   const [ergebnis, setErgebnis] = useState<(SchriftErgebnis & { geoeffnet: boolean }) | null>(null);
+  // Meldung nach dem Erzeugen bekommt den Fokus, damit die Sprachausgabe sie vorliest.
+  const ergebnisRef = useFokusAuf<HTMLDivElement>(ergebnis);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -132,7 +135,9 @@ export default function Schriftstuecke({
     });
     if (!ziel) return;
     const r = await mit(() => kern<SchriftErgebnis>("schriftstuecke.erzeugen", { ...params, in_akte: false, pfad: ziel }));
-    if (r) setErgebnis({ ...r, geoeffnet: false });
+    if (r) {
+      setErgebnis({ ...r, geoeffnet: false });
+    }
   }
 
   const name = (b: Beteiligung) => `${b.rolle_text}: ${b.name}`;
@@ -224,7 +229,7 @@ export default function Schriftstuecke({
           </button>
         </div>
         {ergebnis && (
-          <div className="status schrift-ergebnis">
+          <div className="status schrift-ergebnis" ref={ergebnisRef} tabIndex={-1}>
             {ergebnis.dokument_id ? (
               <>
                 „{ergebnis.dateiname}“ {ergebnis.neu ? "liegt jetzt" : "lag schon"} unter Dokumente
