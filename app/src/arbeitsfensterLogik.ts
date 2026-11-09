@@ -5,7 +5,15 @@
  * Die Anordnung wird je Akte auf diesem Gerät gemerkt (localStorage), ebenso Lage und Größe des Fensters.
  */
 
-export type SpaltenArt = "leer" | "dokument" | "notizen" | "anmerkungen" | "normen" | "rechtsprechung";
+export type SpaltenArt =
+  | "leer"
+  | "dokument"
+  | "notizen"
+  | "anmerkungen"
+  | "normen"
+  | "rechtsprechung"
+  | "sitzungsblatt"
+  | "terminsnotizen";
 
 /** Was eine Spalte zeigt. Bei einem Dokument auch welches und ob als Text oder Original. */
 export interface Spalte {
@@ -15,6 +23,8 @@ export interface Spalte {
   /** Fundstelle, zu der nach dem Öffnen gesprungen wird (Abschnitt im Text oder Seite im Original); wird nicht gemerkt. */
   abschnitt?: number | null;
   seite?: number | null;
+  /** Randnummer, zu der gesprungen wird (Springen „Rn. 14“, Beleg im Sitzungsblatt); wird nicht gemerkt. */
+  rn?: number | null;
 }
 
 export interface Anordnung {
@@ -34,6 +44,8 @@ export const SPALTEN_ARTEN: { art: SpaltenArt; titel: string }[] = [
   { art: "anmerkungen", titel: "Anmerkungen und Lesezeichen" },
   { art: "normen", titel: "Normen der Akte" },
   { art: "rechtsprechung", titel: "Rechtsprechung der Akte" },
+  { art: "sitzungsblatt", titel: "Sitzungsblatt" },
+  { art: "terminsnotizen", titel: "Terminsnotizen" },
 ];
 
 const ARTEN = new Set<SpaltenArt>(["leer", ...SPALTEN_ARTEN.map((a) => a.art)]);
@@ -134,6 +146,127 @@ export function zielSpalte(a: Anordnung, von: number): { anordnung: Anordnung; i
     return { anordnung: { spalten, anteile: null }, index: von + 1 };
   }
   return { anordnung: a, index: von < n - 1 ? von + 1 : von - 1 };
+}
+
+/**
+ * Anordnung für den Gerichtstermin: Sitzungsblatt, ein Dokument (das erste aus der bisherigen Anordnung, sonst zur
+ * Auswahl) und die Terminsnotizen. Die bisherige Anordnung wird gemerkt und nach dem Termin wiederhergestellt.
+ */
+export function terminAnordnung(alt: Anordnung): Anordnung {
+  const dok = alt.spalten.find((s) => s.art === "dokument");
+  return {
+    spalten: [
+      { art: "sitzungsblatt" },
+      { art: "dokument", dokumentId: dok?.dokumentId ?? null, modus: dok?.modus ?? "text" },
+      { art: "terminsnotizen" },
+    ],
+    anteile: [0.3, 0.4, 0.3],
+  };
+}
+
+const VOR_TERMIN = (akteId: number) => `arbeitsfenster.vor-termin.${akteId}`;
+
+/** Anordnung vor dem Termin merken (nur, wenn nicht schon eine gemerkt ist: ein zweiter Start überschreibt sie nicht). */
+export function vorTerminMerken(akteId: number, a: Anordnung) {
+  if (lesen(VOR_TERMIN(akteId)) == null) schreiben(VOR_TERMIN(akteId), zumSpeichern(a));
+}
+
+/** Anordnung von vor dem Termin zurückholen (und vergessen); ohne gemerkte: die Standardanordnung. */
+export function vorTerminHolen(akteId: number): Anordnung {
+  const w = lesen(VOR_TERMIN(akteId));
+  try {
+    localStorage.removeItem(VOR_TERMIN(akteId));
+  } catch {
+    // Ohne Speicher gibt es auch nichts zu vergessen.
+  }
+  return w == null ? standardAnordnung() : anordnungPruefen(w);
+}
+
+// --------------------------------------------------------------------------- Springen (Strg+K)
+
+/** Ziel eines Sprungs: ein Dokument, wahlweise an einer Randnummer oder einem Abschnitt. */
+export interface SprungZiel {
+  titel: string;
+  hinweis: string;
+  dokumentId: number;
+  abschnitt?: number;
+  rn?: number;
+}
+
+interface SprungDokument {
+  id: number;
+  name: string;
+  tags: string[];
+}
+
+interface SprungNorm {
+  zitat: string;
+  fundstellen: { dokument_id: number; dateiname: string; abschnitt: number; seite: number | null; rn: number | null }[];
+}
+
+/** Für den Vergleich: klein, ohne Leerzeichen und Punkte („Anlage K 2“ → „anlagek2“, „§ 477“ → „§477“). */
+function knapp(t: string): string {
+  return t.toLowerCase().replace(/[\s.]+/g, "");
+}
+
+/** Kurzbezeichnung einer Anlage aus einem Tag („Anlage K 2“ → „K 2“, „B1“ → „B 1“), sonst null. */
+export function anlageAusTag(tag: string): string | null {
+  const m = /^(?:anlagen?\s*)?([A-Za-zÄÖÜäöü]{1,3})\s*(\d{1,3}[a-z]?)$/i.exec(tag.trim());
+  if (!m || (!/^anlage/i.test(tag.trim()) && m[1].length > 2)) return null;
+  return `${m[1].toUpperCase()} ${m[2]}`;
+}
+
+/**
+ * Treffer für die Eingabe im Springen-Feld:
+ * - „K 2“, „B1“, „Anlage K 3“: Dokumente mit diesem Anlagen-Tag (aus „Tag hinzufügen“ bzw. dem Ordnernamen),
+ * - „Rn. 14“ oder „Rn 14“: diese Randnummer in den Dokumenten, die gerade in einer Spalte offen sind,
+ * - „§ 477“, „Art. 6“: Fundstellen dieses Normzitats in der Akte,
+ * - sonst: Dokumente, deren Name oder Tag den Text enthält.
+ */
+export function springTreffer(
+  eingabe: string,
+  dokumente: SprungDokument[],
+  normen: SprungNorm[],
+  offen: number[],
+  max = 12,
+): SprungZiel[] {
+  const e = eingabe.trim();
+  if (!e) return [];
+  const name = (id: number) => dokumente.find((d) => d.id === id)?.name ?? `Dokument ${id}`;
+
+  const rn = /^rn\.?\s*(\d{1,4})$/i.exec(e);
+  if (rn) {
+    const n = Number(rn[1]);
+    return [...new Set(offen)].map((id) => ({ titel: `Rn. ${n}`, hinweis: name(id), dokumentId: id, rn: n }));
+  }
+
+  if (/^(§§?|art\.?)\s*\d/i.test(e)) {
+    const k = knapp(e);
+    const aus: SprungZiel[] = [];
+    for (const n of normen) {
+      if (!knapp(n.zitat).startsWith(k)) continue;
+      for (const f of n.fundstellen) {
+        const ort = f.rn != null ? `Rn. ${f.rn}` : f.seite != null ? `S. ${f.seite}` : `Abschnitt ${f.abschnitt}`;
+        aus.push({ titel: n.zitat, hinweis: `${f.dateiname}, ${ort}`, dokumentId: f.dokument_id, abschnitt: f.abschnitt });
+      }
+    }
+    return aus.slice(0, max);
+  }
+
+  const anlage = anlageAusTag(e);
+  if (anlage) {
+    const treffer = dokumente.filter((d) => d.tags.some((t) => anlageAusTag(t) === anlage));
+    if (treffer.length) return treffer.slice(0, max).map((d) => ({ titel: `Anlage ${anlage}`, hinweis: d.name, dokumentId: d.id }));
+  }
+
+  const k = knapp(e);
+  return dokumente
+    .filter((d) => knapp(d.name).includes(k) || d.tags.some((t) => knapp(t).includes(k)))
+    .slice(0, max)
+    .map((d) => {
+      const tag = d.tags.map(anlageAusTag).find((a) => a != null);
+      return { titel: d.name, hinweis: tag ? `Anlage ${tag}` : "Dokument", dokumentId: d.id };
+    });
 }
 
 /** Lage und Größe des Fensters in Bildschirmpunkten (physisch), wie Tauri sie meldet. */

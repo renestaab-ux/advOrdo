@@ -238,6 +238,12 @@ describe("Ergänzte Urteile", () => {
   it("nennt Quelle und Datei", () => {
     expect(urteilHerkunft({ herkunft: "juris", dateiname: "BGH VIII ZR 999-20.pdf" })).toBe("juris, BGH VIII ZR 999-20.pdf");
     expect(urteilHerkunft({ herkunft: null, dateiname: "urteil.pdf" })).toBe("urteil.pdf");
+    expect(
+      urteilHerkunft({
+        herkunft: "https://infocuria.curia.europa.eu",
+        dateiname: "https:infocuria.curia.europa.eu:tabs?source=document&text=&docid=175728&pageIndex=0",
+      }),
+    ).toBe("infocuria.curia.europa.eu");
   });
 });
 
@@ -750,6 +756,16 @@ describe("titelNachSchema", () => {
       "Kaufvertrag zwischen Müller und Schneider",
     );
     expect(titelNachSchema(benennung(), "Vertrag", "", akte)).toBe("Vertrag zwischen Müller und Schneider");
+  });
+
+  it("Vergütungsvereinbarung: zwischen Mandant und uns, nicht mit dem Gegner", () => {
+    expect(titelNachSchema(benennung(), "Vergütungsvereinbarung", "1", akte)).toBe(
+      "Vergütungsvereinbarung zwischen Müller und uns",
+    );
+    expect(titelNachSchema(benennung({}, ["eigene", "1"]), "Vertrag", "", akte)).toBe("Vertrag zwischen Müller und uns");
+    expect(titelNachSchema(benennung({ vertrag: "Mandatsvertrag" }), "Vertrag", "eigene", akte)).toBe(
+      "Mandatsvertrag zwischen Müller und uns",
+    );
   });
 });
 

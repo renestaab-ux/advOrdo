@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ..abgleich import abgleich
-from ..aktenverwaltung import beteiligte, fristenbuch, kalender, kollision, notizen, stammdaten, verfahren
+from ..aktenverwaltung import beteiligte, fristenbuch, kalender, kollision, notizen, sitzung, stammdaten, verfahren
 from ..dokumente import akte, ansicht, fassungen, metadaten, suche, urteile
 
 if TYPE_CHECKING:
@@ -66,6 +66,25 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "akten.notiz_anheften": lambda notiz_id, angeheftet=True: notizen.anheften(
                 k.akten, notiz_id, angeheftet),
         "akten.notiz_loeschen": lambda notiz_id: notizen.loeschen(k.akten, notiz_id),
+        # Terminmodus des Arbeitsfensters: Sitzungsblatt (Anträge, Streitpunkte) und Terminsnotizen.
+        "sitzung.punkte": lambda akte_id: sitzung.punkte(k.akten, akte_id),
+        "sitzung.punkt_speichern": lambda akte_id, daten, punkt_id=None: sitzung.punkt_speichern(
+                k.akten, akte_id, daten, punkt_id),
+        "sitzung.punkt_loeschen": lambda punkt_id: sitzung.punkt_loeschen(k.akten, punkt_id),
+        "sitzung.punkt_verschieben": lambda punkt_id, richtung: sitzung.punkt_verschieben(
+                k.akten, punkt_id, richtung),
+        "sitzung.aktiv": lambda akte_id: sitzung.aktiv(k.akten, akte_id),
+        "sitzung.liste": lambda akte_id: sitzung.sitzungen(k.akten, akte_id),
+        "sitzung.termine_heute": lambda akte_id: sitzung.termine_heute(k.akten, akte_id),
+        "sitzung.beginnen": lambda akte_id, kalender_id=None, titel="", person_id=None: sitzung.beginnen(
+                k.akten, akte_id, kalender_id, titel, person_id=person_id),
+        "sitzung.notiz_anlegen": lambda sitzung_id, text, art="notiz", dokument_id=None: sitzung.notiz_anlegen(
+                k.akten, sitzung_id, text, art, dokument_id),
+        "sitzung.notiz_aendern": lambda notiz_id, text, art=None: sitzung.notiz_aendern(k.akten, notiz_id, text, art),
+        "sitzung.notiz_loeschen": lambda notiz_id: sitzung.notiz_loeschen(k.akten, notiz_id),
+        "sitzung.abschluss": lambda sitzung_id, land="BY": sitzung.abschluss(k.akten, sitzung_id, land),
+        "sitzung.beenden": lambda sitzung_id, protokoll=True, zeit=None, fristen=None: sitzung.beenden(
+                k.akten, sitzung_id, protokoll, zeit, fristen),
         "akten.rubrum_lesen": k.rubrum_lesen,
         "akten.aus_dokument_anlegen": k.aus_dokument_anlegen,
         "akten.verfahren_aus_dokument": k.verfahren_aus_dokument,

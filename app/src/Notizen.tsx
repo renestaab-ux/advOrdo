@@ -3,6 +3,7 @@ import { AktenDokument, Notiz, dokumentName, kern, zeitpunkt } from "./kern";
 import { LeerHinweis } from "./Symbole";
 import { useBearbeitung } from "./ungespeichert";
 import { useFremdeAenderung } from "./aenderungen";
+import { protokollLesen } from "./terminsprotokoll";
 
 /** Reiter „Notizen“: kurze Vermerke zur Akte oder zu einem Dokument; wichtige werden oben angeheftet.
  *  Mit ``dokumentId`` (Ansicht „Details“) nur die Notizen zu diesem Dokument, neue gehören zu ihm. */
@@ -144,7 +145,7 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
               </form>
             ) : (
               <>
-                <p className="notiz-text">{n.text}</p>
+                <NotizText text={n.text} />
                 <div className="notiz-fuss">
                   <span className="leise klein">
                     {n.angeheftet && "📌 angeheftet · "}
@@ -173,6 +174,29 @@ export default function Notizen({ akteId, dokumentId: festesDokument }: { akteId
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** Text einer Notiz; ein Terminsprotokoll erscheint so gegliedert wie im Terminmodus. */
+function NotizText({ text }: { text: string }) {
+  const p = protokollLesen(text);
+  if (!p) return <p className="notiz-text">{text}</p>;
+  return (
+    <div className="notiz-text terminsprotokoll">
+      <p className="tp-kopf">{p.kopf}</p>
+      <ol className="af-tn-liste">
+        {p.eintraege.map((e, i) => (
+          <li key={i}>
+            <time>{e.zeit}</time>
+            <div>
+              {e.art && <strong>{e.art}: </strong>}
+              {e.text}
+              {e.bezug && <span className="tp-bezug"> ↳ {e.bezug}</span>}
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

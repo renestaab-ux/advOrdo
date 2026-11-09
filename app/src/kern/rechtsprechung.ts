@@ -14,7 +14,7 @@ export const URTEIL_STATUS_TEXT: Record<UrteilStatus, string> = {
   nicht_gefunden: "nicht auffindbar",
   kein_verzeichnis: "noch nicht geprüft",
   belegt: "belegt",
-  ausserhalb: "nicht im Verzeichnis",
+  ausserhalb: "nicht automatisch prüfbar",
   nicht_pruefbar: "nicht prüfbar",
 };
 
@@ -120,7 +120,22 @@ export const URTEIL_QUELLEN = ["juris", "beck-online", "openJur", "Gericht (Ausf
 
 /** "beck-online, Urteil.pdf" bzw. nur der Dateiname. */
 export function urteilHerkunft(u: Pick<UrteilInfo, "herkunft" | "dateiname">): string {
-  return u.herkunft ? `${u.herkunft}, ${u.dateiname}` : u.dateiname;
+  const herkunft = u.herkunft ? kurzeAdressen(u.herkunft) : null;
+  const datei = kurzeAdressen(u.dateiname);
+  if (herkunft && herkunft === datei) return herkunft;
+  return herkunft ? `${herkunft}, ${datei}` : datei;
+}
+
+/** Lange Webadressen auf den Rechnernamen kürzen: „https://infocuria.curia.europa.eu/tabs?…“ → „infocuria.curia.europa.eu“. */
+export function kurzeAdressen(text: string): string {
+  return text.replace(/\bhttps?:\/*(?:www\.)?([^/\s,?#:]+)[^\s,]*/gi, "$1");
+}
+
+/** Statustext eines Rechtsprechungszitats; selbst hinzugefügte Volltexte außerhalb des Verzeichnisses heißen so. */
+export function urteilStatusText(u: Pick<UrteilEintrag, "status" | "urteil">): string {
+  if ((u.status === "ausserhalb" || u.status === "nicht_pruefbar" || u.status === "kein_verzeichnis") && u.urteil?.quelle === "manuell")
+    return "manuell hinzugefügt";
+  return URTEIL_STATUS_TEXT[u.status];
 }
 
 /** Eine Entscheidung der Sammlung, einmal je Datei, mit den Akten, denen sie zugeordnet ist. */

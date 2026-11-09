@@ -14,3 +14,4 @@ export * from "./kern/sortieren";
 export * from "./kern/nachrichten";
 export * from "./kern/schriftstuecke";
 export * from "./kern/zeiterfassung";
+export * from "./kern/sitzung";

@@ -108,7 +108,7 @@ button.akte-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--
   .akte-dokumente.feste-breite { grid-template-columns: 210px minmax(340px, 1fr) auto var(--dok-breite); }
   .akte-dokumente.filter-zu.feste-breite { grid-template-columns: 40px minmax(340px, 1fr) auto var(--dok-breite); }
 }
-.akte-filter { border-right: 1px solid var(--linie); display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; }
+.akte-filter { border-right: 1px solid var(--linie); display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; min-width: 0; }
 .filter-zu .akte-filter { padding: 8px 4px; align-items: center; }
 .akte-filter h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-leise); margin: 12px 0 4px; }
 button.leisten-knopf { align-self: flex-end; background: none; border: none; color: var(--text-leise); padding: 4px; position: relative; }
@@ -116,6 +116,8 @@ button.leisten-knopf:hover { color: var(--text); }
 .filter-punkt { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--akzent); }
 button.filter-eintrag { display: flex; justify-content: space-between; gap: 8px; text-align: left; background: none; border: none; color: var(--text);
   padding: 4px 8px; border-radius: 5px; font-size: 13px; }
+button.filter-eintrag > span:first-child { min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
+button.filter-eintrag .anzahl { flex: none; }
 button.filter-eintrag:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
 button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, transparent); font-weight: 600; }
 .filter-beteiligte { list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
@@ -387,5 +389,75 @@ details.kurz-hinweis p { margin: 4px 0; }
 .af-dokument { display: flex; flex-direction: column; gap: 10px; min-height: 100%; }
 .af-modus { align-self: flex-start; }
 .af-dokument .dokument { max-width: none; }
-.af-dokliste ul { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.af-dokliste table.dokumente { width: 100%; margin-top: 8px; }
+.af-dokliste .dok-name { text-align: left; }
 .af-volltext .akte-seite.volltext { width: auto; position: static; max-height: none; }
+
+/* Terminmodus des Arbeitsfensters (Termin.tsx): größere Schrift, Uhr, Sitzungsblatt, Terminsnotizen, Springen, Sichtschutz. */
+.arbeitsfenster.af-termin .af-spalten-inhalt { font-size: 1.1em; }
+.arbeitsfenster.af-termin .af-kopf { background: linear-gradient(100deg, #12263b, #1b3a5a); }
+.af-uhr { font-variant-numeric: tabular-nums; font-weight: 700; background: rgb(255 255 255 / 92%); color: #12263b; border-radius: 6px; padding: 4px 10px; }
+.af-kopf .kopf-knopf.af-kopf-haupt { background: #fff; color: #12263b; font-weight: 600; }
+.af-springen-knopf kbd { font-size: 12px; color: var(--text-leise); margin-left: 4px; font-family: inherit; }
+.af-meldung { margin: 0; padding: 6px 16px; background: color-mix(in srgb, var(--gut) 12%, var(--flaeche)); border-bottom: 1px solid var(--linie); font-size: 14px; }
+.af-dialog { max-width: 620px; max-height: calc(100vh - 60px); overflow: auto; }
+.af-dialog .feld { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.af-haken { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.af-protokoll { white-space: pre-wrap; font: inherit; font-size: 13px; background: var(--hintergrund); border: 1px solid var(--linie); border-radius: 6px; padding: 8px 10px; max-height: 180px; overflow: auto; margin: 4px 0 8px; }
+.af-zeit-felder, .af-frist { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.af-frist { border: 1px solid var(--linie); border-radius: 8px; padding: 4px 10px 8px; margin: 8px 0; }
+.af-frist-offen { margin: 6px 0 2px; padding: 6px 10px; border-left: 4px solid var(--warnung); background: color-mix(in srgb, var(--warnung) 12%, transparent); border-radius: 4px; }
+.af-breit { grid-column: 1 / -1; }
+.af-zwischen { margin: 14px 0 4px; }
+.af-sichtschutz { position: fixed; inset: 0; z-index: 1000; background: #0d1620; display: flex; align-items: center; justify-content: center; }
+button.af-sichtschutz-knopf { background: transparent; color: #8fa3b8; border: 1px solid #2e4257; font-size: 15px; padding: 10px 18px; }
+.af-springen-hintergrund { align-items: flex-start; padding-top: 12vh; }
+.af-springen { width: min(640px, calc(100vw - 32px)); background: var(--flaeche); border-radius: 10px; box-shadow: 0 10px 40px rgb(0 0 0 / 30%); padding: 10px; }
+.af-springen-feld { width: 100%; font-size: 17px; padding: 10px 12px; }
+.af-springen-liste { list-style: none; margin: 6px 0 0; padding: 0; max-height: 50vh; overflow: auto; }
+.af-springen-liste li { padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+.af-springen-liste li.aktiv { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+.af-springen-leer { padding: 6px 10px; }
+.af-sitzungsblatt h4, .af-terminsnotizen h4 { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-leise); margin: 16px 0 6px; }
+.af-sitzungsblatt h4:first-child { margin-top: 0; }
+.af-zeilen { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.af-zeilen dt { color: var(--text-leise); }
+.af-zeilen dd { margin: 0; }
+.af-punkte { list-style: none; padding: 0; margin: 0 0 6px; display: grid; gap: 8px; }
+.af-punkt { border: 1px solid var(--linie); border-radius: 8px; padding: 8px 10px; }
+.af-punkt-text { display: flex; gap: 8px; align-items: baseline; }
+.af-punkt-inhalt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.af-ampel { flex: none; width: 10px; height: 10px; border-radius: 50%; display: inline-block; align-self: flex-start; margin-top: 0.45em; }
+.af-ampel-rot { background: #c0392b; } .af-ampel-gelb { background: #d4a017; } .af-ampel-gruen { background: #2f8a46; }
+.af-ki-marke { white-space: nowrap; font-size: 11px; color: var(--text-leise); border: 1px solid var(--linie); border-radius: 999px; padding: 0 7px; }
+.af-belege { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; margin-top: 3px; }
+.af-punkt-aktionen { display: flex; gap: 10px; font-size: 13px; margin-top: 4px; }
+.af-punkt-form { border: 1px solid var(--akzent); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+.af-punkt-form .feld { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.af-belege-bearbeiten { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-bottom: 8px; font-size: 13px; }
+.af-beleg-neu { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1 1 100%; min-width: 0; }
+.af-beleg-neu select { flex: 1 1 100%; min-width: 0; width: 100%; text-overflow: ellipsis; }
+.af-beleg-neu input { width: 60px; flex: none; }
+.af-beleg-neu button { flex: none; }
+.af-knopfzeile { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.af-knopfzeile button { white-space: nowrap; text-align: left; }
+.af-vorschlaege { margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--linie); border-radius: 8px; }
+.af-notiz-angeheftet { border: 1px solid #c9a227; background: color-mix(in srgb, #c9a227 8%, var(--flaeche)); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
+.af-terminsnotizen textarea { width: 100%; box-sizing: border-box; }
+.af-tn-arten { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+button.af-chip { border: 1px solid var(--linie); border-radius: 999px; background: var(--flaeche); color: var(--text); padding: 3px 11px; font-size: 13px; }
+button.af-chip.aktiv { background: var(--knopf); color: var(--knopf-text); border-color: var(--knopf); }
+.af-tn-zeile { display: flex; gap: 8px; margin: 6px 0 12px; }
+.af-tn-zeile select { flex: 1; min-width: 0; }
+.af-tn-liste { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.af-tn-liste li { display: flex; gap: 10px; }
+.af-tn-liste time { flex: none; min-width: 44px; font-weight: 600; color: var(--akzent); font-variant-numeric: tabular-nums; }
+.af-tn-aktionen { display: inline-flex; gap: 10px; margin-left: 10px; font-size: 12px; opacity: 0.75; }
+.af-frueher { margin-bottom: 6px; }
+
+/* Terminsprotokoll als Aktennotiz: gegliedert wie im Terminmodus. */
+.terminsprotokoll .tp-kopf { font-weight: 600; margin: 0 0 8px; }
+.terminsprotokoll .af-tn-liste { gap: 6px; }
+.terminsprotokoll .af-tn-liste li > div { white-space: pre-wrap; }
+.terminsprotokoll .tp-bezug { color: var(--akzent); }
+.af-tn-liste button.link, .af-belege button.link { text-align: left; }

@@ -9,6 +9,7 @@ import {
   SPALTEN_ARTEN,
   Spalte,
   SpaltenArt,
+  SprungZiel,
   anordnungMerken,
   anteileVon,
   gemerkteAnordnung,
@@ -17,7 +18,10 @@ import {
   spalteEntfernen,
   spalteSetzen,
   spaltenZahl,
+  terminAnordnung,
   trennerVerschieben,
+  vorTerminHolen,
+  vorTerminMerken,
   zielSpalte,
 } from "./arbeitsfensterLogik";
 import { darstellungLesen, fensterThema } from "./darstellung";
@@ -28,7 +32,7 @@ import {
   AktenDokument,
   DokumentInhalt,
   NormEintrag,
-  URTEIL_STATUS_TEXT,
+  urteilStatusText,
   UrteilEintrag,
   UrteilVolltext,
   betragAnzeige,
@@ -37,6 +41,8 @@ import {
   fundstelle,
   istDesktop,
   kern,
+  lesartText,
+  sortiereTags,
   urteilHerkunft,
 } from "./kern";
 import { OrdnerAnsicht, type OrdnerAnsichtArt } from "./Lesezeichen";
@@ -44,6 +50,17 @@ import { Anmerkung } from "./anmerkungLogik";
 import { Lesezeichen } from "./lesezeichenLogik";
 import Notizen from "./Notizen";
 import Zeichen, { LeerHinweis } from "./Symbole";
+import {
+  Sichtschutz,
+  SitzungsblattSpalte,
+  Springen,
+  TerminBeenden,
+  TerminBeginnen,
+  TerminUhr,
+  TerminsnotizenSpalte,
+  useSitzung,
+} from "./Termin";
+import type { Sitzung } from "./kern";
 import { offeneBearbeitungen } from "./ungespeichert";
 
 /** Schritt der Trennlinie per Tastatur (Anteil der Breite); mit Umschalt größer. */
@@ -51,7 +68,11 @@ const SCHRITT = 0.02;
 const SCHRITT_GROSS = 0.08;
 
 /** Öffnet ein Dokument aus Spalte ``von`` (Fundstelle) in einer passenden Spalte, siehe ``zielSpalte``. */
-type Oeffnen = (von: number, dokumentId: number, ziel?: { abschnitt?: number | null; seite?: number | null }) => void;
+type Oeffnen = (
+  von: number,
+  dokumentId: number,
+  ziel?: { abschnitt?: number | null; seite?: number | null; rn?: number | null },
+) => void;
 
 /**
  * Arbeitsfenster einer Akte: ein eigenes Fenster (z. B. auf dem zweiten Bildschirm) mit 1 bis 4 Spalten, jede mit
@@ -66,6 +87,15 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
   const [schliessFrage, setSchliessFrage] = useState<string[] | null>(null);
   const rahmen = useRef<HTMLDivElement>(null);
   const spaltenRefs = useRef<(HTMLElement | null)[]>([]);
+  // Terminmodus: laufende Sitzung, Dialoge zum Beginnen und Beenden, Springen (Strg+K) und Sichtschutz (F9).
+  const { sitzung, setSitzung } = useSitzung(akteId);
+  const [beginnen, setBeginnen] = useState(false);
+  const [beenden, setBeenden] = useState(false);
+  const [springen, setSpringen] = useState(false);
+  const [sichtschutz, setSichtschutz] = useState(false);
+  const [meldung, setMeldung] = useState<string | null>(null);
+  // Zuletzt benutzte Spalte: Ziel für „Springen“ und Bezug für Fundstellen aus dem Sitzungsblatt.
+  const letzteSpalte = useRef(0);
 
   const setAnordnung = useCallback(
     (f: (a: Anordnung) => Anordnung) => {
@@ -133,15 +163,26 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
     return () => aus?.();
   }, []);
 
-  // Strg+1 … 4 (macOS: ⌘): Spalte anwählen.
+  // Strg+1 … 4 (macOS: ⌘): Spalte anwählen; Strg+K: Springen; F9: Sichtschutz.
   useEffect(() => {
     const taste = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "F9" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setSichtschutz((x) => !x);
+        return;
+      }
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      if (e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSpringen(true);
+        return;
+      }
       const n = Number(e.key);
       if (!Number.isInteger(n) || n < 1 || n > MAX_SPALTEN) return;
       const ziel = spaltenRefs.current[n - 1];
       if (!ziel) return;
       e.preventDefault();
+      letzteSpalte.current = n - 1;
       ziel.focus();
     };
     window.addEventListener("keydown", taste);
@@ -151,7 +192,7 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
   const oeffnen: Oeffnen = useCallback(
     (von, dokumentId, ziel) => {
       const dok = dokumente.find((d) => d.id === dokumentId);
-      const original = ziel?.abschnitt == null && ziel?.seite != null && dok?.format === "pdf";
+      const original = ziel?.abschnitt == null && ziel?.rn == null && ziel?.seite != null && dok?.format === "pdf";
       setAnordnung((a) => {
         const z = zielSpalte(a, von);
         return spalteSetzen(z.anordnung, z.index, {
@@ -160,12 +201,43 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
           modus: original ? "original" : "text",
           abschnitt: ziel?.abschnitt ?? null,
           seite: ziel?.seite ?? null,
+          rn: ziel?.rn ?? null,
         });
       });
     },
     [dokumente, setAnordnung],
   );
 
+  function terminBegonnen(s: Sitzung) {
+    setBeginnen(false);
+    setSitzung(s);
+    setMeldung(null);
+    setAnordnung((a) => {
+      if (a.spalten.some((x) => x.art === "terminsnotizen")) return a;
+      vorTerminMerken(akteId, a);
+      return terminAnordnung(a);
+    });
+  }
+
+  function terminBeendet(s: Sitzung) {
+    setBeenden(false);
+    setSitzung(null);
+    setAnordnung(() => vorTerminHolen(akteId));
+    const u = s.uebernommen;
+    const teile = [
+      u?.notiz && "Protokoll als Aktennotiz übernommen",
+      u?.zeit && `${u.zeit} Minuten erfasst`,
+      u?.fristen && `${u.fristen === 1 ? "eine Frist" : `${u.fristen} Fristen`} im Kalender`,
+    ].filter(Boolean);
+    setMeldung(`Termin beendet${teile.length ? `: ${teile.join(", ")}` : ""}.`);
+  }
+
+  function springeZu(z: SprungZiel) {
+    setSpringen(false);
+    oeffnen(letzteSpalte.current, z.dokumentId, { abschnitt: z.abschnitt ?? null, rn: z.rn ?? null });
+  }
+
+  const offeneDokumente = anordnung.spalten.flatMap((s) => (s.art === "dokument" && s.dokumentId != null ? [s.dokumentId] : []));
   const anteile = anteileVon(anordnung);
   const anzahl = anordnung.spalten.length;
 
@@ -201,21 +273,37 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
   const gericht = akte?.gerichte[0];
 
   return (
-    <div className="arbeitsfenster">
+    <div className={`arbeitsfenster${sitzung ? " af-termin" : ""}`}>
       <header className="kopfband af-kopf">
         <div className="af-kopf-titel">
           <p className="kopfband-ueber">
-            Arbeitsfenster · {akte?.aktenzeichen ? `Akte ${akte.aktenzeichen}` : "Akte ohne Aktenzeichen"}
+            {sitzung
+              ? `Termin · ${sitzung.titel} · seit ${sitzung.beginn.slice(11, 16)} Uhr${sitzung.wahrgenommen_von ? ` · ${sitzung.wahrgenommen_von}` : ""}`
+              : "Arbeitsfenster"} ·{" "}
+            {akte?.aktenzeichen ? `Akte ${akte.aktenzeichen}` : "Akte ohne Aktenzeichen"}
             {gericht && ` · ${gericht.name}${gericht.aktenzeichen ? ` ${gericht.aktenzeichen}` : ""}`}
             {akte?.gegenstandswert && ` · Wert ${betragAnzeige(akte.gegenstandswert)} €`}
           </p>
           <h1>{akte?.name ?? "Akte wird geladen …"}</h1>
         </div>
-        {akte?.mandanten && akte.mandanten.length > 0 && (
+        {!sitzung && akte?.mandanten && akte.mandanten.length > 0 && (
           <div className="akte-kopf-angabe">
             <p className="kopfband-ueber">Wir vertreten</p>
             <strong>{akte.mandanten.join(", ")}</strong>
           </div>
+        )}
+        {sitzung && <TerminUhr beginn={sitzung.beginn} />}
+        <button className="kopf-knopf" onClick={() => setSichtschutz(true)} title="Inhalt sofort verdecken (F9)">
+          Sichtschutz
+        </button>
+        {sitzung ? (
+          <button className="kopf-knopf af-kopf-haupt" onClick={() => setBeenden(true)}>
+            Termin beenden
+          </button>
+        ) : (
+          <button className="kopf-knopf" onClick={() => setBeginnen(true)} title="Sitzungsblatt und Terminsnotizen mit Uhrzeit">
+            Termin beginnen
+          </button>
         )}
       </header>
 
@@ -233,13 +321,24 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
             </button>
           ))}
         </div>
+        <button className="zweitrangig af-springen-knopf" onClick={() => setSpringen(true)} title="Zu Anlage, Randnummer, Norm oder Dokument springen">
+          Springen … <kbd>Strg+K</kbd>
+        </button>
         {anordnung.anteile && (
           <button className="link" onClick={() => setAnordnung((a) => ({ ...a, anteile: null }))}>
             Gleich breit
           </button>
         )}
-        <span className="af-tipp">Strg+1 bis {anzahl}: Spalte wählen · Trennlinie ziehen oder mit Pfeiltasten</span>
+        <span className="af-tipp">Strg+1 bis {anzahl}: Spalte wählen · F9: Sichtschutz</span>
       </div>
+      {meldung && (
+        <p className="af-meldung" role="status">
+          {meldung}{" "}
+          <button className="link" onClick={() => setMeldung(null)}>
+            Ausblenden
+          </button>
+        </p>
+      )}
 
       {fehler && (
         <p className="fehler af-fehler" role="alert">
@@ -256,6 +355,11 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
             anteil={anteile[i]}
             spalte={s}
             akteId={akteId}
+            akte={akte}
+            sitzung={sitzung}
+            onSitzung={setSitzung}
+            onBeginnen={() => setBeginnen(true)}
+            onFokus={() => (letzteSpalte.current = i)}
             dokumente={dokumente}
             spaltenRef={(el) => (spaltenRefs.current[i] = el)}
             onSetzen={(neu) => setAnordnung((a) => spalteSetzen(a, i, neu))}
@@ -283,6 +387,12 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
         ))}
       </div>
 
+      {beginnen && <TerminBeginnen akteId={akteId} sachbearbeiterId={akte?.sachbearbeiter_id ?? null} onBegonnen={terminBegonnen} onAbbrechen={() => setBeginnen(false)} />}
+      {beenden && sitzung && <TerminBeenden sitzung={sitzung} onBeendet={terminBeendet} onAbbrechen={() => setBeenden(false)} />}
+      {springen && (
+        <Springen akteId={akteId} dokumente={dokumente} offen={offeneDokumente} onZiel={springeZu} onSchliessen={() => setSpringen(false)} />
+      )}
+      {sichtschutz && <Sichtschutz onAufheben={() => setSichtschutz(false)} />}
       {schliessFrage && (
         <div className="timer-hinweis-hintergrund">
           <Dialog className="rueckfrage timer-hinweis" rolle="alertdialog" label="Nicht gespeichert" onSchliessen={() => setSchliessFrage(null)}>
@@ -309,6 +419,11 @@ function SpaltenTeil({
   anteil,
   spalte,
   akteId,
+  akte,
+  sitzung,
+  onSitzung,
+  onBeginnen,
+  onFokus,
   dokumente,
   spaltenRef,
   onSetzen,
@@ -321,6 +436,11 @@ function SpaltenTeil({
   anteil: number;
   spalte: Spalte;
   akteId: number;
+  akte: Akte | null;
+  sitzung: Sitzung | null;
+  onSitzung: (s: Sitzung) => void;
+  onBeginnen: () => void;
+  onFokus: () => void;
   dokumente: AktenDokument[];
   spaltenRef: (el: HTMLElement | null) => void;
   onSetzen: (s: Spalte) => void;
@@ -347,6 +467,8 @@ function SpaltenTeil({
         style={{ flexBasis: 0, flexGrow: anteil }}
         aria-label={`Spalte ${nr}: ${titel}`}
         tabIndex={-1}
+        onFocus={onFokus}
+        onPointerDown={onFokus}
       >
         <div className="af-spalten-kopf">
           <span className="af-nr" aria-hidden>
@@ -401,7 +523,10 @@ function SpaltenTeil({
         </div>
         <div className="af-spalten-inhalt">
           {spalte.art === "leer" && (
-            <LeerHinweis symbol="dokumente">Oben wählen, was diese Spalte zeigt: ein Dokument, Notizen, Anmerkungen, Normen oder Rechtsprechung.</LeerHinweis>
+            <LeerHinweis symbol="dokumente">
+              Oben wählen, was diese Spalte zeigt: ein Dokument, Notizen, Anmerkungen, Normen, Rechtsprechung, Sitzungsblatt oder
+              Terminsnotizen.
+            </LeerHinweis>
           )}
           {spalte.art === "dokument" && (
             <DokumentSpalte spalte={spalte} dokumente={dokumente} onSetzen={onSetzen} />
@@ -409,6 +534,19 @@ function SpaltenTeil({
           {spalte.art === "notizen" && <Notizen akteId={akteId} />}
           {spalte.art === "anmerkungen" && <AnmerkungenSpalte akteId={akteId} onOeffnen={(id, ziel) => onOeffnen(index, id, ziel)} />}
           {spalte.art === "normen" && <NormenSpalte akteId={akteId} onOeffnen={(id, ab) => onOeffnen(index, id, { abschnitt: ab })} />}
+          {spalte.art === "sitzungsblatt" && (
+            <SitzungsblattSpalte akte={akte} dokumente={dokumente} onOeffnen={(id, ziel) => onOeffnen(index, id, ziel)} />
+          )}
+          {spalte.art === "terminsnotizen" && (
+            <TerminsnotizenSpalte
+              akteId={akteId}
+              sitzung={sitzung}
+              dokumente={dokumente}
+              onSitzung={onSitzung}
+              onBeginnen={onBeginnen}
+              onOeffnen={(id, ziel) => onOeffnen(index, id, ziel)}
+            />
+          )}
           {spalte.art === "rechtsprechung" && (
             <RechtsprechungSpalte akteId={akteId} onOeffnen={(id, ab) => onOeffnen(index, id, { abschnitt: ab })} />
           )}
@@ -462,26 +600,74 @@ function DokumentSpalte({ spalte, dokumente, onSetzen }: { spalte: Spalte; dokum
   }, [ladeMarken]);
   useFremdeAenderung(["anmerkungen", "lesezeichen"], () => void ladeMarken());
 
+  // Fundstelle: Abschnitt direkt, Randnummer über die Abschnitte des Textes.
+  const zielAbschnitt =
+    spalte.abschnitt ?? (spalte.rn != null && inhalt ? (inhalt.abschnitte.find((a) => a.rn === spalte.rn)?.nr ?? null) : null);
+  const rnFehlt = spalte.rn != null && inhalt != null && zielAbschnitt == null;
+
   // Zur Fundstelle springen, sobald der Text da ist.
   useEffect(() => {
-    if (!inhalt || spalte.abschnitt == null || spalte.modus === "original") return;
-    rahmen.current?.querySelector(`#abschnitt-${spalte.abschnitt}`)?.scrollIntoView({ block: "center" });
-  }, [inhalt, spalte.abschnitt, spalte.modus]);
+    if (!inhalt || zielAbschnitt == null || spalte.modus === "original") return;
+    rahmen.current?.querySelector(`#abschnitt-${zielAbschnitt}`)?.scrollIntoView({ block: "center" });
+  }, [inhalt, zielAbschnitt, spalte.modus, spalte.rn]);
 
   if (id == null) {
     return (
       <div className="af-dokliste">
         <p className="leise">Welches Dokument soll diese Spalte zeigen?</p>
-        <ul>
-          {dokumente.map((d) => (
-            <li key={d.id}>
-              <button className="link" onClick={() => onSetzen({ art: "dokument", dokumentId: d.id, modus: "text" })}>
-                {dokumentName(d)}
-              </button>
-              {d.datum && <span className="leise"> · {datumDe(d.datum)}</span>}
-            </li>
-          ))}
-        </ul>
+        {dokumente.length > 0 && (
+          <table className="dokumente kompakt">
+            <colgroup>
+              <col className="spalte-datum" />
+              <col />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Dokument</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dokumente.map((d) => (
+                <tr
+                  key={d.id}
+                  className="klickbar"
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest("button")) onSetzen({ art: "dokument", dokumentId: d.id, modus: "text" });
+                  }}
+                >
+                  <td>{d.datum ? datumDe(d.datum) : <span className="leise">–</span>}</td>
+                  <td>
+                    <div className="dok-name-zeile">
+                      <span className="dok-symbol">
+                        <Zeichen name="dokumente" groesse={16} />
+                      </span>
+                      <button className="link dok-name" onClick={() => onSetzen({ art: "dokument", dokumentId: d.id, modus: "text" })}>
+                        {dokumentName(d)}
+                      </button>
+                    </div>
+                    <div className="herkunft">
+                      {d.art && <span className="art-chip">{d.art}</span>}
+                      {d.absender && <>von {d.absender.wert === "eigene" ? "uns" : d.absender.name} · </>}
+                      {d.titel && <>{d.dateiname} · </>}
+                      {lesartText(d)}
+                      {d.seiten != null && <> · {d.seiten} S.</>}
+                    </div>
+                    {d.tags.length > 0 && (
+                      <div className="tags">
+                        {sortiereTags(d.tags).map((t) => (
+                          <span key={t.name} className={`tag ${t.quelle}`}>
+                            {t.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
         {dokumente.length === 0 && <p className="leer">Diese Akte enthält noch keine Dokumente.</p>}
       </div>
     );
@@ -508,13 +694,14 @@ function DokumentSpalte({ spalte, dokumente, onSetzen }: { spalte: Spalte; dokum
         ))}
       </div>
       {fehler && <p className="fehler">{fehler}</p>}
+      {rnFehlt && <p className="hinweis">Rn. {spalte.rn} steht in diesem Dokument nicht.</p>}
       <div className="af-dokument-flaeche" ref={rahmen}>
         {!inhalt && !fehler && <p className="leise">Lade Dokument …</p>}
         {inhalt && modus === "text" && (
           <DokumentAnsicht
             inhalt={inhalt}
             ohneTitel
-            markiert={spalte.abschnitt ?? undefined}
+            markiert={zielAbschnitt ?? undefined}
             anmerkungen={anmerkungen}
             lesezeichen={lesezeichen}
           />
@@ -614,7 +801,7 @@ function RechtsprechungSpalte({ akteId, onOeffnen }: { akteId: number; onOeffnen
         {urteile.map((u) => (
           <li key={u.zitat} className={`urteil-${u.status}`}>
             <div>
-              <span className={`marke-status urteil-${u.status}`}>{URTEIL_STATUS_TEXT[u.status]}</span> <strong>{u.zitat}</strong>
+              <span className={`marke-status urteil-${u.status}`}>{urteilStatusText(u)}</span> <strong>{u.zitat}</strong>
             </div>
             {u.hinweis && <div className={u.status === "belegt" ? "titel" : "hinweis"}>{u.hinweis}</div>}
             <div className="fundstellen">

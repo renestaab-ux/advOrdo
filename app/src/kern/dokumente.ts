@@ -219,10 +219,21 @@ export function titelNachSchema(
 
   if (klein.includes("vertrag") || klein.includes("vereinbarung")) {
     const ausgeschlossen = new Set(akteBeteiligte.filter((x) => x.rolle === "gericht").map((x) => String(x.id)));
-    let parteien = b.vertragsparteien.filter((s) => s !== "eigene" && !ausgeschlossen.has(s));
-    if (parteien.length < 2)
-      parteien = [ersteMit("mandant"), ersteMit("gegner")].filter((x) => x).map((x) => String(x!.id));
-    const namen = parteien.slice(0, 2).map(kurz).filter((n) => n);
+    let parteien = b.vertragsparteien.filter((s) => !ausgeschlossen.has(s));
+    if (parteien.length < 2) {
+      const mandant = ersteMit("mandant");
+      // Vereinbarungen mit der eigenen Kanzlei (Vergütung, Mandat, Vollmacht) schließt der Mandant mit uns, nicht mit dem Gegner.
+      const mitUns =
+        parteien.includes("eigene") || absender === "eigene" || /verg[üu]tung|honorar|mandat|vollmacht/.test(klein);
+      const zweite = mitUns ? "eigene" : ersteMit("gegner") ? String(ersteMit("gegner")!.id) : null;
+      parteien = [...new Set([...parteien, mandant ? String(mandant.id) : null, zweite].filter((x): x is string => !!x))];
+    }
+    // Die eigene Seite steht hinten: „zwischen Brückner und uns“.
+    parteien = [...parteien.filter((s) => s !== "eigene"), ...parteien.filter((s) => s === "eigene")];
+    const namen = parteien
+      .slice(0, 2)
+      .map((s) => (s === "eigene" ? "uns" : kurz(s)))
+      .filter((n) => n);
     const was = b.was.vertrag ?? art_;
     if (namen.length === 2) return `${was} zwischen ${namen[0]} und ${namen[1]}`;
     return namen.length === 1 ? `${was} mit ${namen[0]}` : null;
