@@ -220,6 +220,18 @@ def test_alte_akten_werden_migriert(tmp_path):
     con.close()
 
 
+def test_herkunft_jurabox_wird_advordo(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Akte")
+    ablage = tmp_path / "ablage"
+    akte.importiere(akten, con, a["id"], _klage(tmp_path), ablage, ocr=False, herkunft="Von JuraBox erzeugt")
+    akten.close()
+    neu = akte.oeffne(tmp_path / "akten.sqlite")
+    try:
+        assert akte.dokumente(neu, a["id"])[0]["herkunft"] == "Von advOrdo erzeugt"
+    finally:
+        neu.close()
+
+
 def test_eigene_schreibweise_prueft_alle_akten_neu(akten, con, tmp_path):
     a = akte.akte_anlegen(akten, "Akte")
     akte.importiere(akten, con, a["id"], _klage(tmp_path), tmp_path / "ablage", ocr=False)

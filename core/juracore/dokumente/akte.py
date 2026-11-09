@@ -274,6 +274,7 @@ def oeffne(pfad: str | Path) -> sqlite3.Connection:
     _daten_nachtragen(con)
     _fassungen_nachtragen(con)
     _docx_seiten_nachtragen(con)
+    _herkunft_umbenennen(con)
     con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return con
 
@@ -296,6 +297,17 @@ def _migriere(con: sqlite3.Connection) -> None:
                                  *(("dokument", s, t) for s, t in _DATUM_SPALTEN.items())):
         if spalte not in {z["name"] for z in con.execute(f"PRAGMA table_info({tabelle})")}:
             con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
+
+
+# Herkunft erzeugter Schriftstücke unter dem früheren Produktnamen (vor der Umbenennung in advOrdo).
+_HERKUNFT_ALT = {"Von JuraBox erzeugt": "Von advOrdo erzeugt"}
+
+
+def _herkunft_umbenennen(con: sqlite3.Connection) -> None:
+    """Vor der Umbenennung erzeugte Dokumente: Herkunft (und damit der Ordner) heißt „Von advOrdo erzeugt“."""
+    with con:
+        for alt, neu in _HERKUNFT_ALT.items():
+            con.execute("UPDATE dokument SET herkunft = ? WHERE herkunft = ?", (neu, alt))
 
 
 def _urteil_ohne_akte(con: sqlite3.Connection) -> None:
