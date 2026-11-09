@@ -224,7 +224,7 @@ export default function Schriftstuecke({
           </button>
         </div>
         {ergebnis && (
-          <div className="status schrift-ergebnis">
+          <div className="status schrift-ergebnis" role="status">
             {ergebnis.dokument_id ? (
               <>
                 „{ergebnis.dateiname}“ {ergebnis.neu ? "liegt jetzt" : "lag schon"} unter Dokumente

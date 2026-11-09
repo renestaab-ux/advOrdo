@@ -593,7 +593,7 @@ export default function Kostennote({
         Entwurf vergibt keine Nummer.
       </p>
       {erzeugt && (
-        <div className="status schrift-ergebnis">
+        <div className="status schrift-ergebnis" role="status">
           {erzeugt.dokument_id ? (
             <>
               „{erzeugt.dateiname}“ liegt jetzt unter Dokumente
