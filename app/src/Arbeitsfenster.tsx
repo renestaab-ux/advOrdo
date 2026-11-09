@@ -575,7 +575,7 @@ function SpaltenTeil({
           {spalte.art === "dokument" && (
             <DokumentSpalte spalte={spalte} dokumente={dokumente} onSetzen={onSetzen} />
           )}
-          {spalte.art === "notizen" && <Notizen akteId={akteId} />}
+          {spalte.art === "notizen" && <Notizen akteId={akteId} onDokument={(id) => onOeffnen(index, id)} />}
           {spalte.art === "anmerkungen" && <AnmerkungenSpalte akteId={akteId} onOeffnen={(id, ziel) => onOeffnen(index, id, ziel)} />}
           {spalte.art === "normen" && <NormenSpalte akteId={akteId} onOeffnen={(id, ab) => onOeffnen(index, id, { abschnitt: ab })} />}
           {spalte.art === "sitzungsblatt" && (

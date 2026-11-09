@@ -634,6 +634,12 @@ function AkteRahmen({
     r === "dokumente" || r === "anmerkungen" || r === "normen" || r === "rechtsprechung" || r === "chat";
   const letzter = useRef<AkteReiter>("dokumente");
   if (istAkteReiter(reiter)) letzter.current = reiter;
+  // Dokument, das ein anderer Reiter öffnen will (z. B. ein Verweis im Terminsprotokoll der Notizen).
+  const [dokumentZiel, setDokumentZiel] = useState<{ id: number; nr: number } | null>(null);
+  const zeigeDokument = (id: number) => {
+    setDokumentZiel((alt) => ({ id, nr: (alt?.nr ?? 0) + 1 }));
+    onReiter("dokumente");
+  };
 
   async function entfernen() {
     setLoeschfrage(false);
@@ -754,7 +760,7 @@ function AkteRahmen({
         )}
         {reiter === "stammdaten" && <VerfahrenKarte key={`v${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
         {reiter === "fristen" && <Fristen key={`f${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
-        {reiter === "notizen" && <Notizen key={`n${akte.id}`} akteId={akte.id} />}
+        {reiter === "notizen" && <Notizen key={`n${akte.id}`} akteId={akte.id} onDokument={zeigeDokument} />}
         {reiter === "zeiten" && (
           <Zeiten
             key={`z${akte.id}`}
@@ -783,6 +789,7 @@ function AkteRahmen({
             key={akte.id}
             akte={akte}
             reiter={letzter.current}
+            dokumentZiel={dokumentZiel}
             onReiter={onReiter}
             onGeaendert={onGeaendert}
             onBeteiligte={() => onReiter("beteiligte")}

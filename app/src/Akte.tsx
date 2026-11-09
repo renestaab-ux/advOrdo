@@ -176,6 +176,7 @@ function zaehle<T>(werte: T[]): Map<T, number> {
 export default function Akte({
   akte,
   reiter,
+  dokumentZiel,
   onReiter,
   onGeaendert,
   onBeteiligte,
@@ -183,6 +184,8 @@ export default function Akte({
 }: {
   akte: AkteTyp;
   reiter: AkteReiter;
+  /** Von einem anderen Reiter angefordertes Dokument; ``nr`` zählt hoch, damit derselbe Wunsch erneut wirkt. */
+  dokumentZiel?: { id: number; nr: number } | null;
   onReiter: (r: AkteReiter) => void;
   /** Dokumente kamen hinzu oder wurden entfernt; die Aktenliste (Zähler, „bearbeitet“) neu laden. */
   onGeaendert: () => void;
@@ -551,6 +554,12 @@ export default function Akte({
     }
     await dokumentOeffnen(id, abschnitt);
   }
+
+  useEffect(() => {
+    if (dokumentZiel) void oeffneDokument(dokumentZiel.id);
+    // Nur auf einen neuen Wunsch reagieren.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dokumentZiel?.nr]);
 
   async function dokumentOeffnen(id: number, abschnitt?: number) {
     const d = await ausfuehren("Lade Dokument …", () => kern<DokumentInhalt>("akten.dokument", { dokument_id: id }));
