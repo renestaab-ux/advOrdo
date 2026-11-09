@@ -403,6 +403,7 @@ details.kurz-hinweis p { margin: 4px 0; }
 .af-protokoll { white-space: pre-wrap; font: inherit; font-size: 13px; background: var(--hintergrund); border: 1px solid var(--linie); border-radius: 6px; padding: 8px 10px; max-height: 180px; overflow: auto; margin: 4px 0 8px; }
 .af-zeit-felder, .af-frist { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .af-frist { border: 1px solid var(--linie); border-radius: 8px; padding: 4px 10px 8px; margin: 8px 0; }
+.af-frist-offen { margin: 6px 0 2px; padding: 6px 10px; border-left: 4px solid var(--warnung); background: color-mix(in srgb, var(--warnung) 12%, transparent); border-radius: 4px; }
 .af-breit { grid-column: 1 / -1; }
 .af-zwischen { margin: 14px 0 4px; }
 .af-sichtschutz { position: fixed; inset: 0; z-index: 1000; background: #0d1620; display: flex; align-items: center; justify-content: center; }

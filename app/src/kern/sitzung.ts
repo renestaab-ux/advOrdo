@@ -70,12 +70,15 @@ export interface FristVorschlag {
   art: "datum" | "dauer";
   anzahl: number | null;
   einheit: string | null;
-  bezugstag: string;
-  datum: string;
+  /** null, wenn der Beginn an einem späteren Ereignis hängt (``beginn_offen``). */
+  bezugstag: string | null;
+  datum: string | null;
   verschoben: boolean;
   grund: string | null;
   /** Bei festem Datum: Wochentag oder Feiertag, wenn der Tag kein Werktag ist. */
   kein_werktag: string | null;
+  /** „Zustellung des Protokolls“: Beginn steht noch nicht fest, das Datum trägt man ein, sobald es bekannt ist. */
+  beginn_offen: string | null;
   quelle: string;
 }
 

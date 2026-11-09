@@ -28,6 +28,7 @@ import {
   laufzeit,
   uhrzeitVon,
   fristenLand,
+  type FristBerechnung,
 } from "./kern";
 import { useKiAn } from "./kiSchalter";
 import { useBearbeitung } from "./ungespeichert";
@@ -156,6 +157,9 @@ export function TerminBeginnen({
 
 interface FristWahl extends FristVorschlag {
   an: boolean;
+  /** Bei offenem Beginn: Tag des Ereignisses (etwa der Zustellung), von Hand eingetragen. */
+  ereignistag?: string;
+  rechenfehler?: string | null;
 }
 
 export function TerminBeenden({
@@ -184,7 +188,7 @@ export function TerminBeenden({
         setAbschluss(a);
         setMinuten(String(a.minuten));
         setTaetigkeit(a.taetigkeit);
-        setFristen(a.fristen.map((f) => ({ ...f, an: true })));
+        setFristen(a.fristen.map((f) => ({ ...f, an: f.beginn_offen == null })));
       },
       (e) => setFehler(String(e)),
     );
@@ -199,6 +203,20 @@ export function TerminBeenden({
     );
   }, [sitzung.id]);
 
+  function aendereFrist(i: number, teil: Partial<FristWahl>) {
+    setFristen((alt) => alt.map((x, j) => (j === i ? { ...x, ...teil } : x)));
+  }
+
+  /** Offener Beginn: Fristende aus dem eingetragenen Ereignistag über den Fristenrechner. */
+  function ereignistagSetzen(i: number, f: FristWahl, tag: string) {
+    aendereFrist(i, { ereignistag: tag, rechenfehler: null });
+    if (!tag || f.anzahl == null || f.einheit == null) return;
+    kern<FristBerechnung>("akten.frist_berechnen", { bezugstag: tag, anzahl: f.anzahl, einheit: f.einheit, land: fristenLand() }).then(
+      (r) => aendereFrist(i, { datum: r.ende, bezugstag: tag, verschoben: r.verschoben, grund: r.grund, an: true }),
+      (e) => aendereFrist(i, { rechenfehler: String(e) }),
+    );
+  }
+
   async function beenden() {
     setFehler(null);
     setLaeuft(true);
@@ -207,7 +225,7 @@ export function TerminBeenden({
         sitzung_id: sitzung.id,
         protokoll,
         zeit: zeitAn ? { minuten: Number(minuten), taetigkeit, bearbeiter_id: bearbeiter ? Number(bearbeiter) : null } : null,
-        fristen: fristen.filter((f) => f.an).map((f) => ({ titel: f.titel, datum: f.datum, quelle: f.quelle })),
+        fristen: fristen.filter((f) => f.an && f.datum).map((f) => ({ titel: f.titel, datum: f.datum, quelle: f.quelle })),
       });
       onBeendet(s);
     } catch (e) {
@@ -265,40 +283,63 @@ export function TerminBeenden({
               <strong>Fristen aus den Notizen</strong>
             </p>
             {fristen.length === 0 && <p className="leise">Keine erkannt. Fristen lassen sich jederzeit im Reiter „Fristen“ anlegen.</p>}
-            {fristen.map((f, i) => (
-              <div key={f.notiz_id} className="af-frist">
-                <label className="af-haken">
-                  <input
-                    type="checkbox"
-                    checked={f.an}
-                    onChange={(e) => setFristen(fristen.map((x, j) => (j === i ? { ...x, an: e.target.checked } : x)))}
-                  />
-                  Frist anlegen
-                </label>
-                <label className="feld af-breit">
-                  Bezeichnung
-                  <input value={f.titel} onChange={(e) => setFristen(fristen.map((x, j) => (j === i ? { ...x, titel: e.target.value } : x)))} />
-                </label>
-                <label className="feld">
-                  Fristende
-                  <input type="date" value={f.datum} onChange={(e) => setFristen(fristen.map((x, j) => (j === i ? { ...x, datum: e.target.value } : x)))} />
-                </label>
-                <p className="leise af-breit">
-                  {f.art === "datum" ? (
-                    <>
-                      Festes Datum aus der Notiz · {f.quelle}.
-                      {f.kein_werktag ? ` Achtung: Der Tag ist ein ${f.kein_werktag}, bitte prüfen (§ 222 Abs. 2 ZPO).` : ""}
-                    </>
-                  ) : (
-                    <>
-                      {f.anzahl} {f.einheit === "tage" ? "Tage" : f.einheit === "wochen" ? "Wochen" : "Monate"} ab {datumDe(f.bezugstag)}
-                      {f.verschoben && f.grund ? ` · verschoben: ${f.grund}` : ""} · {f.quelle}. Bitte prüfen, der Beginn kann
-                      abweichen (etwa ab Zustellung des Protokolls).
-                    </>
+            {fristen.map((f, i) => {
+              const einheit = f.einheit === "tage" ? "Tage" : f.einheit === "wochen" ? "Wochen" : "Monate";
+              return (
+                <div key={f.notiz_id} className="af-frist">
+                  <label className="af-haken">
+                    <input
+                      type="checkbox"
+                      checked={f.an}
+                      disabled={!f.datum}
+                      onChange={(e) => aendereFrist(i, { an: e.target.checked })}
+                    />
+                    Frist anlegen
+                  </label>
+                  {f.beginn_offen && (
+                    <p className="af-frist-offen af-breit" role="note">
+                      {f.bezugstag
+                        ? `Fristbeginn: ${f.beginn_offen} am ${datumDe(f.bezugstag)}. Das Fristende ist daraus berechnet, bitte prüfen.`
+                        : `Fristbeginn offen: ${f.anzahl} ${einheit} ab ${f.beginn_offen}. Das Datum steht noch nicht fest. Trag den Tag ein, sobald er bekannt ist; sonst wird diese Frist nicht angelegt und du legst sie später im Reiter „Fristen“ an.`}
+                    </p>
                   )}
-                </p>
-              </div>
-            ))}
+                  <label className="feld af-breit">
+                    Bezeichnung
+                    <input value={f.titel} onChange={(e) => aendereFrist(i, { titel: e.target.value })} />
+                  </label>
+                  {f.beginn_offen && (
+                    <label className="feld">
+                      {f.beginn_offen} am
+                      <input type="date" value={f.ereignistag ?? ""} onChange={(e) => ereignistagSetzen(i, f, e.target.value)} />
+                    </label>
+                  )}
+                  <label className="feld">
+                    Fristende
+                    <input type="date" value={f.datum ?? ""} onChange={(e) => aendereFrist(i, { datum: e.target.value || null, an: !!e.target.value })} />
+                  </label>
+                  {f.rechenfehler && <p className="fehler af-breit">{f.rechenfehler}</p>}
+                  <p className="leise af-breit">
+                    {f.art === "datum" ? (
+                      <>
+                        Festes Datum aus der Notiz · {f.quelle}.
+                        {f.kein_werktag ? ` Achtung: Der Tag ist ein ${f.kein_werktag}, bitte prüfen (§ 222 Abs. 2 ZPO).` : ""}
+                      </>
+                    ) : f.beginn_offen ? (
+                      <>
+                        {f.bezugstag ? `${f.anzahl} ${einheit} ab ${datumDe(f.bezugstag)}` : "Noch kein Fristende"}
+                        {f.verschoben && f.grund ? ` · verschoben: ${f.grund}` : ""} · {f.quelle}.
+                      </>
+                    ) : (
+                      <>
+                        {f.anzahl} {einheit} ab {f.bezugstag ? datumDe(f.bezugstag) : "?"}
+                        {f.verschoben && f.grund ? ` · verschoben: ${f.grund}` : ""} · {f.quelle}. Bitte prüfen, der Beginn kann
+                        abweichen (etwa ab Zustellung des Protokolls).
+                      </>
+                    )}
+                  </p>
+                </div>
+              );
+            })}
           </>
         )}
         {fehler && (

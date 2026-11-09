@@ -161,3 +161,14 @@ def test_fristvorschlag_monate_und_vergangenes_datum(con):
                               jetzt=datetime(2026, 11, 24, 11, 0))
     [f] = sitzung.fristvorschlaege(s)
     assert (f["art"], f["anzahl"], f["einheit"], f["datum"]) == ("dauer", 2, "monate", "2027-01-25")
+
+
+def test_fristbeginn_ab_zustellung_bleibt_offen(con):
+    a, _ = _akte_mit_dokument(con)
+    s = sitzung.beginnen(con, a, jetzt=BEGINN)
+    um = datetime(2026, 11, 24, 11, 0)
+    sitzung.notiz_anlegen(con, s["id"], "Stellungnahme zwei Monate ab Zustellung Protokoll", "auflage", jetzt=um)
+    s = sitzung.notiz_anlegen(con, s["id"], "Frist 4 Wochen nach Zugang des Gutachtens", "notiz", jetzt=um)
+    fristen = sitzung.fristvorschlaege(s)
+    assert [(f["beginn_offen"], f["datum"], f["bezugstag"], f["anzahl"]) for f in fristen] == [
+        ("Zustellung Protokoll", None, None, 2), ("Zugang des Gutachtens", None, None, 4)]

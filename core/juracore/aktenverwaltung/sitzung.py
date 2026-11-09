@@ -74,6 +74,10 @@ _MONATE = {"januar": 1, "jan": 1, "jänner": 1, "februar": 2, "feb": 2, "märz":
 # „15.12.2026“, „15.12.26“, „15.12.“, „15. Dezember 2026“, „15. Dez.“
 _DATUM = re.compile(r"(?<![\d.])(\d{1,2})\.\s*(?:(\d{1,2})\.|(" + "|".join(sorted(_MONATE, key=len, reverse=True))
                     + r")\b\.?)\s*(\d{4}|\d{2}(?!\d))?", re.IGNORECASE)
+# Fristbeginn durch ein späteres Ereignis: „ab Zustellung des Protokolls“, „nach Zugang des Gutachtens“.
+_EREIGNIS = re.compile(r"\b(?:ab|nach|mit|seit|von)\s+(?:der\s+|dem\s+)?"
+                       r"((?:Zustellung|Zugang|Erhalt|Eingang|Übersendung|Uebersendung|Bekanntgabe|Vorlage|Mitteilung|Rechtskraft)(?:\s+(?:des|der|dieses|eines|einer)"
+                       r"(?:\s+[A-ZÄÖÜ][\wäöüß-]*)?|\s+[A-ZÄÖÜ][\wäöüß-]*)?)", re.IGNORECASE)
 _WOCHENTAGE = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 
 
@@ -361,7 +365,7 @@ def fristvorschlaege(s: dict, land: str = "BY") -> list[dict]:
         if fest is not None:
             aus.append({"notiz_id": n["id"], "titel": titel, "art": "datum", "anzahl": None, "einheit": None,
                         "bezugstag": tag, "datum": fest.isoformat(), "verschoben": False, "grund": None,
-                        "kein_werktag": _feiertag(fest, land), "quelle": quelle})
+                        "kein_werktag": _feiertag(fest, land), "beginn_offen": None, "quelle": quelle})
             continue
         treffer = _FRIST.search(n["text"])
         if not treffer:
@@ -369,10 +373,17 @@ def fristvorschlaege(s: dict, land: str = "BY") -> list[dict]:
         zahl = treffer.group(1).lower()
         anzahl = int(zahl) if zahl.isdigit() else _ZAHLWORTE[zahl]
         einheit = _EINHEIT[treffer.group(2).lower()]
+        ereignis = _EREIGNIS.search(n["text"])
+        if ereignis:
+            # Beginn hängt an einem Ereignis nach dem Termin: kein Datum raten, das trägt man ein, sobald es feststeht.
+            aus.append({"notiz_id": n["id"], "titel": titel, "art": "dauer", "anzahl": anzahl, "einheit": einheit,
+                        "bezugstag": None, "datum": None, "verschoben": False, "grund": None, "kein_werktag": None,
+                        "beginn_offen": ereignis.group(1), "quelle": quelle})
+            continue
         r = kalender.berechne(tag, anzahl, einheit, land)
         aus.append({"notiz_id": n["id"], "titel": titel, "art": "dauer", "anzahl": anzahl, "einheit": einheit,
                     "bezugstag": tag, "datum": r["ende"], "verschoben": r["verschoben"], "grund": r["grund"],
-                    "kein_werktag": None, "quelle": quelle})
+                    "kein_werktag": None, "beginn_offen": None, "quelle": quelle})
     return aus
 
 
