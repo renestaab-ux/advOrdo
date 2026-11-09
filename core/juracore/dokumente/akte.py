@@ -273,6 +273,7 @@ def oeffne(pfad: str | Path) -> sqlite3.Connection:
     _urteil_ohne_akte(con)
     _daten_nachtragen(con)
     _fassungen_nachtragen(con)
+    _docx_seiten_nachtragen(con)
     con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return con
 
@@ -332,6 +333,16 @@ def _fassungen_nachtragen(con: sqlite3.Connection) -> None:
             """INSERT INTO dokument_fassung (dokument_id, nr, dateiname, sha256, groesse, original, erstellt_am, quelle)
                SELECT id, 1, dateiname, sha256, groesse, original, importiert_am, 'import' FROM dokument d
                WHERE NOT EXISTS (SELECT 1 FROM dokument_fassung f WHERE f.dokument_id = d.id)"""
+        )
+
+
+def _docx_seiten_nachtragen(con: sqlite3.Connection) -> None:
+    """Word-Dateien mit Seitenumbrüchen, eingelesen vor der Seitenzählung: Seitenzahl aus den Absätzen."""
+    with con:
+        con.execute(
+            """UPDATE dokument SET seiten = (SELECT MAX(COALESCE(a.seite_bis, a.seite)) FROM abschnitt a
+                                             WHERE a.dokument_id = dokument.id)
+               WHERE format = 'docx' AND seiten IS NULL"""
         )
 
 
@@ -467,7 +478,7 @@ def _speichere(
     dok: Dokument,
     herkunft: str | None = None,
 ) -> int:
-    seitenzahl = max((s.nr for s in dok.seiten if s.nr), default=None)
+    seitenzahl = dok.seitenzahl
     dokument_id = con.execute(
         """INSERT INTO dokument (akte_id, dateiname, format, sha256, groesse, original, importiert_am,
                                  seiten, lesart, ocr_konfidenz, hinweise, herkunft)
@@ -562,6 +573,11 @@ def _verknuepfe_zitate(con: sqlite3.Connection, wissen: sqlite3.Connection, doku
             )
 
 
+# Stand der Erkennung von Rechtsprechungszitaten. Steigt er, werden ältere Dokumente beim nächsten Abruf neu
+# durchsucht. 2: Datum mit ausgeschriebenem Monat („vom 21. Oktober 2014“).
+URTEILE_ERKANNT = 2
+
+
 def _verknuepfe_urteile(con: sqlite3.Connection, wissen: sqlite3.Connection, dokument_id: int) -> None:
     """Erkennt Rechtsprechungszitate in allen Abschnitten und prüft sie gegen das Verzeichnis."""
     con.execute(
@@ -585,7 +601,7 @@ def _verknuepfe_urteile(con: sqlite3.Connection, wissen: sqlite3.Connection, dok
                  z.aktenzeichen, z.datum, beleg["status"], beleg["hinweis"], beleg["stand_id"],
                  json.dumps(beleg["entscheidung"], ensure_ascii=False) if beleg["entscheidung"] else None, z.rn),
             )
-    con.execute("UPDATE dokument SET urteile_erkannt = 1 WHERE id = ?", (dokument_id,))
+    con.execute("UPDATE dokument SET urteile_erkannt = ? WHERE id = ?", (URTEILE_ERKANNT, dokument_id))
 
 
 def zitate_neu_pruefen(con: sqlite3.Connection, wissen: sqlite3.Connection, akte_id: int) -> dict:
@@ -639,7 +655,8 @@ def rechtsprechung(
     jeder Fundstelle. ``online_offen`` nennt die Online-Quelle, bei der ein offenes Zitat noch zu prüfen ist."""
     with con:
         for r in con.execute(
-            "SELECT id FROM dokument WHERE akte_id = ? AND urteile_erkannt IS NULL", (akte_id,)
+            "SELECT id FROM dokument WHERE akte_id = ? AND (urteile_erkannt IS NULL OR urteile_erkannt < ?)",
+            (akte_id, URTEILE_ERKANNT),
         ).fetchall():
             _verknuepfe_urteile(con, wissen, r["id"])
     zeilen = con.execute(

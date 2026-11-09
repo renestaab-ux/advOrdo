@@ -31,6 +31,11 @@ REPLIK = "Die Erklärung ist das „letzte Wort“ des Verkäufers (vgl. BGH, Ur
     ("BVerfG, Beschl. v. 1.2.2020 - 1 BvR 123/20", ["BVerfG, Beschluss vom 01.02.2020 – 1 BvR 123/20"]),
     ("OLG Frankfurt am Main, Urt. v. 3.4.2019 – 4 U 12/18", ["OLG Frankfurt am Main, Urteil vom 03.04.2019 – 4 U 12/18"]),
     ("BSG, Urteil vom 01.02.2020 - B 1 KR 2/20 R", ["BSG, Urteil vom 01.02.2020 – B 1 KR 2/20 R"]),
+    # Monat ausgeschrieben oder abgekürzt.
+    ("„… zu beachten sind“ (BGH, Urteil vom 21. Oktober 2014 – XI ZR 210/13). Fundstelle",
+     ["BGH, Urteil vom 21.10.2014 – XI ZR 210/13"]),
+    ("LG Köln, Beschl. v. 3. Febr. 2020 - 5 O 1/19", ["LG Köln, Beschluss vom 03.02.2020 – 5 O 1/19"]),
+    ("BAG, Urteil vom 1. März 2021, 7 AZR 1/20", ["BAG, Urteil vom 01.03.2021 – 7 AZR 1/20"]),
     ("so auch BGH, VIII ZR 103/15; ferner BGH NJW 2017, 1093", ["BGH – VIII ZR 103/15", "BGH, NJW 2017, 1093"]),
     # Kein Zitat: Gerichtskürzel ohne Aktenzeichen, Datum allein, Gesellschaftsform.
     ("Der BGH hat am 12.10.2016 entschieden; die Autohaus Rehnfeld AG Freiburg haftet.", []),
@@ -125,6 +130,17 @@ def test_aeltere_dokumente_werden_nachgetragen(akten, con, tmp_path):
     akten.execute("UPDATE dokument SET urteile_erkannt = NULL WHERE id = ?", (d,))
     assert [e["zitat"] for e in akte.rechtsprechung(akten, con, a["id"])] == [
         "BGH, Urteil vom 17.03.2021 – VIII ZR 999/20"]
+
+
+def test_aeltere_erkennung_wird_wiederholt(akten, con, tmp_path):
+    a = akte.akte_anlegen(akten, "Alt")
+    (tmp_path / "s.md").write_text("Siehe BGH, Urteil vom 21. Oktober 2014 – XI ZR 210/13.", encoding="utf-8")
+    d = akte.importiere(akten, con, a["id"], tmp_path / "s.md", tmp_path / "ablage", ocr=False)["dokument_id"]
+    # Wie ein Dokument, das eine frühere Erkennung ohne ausgeschriebene Monate durchsucht hat.
+    akten.execute("DELETE FROM urteilszitat")
+    akten.execute("UPDATE dokument SET urteile_erkannt = 1 WHERE id = ?", (d,))
+    assert [e["zitat"] for e in akte.rechtsprechung(akten, con, a["id"])] == [
+        "BGH, Urteil vom 21.10.2014 – XI ZR 210/13"]
 
 
 def test_rpc(tmp_path):

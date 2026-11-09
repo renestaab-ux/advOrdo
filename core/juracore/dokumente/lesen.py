@@ -130,6 +130,11 @@ def _bereich(nummern: list[int | None]) -> str:
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 
+def _hat_text(text: str) -> bool:
+    """Leere Absätze überspringen, auch solche mit nur unsichtbaren Zeichen (Word setzt gern ein U+200B)."""
+    return bool(re.sub(r"[\s\u200b-\u200d\u2060\ufeff]+", "", text))
+
+
 def _lies_docx(pfad: Path) -> Dokument:
     try:
         with zipfile.ZipFile(pfad) as z:
@@ -155,13 +160,13 @@ def _lies_docx(pfad: Path) -> Dokument:
             if element.find(f"{_W}pPr/{_W}pageBreakBefore") is not None:
                 seite += umbruch.hart()
             text, umbrueche = _absatztext(element, umbruch)
-            if text.strip():
+            if _hat_text(text):
                 absaetze.append((seite, text, "absatz"))
             seite += umbrueche
         elif element.tag == f"{_W}tbl":
             umbrueche = 0
             for zeile in _tabellenzeilen(element, umbruch):
-                if zeile[1]:
+                if _hat_text(zeile[1]):
                     absaetze.append((seite, zeile[1], "tabelle"))
                 umbrueche += zeile[0]
             seite += umbrueche
@@ -196,7 +201,7 @@ def _lies_docx(pfad: Path) -> Dokument:
                     abschnitte.append(Abschnitt(len(abschnitte) + 1, text, art="kopfzeile"))
     seiten[0].zeilen = [a.text for a in abschnitte]
     hinweise = [] if hat_seiten else ["Word-Datei ohne Seitenumbrüche: Fundstellen nach Randnummer bzw. Absatz."]
-    return Dokument("docx", seiten, abschnitte, hinweise)
+    return Dokument("docx", seiten, abschnitte, hinweise, umbruch_seiten=seite if hat_seiten else None)
 
 
 def _rahmen_ordnung(name: str) -> tuple[int, int]:

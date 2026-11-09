@@ -26,7 +26,16 @@ _ART = (
     r"(?P<art>Urteil|Urt\.|Beschluss|Beschl\.|Versäumnisurteil|VU|Teilurteil|Endurteil|Hinweisbeschluss"
     r"|Gerichtsbescheid|Kammerbeschluss)"
 )
-_DATUM = r"(?P<datum>\d{1,2}\.\s?\d{1,2}\.\s?(?:\d{4}|\d{2}))"
+# Monatsnamen für ausgeschriebene Daten: „21. Oktober 2014“, „3. Febr. 2020“, „1. März 2021“.
+MONATE = {
+    "jan": 1, "jän": 1, "feb": 2, "mär": 3, "mrz": 3, "apr": 4, "mai": 5, "jun": 6, "jul": 7, "aug": 8,
+    "sep": 9, "okt": 10, "nov": 11, "dez": 12,
+}
+_MONAT = (
+    r"(?:Januar|Jänner|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember"
+    r"|(?:Jan|Jän|Febr?|Mrz|Apr|Jun|Jul|Aug|Sept?|Okt|Nov|Dez)\.)"
+)
+_DATUM = rf"(?P<datum>\d{{1,2}}\.\s?(?:\d{{1,2}}\.\s?(?:\d{{4}}|\d{{2}})|{_MONAT}\s?\d{{4}}))"
 # Deutsches Aktenzeichen: Spruchkörper (römisch oder arabisch), Registerzeichen, laufende Nummer/Jahr.
 _AZ_DE = (
     r"(?:B\s\d+\s[A-Z]{1,3}\s\d+/\d{2}\s?[A-Z]{1,2}"  # BSG: „B 1 KR 2/20 R“
@@ -84,7 +93,13 @@ class UrteilsZitat:
 def _iso(datum: str | None) -> str | None:
     if not datum:
         return None
-    t, m, j = (int(x) for x in re.findall(r"\d+", datum))
+    zahlen = [int(x) for x in re.findall(r"\d+", datum)]
+    if len(zahlen) == 2:  # Monat ausgeschrieben
+        monat = MONATE.get(re.search(r"[A-Za-zÄÖÜäöü]+", datum).group(0)[:3].lower())
+        if monat is None:
+            return None
+        zahlen.insert(1, monat)
+    t, m, j = zahlen
     if j < 100:
         j += 2000 if j < 50 else 1900
     if not (1 <= t <= 31 and 1 <= m <= 12):
