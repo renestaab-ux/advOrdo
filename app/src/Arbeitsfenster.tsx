@@ -32,7 +32,7 @@ import {
   AktenDokument,
   DokumentInhalt,
   NormEintrag,
-  URTEIL_STATUS_TEXT,
+  urteilStatusText,
   UrteilEintrag,
   UrteilVolltext,
   betragAnzeige,
@@ -801,7 +801,7 @@ function RechtsprechungSpalte({ akteId, onOeffnen }: { akteId: number; onOeffnen
         {urteile.map((u) => (
           <li key={u.zitat} className={`urteil-${u.status}`}>
             <div>
-              <span className={`marke-status urteil-${u.status}`}>{URTEIL_STATUS_TEXT[u.status]}</span> <strong>{u.zitat}</strong>
+              <span className={`marke-status urteil-${u.status}`}>{urteilStatusText(u)}</span> <strong>{u.zitat}</strong>
             </div>
             {u.hinweis && <div className={u.status === "belegt" ? "titel" : "hinweis"}>{u.hinweis}</div>}
             <div className="fundstellen">

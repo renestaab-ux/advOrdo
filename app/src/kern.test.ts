@@ -238,6 +238,12 @@ describe("Ergänzte Urteile", () => {
   it("nennt Quelle und Datei", () => {
     expect(urteilHerkunft({ herkunft: "juris", dateiname: "BGH VIII ZR 999-20.pdf" })).toBe("juris, BGH VIII ZR 999-20.pdf");
     expect(urteilHerkunft({ herkunft: null, dateiname: "urteil.pdf" })).toBe("urteil.pdf");
+    expect(
+      urteilHerkunft({
+        herkunft: "https://infocuria.curia.europa.eu",
+        dateiname: "https:infocuria.curia.europa.eu:tabs?source=document&text=&docid=175728&pageIndex=0",
+      }),
+    ).toBe("infocuria.curia.europa.eu");
   });
 });
 

@@ -33,7 +33,7 @@ import {
   Seitenbild,
   URTEIL_QUELLEN,
   URTEIL_QUELLE_NAME,
-  URTEIL_STATUS_TEXT,
+  urteilStatusText,
   URTEIL_TEILE,
   UrteilEintrag,
   UrteilInfo,
@@ -623,7 +623,7 @@ export function RechtsprechungAnsicht({
         {urteile.map((u) => (
           <li key={u.zitat} className={`urteil-${u.status}`}>
             <div>
-              <span className={`marke-status urteil-${u.status}`}>{URTEIL_STATUS_TEXT[u.status]}</span>{" "}
+              <span className={`marke-status urteil-${u.status}`}>{urteilStatusText(u)}</span>{" "}
               {u.urteil && <span className="marke-status urteil-volltext">Volltext liegt vor</span>}{" "}
               <strong>{u.zitat}</strong>
             </div>
