@@ -88,3 +88,23 @@ describe("ansagen", () => {
     vi.useRealTimers();
   });
 });
+
+describe("useFokusAuf", () => {
+  it("setzt den Fokus auf die Meldung, sobald es ein Ergebnis gibt", async () => {
+    const { act, createElement } = await import("react");
+    const { createRoot } = await import("react-dom/client");
+    const { useFokusAuf } = await import("./barrierefrei");
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    function Meldung({ ergebnis }: { ergebnis: string | null }) {
+      const ref = useFokusAuf<HTMLDivElement>(ergebnis);
+      return ergebnis ? createElement("div", { ref, tabIndex: -1, id: "m" }, ergebnis) : null;
+    }
+    document.body.innerHTML = "<div id='w'></div>";
+    const root = createRoot(document.getElementById("w")!);
+    act(() => root.render(createElement(Meldung, { ergebnis: null })));
+    act(() => root.render(createElement(Meldung, { ergebnis: "Gespeichert unter C:\\Briefe\\Brief.docx." })));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(document.activeElement?.id).toBe("m");
+    act(() => root.unmount());
+  });
+});

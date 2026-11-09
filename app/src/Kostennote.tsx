@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
-import { ansagen } from "./barrierefrei";
+import { useFokusAuf } from "./barrierefrei";
 import {
   Beteiligung,
   KostenEingabePosten,
@@ -48,6 +48,8 @@ export default function Kostennote({
   const [ergebnis, setErgebnis] = useState<KostennoteErgebnis | null>(null);
   const [rechenfehler, setRechenfehler] = useState<string | null>(null);
   const [erzeugt, setErzeugt] = useState<(KostennoteErzeugt & { geoeffnet: boolean }) | null>(null);
+  // Meldung nach dem Erzeugen bekommt den Fokus, damit die Sprachausgabe sie vorliest.
+  const ergebnisRef = useFokusAuf<HTMLDivElement>(erzeugt);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [zeitHinweise, setZeitHinweise] = useState<string[]>([]);
@@ -216,8 +218,6 @@ export default function Kostennote({
     if (!eingabe) return;
     const r = await mit(async () => {
       const x = await kern<KostennoteErzeugt>("kostennote.erzeugen", { akte_id: akteId, eingabe });
-      // Vor dem Öffnen in Word ansagen; Word nimmt danach den Fokus.
-      ansagen(`„${x.dateiname}“ liegt jetzt unter Dokumente${x.dokument_id ? " und wird in Word geöffnet" : ""}.`);
       let geoeffnet = false;
       if (x.dokument_id) {
         await kern("akten.extern_bearbeiten", { dokument_id: x.dokument_id });
@@ -260,7 +260,6 @@ export default function Kostennote({
     );
     if (r) {
       setErzeugt({ ...r, geoeffnet: false });
-      ansagen(`Entwurf gespeichert unter ${ziel}.`);
     }
   }
 
@@ -599,7 +598,7 @@ export default function Kostennote({
         Entwurf vergibt keine Nummer.
       </p>
       {erzeugt && (
-        <div className="status schrift-ergebnis">
+        <div className="status schrift-ergebnis" ref={ergebnisRef} tabIndex={-1}>
           {erzeugt.dokument_id ? (
             <>
               „{erzeugt.dateiname}“ liegt jetzt unter Dokumente

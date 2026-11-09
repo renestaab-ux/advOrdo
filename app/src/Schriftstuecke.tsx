@@ -10,7 +10,7 @@ import {
   kern,
 } from "./kern";
 import Kostennote from "./Kostennote";
-import { ansagen } from "./barrierefrei";
+import { useFokusAuf } from "./barrierefrei";
 
 /**
  * Reiter „Schriftstücke“: Brief oder Schriftsatz aus einer Vorlage erzeugen, gefüllt mit Briefkopf (Eigene Daten),
@@ -42,6 +42,8 @@ export default function Schriftstuecke({
   const [verfahrenId, setVerfahrenId] = useState<number | null>(null);
   const [vorschau, setVorschau] = useState<SchriftVorschau | null>(null);
   const [ergebnis, setErgebnis] = useState<(SchriftErgebnis & { geoeffnet: boolean }) | null>(null);
+  // Meldung nach dem Erzeugen bekommt den Fokus, damit die Sprachausgabe sie vorliest.
+  const ergebnisRef = useFokusAuf<HTMLDivElement>(ergebnis);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -110,12 +112,6 @@ export default function Schriftstuecke({
     setMeldung(null);
     const r = await mit(async () => {
       const e = await kern<SchriftErgebnis>("schriftstuecke.erzeugen", params);
-      // Vor dem Öffnen in Word ansagen; Word nimmt danach den Fokus.
-      ansagen(
-        e.dokument_id
-          ? `„${e.dateiname}“ ${e.neu ? "liegt jetzt" : "lag schon"} unter Dokumente und wird in Word geöffnet.`
-          : `Gespeichert unter ${e.pfad ?? e.dateiname}.`,
-      );
       let geoeffnet = false;
       if (e.dokument_id) {
         await kern("akten.extern_bearbeiten", { dokument_id: e.dokument_id });
@@ -141,7 +137,6 @@ export default function Schriftstuecke({
     const r = await mit(() => kern<SchriftErgebnis>("schriftstuecke.erzeugen", { ...params, in_akte: false, pfad: ziel }));
     if (r) {
       setErgebnis({ ...r, geoeffnet: false });
-      ansagen(`Gespeichert unter ${r.pfad ?? ziel}.`);
     }
   }
 
@@ -234,7 +229,7 @@ export default function Schriftstuecke({
           </button>
         </div>
         {ergebnis && (
-          <div className="status schrift-ergebnis">
+          <div className="status schrift-ergebnis" ref={ergebnisRef} tabIndex={-1}>
             {ergebnis.dokument_id ? (
               <>
                 „{ergebnis.dateiname}“ {ergebnis.neu ? "liegt jetzt" : "lag schon"} unter Dokumente
