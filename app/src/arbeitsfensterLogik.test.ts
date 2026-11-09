@@ -11,7 +11,12 @@ import {
   gemerkteLage,
   lageMerken,
   lagePruefen,
+  anlageAusTag,
+  springTreffer,
   spalteEntfernen,
+  terminAnordnung,
+  vorTerminHolen,
+  vorTerminMerken,
   spaltenZahl,
   standardAnordnung,
   trennerVerschieben,
@@ -118,5 +123,65 @@ describe("Lage des Fensters", () => {
 
   it("benennt das Fenster nach der Akte", () => {
     expect(fensterName(12)).toBe("akte-12");
+  });
+});
+
+describe("Terminmodus", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("ordnet Sitzungsblatt, Dokument und Terminsnotizen an und übernimmt das offene Dokument", () => {
+    const vorher = { spalten: [{ art: "notizen" as const }, { art: "dokument" as const, dokumentId: 6, modus: "original" as const }], anteile: null };
+    const t = terminAnordnung(vorher);
+    expect(t.spalten).toEqual([
+      { art: "sitzungsblatt" },
+      { art: "dokument", dokumentId: 6, modus: "original" },
+      { art: "terminsnotizen" },
+    ]);
+    expect(anteileVon(t).reduce((a, b) => a + b, 0)).toBeCloseTo(1);
+  });
+
+  it("stellt die Anordnung nach dem Termin wieder her, auch nach einem zweiten Start", () => {
+    const vorher = spaltenZahl(standardAnordnung(), 3);
+    vorTerminMerken(1, vorher);
+    vorTerminMerken(1, terminAnordnung(vorher));
+    expect(vorTerminHolen(1).spalten.map((s) => s.art)).toEqual(["dokument", "notizen", "leer"]);
+    expect(vorTerminHolen(1)).toEqual(standardAnordnung());
+  });
+});
+
+describe("Springen per Kürzel", () => {
+  const dokumente = [
+    { id: 1, name: "01_Kaufvertrag_2025-03-14.pdf", tags: ["Anlage K 1"] },
+    { id: 2, name: "02_Anwaltsschreiben_Nacherfuellung.pdf", tags: ["Kläger", "K2"] },
+    { id: 3, name: "03_Antwortschreiben_Autohaus.pdf", tags: ["Anlage B 1"] },
+  ];
+  const normen = [
+    {
+      zitat: "§ 477 Abs. 1 BGB",
+      fundstellen: [{ dokument_id: 5, dateiname: "05_Klageschrift.pdf", abschnitt: 12, seite: 2, rn: 4 }],
+    },
+    { zitat: "§ 323 Abs. 2 Nr. 1 BGB", fundstellen: [{ dokument_id: 5, dateiname: "05_Klageschrift.pdf", abschnitt: 9, seite: 2, rn: 3 }] },
+  ];
+
+  it("erkennt Anlagen in Tags", () => {
+    expect(anlageAusTag("Anlage K 1")).toBe("K 1");
+    expect(anlageAusTag("K2")).toBe("K 2");
+    expect(anlageAusTag("b 1")).toBe("B 1");
+    expect(anlageAusTag("Kläger")).toBeNull();
+    expect(anlageAusTag("BGB 5")).toBeNull();
+  });
+
+  it("findet Anlagen, Randnummern, Normen und Namen", () => {
+    expect(springTreffer("K 2", dokumente, normen, []).map((t) => t.dokumentId)).toEqual([2]);
+    expect(springTreffer("anlage b1", dokumente, normen, [])[0]).toMatchObject({ titel: "Anlage B 1", dokumentId: 3 });
+    expect(springTreffer("Rn. 14", dokumente, normen, [5, 6, 5])).toEqual([
+      { titel: "Rn. 14", hinweis: "Dokument 5", dokumentId: 5, rn: 14 },
+      { titel: "Rn. 14", hinweis: "Dokument 6", dokumentId: 6, rn: 14 },
+    ]);
+    expect(springTreffer("§ 477", dokumente, normen, [])).toEqual([
+      { titel: "§ 477 Abs. 1 BGB", hinweis: "05_Klageschrift.pdf, Rn. 4", dokumentId: 5, abschnitt: 12 },
+    ]);
+    expect(springTreffer("antwort", dokumente, normen, []).map((t) => t.hinweis)).toEqual(["Anlage B 1"]);
+    expect(springTreffer("  ", dokumente, normen, [])).toEqual([]);
   });
 });

@@ -9,7 +9,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef } from "react";
 
-export type Bereich = "notizen" | "anmerkungen" | "lesezeichen";
+export type Bereich = "notizen" | "anmerkungen" | "lesezeichen" | "sitzung";
 
 export const EREIGNIS = "daten-geaendert";
 
@@ -18,12 +18,15 @@ interface Meldung {
   von: string;
 }
 
-/** Welcher Bereich sich durch einen Aufruf des Kerns ändert; null bei lesenden Aufrufen. */
-export function geaenderterBereich(methode: string): Bereich | null {
-  if (/^akten\.notiz_/.test(methode)) return "notizen";
-  if (/^anmerkungen\.(anlegen|anlegen_seite|aendern|loeschen|bedeutungen_setzen)$/.test(methode)) return "anmerkungen";
-  if (/^lesezeichen\.(?!liste$|inhalt$)/.test(methode)) return "lesezeichen";
-  return null;
+/** Welche Bereiche sich durch einen Aufruf des Kerns ändern; leer bei lesenden Aufrufen. */
+export function geaenderteBereiche(methode: string): Bereich[] {
+  if (/^akten\.notiz_/.test(methode)) return ["notizen"];
+  if (/^anmerkungen\.(anlegen|anlegen_seite|aendern|loeschen|bedeutungen_setzen)$/.test(methode)) return ["anmerkungen"];
+  if (/^lesezeichen\.(?!liste$|inhalt$)/.test(methode)) return ["lesezeichen"];
+  // „Termin beenden“ legt auf Wunsch das Protokoll als Aktennotiz an.
+  if (methode === "sitzung.beenden") return ["sitzung", "notizen"];
+  if (/^sitzung\.(beginnen|punkt_|notiz_)/.test(methode)) return ["sitzung"];
+  return [];
 }
 
 const istDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -34,10 +37,10 @@ function eigenesFenster(): string {
 
 /** Nach einem erfolgreichen Aufruf: den anderen Fenstern melden, wenn er etwas geändert hat. */
 export async function aenderungMelden(methode: string): Promise<void> {
-  const bereich = geaenderterBereich(methode);
-  if (!bereich || !istDesktop) return;
+  const bereiche = geaenderteBereiche(methode);
+  if (bereiche.length === 0 || !istDesktop) return;
   try {
-    await emit(EREIGNIS, { bereich, von: eigenesFenster() } satisfies Meldung);
+    for (const bereich of bereiche) await emit(EREIGNIS, { bereich, von: eigenesFenster() } satisfies Meldung);
   } catch {
     // Ohne Ereignisse sehen die anderen Fenster die Änderung beim nächsten Öffnen.
   }

@@ -10,6 +10,7 @@ Stufe 2:
 - ``fristenbuch``: Fristenbuch (Word, PDF, Excel …) und Kalenderdatei (.ics) eines Zeitraums.
 - ``notizen``: Aktennotizen.
 - ``rubrum`` und ``aus_dokument``: Akte aus einem Dokument anlegen.
+- ``sitzung``: Sitzungsblatt und Terminsnotizen für den Terminmodus des Arbeitsfensters.
 
 Alles liegt in der Aktendatenbank der aktiven Arbeitsumgebung. Akten verweisen auf Beteiligte, statt sie zu kopieren.
 """
@@ -18,7 +19,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from . import beteiligte, kalender, kollision, notizen, stammdaten, verfahren
+from . import beteiligte, kalender, kollision, notizen, sitzung, stammdaten, verfahren
 
 
 def einrichten(con: sqlite3.Connection) -> None:
@@ -29,3 +30,4 @@ def einrichten(con: sqlite3.Connection) -> None:
     verfahren.einrichten(con)
     kalender.einrichten(con)
     notizen.einrichten(con)
+    sitzung.einrichten(con)

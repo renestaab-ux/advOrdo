@@ -1,18 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { geaenderterBereich } from "./aenderungen";
+import { geaenderteBereiche } from "./aenderungen";
 
 describe("Abgleich zwischen den Fenstern", () => {
   it("meldet nur ändernde Aufrufe", () => {
-    expect(geaenderterBereich("akten.notiz_speichern")).toBe("notizen");
-    expect(geaenderterBereich("akten.notiz_loeschen")).toBe("notizen");
-    expect(geaenderterBereich("akten.notizen")).toBeNull();
-    expect(geaenderterBereich("anmerkungen.anlegen")).toBe("anmerkungen");
-    expect(geaenderterBereich("anmerkungen.liste")).toBeNull();
-    expect(geaenderterBereich("anmerkungen.export")).toBeNull();
-    expect(geaenderterBereich("lesezeichen.anordnen")).toBe("lesezeichen");
-    expect(geaenderterBereich("lesezeichen.ordner_umbenennen")).toBe("lesezeichen");
-    expect(geaenderterBereich("lesezeichen.liste")).toBeNull();
-    expect(geaenderterBereich("lesezeichen.inhalt")).toBeNull();
-    expect(geaenderterBereich("akten.dokument")).toBeNull();
+    expect(geaenderteBereiche("akten.notiz_speichern")).toEqual(["notizen"]);
+    expect(geaenderteBereiche("akten.notiz_loeschen")).toEqual(["notizen"]);
+    expect(geaenderteBereiche("akten.notizen")).toEqual([]);
+    expect(geaenderteBereiche("anmerkungen.anlegen")).toEqual(["anmerkungen"]);
+    expect(geaenderteBereiche("anmerkungen.liste")).toEqual([]);
+    expect(geaenderteBereiche("anmerkungen.export")).toEqual([]);
+    expect(geaenderteBereiche("lesezeichen.anordnen")).toEqual(["lesezeichen"]);
+    expect(geaenderteBereiche("lesezeichen.ordner_umbenennen")).toEqual(["lesezeichen"]);
+    expect(geaenderteBereiche("lesezeichen.liste")).toEqual([]);
+    expect(geaenderteBereiche("lesezeichen.inhalt")).toEqual([]);
+    expect(geaenderteBereiche("akten.dokument")).toEqual([]);
+    expect(geaenderteBereiche("sitzung.notiz_anlegen")).toEqual(["sitzung"]);
+    expect(geaenderteBereiche("sitzung.beenden")).toEqual(["sitzung", "notizen"]);
+    expect(geaenderteBereiche("sitzung.punkte")).toEqual([]);
+    expect(geaenderteBereiche("sitzung.abschluss")).toEqual([]);
   });
 });
