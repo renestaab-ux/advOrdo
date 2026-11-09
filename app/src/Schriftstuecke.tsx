@@ -10,6 +10,7 @@ import {
   kern,
 } from "./kern";
 import Kostennote from "./Kostennote";
+import { ansagen } from "./barrierefrei";
 
 /**
  * Reiter „Schriftstücke“: Brief oder Schriftsatz aus einer Vorlage erzeugen, gefüllt mit Briefkopf (Eigene Daten),
@@ -109,6 +110,12 @@ export default function Schriftstuecke({
     setMeldung(null);
     const r = await mit(async () => {
       const e = await kern<SchriftErgebnis>("schriftstuecke.erzeugen", params);
+      // Vor dem Öffnen in Word ansagen; Word nimmt danach den Fokus.
+      ansagen(
+        e.dokument_id
+          ? `„${e.dateiname}“ ${e.neu ? "liegt jetzt" : "lag schon"} unter Dokumente und wird in Word geöffnet.`
+          : `Gespeichert unter ${e.pfad ?? e.dateiname}.`,
+      );
       let geoeffnet = false;
       if (e.dokument_id) {
         await kern("akten.extern_bearbeiten", { dokument_id: e.dokument_id });
@@ -132,7 +139,10 @@ export default function Schriftstuecke({
     });
     if (!ziel) return;
     const r = await mit(() => kern<SchriftErgebnis>("schriftstuecke.erzeugen", { ...params, in_akte: false, pfad: ziel }));
-    if (r) setErgebnis({ ...r, geoeffnet: false });
+    if (r) {
+      setErgebnis({ ...r, geoeffnet: false });
+      ansagen(`Gespeichert unter ${r.pfad ?? ziel}.`);
+    }
   }
 
   const name = (b: Beteiligung) => `${b.rolle_text}: ${b.name}`;
@@ -224,7 +234,7 @@ export default function Schriftstuecke({
           </button>
         </div>
         {ergebnis && (
-          <div className="status schrift-ergebnis" role="status">
+          <div className="status schrift-ergebnis">
             {ergebnis.dokument_id ? (
               <>
                 „{ergebnis.dateiname}“ {ergebnis.neu ? "liegt jetzt" : "lag schon"} unter Dokumente

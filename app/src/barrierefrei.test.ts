@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { bereichAusTaste, naechsterImKreis, reiterZiel, trennerSchritt } from "./barrierefrei";
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from "vitest";
+import { ansagen, bereichAusTaste, naechsterImKreis, reiterZiel, trennerSchritt } from "./barrierefrei";
 
 const taste = (code: string, mehr: Partial<{ altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }> = {}) => ({
   altKey: true,
@@ -68,5 +69,22 @@ describe("reiterZiel", () => {
     expect(reiterZiel("ArrowRight", 1, 3, true)).toBeNull();
     expect(reiterZiel("Home", 2, 3, true)).toBe(0);
     expect(reiterZiel("End", 0, 3, false)).toBe(2);
+  });
+});
+
+describe("ansagen", () => {
+  it("setzt den Text verzögert in den Statusbereich, auch zweimal denselben", () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = '<div id="ansage" role="status"></div>';
+    const el = document.getElementById("ansage")!;
+    ansagen("Brief.docx liegt jetzt unter Dokumente.");
+    expect(el.textContent).toBe("");
+    vi.advanceTimersByTime(200);
+    expect(el.textContent).toBe("Brief.docx liegt jetzt unter Dokumente.");
+    ansagen("Brief.docx liegt jetzt unter Dokumente.");
+    expect(el.textContent).toBe("");
+    vi.advanceTimersByTime(200);
+    expect(el.textContent).toBe("Brief.docx liegt jetzt unter Dokumente.");
+    vi.useRealTimers();
   });
 });

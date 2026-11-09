@@ -125,3 +125,17 @@ export function useReiterTasten() {
     return () => document.removeEventListener("keydown", taste);
   }, []);
 }
+
+/**
+ * Kurze Ansage für Bildschirmleser über den versteckten Statusbereich #ansage. Nach Alt + Zahl nannte die
+ * Windows-Sprachausgabe sonst nur die gedrückte Zahl; mit dem Fokus auf der Überschrift las sie diese doppelt.
+ */
+export function ansagen(text: string) {
+  const el = document.getElementById("ansage");
+  if (!el) return;
+  // Erst leeren, dann setzen: Sonst sagt der Bildschirmleser denselben Text nicht ein zweites Mal an.
+  el.textContent = "";
+  window.setTimeout(() => {
+    el.textContent = text;
+  }, 150);
+}

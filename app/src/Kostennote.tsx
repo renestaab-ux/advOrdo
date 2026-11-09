@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
+import { ansagen } from "./barrierefrei";
 import {
   Beteiligung,
   KostenEingabePosten,
@@ -215,6 +216,8 @@ export default function Kostennote({
     if (!eingabe) return;
     const r = await mit(async () => {
       const x = await kern<KostennoteErzeugt>("kostennote.erzeugen", { akte_id: akteId, eingabe });
+      // Vor dem Öffnen in Word ansagen; Word nimmt danach den Fokus.
+      ansagen(`„${x.dateiname}“ liegt jetzt unter Dokumente${x.dokument_id ? " und wird in Word geöffnet" : ""}.`);
       let geoeffnet = false;
       if (x.dokument_id) {
         await kern("akten.extern_bearbeiten", { dokument_id: x.dokument_id });
@@ -255,7 +258,10 @@ export default function Kostennote({
     const r = await mit(() =>
       kern<KostennoteErzeugt>("kostennote.erzeugen", { akte_id: akteId, eingabe, pfad: ziel, in_akte: false }),
     );
-    if (r) setErzeugt({ ...r, geoeffnet: false });
+    if (r) {
+      setErzeugt({ ...r, geoeffnet: false });
+      ansagen(`Entwurf gespeichert unter ${ziel}.`);
+    }
   }
 
   async function stornieren(k: KostennoteEintrag) {
@@ -593,7 +599,7 @@ export default function Kostennote({
         Entwurf vergibt keine Nummer.
       </p>
       {erzeugt && (
-        <div className="status schrift-ergebnis" role="status">
+        <div className="status schrift-ergebnis">
           {erzeugt.dokument_id ? (
             <>
               „{erzeugt.dateiname}“ liegt jetzt unter Dokumente
