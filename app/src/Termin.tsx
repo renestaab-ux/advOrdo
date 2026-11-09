@@ -626,8 +626,17 @@ export function SitzungsblattSpalte({
           <li key={p.id} className="af-punkt">
             <div className="af-punkt-text">
               <AmpelMarke ampel={p.ampel} />
-              <span>{p.text}</span>
-              {p.herkunft === "ki" && <span className="af-ki-marke" title="Aus einem Vorschlag der Analyse übernommen">aus Analyse</span>}
+              <span className="af-punkt-inhalt">
+                {p.text}
+                {p.herkunft === "ki" && (
+                  <>
+                    {" "}
+                    <span className="af-ki-marke" title="Aus einem Vorschlag der Analyse übernommen">
+                      aus Analyse
+                    </span>
+                  </>
+                )}
+              </span>
             </div>
             <div className="af-belege">
               {p.belege.length === 0 && p.art === "streitpunkt" && <span className="leise">ohne Fundstelle</span>}

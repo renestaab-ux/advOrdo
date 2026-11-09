@@ -422,18 +422,22 @@ button.af-sichtschutz-knopf { background: transparent; color: #8fa3b8; border: 1
 .af-zeilen dd { margin: 0; }
 .af-punkte { list-style: none; padding: 0; margin: 0 0 6px; display: grid; gap: 8px; }
 .af-punkt { border: 1px solid var(--linie); border-radius: 8px; padding: 8px 10px; }
-.af-punkt-text { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-.af-ampel { flex: none; width: 10px; height: 10px; border-radius: 50%; display: inline-block; align-self: center; }
+.af-punkt-text { display: flex; gap: 8px; align-items: baseline; }
+.af-punkt-inhalt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.af-ampel { flex: none; width: 10px; height: 10px; border-radius: 50%; display: inline-block; align-self: flex-start; margin-top: 0.45em; }
 .af-ampel-rot { background: #c0392b; } .af-ampel-gelb { background: #d4a017; } .af-ampel-gruen { background: #2f8a46; }
-.af-ki-marke { font-size: 11px; color: var(--text-leise); border: 1px solid var(--linie); border-radius: 999px; padding: 0 7px; }
+.af-ki-marke { white-space: nowrap; font-size: 11px; color: var(--text-leise); border: 1px solid var(--linie); border-radius: 999px; padding: 0 7px; }
 .af-belege { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; margin-top: 3px; }
 .af-punkt-aktionen { display: flex; gap: 10px; font-size: 13px; margin-top: 4px; }
 .af-punkt-form { border: 1px solid var(--akzent); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
 .af-punkt-form .feld { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .af-belege-bearbeiten { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-bottom: 8px; font-size: 13px; }
-.af-beleg-neu { display: inline-flex; gap: 6px; align-items: center; }
-.af-beleg-neu input { width: 60px; }
-.af-knopfzeile { display: inline-flex; gap: 16px; }
+.af-beleg-neu { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1 1 100%; min-width: 0; }
+.af-beleg-neu select { flex: 1 1 100%; min-width: 0; width: 100%; text-overflow: ellipsis; }
+.af-beleg-neu input { width: 60px; flex: none; }
+.af-beleg-neu button { flex: none; }
+.af-knopfzeile { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.af-knopfzeile button { white-space: nowrap; text-align: left; }
 .af-vorschlaege { margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--linie); border-radius: 8px; }
 .af-notiz-angeheftet { border: 1px solid #c9a227; background: color-mix(in srgb, #c9a227 8%, var(--flaeche)); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
 .af-terminsnotizen textarea { width: 100%; box-sizing: border-box; }
