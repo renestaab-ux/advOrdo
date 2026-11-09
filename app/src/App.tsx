@@ -8,6 +8,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { gemerkt, merke } from "./merken";
 import { useErinnerungen } from "./erinnerungen";
 import { useLaufenderTimer } from "./zeitTimer";
+import { arbeitsfensterOeffnen, useLaufendeTermine } from "./terminLaufend";
 import TimerHinweise from "./TimerHinweise";
 import Hintergrund from "./Hintergrund";
 import { KiAn } from "./kiSchalter";
@@ -124,6 +125,8 @@ export default function App() {
   useErinnerungen(umgebungen ? umgebungen.aktiv : undefined);
   // Laufender Timer der Zeiterfassung: immer sichtbar in der Leiste, damit er nicht vergessen wird.
   const timer = useLaufenderTimer(umgebungen?.aktiv);
+  // Laufende Termine (Terminmodus im Arbeitsfenster): ebenso sichtbar; ein Klick holt das Arbeitsfenster nach vorn.
+  const termine = useLaufendeTermine(umgebungen?.aktiv);
   // „Akte anlegen“ (Startbildschirm oder „+ Neue Akte“): eigene Seite für den Anlegeprozess.
   const [anlegen, setAnlegen] = useState(false);
   const [reiterWunsch, setReiterWunsch] = useState<{ reiter: Reiter } | null>(null);
@@ -247,6 +250,23 @@ export default function App() {
           </button>
         ))}
         <div className="nav-fuss">
+          {termine.termine.map((t) => (
+            <div key={t.id} className="zeit-leiste termin-leiste">
+              <button
+                className="zeit-leiste-akte"
+                onClick={() => void arbeitsfensterOeffnen(t.akte_id, t.akte).catch(() => undefined)}
+                title={`Termin läuft: ${t.akte} · ${t.titel}${t.wahrgenommen_von ? ` (${t.wahrgenommen_von})` : ""}. Arbeitsfenster öffnen; dort „Termin beenden“.`}
+              >
+                <span className="zeit-leiste-symbol">
+                  <Zeichen name="spalten" groesse={eingeklappt ? 26 : 20} />
+                </span>
+                <span className="nav-text zeit-leiste-text">
+                  <strong className="zeit-leiste-uhr">{uhrText(termine.sekunden(t))}</strong>
+                  <span className="zeit-leiste-name">Termin · {t.akte}</span>
+                </span>
+              </button>
+            </div>
+          ))}
           {timer.laufend && (
             <div className="zeit-leiste">
               <button

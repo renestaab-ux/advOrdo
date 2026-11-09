@@ -342,3 +342,4 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 .ueber-tabelle tbody tr + tr > * { border-top: 1px solid var(--linie); }
 .ueber-adresse { display: block; color: var(--text-leise); font-weight: 400; font-size: 12px; overflow-wrap: anywhere; }
 @media (max-width: 700px) { .ueber-logo img { width: 140px; } .ueber-tabelle tbody th { width: auto; } }
+.nav-fuss .zeit-leiste + .zeit-leiste { margin-top: 6px; }

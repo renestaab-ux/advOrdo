@@ -58,6 +58,19 @@ export interface Sitzung {
   notizen: TerminNotiz[];
 }
 
+/** Ein laufender Termin irgendeiner Akte (Kern: sitzung.laufende). */
+export interface LaufenderTermin {
+  id: number;
+  akte_id: number;
+  akte: string;
+  aktenzeichen: string | null;
+  titel: string;
+  beginn: string;
+  wahrgenommen_von: string | null;
+  /** Laufzeit seit Beginn beim Laden. */
+  sekunden: number;
+}
+
 export interface TerminHeute {
   id: number;
   titel: string;

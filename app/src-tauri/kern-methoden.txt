@@ -220,6 +220,7 @@ sitzung.abschluss
 sitzung.aktiv
 sitzung.beenden
 sitzung.beginnen
+sitzung.laufende
 sitzung.liste
 sitzung.notiz_aendern
 sitzung.notiz_anlegen

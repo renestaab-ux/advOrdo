@@ -85,10 +85,14 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
   const [anordnung, setAnordnungRoh] = useState<Anordnung>(() => gemerkteAnordnung(akteId));
   const [fehler, setFehler] = useState<string | null>(null);
   const [schliessFrage, setSchliessFrage] = useState<string[] | null>(null);
+  /** Beim Schließen während eines laufenden Termins: Hinweis, dass er weiterläuft. */
+  const [terminFrage, setTerminFrage] = useState(false);
   const rahmen = useRef<HTMLDivElement>(null);
   const spaltenRefs = useRef<(HTMLElement | null)[]>([]);
   // Terminmodus: laufende Sitzung, Dialoge zum Beginnen und Beenden, Springen (Strg+K) und Sichtschutz (F9).
   const { sitzung, setSitzung } = useSitzung(akteId);
+  const laufenderTermin = useRef(false);
+  laufenderTermin.current = !!sitzung && !sitzung.ende;
   const [beginnen, setBeginnen] = useState(false);
   const [beenden, setBeenden] = useState(false);
   const [springen, setSpringen] = useState(false);
@@ -155,9 +159,13 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
     void getCurrentWindow()
       .onCloseRequested((e) => {
         const offen = offeneBearbeitungen();
-        if (offen.length === 0) return;
-        e.preventDefault();
-        setSchliessFrage(offen.map((b) => b.was));
+        if (offen.length > 0) {
+          e.preventDefault();
+          setSchliessFrage(offen.map((b) => b.was));
+        } else if (laufenderTermin.current) {
+          e.preventDefault();
+          setTerminFrage(true);
+        }
       })
       .then((f) => (aus = f));
     return () => aus?.();
@@ -402,8 +410,44 @@ export default function Arbeitsfenster({ akteId }: { akteId: number }) {
               <button onClick={() => setSchliessFrage(null)} autoFocus>
                 Zurück zur Bearbeitung
               </button>
-              <button className="zweitrangig" onClick={() => void getCurrentWindow().destroy()}>
+              <button
+                className="zweitrangig"
+                onClick={() => {
+                  setSchliessFrage(null);
+                  if (laufenderTermin.current) setTerminFrage(true);
+                  else void getCurrentWindow().destroy();
+                }}
+              >
                 Verwerfen und schließen
+              </button>
+            </div>
+          </Dialog>
+        </div>
+      )}
+      {terminFrage && sitzung && (
+        <div className="timer-hinweis-hintergrund">
+          <Dialog className="rueckfrage timer-hinweis" rolle="alertdialog" label="Termin läuft noch" onSchliessen={() => setTerminFrage(false)}>
+            <strong>Der Termin läuft noch</strong>
+            <p>
+              {sitzung.titel}, seit {sitzung.beginn.slice(11, 16)} Uhr. Schließt du das Arbeitsfenster, läuft der Termin weiter,
+              auch wenn du die App beendest; im Hauptfenster steht er links unter der Leiste. Mit „Termin beenden“ übernimmst
+              du Protokoll, Zeit und Fristen.
+            </p>
+            <div className="aktionen">
+              <button
+                onClick={() => {
+                  setTerminFrage(false);
+                  setBeenden(true);
+                }}
+                autoFocus
+              >
+                Termin beenden …
+              </button>
+              <button className="zweitrangig" onClick={() => void getCurrentWindow().destroy()}>
+                Weiterlaufen lassen und schließen
+              </button>
+              <button className="zweitrangig" onClick={() => setTerminFrage(false)}>
+                Abbrechen
               </button>
             </div>
           </Dialog>
