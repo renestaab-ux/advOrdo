@@ -1,4 +1,5 @@
 import {
+  KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
@@ -20,6 +21,8 @@ import {
   stueckKlassen,
   stuecke,
   wortAn,
+  woerterText,
+  wortSchritt,
 } from "./anmerkungLogik";
 import {
   Abschnitt,
@@ -52,6 +55,7 @@ import {
   urteilTitel,
 } from "./kern";
 import { useKiAn } from "./kiSchalter";
+import { SPRACHNAMEN, sprachenImDokument } from "./sprache";
 import { Lesezeichen, LesezeichenAufSeite } from "./lesezeichenLogik";
 
 export function DokumentAnsicht({
@@ -83,6 +87,9 @@ export function DokumentAnsicht({
 }) {
   const d = inhalt.dokument;
   const beginne = useMemo(() => abschnittBeginne(inhalt.abschnitte), [inhalt]);
+  // Fremdsprachige Dokumente und Absätze auszeichnen, damit der Bildschirmleser die richtige Aussprache wählt.
+  const sprachen = useMemo(() => sprachenImDokument(inhalt.abschnitte.map((a) => a.text)), [inhalt]);
+  const fremd = sprachen.dokument !== "de" ? sprachen.dokument : undefined;
 
   /** Text von ``von`` bis ``bis`` im Abschnitt: Markierungen, Sprechblasen am Ende kommentierter Stellen, Suchbegriffe. */
   const markierterText = (text: string, von: number, bis: number, beginn: number) =>
@@ -120,10 +127,11 @@ export function DokumentAnsicht({
     });
 
   return (
-    <article className="dokument">
-      {!ohneTitel && <h2>{d.dateiname}</h2>}
-      <p className="dokument-info">
+    <article className="dokument" lang={fremd}>
+      {!ohneTitel && <h2 lang="de">{d.dateiname}</h2>}
+      <p className="dokument-info" lang="de">
         {lesartText(d)}
+        {fremd && <> · Sprache {SPRACHNAMEN[fremd]} (erkannt)</>}
         {d.seiten != null && <> · {d.seiten} Seiten</>} · SHA-256 {d.sha256.slice(0, 12)}…
         {d.herkunft && <> · Ordner {d.herkunft}</>}
         {d.datum && (
@@ -134,7 +142,7 @@ export function DokumentAnsicht({
         )}
       </p>
       {d.tags.length > 0 && (
-        <div className="tags">
+        <div className="tags" lang="de">
           {sortiereTags(d.tags).map((t) => (
             <span key={t.name} className={`tag ${t.quelle}`}>
               {t.name}
@@ -143,7 +151,7 @@ export function DokumentAnsicht({
         </div>
       )}
       {d.hinweise.map((h) => (
-        <p key={h} className="hinweis">
+        <p key={h} className="hinweis" lang="de">
           {h}
         </p>
       ))}
@@ -151,8 +159,8 @@ export function DokumentAnsicht({
         let pos = 0;
         return (
         <section key={a.nr} id={`abschnitt-${a.nr}`} className={`abschnitt ${a.art}${a.nr === markiert ? " markiert" : ""}`}>
-          <span className="abschnitt-ort">{fundstelle(a)}</span>
-          <p data-beginn={beginne[ai]}>
+          <span className="abschnitt-ort" lang="de">{fundstelle(a)}</span>
+          <p data-beginn={beginne[ai]} lang={sprachen.absaetze[ai]}>
             {lesezeichen
               .filter((z) => z.status === "gefunden" && z.start >= beginne[ai] && z.start <= beginne[ai] + a.text.length)
               .map((z) => (
@@ -307,6 +315,10 @@ export function OriginalAnsicht({
   const mitLesezeichen = lesezeichenStand != null;
   const zug = useRef<{ seite: number; anker: number; x: number; y: number; bewegt: boolean } | null>(null);
   const [gezogen, setGezogen] = useState<SeitenAuswahl | null>(null);
+  // Markieren per Tastatur: Wort, an dem die Auswahl beginnt (anker), und Wort der Marke (fokus).
+  const [marke, setMarke] = useState<{ seite: number; anker: number; fokus: number } | null>(null);
+  const [fokusSeite, setFokusSeite] = useState<number | null>(null);
+  const [ansage, setAnsage] = useState("");
 
   // Markierungen je geladener Seite; nach jeder Änderung neu.
   const geladen = Object.keys(bilder).join(",");
@@ -385,7 +397,7 @@ export function OriginalAnsicht({
     const r = e.currentTarget.getBoundingClientRect();
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
   }
-  function auswahlMelden(el: HTMLElement, a: SeitenAuswahl) {
+  function auswahlMelden(el: HTMLElement, a: SeitenAuswahl, tastatur = false) {
     const r = el.getBoundingClientRect();
     const teile = auswahlRechtecke(woerter[a.seite] ?? [], a.von, a.bis);
     if (!teile.length) return;
@@ -396,8 +408,85 @@ export function OriginalAnsicht({
     anmerkungen?.onAuswahl(
       a,
       new DOMRect(r.left + links * r.width, r.top + oben * r.height, (rechts - links) * r.width, (unten - oben) * r.height),
+      tastatur ? el : undefined,
     );
   }
+
+  /** Wort ``i`` der Seite in den sichtbaren Bereich blättern. */
+  function wortZeigen(el: HTMLElement, s: number, i: number) {
+    const w = woerter[s]?.[i];
+    const blatt = scrollRahmen(el);
+    if (!w || !blatt) return;
+    const r = el.getBoundingClientRect();
+    const sicht = blatt.getBoundingClientRect();
+    const oben = r.top + w[3] * r.height;
+    const unten = oben + w[5] * r.height;
+    const rand = 40;
+    if (oben < sicht.top + rand) blatt.scrollTop -= sicht.top + rand - oben;
+    else if (unten > sicht.bottom - rand) blatt.scrollTop += unten - (sicht.bottom - rand);
+  }
+
+  /**
+   * Seite per Tastatur: Pfeile bewegen die Marke wortweise, Umschalt + Pfeil markiert, Strg + A wählt die ganze Seite,
+   * Tab, Umschalt + F10 oder die Kontextmenü-Taste öffnet das Markiermenü, Escape hebt die Auswahl auf.
+   */
+  const tasten = (s: number) =>
+    anmerkungen && woerter[s]?.length
+      ? {
+          tabIndex: 0,
+          role: "group",
+          "aria-label": `Seite ${s}. Markieren mit Pfeiltasten und Umschalt, danach Tab für das Markiermenü.`,
+          onFocus: (e: { currentTarget: HTMLElement; target: EventTarget }) => {
+            if (e.target !== e.currentTarget) return;
+            setFokusSeite(s);
+            if (marke?.seite !== s) setMarke({ seite: s, anker: 0, fokus: 0 });
+          },
+          onBlur: () => setFokusSeite(null),
+          onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => {
+            const el = e.currentTarget;
+            if (e.target !== el || e.altKey || e.metaKey) return;
+            const w = woerter[s];
+            const m = marke?.seite === s ? marke : { seite: s, anker: 0, fokus: 0 };
+            const von = Math.min(m.anker, m.fokus);
+            const bis = Math.max(m.anker, m.fokus);
+            const menueTaste =
+              (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && m.anker !== m.fokus) ||
+              (e.key === "F10" && e.shiftKey) ||
+              e.key === "ContextMenu";
+            if (menueTaste) {
+              e.preventDefault();
+              auswahlMelden(el, { seite: s, von, bis }, true);
+              return;
+            }
+            if (e.key === "Escape" && m.anker !== m.fokus) {
+              e.preventDefault();
+              setMarke({ ...m, anker: m.fokus });
+              setAnsage(`Auswahl aufgehoben. ${w[m.fokus][0]}`);
+              return;
+            }
+            if (e.ctrlKey && (e.key === "a" || e.key === "A")) {
+              e.preventDefault();
+              setMarke({ seite: s, anker: 0, fokus: w.length - 1 });
+              setAnsage(`Ganze Seite ${s} markiert, ${w.length} Wörter.`);
+              return;
+            }
+            const neu = wortSchritt(w, m.fokus, e.key, e.ctrlKey);
+            if (neu == null) return;
+            e.preventDefault();
+            const naechste = e.shiftKey ? { ...m, fokus: neu } : { seite: s, anker: neu, fokus: neu };
+            setMarke(naechste);
+            wortZeigen(el, s, neu);
+            if (e.shiftKey) {
+              const text = woerterText(w, Math.min(naechste.anker, neu), Math.max(naechste.anker, neu));
+              setAnsage(`Markiert: ${text.length > 160 ? `${text.slice(0, 160)} …` : text}`);
+            } else setAnsage(w[neu][0]);
+          },
+        }
+      : {};
+  const markeAuswahl =
+    marke && marke.anker !== marke.fokus
+      ? { seite: marke.seite, von: Math.min(marke.anker, marke.fokus), bis: Math.max(marke.anker, marke.fokus) }
+      : null;
   const ziehen = (s: number) =>
     anmerkungen && woerter[s]?.length
       ? {
@@ -435,10 +524,13 @@ export function OriginalAnsicht({
           },
         }
       : {};
-  const gewaehlt = gezogen ?? anmerkungen?.auswahl ?? null;
+  const gewaehlt = gezogen ?? anmerkungen?.auswahl ?? markeAuswahl;
 
   return (
     <div className="original" ref={rahmen} {...(anmerkungen ? anmerkungsHandler(anmerkungen.ereignisse) : {})}>
+      <p className="nur-vorlesen" aria-live="polite">
+        {ansage}
+      </p>
       <p className="dokument-info">
         Originaldatei aus der Ablage der Akte, {seiten} {seiten === 1 ? "Seite" : "Seiten"}. {hinweis}
       </p>
@@ -447,7 +539,11 @@ export function OriginalAnsicht({
         return (
           <figure key={s} id={`seite-${s}`} data-seite={s} className="original-seite">
             {typeof b === "object" ? (
-              <div className={`original-bild${anmerkungen && woerter[s]?.length ? " anm-waehlbar" : ""}`} {...ziehen(s)}>
+              <div
+                className={`original-bild${anmerkungen && woerter[s]?.length ? " anm-waehlbar" : ""}`}
+                {...ziehen(s)}
+                {...tasten(s)}
+              >
                 <img draggable={false} src={b.bild} width={b.breite} height={b.hoehe} alt={`Seite ${s} von ${dokument.dateiname}`} />
                 {b.markierungen.map((m, i) => (
                   <span
@@ -475,6 +571,18 @@ export function OriginalAnsicht({
                       style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.b * 100}%`, height: `${r.h * 100}%` }}
                     />
                   ))}
+                {fokusSeite === s && marke?.seite === s && woerter[s]?.[marke.fokus] && (
+                  <span
+                    className="anm-wortmarke"
+                    aria-hidden
+                    style={{
+                      left: `${woerter[s][marke.fokus][2] * 100}%`,
+                      top: `${woerter[s][marke.fokus][3] * 100}%`,
+                      width: `${woerter[s][marke.fokus][4] * 100}%`,
+                      height: `${woerter[s][marke.fokus][5] * 100}%`,
+                    }}
+                  />
+                )}
                 {(aufSeite[s] ?? []).flatMap((a) =>
                   a.rechtecke.map((r, i) => (
                     <span

@@ -281,3 +281,62 @@ export function auswahlRechtecke(woerter: SeitenWort[], von: number, bis: number
   }
   return [...zeilen.values()].map((z) => ({ x: z.x, y: z.y, b: z.r - z.x, h: z.u - z.y }));
 }
+
+/**
+ * Markieren im Original per Tastatur: Wort, auf das die Marke nach einer Taste springt; null = keine Taste dafür.
+ * Pfeil links/rechts: voriges/nächstes Wort; hoch/runter: Wort der Nachbarzeile an derselben Stelle; Pos1/Ende:
+ * Anfang/Ende der Zeile, mit Strg Anfang/Ende der Seite.
+ */
+export function wortSchritt(woerter: SeitenWort[], i: number, taste: string, strg: boolean): number | null {
+  const n = woerter.length;
+  if (!n) return null;
+  const zeile = (j: number) => woerter[j][1];
+  const mitte = (j: number) => woerter[j][2] + woerter[j][4] / 2;
+  const anfang = (j: number) => {
+    while (j > 0 && zeile(j - 1) === zeile(j)) j--;
+    return j;
+  };
+  const ende = (j: number) => {
+    while (j < n - 1 && zeile(j + 1) === zeile(j)) j++;
+    return j;
+  };
+  /** Wort der Zeile ab ``von`` (bis zu deren Ende), das waagerecht am nächsten bei ``x`` liegt. */
+  const naechstes = (von: number, x: number) => {
+    let beste = von;
+    for (let j = von; j <= ende(von); j++) if (Math.abs(mitte(j) - x) < Math.abs(mitte(beste) - x)) beste = j;
+    return beste;
+  };
+  switch (taste) {
+    case "ArrowLeft":
+      return Math.max(i - 1, 0);
+    case "ArrowRight":
+      return Math.min(i + 1, n - 1);
+    case "ArrowDown": {
+      const e = ende(i);
+      return e + 1 < n ? naechstes(e + 1, mitte(i)) : i;
+    }
+    case "ArrowUp": {
+      const a = anfang(i);
+      return a > 0 ? naechstes(anfang(a - 1), mitte(i)) : i;
+    }
+    case "Home":
+      return strg ? 0 : anfang(i);
+    case "End":
+      return strg ? n - 1 : ende(i);
+    default:
+      return null;
+  }
+}
+
+/** Text der Wörter ``von`` bis ``bis`` für die Ansage; Trennstriche am Zeilenende werden zusammengezogen. */
+export function woerterText(woerter: SeitenWort[], von: number, bis: number): string {
+  let text = "";
+  for (let j = von; j <= bis && j < woerter.length; j++) {
+    if (j > von) {
+      const getrennt = text.length > 1 && text.endsWith("-") && woerter[j - 1][1] !== woerter[j][1];
+      text = getrennt ? text.slice(0, -1) : `${text} `;
+    }
+    text += woerter[j][0];
+  }
+  return text;
+}
