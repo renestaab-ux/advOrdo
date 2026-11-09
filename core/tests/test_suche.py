@@ -23,10 +23,10 @@ def _lege_an(akten, con, tmp_path, akte_name, name, text):
 
 
 @pytest.mark.parametrize("eingabe, erwartet", [
-    ("Rücktritt Kaufvertrag", '"Rücktritt" "Kaufvertrag"'),
+    ("Rücktritt Kaufvertrag", '"Rücktritt" AND "Kaufvertrag"'),
     ('"VIII ZR 103/15"', '"VIII ZR 103 15"'),
     ("Nachbesser*", '"Nachbesser"*'),
-    ('Frist "bis zum', '"Frist" "bis zum"'),
+    ('Frist "bis zum', '"Frist" AND "bis zum"'),
     ("§ 437", '"437"'),
     ('" ; "', ""),
 ])
@@ -101,3 +101,39 @@ def test_rpc(tmp_path):
     antwort = kern.bearbeite(json.dumps({"id": 1, "method": "akten.suche", "params": {"text": "x"}}))
     assert antwort["result"]["dokumente"] == []
     assert isinstance(kern.akten, sqlite3.Connection)
+
+
+@pytest.mark.parametrize("eingabe, erwartet", [
+    ("*protokoll*", "*protokoll*"),
+    ("*Protokoll", "*protokoll"),
+    ("pro*koll", "pro*koll"),
+    ("**Rück**tritt", "*ruck*tritt"),
+])
+def test_platzhalter_fragen_das_woerterverzeichnis(eingabe, erwartet):
+    gefragt = []
+    a = suche.abfrage_mit_formen(eingabe, lambda m: gefragt.append(m) or ["diagnoseprotokoll", "protokoll"])
+    assert gefragt == [erwartet]
+    assert a.fts == '("diagnoseprotokoll" OR "protokoll")' and not a.leer
+    assert suche.abfrage_mit_formen("*nichts*", lambda m: []).leer
+    # Ohne Wörterverzeichnis bleibt vom Platzhalter am Wortanfang nur das Wort selbst.
+    assert suche.abfrage("*Nachbesser*") == '"Nachbesser"*'
+
+
+def test_wortteile_mit_platzhalter(akten, con, tmp_path):
+    _lege_an(akten, con, tmp_path, "Hallenbad", "befund.md",
+             "(1) Laut Diagnoseprotokoll ist die Pumpe defekt.\n\n(2) Das Protokoll vom Termin fehlt.")
+    _lege_an(akten, con, tmp_path, "Hallenbad", "termin.md", "(1) Die Sitzungsprotokolle liegen bei. Rücktrittserklärung folgt.")
+
+    assert [d["dateiname"] for d in suche.suche(akten, "Protokoll")["dokumente"]] == ["befund.md"]
+    e = suche.suche(akten, "*protokoll*")
+    assert sorted(d["dateiname"] for d in e["dokumente"]) == ["befund.md", "termin.md"]
+    assert sorted(e["wortformen"]["*protokoll*"]) == ["diagnoseprotokoll", "protokoll", "sitzungsprotokolle"]
+    befund = next(d for d in e["dokumente"] if d["dateiname"] == "befund.md")
+    assert [f["begriffe"] for f in befund["fundstellen"]] == [["Diagnoseprotokoll"], ["Protokoll"]]
+    # Wortende: nur Wörter, die auf „protokoll“ enden.
+    assert [d["dateiname"] for d in suche.suche(akten, "*protokoll")["dokumente"]] == ["befund.md"]
+    # Groß- und Kleinschreibung und Umlaute wie bei der übrigen Suche; mehrere Wörter müssen alle vorkommen.
+    assert [d["dateiname"] for d in suche.suche(akten, "*RÜCKTRITT* *protokoll*")["dokumente"]] == ["termin.md"]
+    leer = suche.suche(akten, "*gibtsnicht*")
+    assert leer["dokumente"] == [] and leer["wortformen"] == {"*gibtsnicht*": []}
+    assert suche.suche(akten, "Pumpe *gibtsnicht*")["dokumente"] == []  # nicht still weggelassen

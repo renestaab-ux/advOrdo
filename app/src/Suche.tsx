@@ -15,6 +15,7 @@ import {
   istDesktop,
   kern,
   urteilTitel,
+  wortteilVorschlag,
 } from "./kern";
 
 interface Auswahl {
@@ -224,6 +225,16 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
     );
   }
 
+  // Welche Wörter ein Platzhalter am Wortanfang gefunden hat, damit die Suche nachvollziehbar bleibt.
+  const wortformenText = Object.entries(ergebnis?.wortformen ?? {})
+    .map(([muster, w]) =>
+      w.length === 0
+        ? `${muster}: kein passendes Wort`
+        : `${muster}: ${w.slice(0, 8).join(", ")}${w.length > 8 ? ` und ${w.length - 8} weitere` : ""}` +
+          (ergebnis?.wortformen_gekuerzt ? " (nur die häufigsten)" : ""),
+    )
+    .join(" · ");
+  const vorschlag = wortteilVorschlag(eingabe);
   // Alle gefundenen Wortformen des Dokuments markieren, nicht nur die der gewählten Seite.
   const begriffe = [...new Set(auswahl?.dokument.fundstellen.flatMap((f) => f.begriffe) ?? [])];
   return (
@@ -237,7 +248,7 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
           type="search"
           value={eingabe}
           onChange={(e) => setEingabe(e.target.value)}
-          placeholder="Suchen, z. B. Mechatronik, „Frist bis zum“ oder Nachbesser*"
+          placeholder="Suchen, z. B. Mechatronik, „Frist bis zum“, Nachbesser* oder *protokoll*"
           aria-label="Suchbegriff"
         />
         <select
@@ -263,6 +274,7 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
             {(ergebnis.dauer_ms / 1000).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 3 })} s)
           </span>
           {ergebnis.gekuerzt && <span className="hinweis"> · nur die ersten 5.000 passenden Abschnitte</span>}
+          {wortformenText && <span className="hinweis such-wortformen"> · {wortformenText}</span>}
           <span className="such-pfeile">
             <button className="zweitrangig" onClick={() => springe(-1)} disabled={position <= 0} title="Vorige Fundstelle" aria-label="Vorige Fundstelle">
               ▲
@@ -317,10 +329,19 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
           {gesuchtFuer && gesuchtFuer === eingabe && !ergebnis?.dokumente.length && !anmerkungen.length && !urteile.length && (
             <li className="leer">Keine Treffer.</li>
           )}
+          {vorschlag && gesuchtFuer === eingabe && mit("dokumente") && (
+            <li className="such-vorschlag">
+              <button className="link" onClick={() => setEingabe(vorschlag)}>
+                Auch als Wortteil suchen: {vorschlag}
+              </button>{" "}
+              <span className="hinweis">findet z. B. auch zusammengesetzte Wörter wie „Diagnoseprotokoll“</span>
+            </li>
+          )}
           {!eingabe.trim() && (
             <li className="leer">
               Gesucht wird {SUCH_ORT[bereich]}. Groß- und Kleinschreibung spielt keine Rolle. Mehrere Wörter müssen alle
-              vorkommen; „genaue Wortfolge“ in Anführungszeichen; Wortanfang mit *.
+              vorkommen; „genaue Wortfolge“ in Anführungszeichen. Der Stern * steht für beliebige Buchstaben: Nachbesser*
+              (Wortanfang), *protokoll (Wortende), *protokoll* (Wortteil, findet auch „Diagnoseprotokoll“).
             </li>
           )}
           {ergebnis?.dokumente.map((d) => {

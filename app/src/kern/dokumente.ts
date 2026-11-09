@@ -408,6 +408,19 @@ export interface SuchErgebnis {
   treffer: number;
   dauer_ms: number;
   gekuerzt: boolean;
+  /** Platzhalter am Wortanfang („*protokoll*“) mit den Wörtern der Akten, die darauf passen (klein geschrieben). */
+  wortformen?: Record<string, string[]>;
+  /** Ein Platzhalter passte auf sehr viele Wörter; gesucht wurde nur nach den häufigsten. */
+  wortformen_gekuerzt?: boolean;
+}
+
+/** Vorschlag „*wort*“, damit ein Suchwort auch in zusammengesetzten Wörtern gefunden wird („Diagnoseprotokoll“). */
+export function wortteilVorschlag(eingabe: string): string | null {
+  const t = eingabe.trim();
+  if (!t || t.includes("*") || t.includes('"')) return null;
+  const woerter = t.split(/\s+/);
+  if (woerter.some((w) => !/^[\p{L}\p{N}]{3,}$/u.test(w))) return null;
+  return woerter.map((w) => `*${w}*`).join(" ");
 }
 
 /** Teilt Text in Stücke und markiert darin die gesuchten Begriffe (ohne Rücksicht auf Groß- und Kleinschreibung). */
