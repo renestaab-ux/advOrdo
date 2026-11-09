@@ -757,6 +757,16 @@ describe("titelNachSchema", () => {
     );
     expect(titelNachSchema(benennung(), "Vertrag", "", akte)).toBe("Vertrag zwischen Müller und Schneider");
   });
+
+  it("Vergütungsvereinbarung: zwischen Mandant und uns, nicht mit dem Gegner", () => {
+    expect(titelNachSchema(benennung(), "Vergütungsvereinbarung", "1", akte)).toBe(
+      "Vergütungsvereinbarung zwischen Müller und uns",
+    );
+    expect(titelNachSchema(benennung({}, ["eigene", "1"]), "Vertrag", "", akte)).toBe("Vertrag zwischen Müller und uns");
+    expect(titelNachSchema(benennung({ vertrag: "Mandatsvertrag" }), "Vertrag", "eigene", akte)).toBe(
+      "Mandatsvertrag zwischen Müller und uns",
+    );
+  });
 });
 
 describe("mitKi", () => {
