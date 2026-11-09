@@ -108,7 +108,7 @@ button.akte-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--
   .akte-dokumente.feste-breite { grid-template-columns: 210px minmax(340px, 1fr) auto var(--dok-breite); }
   .akte-dokumente.filter-zu.feste-breite { grid-template-columns: 40px minmax(340px, 1fr) auto var(--dok-breite); }
 }
-.akte-filter { border-right: 1px solid var(--linie); display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; }
+.akte-filter { border-right: 1px solid var(--linie); display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; min-width: 0; }
 .filter-zu .akte-filter { padding: 8px 4px; align-items: center; }
 .akte-filter h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-leise); margin: 12px 0 4px; }
 button.leisten-knopf { align-self: flex-end; background: none; border: none; color: var(--text-leise); padding: 4px; position: relative; }
@@ -116,6 +116,8 @@ button.leisten-knopf:hover { color: var(--text); }
 .filter-punkt { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--akzent); }
 button.filter-eintrag { display: flex; justify-content: space-between; gap: 8px; text-align: left; background: none; border: none; color: var(--text);
   padding: 4px 8px; border-radius: 5px; font-size: 13px; }
+button.filter-eintrag > span:first-child { min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
+button.filter-eintrag .anzahl { flex: none; }
 button.filter-eintrag:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
 button.filter-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 16%, transparent); font-weight: 600; }
 .filter-beteiligte { list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
