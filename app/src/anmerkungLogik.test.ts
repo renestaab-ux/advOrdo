@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  woerterText,
+  wortSchritt,
   abschnittBeginne,
   auswahlRechtecke,
   anmerkungOrt,
@@ -137,5 +139,35 @@ describe("Wörter im Original wählen", () => {
     expect(r[0]).toMatchObject({ x: 0.17, y: 0.1 });
     expect(r[1].x).toBeCloseTo(0.1);
     expect(r[1].b).toBeCloseTo(0.18);
+  });
+});
+
+describe("Markieren im Original per Tastatur", () => {
+  // Zwei Zeilen: „Der Kläger ver-“ / „langt Zahlung von 500 €“.
+  const w: SeitenWort[] = [
+    ["Der", 0, 0.1, 0.1, 0.05, 0.02],
+    ["Kläger", 0, 0.16, 0.1, 0.1, 0.02],
+    ["ver-", 0, 0.27, 0.1, 0.05, 0.02],
+    ["langt", 1, 0.1, 0.13, 0.07, 0.02],
+    ["Zahlung", 1, 0.18, 0.13, 0.1, 0.02],
+    ["von", 1, 0.29, 0.13, 0.04, 0.02],
+    ["500", 1, 0.34, 0.13, 0.04, 0.02],
+  ];
+  it("springt wortweise, zeilenweise und an Zeilen- und Seitenränder", () => {
+    expect(wortSchritt(w, 0, "ArrowRight", false)).toBe(1);
+    expect(wortSchritt(w, 0, "ArrowLeft", false)).toBe(0);
+    expect(wortSchritt(w, 6, "ArrowRight", false)).toBe(6);
+    expect(wortSchritt(w, 1, "ArrowDown", false)).toBe(4); // unter „Kläger“ steht „Zahlung“
+    expect(wortSchritt(w, 5, "ArrowUp", false)).toBe(2);
+    expect(wortSchritt(w, 5, "ArrowDown", false)).toBe(5);
+    expect(wortSchritt(w, 5, "Home", false)).toBe(3);
+    expect(wortSchritt(w, 3, "End", false)).toBe(6);
+    expect(wortSchritt(w, 4, "End", true)).toBe(6);
+    expect(wortSchritt(w, 4, "Home", true)).toBe(0);
+    expect(wortSchritt(w, 4, "a", false)).toBeNull();
+  });
+  it("liest die Auswahl mit zusammengezogener Trennung vor", () => {
+    expect(woerterText(w, 1, 4)).toBe("Kläger verlangt Zahlung");
+    expect(woerterText(w, 0, 0)).toBe("Der");
   });
 });

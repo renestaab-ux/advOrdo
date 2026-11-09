@@ -301,3 +301,7 @@ button.lz-titel:disabled { color: var(--text-leise); }
 .hintergrund-drehen { width: 14px; height: 14px; flex: none; border: 2px solid var(--linie); border-top-color: var(--akzent); border-radius: 50%; animation: hintergrund-drehen 0.9s linear infinite; }
 @keyframes hintergrund-drehen { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .hintergrund-drehen { animation: none; } }
+
+/* Marke beim Markieren im Original per Tastatur: Rahmen um das Wort, an dem Umschalt + Pfeil zu markieren beginnt. */
+.anm-wortmarke { position: absolute; outline: 2px solid var(--fokus, #b34700); outline-offset: 1px; border-radius: 2px; pointer-events: none; }
+.original-bild.anm-waehlbar:focus-visible { outline: 2px solid var(--fokus, #b34700); outline-offset: 3px; }

@@ -469,7 +469,8 @@ export interface OriginalAnmerkungen {
   ereignisse: AnmerkungsEreignisse;
   /** Die Auswahl, über der gerade das Menü steht; die Ansicht hebt sie hervor. */
   auswahl: SeitenAuswahl | null;
-  onAuswahl: (seite: SeitenAuswahl | null, rect?: DOMRect) => void;
+  /** ``tastatur``: per Tastatur gewählt; das Menü nimmt den Fokus, danach kehrt er auf diese Seite zurück. */
+  onAuswahl: (seite: SeitenAuswahl | null, rect?: DOMRect, tastatur?: HTMLElement) => void;
 }
 
 export interface AnmerkungsEreignisse {
@@ -580,7 +581,8 @@ export function useAnmerkungen(
       if (fokus && fokus !== document.body && document.contains(fokus) && !fokus.closest(".anm-menue")) return;
       root.focus({ preventScroll: true });
       if (zurueckAn.current != null) markeAn(root, zurueckAn.current);
-      strichZeigen();
+      // Im Original gibt es keine Einfügemarke des Browsers; die Seite zeigt ihre eigene.
+      if (auswahlIn(root)) strichZeigen();
       perTastatur.current = false;
     });
   }
@@ -630,11 +632,17 @@ export function useAnmerkungen(
   }
 
   /** Wörter auf einer Seite des Originals gewählt: dasselbe Menü wie in der Textansicht. */
-  function beiSeitenAuswahl(seite: SeitenAuswahl | null, rect?: DOMRect) {
+  function beiSeitenAuswahl(seite: SeitenAuswahl | null, rect?: DOMRect, tastatur?: HTMLElement) {
     setVorschau(null);
     setEditor(null);
     setFehler(null);
     setMenue(seite && rect ? { seite, lage: lageVon(rect) } : null);
+    if (tastatur && seite && rect) {
+      rahmen.current = tastatur;
+      perTastatur.current = true;
+      zurueckAn.current = null;
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(".anm-menue button")?.focus());
+    }
   }
 
   /** Menü über der Auswahl per Tastatur betreten (Tab, Umschalt + F10 oder Kontextmenü-Taste). */
