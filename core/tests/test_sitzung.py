@@ -196,3 +196,16 @@ def test_wahrnehmung_durch_sachbearbeiter_oder_gewaehlte_person(con):
     sitzung.beenden(con, s["id"], protokoll_uebernehmen=False, jetzt=BEGINN)
     with pytest.raises(LookupError, match="Eigene Daten"):
         sitzung.beginnen(con, a, person_id=9999)
+
+
+def test_laufende_termine_ueber_alle_akten(con):
+    a, _ = _akte_mit_dokument(con)
+    b = akte.akte_anlegen(con, "Weber ./. Stadtwerke")["id"]
+    assert sitzung.laufende(con) == []
+    s1 = sitzung.beginnen(con, a, titel="LG Freiburg", jetzt=BEGINN)
+    sitzung.beginnen(con, b, titel="AG Lörrach", jetzt=datetime(2026, 11, 24, 11, 0))
+    laufend = sitzung.laufende(con, jetzt=datetime(2026, 11, 24, 11, 2))
+    assert [(t["akte"], t["titel"], t["sekunden"]) for t in laufend] == [
+        ("Brückner ./. Autohaus Rehnfeld GmbH", "LG Freiburg", 1800), ("Weber ./. Stadtwerke", "AG Lörrach", 120)]
+    sitzung.beenden(con, s1["id"], protokoll_uebernehmen=False, jetzt=datetime(2026, 11, 24, 11, 2))
+    assert [t["akte_id"] for t in sitzung.laufende(con)] == [b]

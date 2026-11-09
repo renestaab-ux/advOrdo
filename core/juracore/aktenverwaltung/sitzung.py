@@ -233,6 +233,20 @@ def aktiv(con: sqlite3.Connection, akte_id: int) -> dict | None:
     return _sitzung(con, z["id"]) if z else None
 
 
+def laufende(con: sqlite3.Connection, jetzt: datetime | None = None) -> list[dict]:
+    """Alle laufenden Termine über alle Akten (für den Hinweis im Hauptfenster und beim Beenden), ältester zuerst,
+    ohne Notizen; ``sekunden`` seit Beginn."""
+    bis = jetzt or _jetzt()
+    aus = []
+    for z in con.execute(
+            """SELECT s.id, s.akte_id, s.titel, s.beginn, s.wahrgenommen_von, a.name AS akte, a.aktenzeichen
+               FROM sitzung s JOIN akte a ON a.id = s.akte_id WHERE s.ende IS NULL ORDER BY s.beginn, s.id"""):
+        d = dict(z)
+        d["sekunden"] = max(0, int((bis - datetime.fromisoformat(z["beginn"])).total_seconds()))
+        aus.append(d)
+    return aus
+
+
 def sitzungen(con: sqlite3.Connection, akte_id: int) -> list[dict]:
     """Alle Sitzungen der Akte, neueste zuerst, mit ihren Notizen."""
     return [_sitzung(con, z["id"]) for z in con.execute(
