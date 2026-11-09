@@ -34,7 +34,10 @@ pub fn run() {
             _ => {}
         })
         .on_menu_event(|app, ereignis| {
-            if ereignis.id().as_ref() == beenden::MENUE_ID && !beenden::anfragen(app) {
+            let id = ereignis.id().as_ref();
+            if id == menue::UEBER_ID {
+                menue::ueber_zeigen(app);
+            } else if id == beenden::MENUE_ID && !beenden::anfragen(app) {
                 app.exit(0);
             }
         })

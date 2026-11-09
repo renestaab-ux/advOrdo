@@ -679,6 +679,10 @@ Bestandteile Dritter behalten ihre eigenen Lizenzen, etwa die Schrift Liberation
 License 1.1, `core/juracore/ausgabe/schriften/OFL.txt`) und die eingebundenen Bibliotheken (MIT, BSD,
 Apache-2.0, MPL-2.0).
 
+In der App fasst **Einstellungen → Über advOrdo** Version, Name, Grundsätze, Lizenz, die genutzten Rechtsquellen
+und die Bestandteile Dritter zusammen (`app/src/Ueber.tsx`); unter macOS öffnet „advOrdo → Über advOrdo“ diese Seite.
+Neue Abhängigkeiten oder Quellen dort mit eintragen.
+
 
 ## Kontakt
 

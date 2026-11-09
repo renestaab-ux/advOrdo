@@ -4,10 +4,23 @@
 // Windows und Linux zeigen kein Menü; die Funktion wird nur unter macOS eingebunden.
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
-use tauri::menu::{
-    AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID,
-};
-use tauri::{AppHandle, Runtime};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
+
+/// Menüeintrag „Über advOrdo“: öffnet die Infoseite in den Einstellungen statt des knappen Standardfensters.
+pub const UEBER_ID: &str = "ueber";
+/// Ereignis an die Oberfläche des Hauptfensters.
+pub const UEBER_EREIGNIS: &str = "ueber-oeffnen";
+
+/// Holt das Hauptfenster nach vorn und lässt die Oberfläche „Über advOrdo“ zeigen.
+pub fn ueber_zeigen<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(fenster) = app.get_webview_window(crate::beenden::HAUPTFENSTER) {
+        let _ = fenster.unminimize();
+        let _ = fenster.show();
+        let _ = fenster.set_focus();
+    }
+    let _ = app.emit_to(crate::beenden::HAUPTFENSTER, UEBER_EREIGNIS, ());
+}
 
 /// Einträge im App-Menü, die den Namen der App tragen.
 pub fn app_eintraege(name: &str) -> [String; 3] {
@@ -18,18 +31,13 @@ pub fn hauptmenue<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let info = app.package_info();
     let name = info.name.clone();
     let [ueber, ausblenden, beenden] = app_eintraege(&name);
-    let metadaten = AboutMetadata {
-        name: Some(name.clone()),
-        version: Some(info.version.to_string()),
-        ..Default::default()
-    };
 
     let app_menue = Submenu::with_items(
         app,
         &name,
         true,
         &[
-            &PredefinedMenuItem::about(app, Some(&ueber), Some(metadaten))?,
+            &MenuItem::with_id(app, UEBER_ID, &ueber, true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::services(app, Some("Dienste"))?,
             &PredefinedMenuItem::separator(app)?,
