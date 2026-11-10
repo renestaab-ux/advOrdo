@@ -1,12 +1,15 @@
 name: CI
 
-# Läuft auf den Runnern von GitHub (Linux, Windows, macOS), zusätzlich zu den eigenen Rechnern
-# (eigener-runner.yml). Von Hand startbar über Actions → CI → Run workflow.
+# Läuft auf den Runnern von GitHub (Linux, Windows, macOS). Von Hand startbar über Actions → CI → Run workflow.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+
+# Die Prüfungen lesen nur den Quelltext; mehr Rechte bekommt das Zugriffstoken nicht.
+permissions:
+  contents: read
 
 jobs:
   test:
