@@ -12,7 +12,7 @@ Rechtsquelle mit Fassungsstand.
 gestartet (siehe [Entwicklung](#entwicklung)). advOrdo unterstützt die eigene Prüfung und ersetzt sie nicht:
 Jeder Hinweis der App ist an der angegebenen Fundstelle nachzuprüfen.
 
-**Der Name:** „adv“ steht für *advocatus*, lateinisch für den Anwalt, „Ordo“ für lateinisch *ordo*, die Ordnung.
+**Der Name:** „advO“ steht für *advocatus*, lateinisch für den Anwalt, „Ordo“ für lateinisch *ordo*, die Ordnung.
 Das große O ist doppelt besetzt: Es schließt „Advo“ ab, wie man den Anwalt auch kurz nennt, und beginnt „Ordo“.
 advOrdo bringt also Ordnung in die Anwaltsarbeit: Akten, Fristen, Belege und Rechtsquellen an einem Ort.
 

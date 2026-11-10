@@ -125,7 +125,7 @@ export default function Ueber() {
           Termine und Zeiten. Grundlage ist eine versionierte Wissensbasis aus Gesetzen und Rechtsprechung.
         </p>
         <p>
-          <strong>Der Name:</strong> „adv“ steht für <i lang="la">advocatus</i>, lateinisch für den Anwalt, „Ordo“ für
+          <strong>Der Name:</strong> „advO“ steht für <i lang="la">advocatus</i>, lateinisch für den Anwalt, „Ordo“ für
           lateinisch <i lang="la">ordo</i>, die Ordnung. Das große O ist doppelt besetzt: Es schließt „Advo“ ab und
           beginnt „Ordo“. advOrdo bringt also Ordnung in die Anwaltsarbeit: Akten, Fristen, Belege und Rechtsquellen an
           einem Ort.
