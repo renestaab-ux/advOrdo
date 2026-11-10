@@ -693,7 +693,7 @@ function AkteRahmen({
             onClick={() => onReiter("fristen")}
             title="Zu den Fristen"
           >
-            <p className="kopfband-ueber">Nächste {akte.naechste.art_text}</p>
+            <p className="kopfband-ueber">{akte.naechste.art === "termin" ? "Nächster" : "Nächste"} {akte.naechste.art_text}</p>
             <strong title={`${akte.naechste.titel}: ${abstandText({ ...akte.naechste, erledigt_am: null })}`}>
               <FristZeichen lage={akte.naechste.lage} />
               {datumLang(akte.naechste.datum)}
