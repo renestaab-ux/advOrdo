@@ -6,11 +6,18 @@ Wissensbasis aus Gesetzen (später auch Rechtsprechung). Leitprinzip: **Beleg vo
 Behauptung**. Jede Aussage verweist auf eine Fundstelle im Dokument oder in einer
 Rechtsquelle mit Fassungsstand.
 
+![Geöffnete Akte mit Dokumentliste und Dokumentansicht (erfundene Testakte)](docs/bilder/akte-dokumentansicht.png)
+
+**Stand:** Version 0.1.0, in Entwicklung. Fertige Installer gibt es noch nicht; die App wird aus dem Quelltext
+gestartet (siehe [Entwicklung](#entwicklung)). advOrdo unterstützt die eigene Prüfung und ersetzt sie nicht:
+Jeder Hinweis der App ist an der angegebenen Fundstelle nachzuprüfen.
+
 **Der Name:** „adv“ steht für *advocatus*, lateinisch für den Anwalt, „Ordo“ für lateinisch *ordo*, die Ordnung.
 Das große O ist doppelt besetzt: Es schließt „Advo“ ab, wie man den Anwalt auch kurz nennt, und beginnt „Ordo“.
 advOrdo bringt also Ordnung in die Anwaltsarbeit: Akten, Fristen, Belege und Rechtsquellen an einem Ort.
 
-Das Produktkonzept liegt im Projektordner (`Konzept.md`), die technische Umsetzung in `docs/architektur.md`.
+Die technische Umsetzung beschreibt [`docs/architektur.md`](docs/architektur.md), den Stand der Barrierefreiheit
+[`docs/barrierefreiheit.md`](docs/barrierefreiheit.md).
 
 Die App hieß früher „Juristischer Datenabgleich“, danach „JuraBox“. Interne Bezeichner tragen die alten
 Namen bewusst weiter (Tauri-Kennung `de.juristischer-datenabgleich.app`, Paketnamen,
@@ -75,6 +82,21 @@ cd app && npm install && npm run tauri dev
 
 Node 22 kommt am einfachsten über NodeSource, Rust über rustup. Die Daten liegen
 unter `~/.local/share/de.juristischer-datenabgleich.app`.
+
+### macOS
+
+```bash
+xcode-select --install
+brew install git gh python@3.12 node rustup
+rustup-init -y
+python3.12 -m venv .venv
+.venv/bin/pip install -e "core[dev]"
+.venv/bin/pytest core
+cd app && npm install && npm run tauri dev
+```
+
+Homebrew gibt es unter <https://brew.sh>. Die Daten liegen unter
+`~/Library/Application Support/de.juristischer-datenabgleich.app`.
 
 ### Python-Interpreter
 
@@ -151,7 +173,7 @@ Die App öffnet mit einem Startbildschirm: **Akte anlegen** (öffnet in den Akte
 Die Navigation links zeigt Symbole und Namen; **Einklappen** (unten) lässt nur die Symbole stehen, mit dem Namen als
 Tooltip. Die App merkt sich die Wahl auf diesem Gerät. Vergleich und Analyse sind Reiter in der geöffneten Akte.
 
-Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern aus JuraBox Lite. Gerechnet wird im Kern, ohne Netz:
+Die **Toolbox** öffnet ein eigenes Fenster mit den Rechnern. Gerechnet wird im Kern, ohne Netz:
 
 - **Verzugszinsen** (§§ 288, 247 BGB): Hauptforderung, erster Zinstag und Ende; Verbraucher (+ 5 Punkte),
   Entgeltforderung (+ 9, bei Verzugsbeginn vor dem 29.07.2014 + 8), Dauerschuldverhältnis, eigene Punkte oder fester
@@ -598,7 +620,7 @@ zugeordnete Entscheidungen, die in ihren Dokumenten nicht zitiert sind, im Reite
 weiteren Bearbeitung zugeordnet** (mit Volltext und „Zuordnung lösen“); Chat und Gegenüberstellung beziehen sie mit
 ein.
 
-**Online suchen** (im Bereich „Rechtsprechung“, wie in JuraBox Lite): je Quelle eine eigene Maske.
+**Online suchen** (im Bereich „Rechtsprechung“): je Quelle eine eigene Maske.
 rechtsprechung-im-internet.de: Gericht, Aktenzeichen und Zeitraum sucht die App im geladenen Verzeichnis, ohne Netz;
 mit Volltext, Norm (z. B. „§ 476 BGB“) oder ECLI fragt sie die Suche der Seite ab (25 Treffer je Seite, „Weitere
 Treffer laden“, höchstens 200). Gerichtsentscheidungen Bayern: Gerichtsbarkeit, Aktenzeichen, Volltext, Zeitraum
@@ -678,6 +700,10 @@ Fassung steht im Amtsblatt der EU, Durchführungsbeschluss (EU) 2017/863 der Kom
 Bestandteile Dritter behalten ihre eigenen Lizenzen, etwa die Schrift Liberation Sans (SIL Open Font
 License 1.1, `core/juracore/ausgabe/schriften/OFL.txt`) und die eingebundenen Bibliotheken (MIT, BSD,
 Apache-2.0, MPL-2.0).
+
+Der Name „advOrdo“ und das Logo (`docs/marke/`) sind von der Lizenz nicht erfasst (Nr. 5 EUPL, Absatz „Rechtsschutz“):
+Wer eine veränderte Fassung weitergibt, gibt ihr bitte einen eigenen Namen und ein eigenes Zeichen. Die Herkunft
+darf und soll genannt werden.
 
 In der App fasst **Einstellungen → Über advOrdo** Version, Name, Grundsätze, Lizenz, die genutzten Rechtsquellen
 und die Bestandteile Dritter zusammen (`app/src/Ueber.tsx`); unter macOS öffnet „advOrdo → Über advOrdo“ diese Seite.

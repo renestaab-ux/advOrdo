@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Die Prüfungen lesen nur den Quelltext; mehr Rechte bekommt das Zugriffstoken nicht.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Tests (${{ matrix.os }})
