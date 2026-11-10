@@ -25,3 +25,12 @@ daten/
 ki-pruefen-daten/
 ki-pruefen-protokoll.json
 .venv-ci/
+
+# macOS legt in jedem Ordner, den der Finder öffnet, eine .DS_Store an
+.DS_Store
+
+# Eigene Dateien zum Ausprobieren: bleiben auf dem Rechner und kommen nicht ins Repository.
+# Die erfundenen Testdaten des Projekts liegen in testdaten/testakte-weber und testdaten/eigene-daten.
+testdaten/*
+!testdaten/testakte-weber/
+!testdaten/eigene-daten/
