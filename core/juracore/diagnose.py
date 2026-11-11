@@ -175,8 +175,9 @@ def _ki_lokal(k: Any) -> dict:
     if e.abgeschaltet:
         return _ergebnis("aus", "Die KI ist ausgeschaltet; die App fragt kein Sprachmodell.")
     s = ki_anbieter.status(e)
-    netz = ki_anbieter.endpunkt_ort(e.endpunkt) == ki_anbieter.NETZWERK
-    details = [f"{s['anbieter_titel']} unter {s['endpunkt']}"
+    netz = ki_anbieter.lokal_ort(e) == ki_anbieter.NETZWERK
+    ort = s["anbieter_titel"] if e.anbieter == ki_anbieter.APPLE else f"{s['anbieter_titel']} unter {s['endpunkt']}"
+    details = [ort
                + (" (anderer Rechner im eigenen Netzwerk)" if netz else " (dieser Rechner)"),
                f"Gewähltes Modell: {s['modell'] or '–'}"]
     if s["modelle"]:

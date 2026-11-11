@@ -33,7 +33,7 @@ from typing import Protocol
 
 from ..abgleich.abgleich import PARTEIEN
 from . import belege, chronologie, speicher
-from .anbieter import ANTWORT_TOKEN, Anbieter, KiFehler
+from .anbieter import Anbieter, KiFehler, antwort_token
 
 log = logging.getLogger("juracore.ki")
 
@@ -201,7 +201,7 @@ class Analyse:
     @property
     def budget(self) -> int:
         """Zeichen Dokumenttext je Anfrage: Kontext abzüglich Anweisung und Antwort, rund 3 Zeichen je Token."""
-        return max(3000, (self.kontext - ANTWORT_TOKEN - 800) * 3)
+        return max(3000, (self.kontext - antwort_token(self.anbieter) - 800) * 3)
 
     @property
     def modell(self) -> str:

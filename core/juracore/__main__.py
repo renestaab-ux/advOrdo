@@ -60,7 +60,8 @@ def main(argv: list[str] | None = None) -> int:
     kp.add_argument("--vergleich", action="store_true",
                     help="auch den Vergleich mit KI (Zahlen und Daten mit Bezug) wie im Bereich „Vergleich“")
     for k in (ks, kp):
-        k.add_argument("--anbieter", choices=["ollama", "lmstudio"], help="Programm statt des gespeicherten")
+        k.add_argument("--anbieter", choices=["ollama", "lmstudio", "apple"],
+                       help="Programm statt des gespeicherten (apple: Apple Intelligence auf dem Mac)")
         k.add_argument("--endpunkt", help="Adresse, Voreinstellung je Programm (Ollama :11434, LM Studio :1234)")
         k.add_argument("--modell", help="Modell statt des gespeicherten, z. B. qwen3:14b")
         k.add_argument("--kontext", type=int, help="Kontext in Token (Voreinstellung 16384)")
@@ -141,8 +142,12 @@ def _ki_einstellungen(a: argparse.Namespace, db_pfad: Path) -> ki_anbieter.KiEin
     if e.abgeschaltet:
         raise SystemExit(ki_anbieter.AUSGESCHALTET)
     if a.anbieter:
-        e.anbieter = ki_anbieter.OPENAI if a.anbieter == "lmstudio" else ki_anbieter.OLLAMA
+        e.anbieter = {"lmstudio": ki_anbieter.OPENAI, "apple": ki_anbieter.APPLE}.get(a.anbieter, ki_anbieter.OLLAMA)
         e.endpunkt = ki_anbieter.ANBIETER[e.anbieter]["endpunkt"]
+        if e.anbieter == ki_anbieter.APPLE and not a.kontext:
+            from .ki.apple import KONTEXT
+
+            e.kontext = KONTEXT
         if not a.modell:
             e.modell = ""
     if a.endpunkt:

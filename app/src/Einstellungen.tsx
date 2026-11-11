@@ -37,6 +37,9 @@ import {
 } from "./kern";
 
 const KONTEXTE = [8192, 16384, 32768];
+// Apple Intelligence: Das Modell auf dem Mac sieht unter macOS 26 nur 4.096 Token, neuere Fassungen mehr.
+const KONTEXTE_APPLE = [4096, 8192];
+const APPLE = "apple";
 const KONTEXTE_EXTERN = [32768, 131072];
 
 export type EinstellungsReiter =
@@ -266,6 +269,8 @@ export default function Einstellungen({
             Modus <strong>lokal</strong>: Das Sprachmodell (Ollama oder LM Studio) läuft auf diesem Gerät oder auf einem
             anderen Rechner im eigenen Netzwerk. Die App spricht nur mit solchen Adressen; Dokumentinhalte verlassen das
             eigene Netz nicht. Voreingestellt ist dieses Gerät (127.0.0.1).
+            {lokal?.anbieter_liste.some((a) => a.id === APPLE) &&
+              " Auf dem Mac steht außerdem Apple Intelligence zur Wahl, nur mit dem Modell auf dem Gerät („On-Device“), nie über Private Cloud Compute."}
           </p>
 
           <form className="ki-formular" onSubmit={speichern}>
@@ -274,9 +279,17 @@ export default function Einstellungen({
               <select
                 value={anbieter}
                 onChange={(e) => {
-                  setAnbieter(e.target.value);
-                  const vorgabe = lokal?.anbieter_liste.find((a) => a.id === e.target.value);
+                  const neu = e.target.value;
+                  setAnbieter(neu);
+                  const vorgabe = lokal?.anbieter_liste.find((a) => a.id === neu);
                   if (vorgabe) setEndpunkt(vorgabe.endpunkt);
+                  if (neu === APPLE) {
+                    setModell("");
+                    setKontext(KONTEXTE_APPLE[0]);
+                  } else if (anbieter === APPLE) {
+                    setModell("");
+                    setKontext(16384);
+                  }
                 }}
               >
                 {(lokal?.anbieter_liste ?? [{ id: "ollama", titel: "Ollama", endpunkt: "" }]).map((a) => (
@@ -286,45 +299,57 @@ export default function Einstellungen({
                 ))}
               </select>
             </label>
-            <label>
-              Adresse
-              <input value={endpunkt} onChange={(e) => setEndpunkt(e.target.value)} spellCheck={false} />
-              <span className="leise feld-hinweis">
-                Anderer Rechner im Netzwerk: dessen IP-Adresse oder Namen eintragen, z. B. http://192.168.178.20:1234
-                oder http://pc-buero.local:11434.
-              </span>
-              {unverschluesseltImNetz(endpunkt) && (
-                <span className="feld-hinweis warnhinweis" role="note">
-                  Die Verbindung zu diesem Rechner ist unverschlüsselt (http). Dokumentinhalte gehen dann lesbar durch
-                  dein Netzwerk. Nur im eigenen, geschützten Kanzlei- oder Heimnetz nutzen, nicht im Gäste-WLAN oder
-                  in fremden Netzen.
-                </span>
-              )}
-            </label>
-            <label>
-              Modell
-              {installiert.length > 0 ? (
-                <select value={modell} onChange={(e) => setModell(e.target.value)}>
-                  {!installiert.some((m) => m.name === modell) && <option value={modell}>{modell || "(bitte wählen)"}</option>}
-                  {installiert.map((m) => (
-                    <option key={m.name} value={m.name}>
-                      {m.name}
-                      {m.parameter ? ` · ${m.parameter}` : ""}
-                      {m.quantisierung ? ` · ${m.quantisierung}` : ""}
-                      {m.groesse ? ` · ${groesseText(m.groesse)}` : ""}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input value={modell} onChange={(e) => setModell(e.target.value)} placeholder={lokal?.empfohlen} spellCheck={false} />
-              )}
-            </label>
+            {anbieter === APPLE ? (
+              <p className="erklaerung">
+                Apple Intelligence läuft im Betriebssystem dieses Macs; eine Adresse gibt es nicht. advOrdo nutzt
+                ausschließlich das Modell auf dem Gerät. Private Cloud Compute wird nicht verwendet, Dokumentinhalte
+                verlassen den Mac nicht. Das Modell ist klein: Es eignet sich für Vorschläge in „Details“, kurze
+                Zusammenfassungen und Fragen zu einem Dokument, weniger für Widersprüche in einer großen Akte.
+              </p>
+            ) : (
+              <>
+                <label>
+                  Adresse
+                  <input value={endpunkt} onChange={(e) => setEndpunkt(e.target.value)} spellCheck={false} />
+                  <span className="leise feld-hinweis">
+                    Anderer Rechner im Netzwerk: dessen IP-Adresse oder Namen eintragen, z. B. http://192.168.178.20:1234
+                    oder http://pc-buero.local:11434.
+                  </span>
+                  {unverschluesseltImNetz(endpunkt) && (
+                    <span className="feld-hinweis warnhinweis" role="note">
+                      Die Verbindung zu diesem Rechner ist unverschlüsselt (http). Dokumentinhalte gehen dann lesbar durch
+                      dein Netzwerk. Nur im eigenen, geschützten Kanzlei- oder Heimnetz nutzen, nicht im Gäste-WLAN oder
+                      in fremden Netzen.
+                    </span>
+                  )}
+                </label>
+                <label>
+                  Modell
+                  {installiert.length > 0 ? (
+                    <select value={modell} onChange={(e) => setModell(e.target.value)}>
+                      {!installiert.some((m) => m.name === modell) && <option value={modell}>{modell || "(bitte wählen)"}</option>}
+                      {installiert.map((m) => (
+                        <option key={m.name} value={m.name}>
+                          {m.name}
+                          {m.parameter ? ` · ${m.parameter}` : ""}
+                          {m.quantisierung ? ` · ${m.quantisierung}` : ""}
+                          {m.groesse ? ` · ${groesseText(m.groesse)}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value={modell} onChange={(e) => setModell(e.target.value)} placeholder={lokal?.empfohlen} spellCheck={false} />
+                  )}
+                </label>
+              </>
+            )}
             <label>
               Kontext
               <select value={kontext} onChange={(e) => setKontext(Number(e.target.value))}>
-                {KONTEXTE.map((k) => (
+                {(anbieter === APPLE ? KONTEXTE_APPLE : KONTEXTE).map((k) => (
                   <option key={k} value={k}>
-                    {k.toLocaleString("de-DE")} Token{k === 16384 ? " (empfohlen)" : ""}
+                    {k.toLocaleString("de-DE")} Token
+                    {k === (anbieter === APPLE ? KONTEXTE_APPLE[0] : 16384) ? " (empfohlen)" : ""}
                   </option>
                 ))}
               </select>
@@ -344,37 +369,60 @@ export default function Einstellungen({
           {lokal && !laeuft && (
             <p className={lokal.bereit ? "ki-zeile bereit" : "ki-zeile"}>
               {lokal.bereit
-                ? `Bereit: ${lokal.modell} über ${lokal.anbieter_titel}.`
+                ? lokal.anbieter === APPLE
+                  ? "Bereit: Apple Intelligence auf diesem Mac (On-Device)."
+                  : `Bereit: ${lokal.modell} über ${lokal.anbieter_titel}.`
                 : lokal.erreichbar
                   ? lokal.hinweis
                   : `${lokal.anbieter_titel} ist nicht erreichbar. ${lokal.hinweis ?? ""}`}
             </p>
           )}
 
-          <details className="ki-anleitung" open={lokal != null && !lokal.erreichbar && !status?.extern}>
-            <summary>So richtest du Ollama unter Windows ein</summary>
-            <ol>
-              <li>
-                In einer PowerShell: <code>winget install Ollama.Ollama</code> (oder den Installer von ollama.com). Ollama
-                startet danach im Hintergrund, das Symbol erscheint unten rechts in der Taskleiste.
-              </li>
-              <li>
-                Modell laden (einmalig, rund 9 GB): <code>ollama pull {lokal?.empfohlen ?? "qwen3:14b"}</code>. Es passt
-                mit 16.384 Token Kontext in 16 GB Grafikspeicher.
-              </li>
-              <li>Hier „Erneut prüfen“, das Modell wählen und speichern.</li>
-            </ol>
-            <p className="leise">
-              Ollama lauscht nur auf diesem Gerät (127.0.0.1:11434), solange man das nicht ausdrücklich ändert. Linux:{" "}
-              <code>curl -fsSL https://ollama.com/install.sh | sh</code>, macOS: <code>brew install ollama</code>.
-            </p>
-            <p className="leise">
-              Modell auf einem anderen Rechner im Netzwerk: Dort muss das Programm Verbindungen aus dem Netzwerk annehmen
-              (LM Studio: Developer → Settings → „Serve on Local Network“; Ollama: Umgebungsvariable{" "}
-              <code>OLLAMA_HOST=0.0.0.0</code>), und die Firewall dieses Rechners muss den Port (1234 bzw. 11434) für das
-              private Netzwerk freigeben. Die Verbindung im Heimnetz ist unverschlüsselt; sie bleibt aber im eigenen Netz.
-            </p>
-          </details>
+          {anbieter === APPLE ? (
+            <details className="ki-anleitung" open={lokal != null && !lokal.bereit && !status?.extern}>
+              <summary>So richtest du Apple Intelligence ein</summary>
+              <ol>
+                <li>
+                  Voraussetzung: ein Mac mit Apple Silicon und macOS 26 oder neuer. Apple Intelligence einschalten unter
+                  Systemeinstellungen → „Apple Intelligence &amp; Siri“; das Modell wird dann einmalig geladen.
+                </li>
+                <li>
+                  Einmalig die Xcode-Befehlszeilenwerkzeuge installieren (<code>xcode-select --install</code>, entfällt
+                  mit Xcode) und im Projektordner das Hilfsprogramm übersetzen: <code>macos/apple-ki/bauen.sh</code>.
+                </li>
+                <li>Hier „Erneut prüfen“ und speichern.</li>
+              </ol>
+              <p className="leise">
+                Das Hilfsprogramm spricht nur mit dem Modell auf dem Mac. Es öffnet keinen Port und baut keine
+                Netzwerkverbindung auf.
+              </p>
+            </details>
+          ) : (
+            <details className="ki-anleitung" open={lokal != null && !lokal.erreichbar && !status?.extern}>
+              <summary>So richtest du Ollama unter Windows ein</summary>
+              <ol>
+                <li>
+                  In einer PowerShell: <code>winget install Ollama.Ollama</code> (oder den Installer von ollama.com). Ollama
+                  startet danach im Hintergrund, das Symbol erscheint unten rechts in der Taskleiste.
+                </li>
+                <li>
+                  Modell laden (einmalig, rund 9 GB): <code>ollama pull {lokal?.empfohlen ?? "qwen3:14b"}</code>. Es passt
+                  mit 16.384 Token Kontext in 16 GB Grafikspeicher.
+                </li>
+                <li>Hier „Erneut prüfen“, das Modell wählen und speichern.</li>
+              </ol>
+              <p className="leise">
+                Ollama lauscht nur auf diesem Gerät (127.0.0.1:11434), solange man das nicht ausdrücklich ändert. Linux:{" "}
+                <code>curl -fsSL https://ollama.com/install.sh | sh</code>, macOS: <code>brew install ollama</code>.
+              </p>
+              <p className="leise">
+                Modell auf einem anderen Rechner im Netzwerk: Dort muss das Programm Verbindungen aus dem Netzwerk annehmen
+                (LM Studio: Developer → Settings → „Serve on Local Network“; Ollama: Umgebungsvariable{" "}
+                <code>OLLAMA_HOST=0.0.0.0</code>), und die Firewall dieses Rechners muss den Port (1234 bzw. 11434) für das
+                private Netzwerk freigeben. Die Verbindung im Heimnetz ist unverschlüsselt; sie bleibt aber im eigenen Netz.
+              </p>
+            </details>
+          )}
         </section>
       </>
     );

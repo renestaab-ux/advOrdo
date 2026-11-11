@@ -47,10 +47,13 @@ log = logging.getLogger("juracore.ki")
 
 OLLAMA = "ollama"
 OPENAI = "openai"  # OpenAI-kompatible lokale Schnittstelle, z. B. LM Studio
+APPLE = "apple"  # Apple Intelligence auf diesem Mac, nur „On-Device“ (ki/apple.py)
 
 ANBIETER = {
     OLLAMA: {"titel": "Ollama", "endpunkt": "http://127.0.0.1:11434"},
     OPENAI: {"titel": "LM Studio (OpenAI-kompatibel)", "endpunkt": "http://127.0.0.1:1234"},
+    # Ohne Adresse: Das Modell läuft im Betriebssystem, der Kern spricht über ein Hilfsprogramm mit ihm.
+    APPLE: {"titel": "Apple Intelligence (auf dem Mac)", "endpunkt": ""},
 }
 
 LOKAL = "lokal"
@@ -96,7 +99,12 @@ class KiEinstellungen:
         self.abgeschaltet = bool(self.abgeschaltet)
         if self.anbieter not in ANBIETER:
             raise ValueError(f"Unbekannter Anbieter: {self.anbieter!r}")
-        self.endpunkt = pruefe_lokal(self.endpunkt)
+        if self.anbieter == APPLE:
+            from .apple import MODELL
+
+            self.endpunkt, self.modell = "", MODELL  # ein einziges Modell, keine Adresse
+        else:
+            self.endpunkt = pruefe_lokal(self.endpunkt)
         self.modell = self.modell.strip()
         self.kontext = _pruefe_kontext(self.kontext)
         if self.extern_anbieter not in EXTERNE:
@@ -177,6 +185,11 @@ def ort(host: str) -> str | None:
     if "." not in host or host.endswith(_HEIMNETZ_ENDUNGEN):
         return NETZWERK
     return None
+
+
+def lokal_ort(e: KiEinstellungen) -> str:
+    """Wo das lokale Modell läuft: Apple Intelligence immer auf diesem Gerät, sonst je nach Adresse."""
+    return GERAET if e.anbieter == APPLE else endpunkt_ort(e.endpunkt)
 
 
 def endpunkt_ort(endpunkt: str) -> str:
@@ -749,6 +762,11 @@ def erzeuge_aktiv(e: KiEinstellungen, schluessel: str | None = None) -> Anbieter
     return erzeuge_extern(e, schluessel) if e.extern else erzeuge(e)
 
 
+def antwort_token(modell: Anbieter) -> int:
+    """Höchstlänge einer Antwort dieses Modells in Token (für die Menge Text je Anfrage)."""
+    return int(getattr(modell, "antwort_token", ANTWORT_TOKEN))
+
+
 def denkt(modell: Anbieter) -> int:
     """Zeichen der Denkphase bei einer kleinen Probeanfrage; 0, wenn das Modell ohne Denkphase antwortet.
 
@@ -762,8 +780,18 @@ def denkt(modell: Anbieter) -> int:
 def erzeuge(e: KiEinstellungen) -> Anbieter:
     """Das lokale Modell (die Kommandozeile und ki-pruefen arbeiten immer lokal)."""
     e.pruefen()
+    if e.anbieter == APPLE:
+        from .apple import AppleIntelligence
+
+        return AppleIntelligence(e.kontext)
     klasse = Ollama if e.anbieter == OLLAMA else OpenAIKompatibel
     return klasse(e.endpunkt, e.modell, e.kontext)
+
+
+def _apple_moeglich() -> bool:
+    from .apple import moeglich
+
+    return moeglich()
 
 
 AUSGESCHALTET = "Die KI ist ausgeschaltet (Einstellungen → Lokales Sprachmodell)."
@@ -777,7 +805,8 @@ def status(e: KiEinstellungen) -> dict:
         "modell": e.modell,
         "kontext": e.kontext,
         "anbieter_titel": ANBIETER[e.anbieter]["titel"],
-        "anbieter_liste": [{"id": k, **v} for k, v in ANBIETER.items()],
+        "anbieter_liste": [{"id": k, **v} for k, v in ANBIETER.items() if k != APPLE or _apple_moeglich()
+                           or e.anbieter == APPLE],
         "empfohlen": EMPFOHLENES_MODELL,
         "erreichbar": False,
         "modelle": [],
@@ -786,6 +815,9 @@ def status(e: KiEinstellungen) -> dict:
     }
     if e.abgeschaltet:
         ergebnis["hinweis"] = AUSGESCHALTET
+        return ergebnis
+    if e.anbieter == APPLE and not _apple_moeglich():
+        ergebnis["hinweis"] = "Apple Intelligence gibt es nur unter macOS."
         return ergebnis
     try:
         ergebnis["modelle"] = erzeuge(e).modelle()

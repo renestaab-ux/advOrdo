@@ -40,6 +40,17 @@ jobs:
           ruff check .
           pytest -q
 
+      - name: Hilfsprogramm für Apple Intelligence übersetzen
+        if: runner.os == 'macOS'
+        run: |
+          # Foundation Models gibt es erst im SDK von macOS 26; mit einem älteren Xcode wird nur ein Hinweis ausgegeben.
+          sdk="$(xcrun --sdk macosx --show-sdk-version)"
+          if [ "${sdk%%.*}" -ge 26 ]; then
+            xcrun swiftc -typecheck macos/apple-ki/main.swift
+          else
+            echo "::notice::macOS-SDK $sdk ohne Foundation Models: Apple-Hilfsprogramm nicht geprüft"
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
