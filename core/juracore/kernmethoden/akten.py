@@ -6,7 +6,17 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ..abgleich import abgleich
-from ..aktenverwaltung import beteiligte, fristenbuch, kalender, kollision, notizen, sitzung, stammdaten, verfahren
+from ..aktenverwaltung import (
+    aktensuche,
+    beteiligte,
+    fristenbuch,
+    kalender,
+    kollision,
+    notizen,
+    sitzung,
+    stammdaten,
+    verfahren,
+)
 from ..dokumente import akte, ansicht, fassungen, metadaten, suche, urteile
 
 if TYPE_CHECKING:
@@ -66,6 +76,8 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "akten.notiz_anheften": lambda notiz_id, angeheftet=True: notizen.anheften(
                 k.akten, notiz_id, angeheftet),
         "akten.notiz_loeschen": lambda notiz_id: notizen.loeschen(k.akten, notiz_id),
+        # Suche in der Akte: Notizen, Fristen und Termine, Stammdaten, Beteiligte, Zeiten (Dokumente: akten.suche).
+        "akten.aktensuche": lambda akte_id, text, bereiche=None: aktensuche.suche(k.akten, akte_id, text, bereiche),
         # Terminmodus des Arbeitsfensters: Sitzungsblatt (Anträge, Streitpunkte) und Terminsnotizen.
         "sitzung.punkte": lambda akte_id: sitzung.punkte(k.akten, akte_id),
         "sitzung.punkt_speichern": lambda akte_id, daten, punkt_id=None: sitzung.punkt_speichern(

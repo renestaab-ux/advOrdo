@@ -412,6 +412,24 @@ export interface SuchErgebnis {
   wortformen?: Record<string, string[]>;
   /** Ein Platzhalter passte auf sehr viele Wörter; gesucht wurde nur nach den häufigsten. */
   wortformen_gekuerzt?: boolean;
+  /** Wörter aus den Dokumenten, die ein Suchwort nur als Teil enthalten („Spamfilter“ zu „Spam“); für den Hinweis. */
+  wortteil_beispiele?: string[];
+}
+
+/** Treffer der Suche in der Akte außerhalb der Dokumente (Kern: akten.aktensuche). */
+export interface AktenTreffer {
+  bereich: "notizen" | "fristen" | "stammdaten" | "beteiligte" | "zeiten";
+  /** Reiter der Akte, der den Eintrag zeigt. */
+  reiter: "notizen" | "fristen" | "stammdaten" | "beteiligte" | "zeiten";
+  /** Art des Eintrags, z. B. „Notiz“, „Frist“, „Verfahren“, „Mandant“. */
+  art: string;
+  id: number;
+  titel: string;
+  /** Feld, in dem der Ausschnitt steht, z. B. „Notiz“, „Ort“, „Email“. */
+  feld: string;
+  datum: string | null;
+  dokument_id: number | null;
+  ausschnitt: { vor: string; treffer: string; nach: string };
 }
 
 /** Vorschlag „*wort*“, damit ein Suchwort auch in zusammengesetzten Wörtern gefunden wird („Diagnoseprotokoll“). */

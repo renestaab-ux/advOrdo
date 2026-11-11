@@ -5,12 +5,14 @@ import { anmerkungsHandler, useAnmerkungen } from "./Anmerkungen";
 import { Anmerkung, anmerkungOrt, kommentarText } from "./anmerkungLogik";
 import {
   Akte,
+  AktenTreffer,
   DokumentInhalt,
   SammlungSuche,
   SuchDokument,
   SuchErgebnis,
   SuchFundstelle,
   UrteilVolltext,
+  datumDe,
   fundstelle,
   istDesktop,
   kern,
@@ -26,19 +28,57 @@ interface Auswahl {
 type SuchAnmerkung = Anmerkung & { akte_id: number; akte: string; format: SuchDokument["format"]; seiten: number | null };
 type SuchUrteil = SammlungSuche["urteile"][number];
 
-/** Wo gesucht wird: alles, nur im Text der Dokumente, nur in Markierungen und Kommentaren, nur in der Rechtsprechung. */
-export type SuchBereich = "alles" | "dokumente" | "anmerkungen" | "rechtsprechung";
-const BEREICHE: { id: SuchBereich; titel: string }[] = [
+/**
+ * Wo gesucht wird: alles, nur im Text der Dokumente, nur in Markierungen und Kommentaren, nur in der Rechtsprechung;
+ * in der Akte außerdem in Notizen, Fristen und Terminen, Stammdaten und Beteiligten sowie Zeiten.
+ */
+export type SuchBereich =
+  | "alles"
+  | "dokumente"
+  | "anmerkungen"
+  | "notizen"
+  | "fristen"
+  | "beteiligte"
+  | "zeiten"
+  | "rechtsprechung";
+type BereichListe = { id: SuchBereich; titel: string }[];
+const BEREICHE: BereichListe = [
   { id: "alles", titel: "Überall" },
   { id: "dokumente", titel: "Nur Dokumente" },
   { id: "anmerkungen", titel: "Nur Markierungen und Kommentare" },
   { id: "rechtsprechung", titel: "Nur Rechtsprechung" },
 ];
+/** Suche in einer Akte (Reiter „Suche“): die ganze Akte, auf Wunsch nur ein Teil davon. */
+const AKTE_BEREICHE: BereichListe = [
+  { id: "alles", titel: "Ganze Akte" },
+  { id: "dokumente", titel: "Nur Dokumente" },
+  { id: "anmerkungen", titel: "Nur Markierungen und Kommentare" },
+  { id: "notizen", titel: "Nur Notizen" },
+  { id: "fristen", titel: "Nur Fristen und Termine" },
+  { id: "beteiligte", titel: "Nur Stammdaten und Beteiligte" },
+  { id: "zeiten", titel: "Nur Zeiten" },
+  { id: "rechtsprechung", titel: "Nur Rechtsprechung der Akte" },
+];
+/** Welche Teile der Kern zu einem Bereich in akten.aktensuche durchsucht. */
+const AKTEN_TEILE: Partial<Record<SuchBereich, AktenTreffer["bereich"][]>> = {
+  notizen: ["notizen"],
+  fristen: ["fristen"],
+  beteiligte: ["stammdaten", "beteiligte"],
+  zeiten: ["zeiten"],
+};
+/** Überschriften der Treffergruppen außerhalb der Dokumente, in der Reihenfolge der Liste. */
+const AKTEN_GRUPPEN: { bereich: AktenTreffer["bereich"]; titel: string }[] = [
+  { bereich: "notizen", titel: "In den Notizen" },
+  { bereich: "fristen", titel: "In Fristen und Terminen" },
+  { bereich: "stammdaten", titel: "In Stammdaten und Verfahren" },
+  { bereich: "beteiligte", titel: "Bei den Beteiligten" },
+  { bereich: "zeiten", titel: "In der Zeiterfassung" },
+];
 
-function gemerkterBereich(): SuchBereich {
+function gemerkterBereich(schluessel: string, liste: BereichListe): SuchBereich {
   try {
-    const b = localStorage.getItem("suche.bereich");
-    return BEREICHE.some((x) => x.id === b) ? (b as SuchBereich) : "alles";
+    const b = localStorage.getItem(schluessel);
+    return liste.some((x) => x.id === b) ? (b as SuchBereich) : "alles";
   } catch {
     return "alles";
   }
@@ -48,21 +88,60 @@ const SUCH_ORT: Record<SuchBereich, string> = {
   alles: "im gelesenen Text aller Dokumente, in Markierungen und Kommentaren und in der gespeicherten Rechtsprechung",
   dokumente: "im gelesenen Text aller Dokumente",
   anmerkungen: "im markierten Wortlaut, in Kommentaren und in den Bedeutungen der Farben",
+  notizen: "in den Notizen der Akte, auch in Terminsprotokollen und Notizen zu Dokumenten",
+  fristen: "in Bezeichnung, Ort, Notiz und Vermerk der Fristen, Termine und Wiedervorlagen",
+  beteiligte: "in Stammdaten und Verfahren der Akte und bei den Beteiligten (Name, Rolle, Aktenzeichen, Anschrift, Kontakt)",
+  zeiten: "in den Tätigkeiten und Bearbeitern der Zeiterfassung",
   rechtsprechung: "in den gespeicherten Entscheidungen (Sammlung im Bereich Rechtsprechung)",
 };
+const AKTE_SUCH_ORT: Partial<Record<SuchBereich, string>> = {
+  alles:
+    "in der ganzen Akte: im Text der Dokumente, in Markierungen und Kommentaren, Notizen, Fristen und Terminen, " +
+    "Stammdaten, Beteiligten, Zeiten und in den Entscheidungen der Akte",
+  dokumente: "im gelesenen Text der Dokumente dieser Akte",
+  rechtsprechung: "in den Entscheidungen, die dieser Akte zugeordnet sind (Reiter Rechtsprechung)",
+};
+
+const REITER_NAME: Record<AktenTreffer["reiter"], string> = {
+  notizen: "Notizen",
+  fristen: "Fristen",
+  stammdaten: "Stammdaten",
+  beteiligte: "Beteiligte",
+  zeiten: "Zeiten",
+};
+
+/** Suche auf eine Akte beschränkt (Reiter „Suche“ der Akte). */
+export interface AktenSuche {
+  akte: Akte;
+  /** Einen Eintrag in seinem Reiter zeigen (Notizen, Fristen, Stammdaten, Beteiligte, Zeiten). */
+  onReiter: (reiter: AktenTreffer["reiter"]) => void;
+  /** Ein Dokument im Reiter „Dokumente“ öffnen. */
+  onDokument: (dokumentId: number) => void;
+  /** Suchbegriff von außen (Dokumentliste); ``nr`` zählt hoch, damit derselbe Begriff erneut wirkt. */
+  vorgabe?: { text: string; nr: number } | null;
+  /** Zählt hoch, wenn das Suchfeld den Fokus bekommen soll (Reiter gewählt, Strg/⌘+F). */
+  fokus?: number;
+}
 
 /** Volltextsuche über alle Akten, nach dem Vorbild von „PDF Search“: links die Treffer, rechts das Dokument. */
-export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
+export default function Suche({ onAkte, inAkte }: { onAkte?: (id: number) => void; inAkte?: AktenSuche }) {
+  const bereiche = inAkte ? AKTE_BEREICHE : BEREICHE;
+  const bereichSchluessel = inAkte ? "akte.suche.bereich" : "suche.bereich";
   const [eingabe, setEingabe] = useState("");
   const [akten, setAkten] = useState<Akte[]>([]);
-  // Gesucht wird zunächst in allen Akten; null heißt „Alle Akten“.
-  const [akteId, setAkteId] = useState<number | null>(null);
+  // Gesucht wird zunächst in allen Akten; null heißt „Alle Akten“. Im Reiter „Suche“ der Akte steht sie fest.
+  const [gewaehlteAkte, setAkteId] = useState<number | null>(null);
+  const akteId = inAkte ? inAkte.akte.id : gewaehlteAkte;
+  // Treffer in Notizen, Fristen, Stammdaten, Beteiligten und Zeiten (nur in der Akte).
+  const [eintraege, setEintraege] = useState<AktenTreffer[]>([]);
+  const [eintragWahl, setEintragWahl] = useState<AktenTreffer | null>(null);
+  const feld = useRef<HTMLInputElement>(null);
   const [ergebnis, setErgebnis] = useState<SuchErgebnis | null>(null);
   // Treffer in Markierungen und Kommentaren (Wortlaut, Kommentar, Bedeutung der Farbe).
   const [anmerkungen, setAnmerkungen] = useState<SuchAnmerkung[]>([]);
   // Treffer in den gespeicherten Entscheidungen (Sammlung im Bereich „Rechtsprechung“).
   const [urteile, setUrteile] = useState<SuchUrteil[]>([]);
-  const [bereich, setBereich] = useState<SuchBereich>(gemerkterBereich);
+  const [bereich, setBereich] = useState<SuchBereich>(() => gemerkterBereich(bereichSchluessel, bereiche));
   const [urteilWahl, setUrteilWahl] = useState<{ urteil: SuchUrteil; rn: number | null; nr: number } | null>(null);
   const [volltext, setVolltext] = useState<UrteilVolltext | null>(null);
   const [zu, setZu] = useState<Set<number>>(new Set());
@@ -92,25 +171,40 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
       setErgebnis(null);
       setAnmerkungen([]);
       setUrteile([]);
+      setEintraege([]);
       return;
     }
+    // In der Akte: Notizen, Fristen usw. bei „Ganze Akte“ oder dem passenden Bereich.
+    const teile = !inAkte ? null : bereich === "alles" ? [] : (AKTEN_TEILE[bereich] ?? null);
     try {
-      const [e, a, u] = await Promise.all([
+      const [e, a, u, t] = await Promise.all([
         mit("dokumente") ? kern<SuchErgebnis>("akten.suche", { text, akte_id: akteId }) : null,
         mit("anmerkungen") ? kern<SuchAnmerkung[]>("anmerkungen.suche", { text, akte_id: akteId }) : [],
-        mit("rechtsprechung") ? kern<SammlungSuche>("rechtsprechung.suche", { suchtext: text }) : null,
+        mit("rechtsprechung")
+          ? kern<SammlungSuche>("rechtsprechung.suche", inAkte ? { suchtext: text, akte_id: akteId } : { suchtext: text })
+          : null,
+        teile
+          ? kern<{ treffer: AktenTreffer[] }>("akten.aktensuche", {
+              akte_id: akteId,
+              text,
+              bereiche: teile.length ? teile : null,
+            })
+          : null,
       ]);
       if (nr !== anfrage.current) return; // eine neuere Eingabe ist schon unterwegs
       setFehler(null);
       setErgebnis(e);
       setAnmerkungen(a);
       setUrteile(u?.urteile ?? []);
+      setEintraege(t?.treffer ?? []);
+      setEintragWahl(null);
       setGesuchtFuer(text);
       setZu(new Set());
       const erstes = e?.dokumente[0];
       if (erstes) void waehle(erstes, erstes.fundstellen.find((f) => f.rang === erstes.rang) ?? erstes.fundstellen[0]);
       else if (a[0]) waehleAnmerkung(a[0]);
       else if (u?.urteile[0]) void waehleUrteil(u.urteile[0], u.urteile[0].fundstellen[0]);
+      else if (t?.treffer[0]) waehleEintrag(t.treffer[0]);
       else {
         setAuswahl(null);
         setUrteilWahl(null);
@@ -127,10 +221,30 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
     return () => clearTimeout(t);
   }, [eingabe, akteId, bereich]);
 
+  // Begriff aus der Dokumentliste übernehmen; Suchfeld fokussieren, wenn der Reiter gewählt wird oder Strg/⌘+F.
+  useEffect(() => {
+    if (inAkte?.vorgabe) setEingabe(inAkte.vorgabe.text);
+  }, [inAkte?.vorgabe]);
+  useEffect(() => {
+    if (!inAkte?.fokus) return;
+    const t = requestAnimationFrame(() => {
+      feld.current?.focus();
+      feld.current?.select();
+    });
+    return () => cancelAnimationFrame(t);
+  }, [inAkte?.fokus]);
+
+  /** Treffer in Notizen, Fristen usw.: rechts kurz zeigen, mit Knopf zum Reiter, der den Eintrag führt. */
+  function waehleEintrag(t: AktenTreffer) {
+    setAuswahl(null);
+    setUrteilWahl(null);
+    setEintragWahl(t);
+  }
+
   function bereichWaehlen(b: SuchBereich) {
     setBereich(b);
     try {
-      localStorage.setItem("suche.bereich", b);
+      localStorage.setItem(bereichSchluessel, b);
     } catch {
       // Ohne Speicher gilt die Wahl bis zum Neustart.
     }
@@ -139,6 +253,7 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
   /** Treffer in einer Entscheidung: Volltext an der Randnummer zeigen. */
   async function waehleUrteil(urteil: SuchUrteil, f: SuchUrteil["fundstellen"][number]) {
     setAuswahl(null);
+    setEintragWahl(null);
     setUrteilWahl({ urteil, rn: f.rn, nr: f.nr });
     if (volltext?.id === urteil.id) return;
     try {
@@ -150,7 +265,7 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
 
   // Akten für die Auswahl „Suchen in“.
   useEffect(() => {
-    if (!istDesktop) return;
+    if (!istDesktop || inAkte) return;
     kern<Akte[]>("akten.liste")
       .then(setAkten)
       .catch((f) => setFehler(String(f)));
@@ -158,6 +273,7 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
 
   async function waehle(dokument: SuchDokument, f: SuchFundstelle) {
     setUrteilWahl(null);
+    setEintragWahl(null);
     setAuswahl({ dokument, fundstelle: f });
     if (dokument.format === "pdf") {
       setInhalt(null);
@@ -234,22 +350,53 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
           (ergebnis?.wortformen_gekuerzt ? " (nur die häufigsten)" : ""),
     )
     .join(" · ");
-  const vorschlag = wortteilVorschlag(eingabe);
+  // Den Wortteil nur vorschlagen, wenn es in den Dokumenten wirklich längere Wörter damit gibt; die nennen wir.
+  const beispiele = ergebnis?.wortteil_beispiele ?? [];
+  const vorschlag = beispiele.length ? wortteilVorschlag(eingabe) : null;
   // Alle gefundenen Wortformen des Dokuments markieren, nicht nur die der gewählten Seite.
   const begriffe = [...new Set(auswahl?.dokument.fundstellen.flatMap((f) => f.begriffe) ?? [])];
+  const ohneTreffer =
+    gesuchtFuer &&
+    gesuchtFuer === eingabe &&
+    !ergebnis?.dokumente.length &&
+    !anmerkungen.length &&
+    !urteile.length &&
+    !eintraege.length;
+  // Für den Bildschirmleser: wie viel gefunden wurde, sobald die Suche zur Eingabe fertig ist.
+  const ansage = !gesuchtFuer || gesuchtFuer !== eingabe
+    ? ""
+    : ohneTreffer
+      ? "Keine Treffer."
+      : [
+          ergebnis?.dokumente.length ? `${ergebnis.treffer} Treffer in ${ergebnis.dokumente.length} ${ergebnis.dokumente.length === 1 ? "Dokument" : "Dokumenten"}` : "",
+          anmerkungen.length ? `${anmerkungen.length} in Markierungen und Kommentaren` : "",
+          eintraege.length ? `${eintraege.length} in Notizen, Fristen, Beteiligten und weiteren Einträgen der Akte` : "",
+          urteile.length ? `${urteile.length} in der Rechtsprechung` : "",
+        ]
+          .filter(Boolean)
+          .join(", ") + ".";
+  const ortText = (inAkte && AKTE_SUCH_ORT[bereich]) || SUCH_ORT[bereich];
   return (
-    <div className="suche-bereich">
-      <header className="kopf">
-        <h1>Suche</h1>
-      </header>
-      <form className="suche-feld" onSubmit={absenden} role="search">
+    <div className={inAkte ? "suche-bereich in-akte" : "suche-bereich"}>
+      {!inAkte && (
+        <header className="kopf">
+          <h1>Suche</h1>
+        </header>
+      )}
+      <form className="suche-feld" onSubmit={absenden} role="search" aria-label={inAkte ? "In dieser Akte suchen" : undefined}>
         <input
-          autoFocus
+          ref={feld}
+          autoFocus={!inAkte}
           type="search"
           value={eingabe}
           onChange={(e) => setEingabe(e.target.value)}
-          placeholder="Suchen, z. B. Mechatronik, „Frist bis zum“, Nachbesser* oder *protokoll*"
-          aria-label="Suchbegriff"
+          placeholder={
+            inAkte
+              ? "In dieser Akte suchen, z. B. Mechatronik, „Frist bis zum“, Nachbesser* oder *protokoll*"
+              : "Suchen, z. B. Mechatronik, „Frist bis zum“, Nachbesser* oder *protokoll*"
+          }
+          aria-label={inAkte ? "Suchbegriff für diese Akte" : "Suchbegriff"}
+          title={inAkte ? "Strg/⌘+F springt in der Akte hierher" : undefined}
         />
         <select
           className="such-bereich"
@@ -257,14 +404,17 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
           onChange={(e) => bereichWaehlen(e.target.value as SuchBereich)}
           aria-label="Suchen in"
         >
-          {BEREICHE.map((b) => (
+          {bereiche.map((b) => (
             <option key={b.id} value={b.id}>
               {b.titel}
             </option>
           ))}
         </select>
-        {bereich !== "rechtsprechung" && <AktenWahl akten={akten} akteId={akteId} onWahl={setAkteId} />}
+        {!inAkte && bereich !== "rechtsprechung" && <AktenWahl akten={akten} akteId={akteId} onWahl={setAkteId} />}
       </form>
+      <p className="nur-vorlesen" aria-live="polite">
+        {ansage}
+      </p>
       {fehler && <p className="fehler" role="alert">{fehler}</p>}
       {ergebnis && (
         <div className="such-stand">
@@ -273,6 +423,12 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
             {ergebnis.seiten === 1 ? "Fundstelle" : "Fundstellen"}, {ergebnis.treffer} Treffer (
             {(ergebnis.dauer_ms / 1000).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 3 })} s)
           </span>
+          {eintraege.length > 0 && (
+            <span>
+              {" "}
+              · {eintraege.length} weitere in Notizen, Fristen, Beteiligten usw.
+            </span>
+          )}
           {ergebnis.gekuerzt && <span className="hinweis"> · nur die ersten 5.000 passenden Abschnitte</span>}
           {wortformenText && <span className="hinweis such-wortformen"> · {wortformenText}</span>}
           <span className="such-pfeile">
@@ -326,22 +482,30 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
               </ul>
             </li>
           )}
-          {gesuchtFuer && gesuchtFuer === eingabe && !ergebnis?.dokumente.length && !anmerkungen.length && !urteile.length && (
-            <li className="leer">Keine Treffer.</li>
-          )}
+          {ohneTreffer && <li className="leer">Keine Treffer.</li>}
           {vorschlag && gesuchtFuer === eingabe && mit("dokumente") && (
             <li className="such-vorschlag">
               <button className="link" onClick={() => setEingabe(vorschlag)}>
                 Auch als Wortteil suchen: {vorschlag}
               </button>{" "}
-              <span className="hinweis">findet z. B. auch zusammengesetzte Wörter wie „Diagnoseprotokoll“</span>
+              <span className="hinweis">
+                findet z. B. auch {beispiele.map((b) => `„${b}“`).join(", ")}
+                {inAkte ? " in dieser Akte" : ""}
+              </span>
             </li>
           )}
           {!eingabe.trim() && (
             <li className="leer">
-              Gesucht wird {SUCH_ORT[bereich]}. Groß- und Kleinschreibung spielt keine Rolle. Mehrere Wörter müssen alle
+              Gesucht wird {ortText}. Groß- und Kleinschreibung spielt keine Rolle. Mehrere Wörter müssen alle
               vorkommen; „genaue Wortfolge“ in Anführungszeichen. Der Stern * steht für beliebige Buchstaben: Nachbesser*
               (Wortanfang), *protokoll (Wortende), *protokoll* (Wortteil, findet auch „Diagnoseprotokoll“).
+              {bereich !== "dokumente" && bereich !== "rechtsprechung" && (
+                <>
+                  {" "}
+                  Im Text der Dokumente zählen ganze Wörter; Markierungen, Kommentare
+                  {inAkte ? ", Notizen, Fristen, Beteiligte und Zeiten" : ""} finden auch Wortteile ohne Stern.
+                </>
+              )}
             </li>
           )}
           {ergebnis?.dokumente.map((d) => {
@@ -393,13 +557,47 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
               </li>
             );
           })}
+          {AKTEN_GRUPPEN.map((g) => {
+            const liste = eintraege.filter((t) => t.bereich === g.bereich);
+            if (!liste.length) return null;
+            return (
+              <li key={g.bereich} className="such-dokument">
+                <div className="such-dokument-kopf such-anmerkungen-kopf">
+                  <span className="such-name">{g.titel}</span>
+                  <span className="such-meta">{liste.length} Treffer</span>
+                </div>
+                <ul>
+                  {liste.map((t) => (
+                    <li key={`${t.bereich}${t.id}`}>
+                      <button
+                        className={`such-fundstelle${eintragWahl === t ? " gewaehlt" : ""}`}
+                        onClick={() => waehleEintrag(t)}
+                        onDoubleClick={() => inAkte?.onReiter(t.reiter)}
+                      >
+                        <span className="such-ort">
+                          {t.art} · {t.titel}
+                          {t.datum && <> · {datumDe(t.datum)}</>}
+                        </span>
+                        <span className="such-rang such-feld-name">{t.feld}</span>
+                        <span className="ausschnitt">
+                          {t.ausschnitt.vor}
+                          <mark>{t.ausschnitt.treffer}</mark>
+                          {t.ausschnitt.nach}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            );
+          })}
           {urteile.length > 0 && (
             <li className="such-dokument">
               <div className="such-dokument-kopf such-anmerkungen-kopf">
                 <span className="such-name">In der Rechtsprechung</span>
                 <span className="such-meta">
                   {urteile.length} {urteile.length === 1 ? "Entscheidung" : "Entscheidungen"} aus der Sammlung
-                  {akteId != null && bereich === "alles" ? ", unabhängig von der Akte" : ""}
+                  {!inAkte && akteId != null && bereich === "alles" ? ", unabhängig von der Akte" : ""}
                 </span>
               </div>
               <ul>
@@ -433,13 +631,44 @@ export default function Suche({ onAkte }: { onAkte: (id: number) => void }) {
           {urteilWahl && volltext?.id === urteilWahl.urteil.id && (
             <VolltextAnsicht volltext={volltext} rn={urteilWahl.rn} onSchliessen={() => setUrteilWahl(null)} />
           )}
+          {eintragWahl && inAkte && (
+            <div className="such-eintrag">
+              <p className="such-eintrag-art">
+                {eintragWahl.art}
+                {eintragWahl.datum && ` · ${datumDe(eintragWahl.datum)}`}
+              </p>
+              <h2>{eintragWahl.titel}</h2>
+              <p className="such-meta">Gefunden im Feld „{eintragWahl.feld}“:</p>
+              <p className="ausschnitt">
+                {eintragWahl.ausschnitt.vor}
+                <mark>{eintragWahl.ausschnitt.treffer}</mark>
+                {eintragWahl.ausschnitt.nach}
+              </p>
+              <p className="such-eintrag-knoepfe">
+                <button onClick={() => inAkte.onReiter(eintragWahl.reiter)}>{REITER_NAME[eintragWahl.reiter]} öffnen</button>
+                {eintragWahl.dokument_id != null && (
+                  <button className="zweitrangig" onClick={() => inAkte.onDokument(eintragWahl.dokument_id!)}>
+                    Zugehöriges Dokument öffnen
+                  </button>
+                )}
+              </p>
+            </div>
+          )}
           {auswahl && (
             <div className="such-dokument-titel">
               <strong>{auswahl.dokument.dateiname}</strong>
-              <span className="such-meta"> · Akte {auswahl.dokument.akte}</span>
-              <button className="link" onClick={() => onAkte(auswahl.dokument.akte_id)}>
-                in der Akte öffnen
-              </button>
+              {inAkte ? (
+                <button className="link" onClick={() => inAkte.onDokument(auswahl.dokument.id)}>
+                  im Reiter Dokumente öffnen
+                </button>
+              ) : (
+                <>
+                  <span className="such-meta"> · Akte {auswahl.dokument.akte}</span>
+                  <button className="link" onClick={() => onAkte?.(auswahl.dokument.akte_id)}>
+                    in der Akte öffnen
+                  </button>
+                </>
+              )}
             </div>
           )}
           {auswahl?.dokument.format === "pdf" && (

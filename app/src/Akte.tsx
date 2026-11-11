@@ -181,6 +181,7 @@ export default function Akte({
   onGeaendert,
   onBeteiligte,
   onEinstellungen,
+  onVolltext,
 }: {
   akte: AkteTyp;
   reiter: AkteReiter;
@@ -192,6 +193,8 @@ export default function Akte({
   /** Ein Beteiligter in der Filterspalte wurde angeklickt. */
   onBeteiligte: () => void;
   onEinstellungen?: () => void;
+  /** Den Begriff aus dem Suchfeld der Dokumentliste im Reiter „Suche“ suchen (Inhalt der ganzen Akte). */
+  onVolltext?: (text: string) => void;
 }) {
   const akteId = akte.id;
   const kiAn = useKiAn();
@@ -1224,12 +1227,21 @@ export default function Akte({
               }}
               placeholder="Dokument suchen: Titel, Dateiname, Art, Absender, Datum …"
               aria-label="Dokument in dieser Akte suchen"
-              title="Findet auch Wortteile, z. B. „protokoll“ in „Diagnoseprotokoll“. Den Inhalt der Dokumente durchsucht der Bereich „Suche“."
+              title="Findet auch Wortteile, z. B. „protokoll“ in „Diagnoseprotokoll“. Den Inhalt der Dokumente durchsucht der Reiter „Suche“."
             />
             {dokSuche.trim() && (
               <span className="dok-suche-zahl" aria-live="polite">
                 {sichtbar.length} von {dokumente.length}
               </span>
+            )}
+            {dokSuche.trim() && onVolltext && (
+              <button
+                className="link dok-suche-volltext"
+                onClick={() => onVolltext(dokSuche.trim())}
+                title="Sucht den Begriff im Text der Dokumente, in Anmerkungen, Notizen, Fristen, Beteiligten und Zeiten dieser Akte"
+              >
+                Im Inhalt der Akte suchen
+              </button>
             )}
           </div>
         )}
@@ -1349,7 +1361,7 @@ export default function Akte({
         {dokumente.length > 0 && sichtbar.length === 0 && (
           <p className="leer">
             {dokSuche.trim()
-              ? `Kein Dokument passt zu „${dokSuche.trim()}“${gefiltertAktiv ? " und dem gewählten Filter" : ""}. Den Text der Dokumente durchsucht der Bereich „Suche“.`
+              ? `Kein Dokument passt zu „${dokSuche.trim()}“${gefiltertAktiv ? " und dem gewählten Filter" : ""}. Den Text der Dokumente durchsucht der Reiter „Suche“ (Strg/⌘+F).`
               : "Kein Dokument passt zu diesem Filter."}
           </p>
         )}

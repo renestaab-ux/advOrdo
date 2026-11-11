@@ -423,8 +423,11 @@ def aus_sammlung_entfernen(con: sqlite3.Connection, urteil_id: int, ablage: Path
 MAX_TREFFER = 200
 
 
-def suche(con: sqlite3.Connection, suchtext: str) -> dict:
-    """Volltextsuche in den gespeicherten Entscheidungen: je Entscheidung die Fundstellen mit Randnummer."""
+def suche(con: sqlite3.Connection, suchtext: str, akte_id: int | None = None) -> dict:
+    """Volltextsuche in den gespeicherten Entscheidungen: je Entscheidung die Fundstellen mit Randnummer.
+
+    Mit ``akte_id`` nur in den Entscheidungen, die dieser Akte zugeordnet sind (Suche in der Akte).
+    """
 
     a = abfrage_mit_formen(suchtext, wortformen(con, "urteil_fts"))
     fts = a.fts
@@ -436,10 +439,10 @@ def suche(con: sqlite3.Connection, suchtext: str) -> dict:
             FROM urteil_fts
             JOIN urteil_abschnitt a ON a.rowid = urteil_fts.rowid
             JOIN urteil u ON u.id = a.urteil_id
-            WHERE urteil_fts MATCH ?
+            WHERE urteil_fts MATCH ? AND (? IS NULL OR u.akte_id = ?)
             ORDER BY gewicht
             LIMIT {MAX_TREFFER * 20}""",
-        (fts,),
+        (fts, akte_id, akte_id),
     ).fetchall()
     # Je Datei nur eine Zeile auswerten; Kopien in weiteren Akten haben denselben Text.
     zeile_je_datei: dict[str, int] = {}
