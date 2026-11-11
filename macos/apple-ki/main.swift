@@ -8,7 +8,7 @@
 //   {"aktion": "status"}
 //   {"aktion": "chat", "system": "…", "nutzer": "…", "schema": {…} | null, "antwort_token": 1024}
 // Antworten:
-//   {"ok": true, "verfuegbar": true, "grund": null, "deutsch": true, "system": "macOS 26.1"}
+//   {"ok": true, "verfuegbar": true, "grund": null, "deutsch": true, "system": "macOS 26.1", "kontext": 4096}
 //   {"ok": true, "text": "{…}"}
 //   {"ok": false, "fehler": "kontext" | "schutz" | "sprache" | "nicht_bereit" | "json" | "schema" | "anfrage"
 //                         | "nicht_verfuegbar" | "sonstiges", "meldung": "…"}
@@ -80,6 +80,14 @@ func baue(_ s: [String: Any], name: String) throws -> DynamicGenerationSchema {
     }
 }
 
+/// Kontextgröße des Modells in Token, soweit macOS sie nennt (ab macOS 26.4).
+func kontextGroesse(_ m: SystemLanguageModel) -> Int? {
+    if #available(macOS 26.4, *) {
+        return m.contextSize
+    }
+    return nil
+}
+
 func grund(_ verfuegbarkeit: SystemLanguageModel.Availability) -> String? {
     switch verfuegbarkeit {
     case .available:
@@ -117,6 +125,7 @@ case "status":
         "grund": g.map { $0 as Any } ?? NSNull(),
         "deutsch": modell.supportsLocale(Locale(identifier: "de_DE")),
         "system": "macOS \(v.majorVersion).\(v.minorVersion)",
+        "kontext": kontextGroesse(modell).map { $0 as Any } ?? NSNull(),
     ])
 
 case "chat":

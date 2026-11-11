@@ -40,6 +40,13 @@ const KONTEXTE = [8192, 16384, 32768];
 // Apple Intelligence: Das Modell auf dem Mac sieht unter macOS 26 nur 4.096 Token, neuere Fassungen mehr.
 const KONTEXTE_APPLE = [4096, 8192];
 const APPLE = "apple";
+
+/** Kontextgrößen für Apple Intelligence, dazu der Wert, den macOS meldet. */
+function appleKontexte(gemeldet: number | null | undefined): number[] {
+  const werte = new Set(KONTEXTE_APPLE);
+  if (gemeldet) werte.add(gemeldet);
+  return [...werte].sort((a, b) => a - b);
+}
 const KONTEXTE_EXTERN = [32768, 131072];
 
 export type EinstellungsReiter =
@@ -346,7 +353,7 @@ export default function Einstellungen({
             <label>
               Kontext
               <select value={kontext} onChange={(e) => setKontext(Number(e.target.value))}>
-                {(anbieter === APPLE ? KONTEXTE_APPLE : KONTEXTE).map((k) => (
+                {(anbieter === APPLE ? appleKontexte(installiert[0]?.kontext) : KONTEXTE).map((k) => (
                   <option key={k} value={k}>
                     {k.toLocaleString("de-DE")} Token
                     {k === (anbieter === APPLE ? KONTEXTE_APPLE[0] : 16384) ? " (empfohlen)" : ""}

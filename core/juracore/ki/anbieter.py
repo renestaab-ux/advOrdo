@@ -825,6 +825,11 @@ def status(e: KiEinstellungen) -> dict:
     except (KiFehler, ValueError) as fehler:
         ergebnis["hinweis"] = str(fehler)
         return ergebnis
+    fenster = ergebnis["modelle"][0].get("kontext") if e.anbieter == APPLE and ergebnis["modelle"] else None
+    if fenster and e.kontext > fenster:
+        ergebnis["hinweis"] = (f"Apple Intelligence sieht auf diesem Mac nur {fenster:,} Token auf einmal. Bitte unter "
+                               "„Kontext“ diesen Wert oder weniger wählen.").replace(",", ".")
+        return ergebnis
     namen = {m["name"] for m in ergebnis["modelle"]}
     namen |= {n.removesuffix(":latest") for n in namen}
     if not namen:

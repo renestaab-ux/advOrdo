@@ -124,7 +124,9 @@ class AppleIntelligence:
         if stand.get("deutsch") is False:
             raise KiFehler("Apple Intelligence unterstützt auf diesem Mac kein Deutsch. Die Sprache von Apple "
                            "Intelligence lässt sich unter Systemeinstellungen → „Apple Intelligence & Siri“ wählen.")
-        return [{"name": MODELL, "groesse": None, "parameter": "On-Device", "quantisierung": None}]
+        fenster = stand.get("kontext") if isinstance(stand.get("kontext"), int) else None
+        return [{"name": MODELL, "groesse": None, "quantisierung": None, "kontext": fenster,
+                 "parameter": "On-Device" + (f", {fenster:,} Token Kontext".replace(",", ".") if fenster else "")}]
 
     def chat(self, system: str, nutzer: str, schema: dict) -> dict:
         anfrage = {"aktion": "chat", "system": system, "nutzer": nutzer, "schema": geordnet(schema),
