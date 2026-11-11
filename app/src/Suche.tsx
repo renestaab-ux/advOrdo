@@ -499,6 +499,13 @@ export default function Suche({ onAkte, inAkte }: { onAkte?: (id: number) => voi
               Gesucht wird {ortText}. Groß- und Kleinschreibung spielt keine Rolle. Mehrere Wörter müssen alle
               vorkommen; „genaue Wortfolge“ in Anführungszeichen. Der Stern * steht für beliebige Buchstaben: Nachbesser*
               (Wortanfang), *protokoll (Wortende), *protokoll* (Wortteil, findet auch „Diagnoseprotokoll“).
+              {bereich !== "dokumente" && bereich !== "rechtsprechung" && (
+                <>
+                  {" "}
+                  Im Text der Dokumente zählen ganze Wörter; Markierungen, Kommentare
+                  {inAkte ? ", Notizen, Fristen, Beteiligte und Zeiten" : ""} finden auch Wortteile ohne Stern.
+                </>
+              )}
             </li>
           )}
           {ergebnis?.dokumente.map((d) => {
