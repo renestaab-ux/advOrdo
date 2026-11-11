@@ -96,6 +96,8 @@ button.akte-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--
 .akte-reiter-knopf .anzahl, .filter-eintrag .anzahl { font-size: 12px; color: var(--text-leise); font-weight: 400; }
 .akte-reiterflaeche { flex: 1; min-height: 0; overflow: auto; position: relative; padding: 16px 24px 24px; }
 .akte-reiterflaeche .karte { max-width: 1100px; }
+.akte-suche-halter { height: 100%; }
+.akte-suche-halter[hidden] { display: none; }
 .gefahrenzone { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--linie); }
 
 /* Reiter Dokumente: Filter | Liste | geöffnetes Dokument, jede Spalte scrollt für sich */

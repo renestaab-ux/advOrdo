@@ -1,5 +1,6 @@
 # Kernmethoden, die die Oberfläche aufrufen darf. Erzeugt mit: python core/kern_methoden.py
 akten.abgleich
+akten.aktensuche
 akten.aktenzeichen_vergeben
 akten.aktenzeichen_vorschlag
 akten.anlegen

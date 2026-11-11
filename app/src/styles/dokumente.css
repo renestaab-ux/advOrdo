@@ -255,6 +255,13 @@ button.zitat:disabled { opacity: 1; cursor: default; }
 .such-rang { font-size: 11px; color: var(--hintergrund); background: var(--gut); border-radius: 4px; padding: 1px 6px; align-self: center; }
 .such-fundstelle .ausschnitt { grid-column: 1 / -1; margin-top: 0; }
 .such-dokument-ansicht { overflow: auto; min-width: 0; padding-right: 4px; }
+/* Reiter „Suche“ der Akte: füllt die Reiterfläche statt des Fensters. */
+.suche-bereich.in-akte { height: 100%; }
+.such-fundstelle .such-feld-name { background: var(--linie); color: var(--text); }
+.such-eintrag { max-width: 720px; }
+.such-eintrag h2 { margin: 2px 0 10px; font-size: 18px; }
+.such-eintrag-art { margin: 0; font-size: 12px; color: var(--text-leise); }
+.such-eintrag-knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .such-dokument-titel { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--linie); }
 .original-bild { position: relative; }
 .markierung { position: absolute; background: rgb(255 214 0 / 45%); outline: 1px solid rgb(230 180 0 / 70%); border-radius: 2px; pointer-events: none; mix-blend-mode: multiply; }

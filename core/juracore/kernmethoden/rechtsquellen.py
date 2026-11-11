@@ -38,7 +38,7 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "rechtsprechung.quellen_setzen": lambda neuris: online.einstellungen_setzen(k.quellen_datei, neuris),
         "rechtsprechung.eigene": lambda: urteile.uebersicht(k.akten),
         "rechtsprechung.sammlung": lambda: urteile.sammlung(k.akten),
-        "rechtsprechung.suche": lambda suchtext: urteile.suche(k.akten, suchtext),
+        "rechtsprechung.suche": lambda suchtext, akte_id=None: urteile.suche(k.akten, suchtext, akte_id),
         "rechtsprechung.vorschlag": lambda pfad: urteile.vorschlag(pfad),
         "rechtsprechung.ergaenzen": lambda pfad, gericht, aktenzeichen=None, datum=None, herkunft=None,
                 akte_id=None, art=None: urteile.ergaenzen(k.akten, akte_id, pfad, k.ablage, gericht,

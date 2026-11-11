@@ -414,6 +414,22 @@ export interface SuchErgebnis {
   wortformen_gekuerzt?: boolean;
 }
 
+/** Treffer der Suche in der Akte außerhalb der Dokumente (Kern: akten.aktensuche). */
+export interface AktenTreffer {
+  bereich: "notizen" | "fristen" | "stammdaten" | "beteiligte" | "zeiten";
+  /** Reiter der Akte, der den Eintrag zeigt. */
+  reiter: "notizen" | "fristen" | "stammdaten" | "beteiligte" | "zeiten";
+  /** Art des Eintrags, z. B. „Notiz“, „Frist“, „Verfahren“, „Mandant“. */
+  art: string;
+  id: number;
+  titel: string;
+  /** Feld, in dem der Ausschnitt steht, z. B. „Notiz“, „Ort“, „Email“. */
+  feld: string;
+  datum: string | null;
+  dokument_id: number | null;
+  ausschnitt: { vor: string; treffer: string; nach: string };
+}
+
 /** Vorschlag „*wort*“, damit ein Suchwort auch in zusammengesetzten Wörtern gefunden wird („Diagnoseprotokoll“). */
 export function wortteilVorschlag(eingabe: string): string | null {
   const t = eingabe.trim();

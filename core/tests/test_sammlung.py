@@ -164,6 +164,11 @@ def test_rpc_sammlung(tmp_path):
     rufe("rechtsprechung.zuordnen", urteil_id=u["urteil_id"], akte_id=a["id"])
     assert rufe("rechtsprechung.sammlung")[0]["akten"][0]["akte_id"] == a["id"]
     assert rufe("rechtsprechung.suche", suchtext="Revision")["urteile"]
+    # Suche in der Akte: nur die Entscheidungen, die ihr zugeordnet sind.
+    assert rufe("rechtsprechung.suche", suchtext="Revision", akte_id=a["id"])["urteile"]
+    andere = rufe("akten.anlegen", name="Andere")
+    assert rufe("rechtsprechung.suche", suchtext="Revision", akte_id=andere["id"])["urteile"] == []
+    assert rufe("akten.aktensuche", akte_id=a["id"], text="Test")["treffer"][0]["bereich"] == "stammdaten"
     rufe("rechtsprechung.loesen", urteil_id=u["urteil_id"])
     assert rufe("rechtsprechung.entfernen", urteil_id=u["urteil_id"])["entfernt"] == 1
     assert rufe("rechtsprechung.sammlung") == []

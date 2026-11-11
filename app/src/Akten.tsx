@@ -1,4 +1,4 @@
-import { Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
+import { Dispatch, FormEvent, SetStateAction, Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import Akte, { AkteReiter } from "./Akte";
 import { Rueckfrage } from "./Rueckfrage";
 import AkteStammdaten from "./AkteStammdaten";
@@ -35,9 +35,13 @@ import { SortKopf, useSortierung } from "./Sortierung";
 import { useKiAn } from "./kiSchalter";
 import { useBearbeitung } from "./ungespeichert";
 
+// Wie im Bereich „Suche“ erst bei Bedarf geladen.
+const Suche = lazy(() => import("./Suche"));
+
 /** Reiter einer geöffneten Akte; „stammdaten“ öffnet der Knopf im Kopf. */
 export type Reiter =
   | AkteReiter
+  | "suche"
   | "beteiligte"
   | "fristen"
   | "notizen"
@@ -49,6 +53,7 @@ export type Reiter =
 
 const REITER: { id: Reiter; titel: string; symbol: SymbolName }[] = [
   { id: "dokumente", titel: "Dokumente", symbol: "dokumente" },
+  { id: "suche", titel: "Suche", symbol: "suche" },
   { id: "schriftstuecke", titel: "Schriftstücke", symbol: "schriftstueck" },
   { id: "beteiligte", titel: "Beteiligte", symbol: "beteiligte" },
   { id: "fristen", titel: "Fristen", symbol: "fristen" },
@@ -640,6 +645,31 @@ function AkteRahmen({
     setDokumentZiel((alt) => ({ id, nr: (alt?.nr ?? 0) + 1 }));
     onReiter("dokumente");
   };
+  // Reiter „Suche“: bleibt nach dem ersten Öffnen erhalten (Suchbegriff, Treffer), auch beim Wechsel in einen Treffer.
+  const [sucheOffen, setSucheOffen] = useState(false);
+  const [sucheFokus, setSucheFokus] = useState(0);
+  const [sucheVorgabe, setSucheVorgabe] = useState<{ text: string; nr: number } | null>(null);
+  useEffect(() => {
+    if (reiter !== "suche") return;
+    setSucheOffen(true);
+    setSucheFokus((n) => n + 1);
+  }, [reiter]);
+  const imInhaltSuchen = (text: string) => {
+    setSucheVorgabe((alt) => ({ text, nr: (alt?.nr ?? 0) + 1 }));
+    onReiter("suche");
+  };
+  // Strg+F (macOS: ⌘F) springt in der geöffneten Akte ins Suchfeld des Reiters „Suche“.
+  useEffect(() => {
+    function taste(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "f") return;
+      e.preventDefault();
+      onReiter("suche");
+      setSucheOffen(true);
+      setSucheFokus((n) => n + 1);
+    }
+    window.addEventListener("keydown", taste);
+    return () => window.removeEventListener("keydown", taste);
+  }, [onReiter]);
 
   async function entfernen() {
     setLoeschfrage(false);
@@ -759,6 +789,16 @@ function AkteRahmen({
           />
         )}
         {reiter === "stammdaten" && <VerfahrenKarte key={`v${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
+        {sucheOffen && (
+          <div className="akte-suche-halter" hidden={reiter !== "suche"}>
+            <Suspense fallback={<p className="hinweis">Suche wird geladen …</p>}>
+              <Suche
+                key={`such${akte.id}`}
+                inAkte={{ akte, onReiter, onDokument: zeigeDokument, vorgabe: sucheVorgabe, fokus: sucheFokus }}
+              />
+            </Suspense>
+          </div>
+        )}
         {reiter === "fristen" && <Fristen key={`f${akte.id}`} akteId={akte.id} onGeaendert={onGeaendert} />}
         {reiter === "notizen" && <Notizen key={`n${akte.id}`} akteId={akte.id} onDokument={zeigeDokument} />}
         {reiter === "zeiten" && (
@@ -794,6 +834,7 @@ function AkteRahmen({
             onGeaendert={onGeaendert}
             onBeteiligte={() => onReiter("beteiligte")}
             onEinstellungen={() => onEinstellungen()}
+            onVolltext={imInhaltSuchen}
           />
         </div>
       </div>
