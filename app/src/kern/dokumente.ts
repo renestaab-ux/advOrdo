@@ -412,6 +412,8 @@ export interface SuchErgebnis {
   wortformen?: Record<string, string[]>;
   /** Ein Platzhalter passte auf sehr viele Wörter; gesucht wurde nur nach den häufigsten. */
   wortformen_gekuerzt?: boolean;
+  /** Wörter aus den Dokumenten, die ein Suchwort nur als Teil enthalten („Spamfilter“ zu „Spam“); für den Hinweis. */
+  wortteil_beispiele?: string[];
 }
 
 /** Treffer der Suche in der Akte außerhalb der Dokumente (Kern: akten.aktensuche). */

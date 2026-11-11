@@ -137,3 +137,13 @@ def test_wortteile_mit_platzhalter(akten, con, tmp_path):
     leer = suche.suche(akten, "*gibtsnicht*")
     assert leer["dokumente"] == [] and leer["wortformen"] == {"*gibtsnicht*": []}
     assert suche.suche(akten, "Pumpe *gibtsnicht*")["dokumente"] == []  # nicht still weggelassen
+    # Der Hinweis „Auch als Wortteil suchen“ nennt echte Wörter aus den Dokumenten, so geschrieben wie dort.
+    assert sorted(suche.suche(akten, "Protokoll")["wortteil_beispiele"]) == ["Diagnoseprotokoll", "Sitzungsprotokolle"]
+    assert suche.suche(akten, "Pumpe")["wortteil_beispiele"] == []
+    assert suche.suche(akten, "*protokoll*")["wortteil_beispiele"] == []
+    assert suche.suche(akten, "rucktritt")["wortteil_beispiele"] == ["Rücktrittserklärung"]
+    # In einer Akte nur Wörter dieser Akte.
+    _lege_an(akten, con, tmp_path, "Andere", "x.md", "(1) Ein Protokollentwurf.")
+    hallenbad = next(a["id"] for a in akte.akten(akten) if a["name"] == "Hallenbad")
+    assert "Protokollentwurf" in suche.suche(akten, "Protokoll")["wortteil_beispiele"]
+    assert "Protokollentwurf" not in suche.suche(akten, "Protokoll", hallenbad)["wortteil_beispiele"]

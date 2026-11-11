@@ -112,12 +112,50 @@ def wortformen(con: sqlite3.Connection, tabelle: str) -> Wortformen:
     return suchen
 
 
+MAX_BEISPIELE = 3  # so viele zusammengesetzte Wörter nennt der Hinweis „Auch als Wortteil suchen“
+
+
+def wortteil_beispiele(con: sqlite3.Connection, suchtext: str, akte_id: int | None = None) -> list[str]:
+    """Wörter aus den Dokumenten (der Akte), die ein Suchwort nur als Teil enthalten, z. B. „Spamfilter“ zu „Spam“.
+
+    Damit nennt der Hinweis „Auch als Wortteil suchen“ echte Beispiele und erscheint nur, wenn es solche Wörter gibt.
+    Gilt nur für einfache Eingaben ohne * und ohne Anführungszeichen; die Wörter stehen in ihrer Schreibweise im Text.
+    """
+    if "*" in suchtext or '"' in suchtext:
+        return []
+    woerter = [w for w in _woerter(suchtext) if len(w) >= 3]
+    if not woerter:
+        return []
+    suchen = wortformen(con, "abschnitt_fts")
+    beispiele: list[str] = []
+    for wort in woerter:
+        klein = _index_schreibweise(wort)
+        for kandidat in suchen(f"*{klein}*")[:50]:
+            if kandidat == klein:
+                continue
+            # Nur Wörter, die in dieser Akte vorkommen, und zwar so geschrieben wie im Dokument.
+            z = con.execute(
+                f"""SELECT highlight(abschnitt_fts, 0, '{_AUF}', '{_ZU}') AS markiert FROM abschnitt_fts
+                    JOIN abschnitt a ON a.id = abschnitt_fts.rowid JOIN dokument d ON d.id = a.dokument_id
+                    WHERE abschnitt_fts MATCH ? AND (? IS NULL OR d.akte_id = ?) LIMIT 1""",
+                (f'"{kandidat}"', akte_id, akte_id)).fetchone()
+            if z is None:
+                continue
+            form = next((b for *_rest, b in _treffer(z["markiert"])), kandidat)
+            if form not in beispiele:
+                beispiele.append(form)
+            if len(beispiele) >= MAX_BEISPIELE:
+                return beispiele
+    return beispiele
+
+
 def suche(con: sqlite3.Connection, suchtext: str, akte_id: int | None = None) -> dict:
     """Treffer gruppiert nach Dokument und Seite; Rang 1 ist die relevanteste Seite (BM25)."""
     beginn = time.perf_counter()
     a = abfrage_mit_formen(suchtext, wortformen(con, "abschnitt_fts"))
     fts = a.fts
-    platzhalter = {"wortformen": a.wortformen, "wortformen_gekuerzt": a.gekuerzt}
+    platzhalter = {"wortformen": a.wortformen, "wortformen_gekuerzt": a.gekuerzt,
+                   "wortteil_beispiele": wortteil_beispiele(con, suchtext, akte_id)}
     if not fts or a.leer:
         return {"dokumente": [], "seiten": 0, "treffer": 0, "dauer_ms": round((time.perf_counter() - beginn) * 1000),
                 "gekuerzt": False, **platzhalter}

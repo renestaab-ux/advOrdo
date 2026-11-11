@@ -350,7 +350,9 @@ export default function Suche({ onAkte, inAkte }: { onAkte?: (id: number) => voi
           (ergebnis?.wortformen_gekuerzt ? " (nur die häufigsten)" : ""),
     )
     .join(" · ");
-  const vorschlag = wortteilVorschlag(eingabe);
+  // Den Wortteil nur vorschlagen, wenn es in den Dokumenten wirklich längere Wörter damit gibt; die nennen wir.
+  const beispiele = ergebnis?.wortteil_beispiele ?? [];
+  const vorschlag = beispiele.length ? wortteilVorschlag(eingabe) : null;
   // Alle gefundenen Wortformen des Dokuments markieren, nicht nur die der gewählten Seite.
   const begriffe = [...new Set(auswahl?.dokument.fundstellen.flatMap((f) => f.begriffe) ?? [])];
   const ohneTreffer =
@@ -486,7 +488,10 @@ export default function Suche({ onAkte, inAkte }: { onAkte?: (id: number) => voi
               <button className="link" onClick={() => setEingabe(vorschlag)}>
                 Auch als Wortteil suchen: {vorschlag}
               </button>{" "}
-              <span className="hinweis">findet z. B. auch zusammengesetzte Wörter wie „Diagnoseprotokoll“</span>
+              <span className="hinweis">
+                findet z. B. auch {beispiele.map((b) => `„${b}“`).join(", ")}
+                {inAkte ? " in dieser Akte" : ""}
+              </span>
             </li>
           )}
           {!eingabe.trim() && (
