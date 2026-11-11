@@ -34,3 +34,6 @@ ki-pruefen-protokoll.json
 testdaten/*
 !testdaten/testakte-weber/
 !testdaten/eigene-daten/
+
+# Hilfsprogramm für Apple Intelligence (macos/apple-ki/bauen.sh)
+macos/apple-ki/build/

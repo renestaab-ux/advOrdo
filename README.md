@@ -469,6 +469,26 @@ Prüfen ohne App, im Projektordner:
 Linux: `curl -fsSL https://ollama.com/install.sh | sh`, macOS: `brew install ollama`. LM Studio
 geht genauso: dort den lokalen Server starten und in den Einstellungen „LM Studio“ wählen.
 
+### Apple Intelligence auf dem Mac (On-Device)
+
+Auf einem Mac mit Apple Silicon und macOS 26 oder neuer kann das Modell von Apple Intelligence die
+Analyse übernehmen (Einstellungen → Lokales Sprachmodell → Programm „Apple Intelligence (auf dem
+Mac)“). advOrdo nutzt dabei ausschließlich das Modell auf dem Gerät („On-Device“), nie Private Cloud
+Compute; Dokumentinhalte verlassen den Mac nicht. Apple bietet das Modell nur über das
+Swift-Framework „Foundation Models“ an. Das kleine Hilfsprogramm in `macos/apple-ki` vermittelt: Der
+Kern startet es je Anfrage und tauscht JSON über Standardein- und -ausgabe aus, ohne Port und ohne
+Netzwerk. Einmalig übersetzen (braucht Xcode oder `xcode-select --install`):
+
+```bash
+macos/apple-ki/bauen.sh
+```
+
+Apple Intelligence muss unter Systemeinstellungen → „Apple Intelligence & Siri“ eingeschaltet und
+das Modell geladen sein. Das Modell ist klein und sieht unter macOS 26 nur 4.096 Token auf einmal;
+advOrdo zerlegt die Texte deshalb in kleinere Stücke. Es eignet sich für Vorschläge in „Details“,
+kurze Zusammenfassungen und Fragen zu einem Dokument, weniger für Widersprüche in einer großen Akte.
+Schildert ein Text Gewalt oder Straftaten, kann der Inhaltsfilter von Apple die Antwort verweigern.
+
 ### Probelauf mit der Testakte
 
 ```powershell

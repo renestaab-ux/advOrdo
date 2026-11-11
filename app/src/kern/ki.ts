@@ -9,6 +9,8 @@ export interface KiModell {
   groesse: number | null;
   parameter: string | null;
   quantisierung: string | null;
+  /** Nur Apple Intelligence: Kontextgröße, wie macOS sie meldet. */
+  kontext?: number | null;
 }
 
 /** Stand des lokalen Modellprogramms (Ollama, LM Studio). */

@@ -35,7 +35,7 @@ from ..abgleich.abgleich import PARTEIEN
 from ..rechner.basiszins import Basiszins
 from . import belege, gegenueberstellung, wissen
 from .analyse import BELEGT, OHNE_BELEG, Analyse, Fortschritt, OhneFortschritt
-from .anbieter import ANTWORT_TOKEN, Anbieter, KiFehler
+from .anbieter import Anbieter, KiFehler, antwort_token
 
 FASSUNG = 3
 
@@ -281,7 +281,7 @@ def frage(
                   + len(urteiltext) + (500 if urteile else 0))
         # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung, Verlauf und Zusatzwissen,
         # rund 3 Zeichen je Token.
-        budget = max(3000, (kontext - ANTWORT_TOKEN - 1200) * 3 - len(bisher) - len(text) - zusatz)
+        budget = max(3000, (kontext - antwort_token(anbieter) - 1200) * 3 - len(bisher) - len(text) - zusatz)
         begriffe = text + " " + bisher[-300:]
         if rechnen and wissen.PROZESSKOSTEN in passende_rechner:
             begriffe += " " + wissen.KOSTEN_BEGRIFFE

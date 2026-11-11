@@ -8,7 +8,7 @@
 | Oberfläche | React + TypeScript (Vite) | Verbreitet, gut testbar, läuft identisch in allen System-Webviews |
 | Analysekern | Python (`juracore`) | Beste Bibliotheken für PDF/DOCX-Parsing, OCR, Embeddings und lokale LLMs |
 | Speicher | SQLite mit FTS5 | Eine Datei pro Datenverzeichnis, keine Serverinstallation; Vektorspeicher folgt (sqlite-vec oder LanceDB) |
-| Lokale Modelle | Ollama / LM Studio | Über Provider-Adapter, lokal als Voreinstellung |
+| Lokale Modelle | Ollama / LM Studio, auf dem Mac Apple Intelligence (On-Device) | Über Provider-Adapter, lokal als Voreinstellung; Apple über das Swift-Hilfsprogramm `macos/apple-ki` (stdin/stdout, kein Port) |
 
 ## Kommunikation App ↔ Kern
 
