@@ -300,7 +300,7 @@ export default function Einstellungen({
               </select>
             </label>
             {anbieter === APPLE ? (
-              <p className="erklaerung">
+              <p className="erklaerung ki-apple-hinweis">
                 Apple Intelligence läuft im Betriebssystem dieses Macs; eine Adresse gibt es nicht. advOrdo nutzt
                 ausschließlich das Modell auf dem Gerät. Private Cloud Compute wird nicht verwendet, Dokumentinhalte
                 verlassen den Mac nicht. Das Modell ist klein: Es eignet sich für Vorschläge in „Details“, kurze
@@ -366,7 +366,10 @@ export default function Einstellungen({
 
           {laeuft && <p className="status" role="status">Prüfe …</p>}
           {fehler && <p className="fehler" role="alert">{fehler}</p>}
-          {lokal && !laeuft && (
+          {lokal && !laeuft && lokal.anbieter !== anbieter && (
+            <p className="ki-zeile">Noch nicht gespeichert: „Speichern“ übernimmt das gewählte Programm und prüft es.</p>
+          )}
+          {lokal && !laeuft && lokal.anbieter === anbieter && (
             <p className={lokal.bereit ? "ki-zeile bereit" : "ki-zeile"}>
               {lokal.bereit
                 ? lokal.anbieter === APPLE
