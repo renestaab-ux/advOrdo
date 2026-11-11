@@ -165,3 +165,13 @@ def test_ki_modus_zeigt_eigenen_rechner(tmp_path):
 def test_hilfsprogramm_im_projektordner():
     erwartet = Path(apple.__file__).resolve().parents[3] / "macos" / "apple-ki" / "main.swift"
     assert erwartet.is_file()
+
+
+def test_ueberlauf_als_sonstiger_fehler_wird_erkannt(helfer):
+    """macOS 27 meldet den Überlauf mit eigenem Text („Content contains 9002 tokens …“)."""
+    antworten, _ = helfer
+    antworten({"ok": False, "fehler": "sonstiges", "meldung": "Content contains 9002 tokens, which exceeds the "
+                                                              "maximum allowed context size of 8192."})
+    with pytest.raises(KiFehler) as fehler:
+        apple.AppleIntelligence(8192).chat("System", "Frage", SCHEMA)
+    assert "abgeschnitten" in str(fehler.value) and "JSON" in str(fehler.value)

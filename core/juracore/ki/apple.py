@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -69,6 +70,9 @@ def geordnet(schema: Any) -> Any:
     if isinstance(schema, list):
         return [geordnet(v) for v in schema]
     return schema
+
+
+_KONTEXT_MELDUNG = re.compile(r"context (?:window|size)|exceeds the maximum", re.I)
 
 
 class AppleIntelligence:
@@ -145,6 +149,8 @@ class AppleIntelligence:
         if antwort.get("ok") is True:
             return lies_json(str(antwort.get("text") or ""))
         art, meldung = antwort.get("fehler"), str(antwort.get("meldung") or "")
+        if art == "sonstiges" and _KONTEXT_MELDUNG.search(meldung):
+            art = "kontext"  # neuere macOS-Fassungen melden den Überlauf nicht immer als eigene Fehlerart
         if art == "kontext":
             # „abgeschnitten“ und „JSON“: Die Analyse teilt das Stück dann und fragt die Hälften einzeln.
             raise KiFehler(f"Text und Antwort passen nicht in den Kontext von Apple Intelligence ({self.kontext} "

@@ -833,3 +833,31 @@ def test_gespeicherte_chronologie_wird_neu_geordnet(akten):
         {"datum": "2026-02-02", "anzeige": "02.02.2026", "art": "ereignis"}]}, akte_id=a["id"])
     c = speicher.ergebnisse(akten, a["id"], "m")["chronologie"]
     assert [x["anzeige"] for x in c["ereignisse"]] == ["02.02.2026", "Ende Februar 2026"]
+
+
+def test_chronologie_koepfe_getrennt_bei_kleinem_kontext(akten, con, tmp_path):
+    """Kleiner Kontext: Passen Angaben und Dokumentköpfe nicht in eine Anfrage, gehen die Köpfe in eigene Anfragen."""
+    from juracore.ki import chronologie
+
+    a = akte.akte_anlegen(akten, "Köpfe")
+    texte = {}
+    for i in range(6):
+        pfad = tmp_path / f"0{i}_Schreiben.md"
+        pfad.write_text(f"Freiburg, den 0{i + 1}.07.2025\n\n" + "Langer Kopftext. " * 60, encoding="utf-8")
+        d = akte.importiere(akten, con, a["id"], pfad, tmp_path / "ablage", ocr=False)["dokument_id"]
+        texte[d] = belege.lade_text(akten, d, ())
+    angabe = {"text": "Am 10.07.2025 wurde gezahlt.", "haltung": "behauptet",
+              "fundstelle": {"dateiname": "00_Schreiben.md", "parteien": []}}
+    anfragen: list[str] = []
+
+    def frage(prompt: str, schema: dict) -> dict:
+        anfragen.append(prompt)
+        koepfe = re.findall(r"^\[(D\d+)\] 0(\d)_Schreiben", prompt, re.M)
+        return {"ereignisse": [], "dokumente": [{"kennung": k, "bezeichnung": "Schreiben",
+                                                  "datum": f"0{int(n) + 1}.07.2025"} for k, n in koepfe]}
+
+    ergebnis = chronologie.erstelle(frage, 3000, [{"angaben": [angabe], "luecken": []}], texte)
+    assert len(anfragen) > 2 and any("(keine; hier nur die Dokumentköpfe)" in p for p in anfragen)
+    assert all(p.count("[D") <= 3 for p in anfragen)  # nie alle sechs Köpfe auf einmal
+    assert not ergebnis["unvollstaendig"]
+    assert {e["anzeige"] for e in ergebnis["ereignisse"]} == {f"0{i}.07.2025" for i in range(1, 7)}

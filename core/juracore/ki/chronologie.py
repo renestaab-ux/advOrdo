@@ -147,9 +147,7 @@ def erstelle(
     alle.sort(key=lambda a: _daten(a["text"])[0].wert)  # Blöcke enthalten dann benachbarte Daten
     zeilen = [f"[A{i}] {_herkunft(a)}: {a['text']}" for i, a in enumerate(alle, 1)]
     koepfe = list(texte.values())
-    kopf_text = "\n\n".join(
-        f"[D{j}] {t.dateiname}\n{belege.zeilen(kopf(t))}" for j, t in enumerate(koepfe, 1)
-    )
+    kopf_teile = [f"[D{j}] {t.dateiname}\n{belege.zeilen(kopf(t))}" for j, t in enumerate(koepfe, 1)]
 
     # Alle Angaben in einer Anfrage, wenn sie passen; sonst Blöcke, die Dokumentköpfe nur im ersten.
     grenze = min(budget, BLOCK_ZEICHEN)
@@ -162,21 +160,39 @@ def erstelle(
         bloecke[-1].append(i)
         groesse += len(z) + 1
 
+    # Passen die Köpfe nicht mehr zum ersten Block (kleiner Kontext, viele Dokumente), gehen sie in eigene Anfragen,
+    # jede höchstens so groß wie ein Block.
+    alle_koepfe = list(range(len(koepfe)))
+    erster = sum(len(zeilen[i]) + 1 for i in bloecke[0])
+    if erster + sum(len(k) + 2 for k in kopf_teile) <= grenze or not koepfe:
+        offen: list[tuple[list[int], list[int]]] = [(block, alle_koepfe if b == 0 else [])
+                                                    for b, block in enumerate(bloecke)]
+    else:
+        kopf_bloecke: list[list[int]] = [[]]
+        groesse = 0
+        for j, k in enumerate(kopf_teile):
+            if kopf_bloecke[-1] and groesse + len(k) + 2 > grenze:
+                kopf_bloecke.append([])
+                groesse = 0
+            kopf_bloecke[-1].append(j)
+            groesse += len(k) + 2
+        offen = [([], kb) for kb in kopf_bloecke] + [(block, []) for block in bloecke if block]
+
     ereignisse: list[dict] = []
     verworfen = 0
     luecken: list[int] = []  # Teile, für die das Modell auch beim zweiten Versuch unbrauchbar antwortete
-    offen = [(block, b == 0) for b, block in enumerate(bloecke)]
     offen.reverse()
     teil = 0
     while offen:
         block, mit_koepfen = offen.pop()
         teil += 1
-        if len(bloecke) > 1 or offen:
+        if teil > 1 or offen:
             melde(f"Ordne die Ereignisse (Teil {teil} von {teil + len(offen)})")
+        kopf_text = "\n\n".join(kopf_teile[j] for j in mit_koepfen)
         anweisung = ANWEISUNG.format(
-            koepfe=(" Danach folgen Anfang und Schluss jedes Dokuments (Kennung D…)." if mit_koepfen else ""),
+            koepfe=(" Danach folgen Anfang und Schluss von Dokumenten (Kennung D…)." if mit_koepfen else ""),
             dokumente=ANWEISUNG_DOKUMENTE if mit_koepfen else "- dokumente: leere Liste.\n",
-            zeilen="\n".join(zeilen[i] for i in block)
+            zeilen=("\n".join(zeilen[i] for i in block) or "(keine; hier nur die Dokumentköpfe)")
             + (f"\n\nDokumentköpfe:\n{kopf_text}" if mit_koepfen else ""),
         )
         try:
@@ -188,13 +204,24 @@ def erstelle(
                 # Weniger Angaben, kürzere Antwort: den Block halbieren, die Köpfe bleiben bei der ersten Hälfte.
                 log.warning("Teile die Chronologie und frage erneut: %s", fehler)
                 mitte = len(block) // 2
-                offen += [(block[mitte:], False), (block[:mitte], mit_koepfen)]
+                offen += [(block[mitte:], []), (block[:mitte], mit_koepfen)]
+                teil -= 1
+                continue
+            if mit_koepfen and (block or len(mit_koepfen) > 1) and "abgeschnitten" in str(fehler):
+                # Die Köpfe allein in eigene Anfragen, bei Bedarf halbiert.
+                log.warning("Frage die Dokumentköpfe getrennt: %s", fehler)
+                ohne: list[int] = []
+                if block:
+                    offen += [(block, ohne), (ohne, mit_koepfen)]
+                else:
+                    mitte = len(mit_koepfen) // 2
+                    offen += [(ohne, mit_koepfen[mitte:]), (ohne, mit_koepfen[:mitte])]
                 teil -= 1
                 continue
             log.warning("Teil %d der Chronologie übersprungen: %s", teil, fehler)
             luecken.append(teil)
             continue
-        for e in antwort.get("ereignisse") or []:
+        for e in (antwort.get("ereignisse") or []) if block else []:  # ohne Angaben kein Ereignis
             neu = _ereignis(e, block, alle, texte)
             if neu is None:
                 verworfen += 1
@@ -202,7 +229,7 @@ def erstelle(
                 ereignisse.append(neu)
         if mit_koepfen:
             for d in antwort.get("dokumente") or []:
-                neu = _dokument(d, koepfe)
+                neu = _dokument(d, koepfe, mit_koepfen)
                 if neu is None:
                     verworfen += 1
                 else:
@@ -255,13 +282,15 @@ def _ereignis(e: object, block: list[int], alle: list[dict], texte: dict[int, be
     }
 
 
-def _dokument(d: object, koepfe: list[belege.Text]) -> dict | None:
+def _dokument(d: object, koepfe: list[belege.Text], vorgelegt: list[int] | None = None) -> dict | None:
     if not isinstance(d, dict):
         return None
     nr = str(d.get("kennung", "")).strip().lstrip("[D").rstrip("]")
     datum = lies_datum(d.get("datum"))
     if not nr.isdigit() or not 1 <= int(nr) <= len(koepfe) or datum is None:
         return None
+    if vorgelegt is not None and int(nr) - 1 not in vorgelegt:
+        return None  # Kopf war in dieser Anfrage nicht dabei
     t = koepfe[int(nr) - 1]
     for a in kopf(t):
         if (w := im_text(datum, a["text"])) is not None:
