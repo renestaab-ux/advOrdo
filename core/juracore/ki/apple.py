@@ -13,6 +13,7 @@ deshalb in kleinere Stücke; die Antwortlänge ist auf ein Viertel des Kontexts 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -20,6 +21,8 @@ from pathlib import Path
 from typing import Any
 
 from .anbieter import ANTWORT_TOKEN, KiFehler, lies_json
+
+log = logging.getLogger("juracore.ki")
 
 TITEL = "Apple Intelligence (auf dem Mac)"
 MODELL = "apple-on-device"
@@ -133,6 +136,10 @@ class AppleIntelligence:
             anfrage["system"] = (f"{system}\n\nAntworte ausschließlich mit einem JSON-Objekt nach diesem Schema:\n"
                                  f"{json.dumps(schema, ensure_ascii=False)}")
             antwort = self._aufruf(anfrage, self.timeout)
+        if os.environ.get("ADVORDO_KI_ROH"):
+            # Nur zur Fehlersuche auf der Kommandozeile: Die Antwort des Modells erscheint im Terminal, nirgends sonst.
+            log.warning("Apple Intelligence (%d Zeichen Anfrage): %s", len(nutzer),
+                        json.dumps(antwort, ensure_ascii=False)[:1500])
         if antwort.get("ok") is True:
             return lies_json(str(antwort.get("text") or ""))
         art, meldung = antwort.get("fehler"), str(antwort.get("meldung") or "")
