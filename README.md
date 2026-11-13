@@ -531,6 +531,36 @@ Rest des Platzes wird in Aktenreihenfolge aufgefüllt. Unter jeder Antwort steht
 letzten drei Fragen und Antworten gehen als Zusammenhang mit. Der Verlauf bleibt je Akte bzw. Dokument
 gespeichert, bis man ihn leert oder die Akte entfernt.
 
+## Skills für Chat und Analyse
+
+Ein Skill ist eine Arbeitsanweisung für das Sprachmodell: welche Rolle es einnimmt, wie es vorgeht und worauf es
+achtet. Unter „Einstellungen“ → „Skills“ lassen sich eigene Skills anlegen und Skills aus Claude oder ChatGPT
+importieren: eine Datei `SKILL.md`, eine Markdown-Datei, ein ZIP-Archiv oder ein Ordner mit vielen Skills. advOrdo
+übernimmt Name, Beschreibung (`name`, `description` im Kopf) und die Anweisung; weitere Dateien des Skill-Ordners
+(etwa `references/`) nicht. Ein Skill lässt sich als `SKILL.md` exportieren. Die Skills gelten für das Gerät, also
+für alle Arbeitsumgebungen (Datei `skills.json` im Datenverzeichnis). Importiert wird nur aus Dateien; die App lädt
+dafür nichts aus dem Netz.
+
+Jedes importierte Paket kommt in einen eigenen Ordner (Titel aus `.claude-plugin/plugin.json` oder der README,
+sonst der Paketname). Ordner lassen sich umbenennen, verschachteln („Zivilrecht / BGB AT“) und samt Inhalt löschen;
+eine Suche filtert nach Name, Beschreibung und Ordner.
+
+Im Chat und in der Analyse einer Akte öffnet „Skills:“ eine Auswahl mit Suche und Ordnern. Gewählt werden ein oder
+mehrere Skills, ganze Ordner oder „Alle“; die Wahl wird je Akte gemerkt. Bei mehr als einem Skill nimmt advOrdo je
+Frage die passendsten: Wortvergleich der Frage (bei der Analyse Aufgabe, Aktenname und Dokumentnamen) mit Name,
+Überschriften, Beschreibung und Paragraphennummern, ohne zusätzliche Anfrage an das Modell; höchstens fünf und
+zusammen höchstens ein Viertel des Kontextfensters. Einzeln gewählte Skills haben Vorrang; aus Ordnern und „Alle“
+kommt nur, was ausreichend zur Frage passt. Passt keiner, gilt keiner, und die Antwort sagt das. Skills wirken bei
+lokaler und externer KI. Die Regeln von advOrdo stehen vor dem Skill und gehen vor: Tatsachen nur aus den
+vorgelegten Dokumenten, jede Aussage mit geprüftem Beleg, Antwort im festen Format. Was ein Skill an Werkzeugen
+voraussetzt (Webseiten prüfen, Word-Dateien erzeugen), gibt es hier nicht; die Liste in den Einstellungen weist
+darauf hin. Entscheidungen, die nur im Skill stehen, sind nicht geprüft und erscheinen höchstens als Einschätzung.
+
+Ein Skill darf höchstens ein Viertel des Kontextfensters belegen (bei 8.192 Token rund 6.000 Zeichen, bei
+32.768 Token rund 24.000 Zeichen); längere Skills sind für das Modell nicht wählbar statt still gekürzt. Unter
+jeder Antwort und jedem Analyseergebnis steht, mit welchem Skill es entstand. Gespeicherte Analysen gelten je Skill:
+Ein anderer Skill rechnet neu.
+
 ## Externe KI (nur ausnahmsweise)
 
 Voreingestellt arbeitet die App nur lokal. Unter „Einstellungen“ → „Externe KI“ lassen sich Anthropic

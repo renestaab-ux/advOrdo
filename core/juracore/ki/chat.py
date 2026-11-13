@@ -34,6 +34,7 @@ from decimal import Decimal
 from ..abgleich.abgleich import PARTEIEN
 from ..rechner.basiszins import Basiszins
 from . import belege, gegenueberstellung, wissen
+from . import skills as ki_skills
 from .analyse import BELEGT, OHNE_BELEG, Analyse, Fortschritt, OhneFortschritt
 from .anbieter import Anbieter, KiFehler, antwort_token
 
@@ -211,6 +212,8 @@ def frage(
     basiszins: Basiszins | None = None,
     land: str = "BY",
     heute: date | None = None,
+    skills: list[dict] | None = None,
+    skill_hinweis: str | None = None,
 ) -> dict:
     """Beantwortet eine Frage zur Akte bzw. zum Dokument, speichert Frage und Antwort und gibt die Antwort zurück.
 
@@ -222,9 +225,12 @@ def frage(
     ``rechtsprechung``: ``akte`` legt Leitsätze und zitierte Randnummern der Entscheidungen der Akte vor, ``suche``
     dazu die zur Frage passenden Randnummern (siehe ``wissen.waehle_urteile``); ``aus`` keine.
     ``land``: Bundesland für Feiertage beim Fristenrechner.
+    ``skills``: gewählte Arbeitsanweisungen (``skills.fuer_anfrage``); sie ergänzen die Systemanweisung.
+    ``skill_hinweis``: warum trotz Auswahl kein Skill mitging (steht unter der Antwort).
     """
     fortschritt = fortschritt or OhneFortschritt()
     einrichten(con)
+    system = ki_skills.systemanweisung(SYSTEM, skills)
     text = text.strip()
     if not text:
         raise ValueError("Die Frage ist leer.")
@@ -265,8 +271,10 @@ def frage(
         g["zitate"] = gegenueberstellung.zur_frage(g["zitate"], text)
         fortschritt.melde("Das Sprachmodell beantwortet die Frage anhand der Gegenüberstellung")
         fortschritt.pruefe()
-        ergebnis = {"aussagen": _antwort_aus_gegenueberstellung(anbieter, text, g["zitate"]), "auswahl": None,
-                    "modell": anbieter.modell, "extern": extern, "fassung": FASSUNG, "gegenueberstellung": g}
+        ergebnis = {"aussagen": _antwort_aus_gegenueberstellung(anbieter, text, g["zitate"], system),
+                    "auswahl": None, "modell": anbieter.modell, "extern": extern, "fassung": FASSUNG,
+                    "gegenueberstellung": g}
+        _skills_vermerken(ergebnis, skills, skill_hinweis)
         return _speichere(con, akte_id, dokument_id, text, ergebnis)
     if mit_rechtsprechung:
         fortschritt.melde("Suche passende Stellen in der Rechtsprechung der Akte")
@@ -278,7 +286,7 @@ def frage(
         normtext = wissen.normen_text(normen)
         urteiltext = wissen.urteile_text(urteile)
         zusatz = ((len(wissen.ANWEISUNG_RECHNER) if rechnen else 0) + len(normtext) + (400 if normen else 0)
-                  + len(urteiltext) + (500 if urteile else 0))
+                  + len(urteiltext) + (500 if urteile else 0) + len(system) - len(SYSTEM))
         # Zeichen für Dokumenttext: Kontext abzüglich Antwort, Anweisung, Verlauf und Zusatzwissen,
         # rund 3 Zeichen je Token.
         budget = max(3000, (kontext - antwort_token(anbieter) - 1200) * 3 - len(bisher) - len(text) - zusatz)
@@ -350,7 +358,7 @@ def frage(
     fortschritt.pruefe()
     gekuerzt = False
     try:
-        antwort = anbieter.chat(SYSTEM, nutzer, schema)
+        antwort = anbieter.chat(system, nutzer, schema)
     except KiFehler as fehler:
         if _zu_lang(fehler) and (normen or urteile):
             # Der im Programm eingestellte Kontext ist kleiner als angegeben: noch einmal mit weniger Gesetzes-
@@ -364,7 +372,7 @@ def frage(
             nutzer, schema, teile, auswahl, normtext, urteiltext = baue(normen, urteile)
             gekuerzt = True
             try:
-                antwort = anbieter.chat(SYSTEM, nutzer, schema)
+                antwort = anbieter.chat(system, nutzer, schema)
             except KiFehler as noch:
                 if not _zu_lang(noch):
                     raise
@@ -375,7 +383,7 @@ def frage(
             raise
         else:
             fortschritt.pruefe()
-            antwort = anbieter.chat(SYSTEM, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
+            antwort = anbieter.chat(system, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
 
     aussagen = []
     gesehen: set[str] = set()
@@ -461,6 +469,7 @@ def frage(
         "extern": extern,
         "fassung": FASSUNG,
     }
+    _skills_vermerken(ergebnis, skills, skill_hinweis)
     if gesetze is not None:
         ergebnis["wissen"] = {
             "gesetze": [f"{n['bezeichnung']} {n['gesetz']}" for n in normen],
@@ -516,7 +525,8 @@ def _ausschnitt(f: dict) -> str:
     return " ".join(f"{a['davor']}{a['wert']}{a['danach']}".split())
 
 
-def _antwort_aus_gegenueberstellung(anbieter: Anbieter, frage: str, zitate: list[dict]) -> list[dict]:
+def _antwort_aus_gegenueberstellung(anbieter: Anbieter, frage: str, zitate: list[dict],
+                                    system: str = SYSTEM) -> list[dict]:
     """Beantwortet die Frage aus den geprüften Gegenüberstellungen; jede Aussage übernimmt die Belege der
     Gegenüberstellungen, auf die sie verweist."""
     if not zitate:
@@ -558,7 +568,7 @@ def _antwort_aus_gegenueberstellung(anbieter: Anbieter, frage: str, zitate: list
         "einem Hinweis."
     )
     try:
-        antwort = anbieter.chat(SYSTEM, nutzer, SCHEMA_SYNTHESE)
+        antwort = anbieter.chat(system, nutzer, SCHEMA_SYNTHESE)
     except KiFehler:
         antwort = {"aussagen": []}
     aussagen: list[dict] = []
@@ -596,6 +606,13 @@ def _antwort_aus_gegenueberstellung(anbieter: Anbieter, frage: str, zitate: list
 
 def _aehnlich(a: set[str], b: set[str]) -> bool:
     return bool(a and b) and len(a & b) / min(len(a), len(b)) >= 0.7
+
+
+def _skills_vermerken(ergebnis: dict, skills: list[dict] | None, hinweis: str | None) -> None:
+    if skills:
+        ergebnis["skills"] = [s["name"] for s in skills]
+    if hinweis:
+        ergebnis["skill_hinweis"] = hinweis
 
 
 def soll_gegenueberstellen(frage: str) -> bool:

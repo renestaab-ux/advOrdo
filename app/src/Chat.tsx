@@ -6,6 +6,7 @@ import { GegenueberstellungListe } from "./Gegenueberstellung";
 import { gemerkt, merke } from "./merken";
 import { FristAusgabe, ZinsAusgabe, gespeichertesLand } from "./Toolbox";
 import { KostenAusgabe } from "./Prozesskosten";
+import { SkillWahl, useSkillWahl } from "./Skills";
 import { useAuftrag } from "./useAuftrag";
 import {
   ChatAussage,
@@ -19,6 +20,7 @@ import {
   KiStatus,
   auswahlText,
   dauerText,
+  skillText,
   kern,
   zeitpunkt,
 } from "./kern";
@@ -74,11 +76,14 @@ export default function Chat({
   akteId,
   dokumentId = null,
   onEinstellungen,
+  onSkills,
 }: {
   akteId: number;
   /** Ohne Dokument: Chat mit der ganzen Akte. */
   dokumentId?: number | null;
   onEinstellungen?: () => void;
+  /** Öffnet Einstellungen → Skills. */
+  onSkills?: () => void;
 }) {
   const [status, setStatus] = useState<KiStatus | null>(null);
   const [verlauf, setVerlauf] = useState<ChatEintrag[]>([]);
@@ -93,6 +98,7 @@ export default function Chat({
   const [rechtsprechung, setRechtsprechung] = useState<RechtsprechungStufe>(gemerkteRechtsprechung);
   const [ergaenzt, setErgaenzt] = useState(() => gemerkterText("chat.gesetze_ergaenzt"));
   const [geladeneGesetze, setGeladeneGesetze] = useState<string[]>([]);
+  const [skill, setSkill] = useSkillWahl("chat", akteId);
   const ende = useRef<HTMLDivElement>(null);
   const seite = useRef<HTMLDivElement>(null);
 
@@ -166,6 +172,7 @@ export default function Chat({
             .filter(Boolean),
           land: gespeichertesLand(),
           rechtsprechung,
+          skills: skill,
         }),
       );
       setGestellt(frage);
@@ -270,6 +277,7 @@ export default function Chat({
             aria-label={`Frage zu ${gegenstand}`}
           />
           <div className="chat-wissen" role="group" aria-label="Zusatzwissen für die Antwort">
+            <SkillWahl wert={skill} onWert={setSkill} onEinstellungen={onSkills} />
             <label title="Zinsen, Fristen und Prozesskosten (RVG, GKG) rechnet die App mit den Rechnern der Toolbox; das Modell liefert nur die Angaben aus den Dokumenten.">
               <input
                 type="checkbox"
@@ -427,6 +435,7 @@ function ChatAntwort({
           <span>
             {zeitpunkt(eintrag.erstellt_am)} · {eintrag.modell}
             {eintrag.extern ? ` über ${eintrag.extern} (extern)` : ", auf diesem Gerät"}
+            {skillText(eintrag) && <> · {skillText(eintrag)}</>}
             {eintrag.auswahl && <> · Vorgelegt: {auswahlText(eintrag.auswahl)}</>}
             {eintrag.gegenueberstellung && (
               <> · Vorgelegt: je Zitat die zitierende Stelle und die passenden Stellen der Entscheidung</>

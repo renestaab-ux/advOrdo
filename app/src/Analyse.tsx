@@ -3,6 +3,7 @@ import { DokumentAnsicht } from "./DokumentAnsicht";
 import { Beleg, Zitatbereich, ZitateSchalter } from "./Belege";
 import KiExport from "./Export";
 import { useAuftrag } from "./useAuftrag";
+import { SkillWahl, useSkillWahl } from "./Skills";
 import {
   ART_TEXT,
   EREIGNIS_ART_TEXT,
@@ -22,6 +23,7 @@ import {
   dauerText,
   istDesktop,
   kern,
+  skillText,
   veraltet,
   zeitpunkt,
 } from "./kern";
@@ -32,7 +34,16 @@ export type Offen = { inhalt: DokumentInhalt; abschnitt: number } | null;
 const LEER: KiErgebnisse = { zusammenfassung_akte: null, widersprueche: null, chronologie: null, dokumente: {} };
 
 /** Zusammenfassungen und Chronologie mit dem Sprachmodell, jede Aussage mit Fundstelle. Widersprüche zeigt der Vergleich. */
-export default function Analyse({ akteId, onEinstellungen }: { akteId: number; onEinstellungen: () => void }) {
+export default function Analyse({
+  akteId,
+  onEinstellungen,
+  onSkills,
+}: {
+  akteId: number;
+  onEinstellungen: () => void;
+  /** Öffnet Einstellungen → Skills. */
+  onSkills?: () => void;
+}) {
   const [dokumente, setDokumente] = useState<AktenDokument[]>([]);
   const [status, setStatus] = useState<KiStatus | null>(null);
   const [ergebnisse, setErgebnisse] = useState<KiErgebnisse>(LEER);
@@ -42,6 +53,7 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
   const [fehler, setFehler] = useState<string | null>(null);
   const [ausgeben, setAusgeben] = useState(false);
   const seite = useRef<HTMLDivElement>(null);
+  const [skill, setSkill] = useSkillWahl("analyse", akteId);
 
   const ladeErgebnisse = useCallback(async (id: number) => {
     setErgebnisse(await kern<KiErgebnisse>("ki.ergebnisse", { akte_id: id }));
@@ -93,7 +105,7 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
   async function starte(aufgabe: KiAufgabe, params: Record<string, unknown>) {
     setFehler(null);
     try {
-      setAuftrag(await kern<KiAuftrag>("ki.starten", { aufgabe, ...params }));
+      setAuftrag(await kern<KiAuftrag>("ki.starten", { aufgabe, ...params, skills: skill }));
       if (aufgabe === "zusammenfassung_akte") setAnsicht("akte");
       if (aufgabe === "chronologie") setAnsicht("chronologie");
     } catch (e) {
@@ -183,6 +195,7 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
             Exportieren / Drucken …
           </button>
         )}
+        <SkillWahl wert={skill} onWert={setSkill} disabled={laeuft} onEinstellungen={onSkills} />
       </div>
 
       {ausgeben && <KiExport akteId={akteId} ergebnisse={ergebnisse} onSchliessen={() => setAusgeben(false)} />}
@@ -251,7 +264,12 @@ export default function Analyse({ akteId, onEinstellungen }: { akteId: number; o
                 return (
                   <details key={d.id} className="ki-dokument" open={zf != null && dokumente.length <= 3}>
                     <summary>
-                      <strong>{d.dateiname}</strong> {zf ? <span className="leise">{zaehlungText(zf)}</span> : null}
+                      <strong>{d.dateiname}</strong> {zf ? (
+                        <span className="leise">
+                          {zaehlungText(zf)}
+                          {skillText(zf) ? ` · ${skillText(zf)}` : ""}
+                        </span>
+                      ) : null}
                       <button
                         className="link klein"
                         disabled={!kannStarten}
@@ -388,6 +406,9 @@ function ErgebnisKopf({
   ergebnis: {
     modell: string;
     erstellt_am: string;
+    skill?: string;
+    skills?: string[];
+    skill_hinweis?: string;
     teile?: number;
     luecken?: number[];
     luecken_dokumente?: { dateiname: string; absaetze: string[] }[];
@@ -403,6 +424,7 @@ function ErgebnisKopf({
       <p className="zusammenfassung">{text}</p>
       <p className="ki-herkunft">
         Erstellt {zeitpunkt(ergebnis.erstellt_am)} mit {ergebnis.modell}
+        {skillText(ergebnis) && <> · {skillText(ergebnis)}</>}
         {veraltet && <span className="hinweis"> · Die Akte hat sich seitdem geändert, bitte neu berechnen.</span>}
         {mitSchalter && (
           <>

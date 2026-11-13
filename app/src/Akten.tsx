@@ -823,7 +823,12 @@ function AkteRahmen({
           <AkteStammdaten key={`b${akte.id}`} akteId={akte.id} teil="beteiligte" onGeaendert={onGeaendert} />
         )}
         {reiter === "vergleich" && <Vergleich key={akte.id} akteId={akte.id} onEinstellungen={() => onEinstellungen()} />}
-        {kiAn && reiter === "analyse" && <Analyse key={akte.id} akteId={akte.id} onEinstellungen={() => onEinstellungen()} />}
+        {kiAn && reiter === "analyse" && <Analyse
+            key={akte.id}
+            akteId={akte.id}
+            onEinstellungen={() => onEinstellungen()}
+            onSkills={() => onEinstellungen("skills")}
+          />}
         <div hidden={!istAkteReiter(reiter)} className="akte-reiter-halter">
           <Akte
             key={akte.id}
@@ -834,6 +839,7 @@ function AkteRahmen({
             onGeaendert={onGeaendert}
             onBeteiligte={() => onReiter("beteiligte")}
             onEinstellungen={() => onEinstellungen()}
+            onSkills={() => onEinstellungen("skills")}
             onVolltext={imInhaltSuchen}
           />
         </div>
