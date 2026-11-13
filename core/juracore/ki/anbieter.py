@@ -337,19 +337,28 @@ def _beschreibung(pfad: str, daten: dict | None, koerper: bytes | None) -> str:
     return f"Anfrage an {modell or 'das Modell'}: {zeichen} Zeichen (Text nicht protokolliert)"
 
 
+def _kuerzen(text: str, hoechstens: int = 500) -> str:
+    """Kürzt lange Meldungen. Bei einem Python-Traceback (LM Studio) steht die Ursache am Ende; sie bleibt erhalten."""
+    if len(text) <= hoechstens:
+        return text
+    if "Traceback" in text:
+        return text[:200].rstrip() + " … " + text[-(hoechstens - 200):].lstrip()
+    return text[:hoechstens]
+
+
 def _fehlertext(roh: str) -> str:
     """Die Meldung aus einer Fehlerantwort (OpenAI, Anthropic, Google und Mistral verpacken sie verschieden)."""
     try:
         wert: Any = json.loads(roh)
     except ValueError:
-        return roh[:500]
+        return _kuerzen(roh)
     if isinstance(wert, list) and wert:
         wert = wert[0]
     if isinstance(wert, dict):
         wert = wert.get("error", wert.get("message", wert))
     if isinstance(wert, dict):
         wert = wert.get("message", wert)
-    return str(wert)[:500]
+    return _kuerzen(str(wert))
 
 
 def _warten_laut(fehler: urllib.error.HTTPError, vorgabe: float) -> float:
@@ -462,6 +471,18 @@ def lies_json(text: str, abgeschnitten: bool = False, denken: int = 0) -> dict:
     return wert
 
 
+def verbrauch(eingabe: object, ausgabe: object, erzeugung_ns: object = None, denken: object = None) -> dict | None:
+    """Token der letzten Anfrage, soweit das Programm sie meldet (für den Leistungstest der Diagnose).
+
+    ``erzeugung_ns``: reine Rechenzeit der Antwort (nur Ollama); ``denken``: Token der Denkphase (nur Gemini).
+    """
+    if not isinstance(ausgabe, int) or isinstance(ausgabe, bool):
+        return None
+    return {"eingabe": eingabe if isinstance(eingabe, int) else None, "ausgabe": ausgabe,
+            "erzeugung_s": erzeugung_ns / 1e9 if isinstance(erzeugung_ns, (int, float)) and erzeugung_ns > 0 else None,
+            "denken": denken if isinstance(denken, int) else None}
+
+
 class Ollama:
     def __init__(self, endpunkt: str, modell: str, kontext: int = 16384):
         self.http = _Http(endpunkt, "Ollama")
@@ -508,6 +529,8 @@ class Ollama:
         antwort = self.http.anfrage("/api/chat", daten)
         nachricht = antwort.get("message") or {}
         self.denkphase = len(nachricht.get("thinking") or "")
+        self.verbrauch = verbrauch(antwort.get("prompt_eval_count"), antwort.get("eval_count"),
+                                   antwort.get("eval_duration"))
         return lies_json(nachricht.get("content", ""), antwort.get("done_reason") == "length", self.denkphase)
 
 
@@ -525,27 +548,48 @@ class OpenAIKompatibel:
         return [{"name": m.get("id"), "groesse": None, "parameter": None, "quantisierung": None}
                 for m in antwort.get("data", [])]
 
+    # Meldungen, mit denen ein Programm die Vorgabe des JSON-Schemas ablehnt oder daran scheitert (etwa die
+    # MLX-Engine von LM Studio bei Modellen, deren Tokenizer die Grammatik nicht verarbeitet).
+    _SCHEMA_FEHLER = re.compile(r"grammar|json_schema|response_format|structured", re.I)
+
+    def _anfrage(self, system: str, nutzer: str, schema: dict | None) -> dict:
+        daten: dict[str, Any] = {
+            "model": self.modell,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
+            "temperature": 0,
+            "seed": 42,
+            "max_tokens": ANTWORT_TOKEN,
+            # Denkphase aus, wo das Programm die Vorlagenoption kennt (llama.cpp-Server, vLLM). LM Studio
+            # schaltet sie nur über den Schalter „Reasoning“ in den Modelleinstellungen ab.
+            "chat_template_kwargs": {"enable_thinking": False},
+            "stream": False,
+        }
+        if schema is not None:
+            daten["response_format"] = {"type": "json_schema", "json_schema": {"name": "antwort", "schema": schema}}
+        return self.http.anfrage("/v1/chat/completions", daten)
+
     def chat(self, system: str, nutzer: str, schema: dict) -> dict:
         if not self.modell:
             raise KiFehler("Kein Modell gewählt. Bitte unter „Einstellungen“ ein geladenes Modell auswählen.")
-        antwort = self.http.anfrage(
-            "/v1/chat/completions",
-            {
-                "model": self.modell,
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
-                "temperature": 0,
-                "seed": 42,
-                "max_tokens": ANTWORT_TOKEN,
-                # Denkphase aus, wo das Programm die Vorlagenoption kennt (llama.cpp-Server, vLLM). LM Studio
-                # schaltet sie nur über den Schalter „Reasoning“ in den Modelleinstellungen ab.
-                "chat_template_kwargs": {"enable_thinking": False},
-                "stream": False,
-                "response_format": {"type": "json_schema", "json_schema": {"name": "antwort", "schema": schema}},
-            },
-        )
+        if getattr(self, "_ohne_schema", None) != self.modell:
+            try:
+                antwort = self._anfrage(system, nutzer, schema)
+            except KiFehler as fehler:
+                if "Fehler 400" not in str(fehler) or not self._SCHEMA_FEHLER.search(str(fehler)):
+                    raise
+                # Das Programm kann die Antwort für dieses Modell nicht auf das Schema festlegen. Dann steht das
+                # Schema in der Anweisung; die Antwort wird wie jede andere als JSON geprüft.
+                log.warning("LM Studio scheitert an der Schema-Vorgabe für %s, frage ohne: %s", self.modell, fehler)
+                self._ohne_schema = self.modell
+        if getattr(self, "_ohne_schema", None) == self.modell:
+            antwort = self._anfrage(
+                f"{system}\nAntworte ausschließlich mit einem JSON-Objekt nach diesem JSON-Schema, ohne Text davor "
+                f"oder danach:\n{json.dumps(schema, ensure_ascii=False)}", nutzer, None)
         auswahl = antwort.get("choices") or [{}]
         nachricht = auswahl[0].get("message") or {}
         self.denkphase = len(nachricht.get("reasoning_content") or nachricht.get("reasoning") or "")
+        nutzung = antwort.get("usage") or {}
+        self.verbrauch = verbrauch(nutzung.get("prompt_tokens"), nutzung.get("completion_tokens"))
         return lies_json(nachricht.get("content") or "", auswahl[0].get("finish_reason") == "length",
                          self.denkphase)
 
@@ -599,6 +643,8 @@ class AnthropicClaude:
         grund = antwort.get("stop_reason")
         if grund == "refusal":
             raise KiFehler("Anthropic hat die Anfrage abgelehnt (Sicherheitsfilter des Anbieters).")
+        nutzung = antwort.get("usage") or {}
+        self.verbrauch = verbrauch(nutzung.get("input_tokens"), nutzung.get("output_tokens"))
         text = "".join(b.get("text", "") for b in antwort.get("content") or [] if b.get("type") == "text")
         return lies_json(text, grund == "max_tokens")
 
@@ -642,6 +688,8 @@ class OpenAIExtern:
         antwort = self.http.anfrage("/chat/completions", daten)
         auswahl = antwort.get("choices") or [{}]
         nachricht = auswahl[0].get("message") or {}
+        nutzung = antwort.get("usage") or {}
+        self.verbrauch = verbrauch(nutzung.get("prompt_tokens"), nutzung.get("completion_tokens"))
         if nachricht.get("refusal"):
             raise KiFehler(f"{self.titel} hat die Anfrage abgelehnt: {nachricht['refusal']}")
         return lies_json(nachricht.get("content") or "", auswahl[0].get("finish_reason") == "length")
@@ -720,6 +768,9 @@ class GoogleGemini:
                     raise
                 log.warning("Gemini lehnt die Anfrage mit Schema ab (%s), versuche es ohne Schema-Zwang", fehler)
                 antwort = self._schlicht(system, nutzer, schema)
+        nutzung = antwort.get("usageMetadata") or {}
+        self.verbrauch = verbrauch(nutzung.get("promptTokenCount"), nutzung.get("candidatesTokenCount"),
+                                   denken=nutzung.get("thoughtsTokenCount"))
         if (antwort.get("promptFeedback") or {}).get("blockReason"):
             raise KiFehler(f"Google Gemini hat die Anfrage abgelehnt ({antwort['promptFeedback']['blockReason']}).")
         kandidat = (antwort.get("candidates") or [{}])[0]
