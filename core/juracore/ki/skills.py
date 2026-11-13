@@ -408,12 +408,10 @@ def ordner_umbenennen(datei: Path, alt: str, neu: str) -> dict:
 
 
 def ordner_loeschen(datei: Path, ordner: str) -> dict:
-    """Löscht alle Skills dieses Ordners (samt Unterordnern)."""
+    """Löscht alle Skills dieses Ordners (samt Unterordnern); ``ordner`` leer: alle Skills ohne Ordner."""
     ordner = _ordnername(ordner)
-    if not ordner:
-        raise ValueError("Bitte einen Ordner angeben.")
     skills = lade(datei)
-    rest = [s for s in skills if not im_ordner(s, ordner)]
+    rest = [s for s in skills if not (im_ordner(s, ordner) if ordner else not s.get("ordner"))]
     if len(rest) != len(skills):
         _schreibe(datei, rest)
     return {"geloescht": len(skills) - len(rest)}

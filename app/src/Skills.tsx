@@ -433,7 +433,9 @@ export default function SkillsEinstellungen() {
     const r = await mit(() => kern<{ geloescht: number }>("skills.ordner_loeschen", { ordner: o.ordner }));
     if (r) {
       await laden();
-      setMeldung(`Ordner „${o.ordner}“ mit ${r.geloescht === 1 ? "1 Skill" : `${zahl(r.geloescht)} Skills`} gelöscht.`);
+      setMeldung(
+        `${o.ordner ? `Ordner „${o.ordner}“ mit` : ""} ${r.geloescht === 1 ? "1 Skill" : `${zahl(r.geloescht)} Skills`}${o.ordner ? "" : " ohne Ordner"} gelöscht.`.trim(),
+      );
     }
   }
 
@@ -583,8 +585,8 @@ export default function SkillsEinstellungen() {
         )}
         {ordnerLoeschen && (
           <Rueckfrage
-            frage={`Ordner „${ordnerLoeschen.ordner}“ mit ${ordnerLoeschen.anzahl === 1 ? "1 Skill" : `${zahl(ordnerLoeschen.anzahl)} Skills`} löschen?`}
-            erklaerung="Gelöscht werden alle Skills in diesem Ordner und seinen Unterordnern. Antworten und Analysen, die schon mit ihnen entstanden sind, bleiben erhalten."
+            frage={`${ordnerLoeschen.ordner ? `Ordner „${ordnerLoeschen.ordner}“ mit` : "Alle"} ${ordnerLoeschen.anzahl === 1 ? "1 Skill" : `${zahl(ordnerLoeschen.anzahl)} Skills`}${ordnerLoeschen.ordner ? "" : " ohne Ordner"} löschen?`}
+            erklaerung={`Gelöscht werden alle Skills ${ordnerLoeschen.ordner ? "in diesem Ordner und seinen Unterordnern" : "ohne Ordner"}. Antworten und Analysen, die schon mit ihnen entstanden sind, bleiben erhalten.`}
             ja="Ordner löschen"
             onJa={ordnerLoeschenBestaetigt}
             onNein={() => setOrdnerLoeschen(null)}
@@ -614,6 +616,17 @@ export default function SkillsEinstellungen() {
                   ({sucht ? `${zahl(eintraege.length)} von ${zahl(gesamt)}` : zahl(gesamt)})
                 </span>
               </summary>
+              {!ordner && (
+                <div className="aktionen skill-ordner-aktionen">
+                  <button
+                    className="zweitrangig gefahr klein"
+                    disabled={laeuft}
+                    onClick={() => setOrdnerLoeschen({ ordner: "", anzahl: gesamt })}
+                  >
+                    Alle ohne Ordner löschen
+                  </button>
+                </div>
+              )}
               {ordner && (
                 <div className="aktionen skill-ordner-aktionen">
                   {umbenennen?.alt === ordner ? (

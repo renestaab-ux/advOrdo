@@ -254,6 +254,7 @@ def test_ordner_umbenennen_und_loeschen(tmp_path):
     assert skills.ordner_umbenennen(datei, "Zivilrecht", "Privatrecht") == {"geaendert": 2}
     assert skills.ordner_loeschen(datei, "Privatrecht") == {"geloescht": 2}
     assert [s["name"] for s in skills.liste(datei)] == ["C"]
+    assert skills.ordner_loeschen(datei, "") == {"geloescht": 1} and skills.liste(datei) == []
     with pytest.raises(ValueError):
         skills.ordner_umbenennen(datei, "", "X")
 
