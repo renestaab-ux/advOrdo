@@ -138,8 +138,13 @@ _THEMA_SCHEMA = {"type": "object", "properties": {
 
 
 def _pruefe_626(a: dict) -> tuple[bool, str]:
-    thema = str(a.get("thema") or "")
-    return a.get("existiert") is True and thema == THEMEN_626[0], thema or "keine Angabe"
+    thema = str(a.get("thema") or "") or "kein Thema"
+    existiert = a.get("existiert")
+    if existiert is not True:
+        # Etwa „existiert nicht“, aber trotzdem ein Thema genannt: Das zeigt die Anzeige ausdrücklich.
+        angabe = "existiert nicht" if existiert is False else f"„existiert“ ohne gültige Angabe ({existiert!r})"
+        return False, f"{angabe}, Thema: {thema}"
+    return thema == THEMEN_626[0], f"existiert: {thema}"
 
 
 # Erfundenes Schreiben für die Fragen zur Zitattreue. Ein Kaufpreis kommt darin absichtlich nicht vor.

@@ -192,3 +192,10 @@ def test_lmstudio_anderer_fehler_bleibt_fehler():
     m.http.anfrage = anfrage
     with pytest.raises(KiFehler, match="not loaded"):
         m.chat("S", "N", {"type": "object"})
+
+
+def test_626_zeigt_existiert_mit():
+    f = next(f for f in leistung.FRAGEN if f.id == "bgb_626")
+    assert f.pruefe({"existiert": False, "thema": leistung.THEMEN_626[0]}) == (
+        False, f"existiert nicht, Thema: {leistung.THEMEN_626[0]}")
+    assert f.pruefe({"existiert": True, "thema": leistung.THEMEN_626[0]})[0]
