@@ -316,6 +316,9 @@ export default function SkillsEinstellungen() {
   const [loeschen, setLoeschen] = useState<Skill | null>(null);
   const [ordnerLoeschen, setOrdnerLoeschen] = useState<{ ordner: string; anzahl: number } | null>(null);
   const [umbenennen, setUmbenennen] = useState<{ alt: string; neu: string } | null>(null);
+  // Markierte Skills lassen sich gemeinsam löschen; ``alle`` fragt nach allen Skills.
+  const [markiert, setMarkiert] = useState<Set<string>>(new Set());
+  const [mehrereLoeschen, setMehrereLoeschen] = useState<{ ids: string[]; alle: boolean } | null>(null);
   const [suche, setSuche] = useState("");
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -334,6 +337,28 @@ export default function SkillsEinstellungen() {
   const skills = useMemo(() => liste?.skills ?? [], [liste]);
   const alleOrdner = useMemo(() => [...new Set(skills.map((s) => s.ordner).filter(Boolean))], [skills]);
   const gruppen = useMemo(() => nachOrdnern(skills.filter((s) => passtZurSuche(s, suche))), [skills, suche]);
+  const angezeigt = useMemo(() => gruppen.flatMap(([, e]) => e.map((s) => s.id)), [gruppen]);
+  const alleAngezeigtMarkiert = angezeigt.length > 0 && angezeigt.every((id) => markiert.has(id));
+
+  // Gelöschte Skills fallen aus der Markierung.
+  useEffect(() => {
+    setMarkiert((m) => {
+      const da = new Set(skills.map((s) => s.id));
+      const rest = [...m].filter((id) => da.has(id));
+      return rest.length === m.size ? m : new Set(rest);
+    });
+  }, [skills]);
+
+  function markieren(ids: string[], an: boolean) {
+    setMarkiert((m) => {
+      const neu = new Set(m);
+      for (const id of ids) {
+        if (an) neu.add(id);
+        else neu.delete(id);
+      }
+      return neu;
+    });
+  }
 
   async function mit<T>(f: () => Promise<T>): Promise<T | undefined> {
     setFehler(null);
@@ -423,6 +448,18 @@ export default function SkillsEinstellungen() {
     if (await mit(() => kern("skills.loeschen", { skill_id: s.id }))) {
       await laden();
       setMeldung(`Skill „${s.name}“ gelöscht.`);
+    }
+  }
+
+  async function mehrereLoeschenBestaetigt() {
+    const m = mehrereLoeschen;
+    setMehrereLoeschen(null);
+    if (!m) return;
+    const r = await mit(() => kern<{ geloescht: number }>("skills.loeschen", { skill_ids: m.ids }));
+    if (r) {
+      setMarkiert(new Set());
+      await laden();
+      setMeldung(`${r.geloescht === 1 ? "1 Skill" : `${zahl(r.geloescht)} Skills`} gelöscht.`);
     }
   }
 
@@ -592,6 +629,23 @@ export default function SkillsEinstellungen() {
             onNein={() => setOrdnerLoeschen(null)}
           />
         )}
+        {mehrereLoeschen && (
+          <Rueckfrage
+            frage={
+              mehrereLoeschen.alle
+                ? `Wirklich alle ${zahl(mehrereLoeschen.ids.length)} Skills löschen?`
+                : `${mehrereLoeschen.ids.length === 1 ? "1 markierten Skill" : `${zahl(mehrereLoeschen.ids.length)} markierte Skills`} löschen?`
+            }
+            erklaerung={
+              mehrereLoeschen.alle
+                ? "Gelöscht werden alle importierten und selbst angelegten Skills in allen Ordnern. Das lässt sich nicht rückgängig machen; exportiere vorher, was du behalten willst. Antworten und Analysen, die schon mit ihnen entstanden sind, bleiben erhalten."
+                : "Antworten und Analysen, die schon mit diesen Skills entstanden sind, bleiben erhalten."
+            }
+            ja={mehrereLoeschen.alle ? "Alle löschen" : "Markierte löschen"}
+            onJa={mehrereLoeschenBestaetigt}
+            onNein={() => setMehrereLoeschen(null)}
+          />
+        )}
         {liste == null && !fehler && <p className="status" role="status">Lade Skills …</p>}
         {liste && skills.length === 0 && <p className="leise">Noch kein Skill angelegt oder importiert.</p>}
         {skills.length > 0 && (
@@ -603,6 +657,41 @@ export default function SkillsEinstellungen() {
             aria-label="Skills suchen"
             onChange={(e) => setSuche(e.target.value)}
           />
+        )}
+        {skills.length > 0 && (
+          <div className="aktionen skill-markierung">
+            <label>
+              <input
+                type="checkbox"
+                checked={alleAngezeigtMarkiert}
+                disabled={angezeigt.length === 0}
+                onChange={(e) => markieren(angezeigt, e.target.checked)}
+              />{" "}
+              {sucht ? "Alle Treffer markieren" : "Alle markieren"}
+            </label>
+            <span className="leise" aria-live="polite">
+              {zahl(markiert.size)} markiert
+            </span>
+            <button
+              className="zweitrangig gefahr klein"
+              disabled={laeuft || markiert.size === 0}
+              onClick={() => setMehrereLoeschen({ ids: [...markiert], alle: false })}
+            >
+              Markierte löschen
+            </button>
+            {markiert.size > 0 && (
+              <button className="link klein" onClick={() => setMarkiert(new Set())}>
+                Markierung aufheben
+              </button>
+            )}
+            <button
+              className="zweitrangig gefahr klein skill-alle-loeschen"
+              disabled={laeuft}
+              onClick={() => setMehrereLoeschen({ ids: skills.map((s) => s.id), alle: true })}
+            >
+              Alle Skills löschen …
+            </button>
+          </div>
         )}
         {sucht && gruppen.length === 0 && <p className="leise">Kein Skill passt zur Suche.</p>}
         {gruppen.map(([ordner, eintraege]) => {
@@ -668,8 +757,16 @@ export default function SkillsEinstellungen() {
               )}
               <ul className="skill-liste">
                 {eintraege.map((s) => (
-                  <li key={s.id}>
-                    <h3>{s.name}</h3>
+                  <li key={s.id} className={markiert.has(s.id) ? "markiert" : undefined}>
+                    <div className="skill-titel">
+                      <input
+                        type="checkbox"
+                        checked={markiert.has(s.id)}
+                        aria-label={`${s.name} markieren`}
+                        onChange={(e) => markieren([s.id], e.target.checked)}
+                      />
+                      <h3>{s.name}</h3>
+                    </div>
                     {s.beschreibung && <p>{s.beschreibung}</p>}
                     <p className="leise">
                       {s.herkunft} · {zahl(s.zeichen)} Zeichen

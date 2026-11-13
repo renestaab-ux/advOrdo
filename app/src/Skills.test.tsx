@@ -52,6 +52,7 @@ vi.mock("./kern", async (original) => ({
   kern: vi.fn(async (methode: string, params: Record<string, unknown> = {}) => {
     aufrufe.push({ methode, params });
     if (methode === "skills.liste") return liste;
+    if (methode === "skills.loeschen") return { geloescht: (params.skill_ids as string[]).length };
     throw new Error(`unerwartet: ${methode}`);
   }),
 }));
@@ -121,6 +122,27 @@ describe("Skills", () => {
     expect([...behaelter.querySelectorAll(".skill-ordner > summary")].map((x) => x.textContent)).toEqual([
       "BGB AT Prüfer (1 von 1)",
     ]);
+  });
+
+  it("löscht markierte und auf Nachfrage alle Skills", async () => {
+    await zeige(<SkillsEinstellungen />);
+    const kaestchen = () => [...behaelter.querySelectorAll<HTMLInputElement>(".skill-titel input")];
+    const knopf = (text: string) => [...behaelter.querySelectorAll("button")].find((b) => b.textContent === text)!;
+    expect((knopf("Markierte löschen") as HTMLButtonElement).disabled).toBe(true);
+    await klicke(kaestchen()[0]);
+    expect(behaelter.textContent).toContain("1 markiert");
+    await klicke(knopf("Markierte löschen"));
+    expect(behaelter.textContent).toContain("1 markierten Skill löschen?");
+    await klicke(knopf("Markierte löschen"));
+    expect(aufrufe.find((a) => a.methode === "skills.loeschen")?.params).toEqual({ skill_ids: ["b"] });
+    expect(behaelter.textContent).toContain("1 Skill gelöscht.");
+
+    aufrufe.length = 0;
+    await klicke(knopf("Alle Skills löschen …"));
+    expect(behaelter.textContent).toContain("Wirklich alle 2 Skills löschen?");
+    expect(await barrierefrei()).toEqual([]);
+    await klicke(knopf("Alle löschen"));
+    expect(aufrufe.find((a) => a.methode === "skills.loeschen")?.params).toEqual({ skill_ids: ["b", "a"] });
   });
 
   it("Auswahl mit Suche, Ordnern und „Alle“; Gelöschtes fällt heraus", async () => {

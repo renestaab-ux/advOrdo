@@ -210,13 +210,17 @@ def speichern(datei: Path, name: str, text: str, beschreibung: str = "", skill_i
     return _oeffentlich(s, kontext)
 
 
-def loeschen(datei: Path, skill_id: str) -> dict:
+def loeschen(datei: Path, skill_id: str | None = None, skill_ids: list[str] | None = None) -> dict:
+    """Löscht einen Skill (``skill_id``) oder mehrere markierte auf einmal (``skill_ids``)."""
+    weg = set(skill_ids or []) | ({skill_id} if skill_id else set())
+    if not weg:
+        raise ValueError("Kein Skill zum Löschen angegeben.")
     skills = lade(datei)
-    rest = [s for s in skills if s["id"] != skill_id]
+    rest = [s for s in skills if s["id"] not in weg]
     if len(rest) == len(skills):
         raise LookupError("Diesen Skill gibt es nicht mehr.")
     _schreibe(datei, rest)
-    return {"geloescht": 1}
+    return {"geloescht": len(skills) - len(rest)}
 
 
 def exportieren(datei: Path, skill_id: str, pfad: str) -> dict:

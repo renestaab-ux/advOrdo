@@ -259,6 +259,16 @@ def test_ordner_umbenennen_und_loeschen(tmp_path):
         skills.ordner_umbenennen(datei, "", "X")
 
 
+def test_mehrere_markierte_loeschen(tmp_path):
+    datei = tmp_path / "skills.json"
+    ids = [skills.speichern(datei, n, n.lower())["id"] for n in ("A", "B", "C")]
+    assert skills.loeschen(datei, skill_ids=[ids[0], ids[2], "weg"]) == {"geloescht": 2}
+    assert [s["name"] for s in skills.liste(datei)] == ["B"]
+    with pytest.raises(LookupError):
+        skills.loeschen(datei, skill_ids=["weg"])
+    with pytest.raises(ValueError):
+        skills.loeschen(datei)
+
 def test_auswahl_nimmt_die_passendsten(tmp_path):
     datei = tmp_path / "skills.json"
     zugang = skills.speichern(datei, "zugang-paragraph-130", "# Zugang von Willenserklärungen\nPrüfe § 130 BGB.",

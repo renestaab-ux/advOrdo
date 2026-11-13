@@ -374,4 +374,9 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 .skill-ordner { border-top: 1px solid var(--linie); padding: 8px 0; }
 .skill-ordner > summary { cursor: pointer; }
 .skill-ordner-aktionen { margin: 6px 0; }
+.skill-markierung { align-items: center; margin: 8px 0; }
+.skill-markierung .skill-alle-loeschen { margin-left: auto; }
+.skill-titel { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.skill-titel h3 { margin: 0; }
+.skill-liste > li.markiert { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
 .skill-umbenennen { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
