@@ -113,12 +113,18 @@ _NORM_SCHEMA = {"type": "object", "properties": {
     "required": ["existiert", "inhalt"]}
 
 
+_VERNEINT = re.compile(r"nicht vorhanden|existiert nicht|gibt es nicht|nicht existent|keinen? (§|Absatz)", re.I)
+
+
 def _norm(id_: str, frage: str, soll: bool, erwartet: str, fundstelle: str) -> Frage:
     def pruefe(a: dict) -> tuple[bool, str]:
         ist = a.get("existiert")
         if not isinstance(ist, bool):
             return False, "keine Angabe"
         inhalt = str(a.get("inhalt") or "").strip()
+        if ist and _VERNEINT.search(inhalt):
+            # Feld und Text widersprechen sich; maßgeblich ist das Feld, mit dem advOrdo weiterarbeiten würde.
+            return ist == soll, f"widersprüchlich: Feld „existiert“, Text sagt „{inhalt[:120]}“"
         return ist == soll, ("existiert" if ist else "existiert nicht") + (f": {inhalt[:120]}" if ist and inhalt
                                                                             else "")
     return Frage(id_, "Erfundene Normen", frage, _NORM_SCHEMA, erwartet, fundstelle, pruefe)

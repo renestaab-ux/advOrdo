@@ -146,3 +146,9 @@ def test_rpc_startet_auftrag(tmp_path):
     assert a["status"] == "fertig", a
     assert a["titel"] == "KI-Leistungstest (Diagnose)"
     assert a["ergebnis"]["anbieter"].startswith("LM Studio") and a["ergebnis"]["ort"] == "Eigener Rechner"
+
+
+def test_widerspruch_zwischen_feld_und_text():
+    f = next(f for f in leistung.FRAGEN if f.id == "bgb_823_4")
+    richtig, anzeige = f.pruefe({"existiert": True, "inhalt": "Der § 823 Abs. 4 BGB ist nicht vorhanden."})
+    assert not richtig and anzeige.startswith("widersprüchlich")
