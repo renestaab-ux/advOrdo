@@ -161,3 +161,34 @@ def test_traceback_behaelt_ursache():
                       + "ValueError: Modelltyp wird nicht unterstützt"})
     text = _fehlertext(roh)
     assert len(text) <= 505 and text.startswith("Error: Traceback") and text.endswith("nicht unterstützt")
+
+
+def test_lmstudio_ohne_schema_wenn_grammatik_scheitert():
+    from juracore.ki.anbieter import OpenAIKompatibel
+    m = OpenAIKompatibel("http://127.0.0.1:1234", "luciole-8b")
+    gesendet = []
+
+    def anfrage(pfad, daten=None, timeout=600):
+        gesendet.append(daten)
+        if "response_format" in daten:
+            raise KiFehler("LM Studio meldet Fehler 400: Error in iterating prediction stream … <grammar>…</grammar>")
+        return {"choices": [{"message": {"content": '{"ok": true}'}, "finish_reason": "stop"}]}
+
+    m.http.anfrage = anfrage
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
+    assert m.chat("System", "Frage", schema) == {"ok": True}
+    assert "JSON-Schema" in gesendet[1]["messages"][0]["content"]
+    # Danach gleich ohne Schema-Vorgabe.
+    assert m.chat("System", "Frage", schema) == {"ok": True} and len(gesendet) == 3
+
+
+def test_lmstudio_anderer_fehler_bleibt_fehler():
+    from juracore.ki.anbieter import OpenAIKompatibel
+    m = OpenAIKompatibel("http://127.0.0.1:1234", "x")
+
+    def anfrage(pfad, daten=None, timeout=600):
+        raise KiFehler("LM Studio meldet Fehler 400: model not loaded")
+
+    m.http.anfrage = anfrage
+    with pytest.raises(KiFehler, match="not loaded"):
+        m.chat("S", "N", {"type": "object"})

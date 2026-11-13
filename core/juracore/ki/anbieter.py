@@ -548,24 +548,43 @@ class OpenAIKompatibel:
         return [{"name": m.get("id"), "groesse": None, "parameter": None, "quantisierung": None}
                 for m in antwort.get("data", [])]
 
+    # Meldungen, mit denen ein Programm die Vorgabe des JSON-Schemas ablehnt oder daran scheitert (etwa die
+    # MLX-Engine von LM Studio bei Modellen, deren Tokenizer die Grammatik nicht verarbeitet).
+    _SCHEMA_FEHLER = re.compile(r"grammar|json_schema|response_format|structured", re.I)
+
+    def _anfrage(self, system: str, nutzer: str, schema: dict | None) -> dict:
+        daten: dict[str, Any] = {
+            "model": self.modell,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
+            "temperature": 0,
+            "seed": 42,
+            "max_tokens": ANTWORT_TOKEN,
+            # Denkphase aus, wo das Programm die Vorlagenoption kennt (llama.cpp-Server, vLLM). LM Studio
+            # schaltet sie nur über den Schalter „Reasoning“ in den Modelleinstellungen ab.
+            "chat_template_kwargs": {"enable_thinking": False},
+            "stream": False,
+        }
+        if schema is not None:
+            daten["response_format"] = {"type": "json_schema", "json_schema": {"name": "antwort", "schema": schema}}
+        return self.http.anfrage("/v1/chat/completions", daten)
+
     def chat(self, system: str, nutzer: str, schema: dict) -> dict:
         if not self.modell:
             raise KiFehler("Kein Modell gewählt. Bitte unter „Einstellungen“ ein geladenes Modell auswählen.")
-        antwort = self.http.anfrage(
-            "/v1/chat/completions",
-            {
-                "model": self.modell,
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": nutzer}],
-                "temperature": 0,
-                "seed": 42,
-                "max_tokens": ANTWORT_TOKEN,
-                # Denkphase aus, wo das Programm die Vorlagenoption kennt (llama.cpp-Server, vLLM). LM Studio
-                # schaltet sie nur über den Schalter „Reasoning“ in den Modelleinstellungen ab.
-                "chat_template_kwargs": {"enable_thinking": False},
-                "stream": False,
-                "response_format": {"type": "json_schema", "json_schema": {"name": "antwort", "schema": schema}},
-            },
-        )
+        if getattr(self, "_ohne_schema", None) != self.modell:
+            try:
+                antwort = self._anfrage(system, nutzer, schema)
+            except KiFehler as fehler:
+                if "Fehler 400" not in str(fehler) or not self._SCHEMA_FEHLER.search(str(fehler)):
+                    raise
+                # Das Programm kann die Antwort für dieses Modell nicht auf das Schema festlegen. Dann steht das
+                # Schema in der Anweisung; die Antwort wird wie jede andere als JSON geprüft.
+                log.warning("LM Studio scheitert an der Schema-Vorgabe für %s, frage ohne: %s", self.modell, fehler)
+                self._ohne_schema = self.modell
+        if getattr(self, "_ohne_schema", None) == self.modell:
+            antwort = self._anfrage(
+                f"{system}\nAntworte ausschließlich mit einem JSON-Objekt nach diesem JSON-Schema, ohne Text davor "
+                f"oder danach:\n{json.dumps(schema, ensure_ascii=False)}", nutzer, None)
         auswahl = antwort.get("choices") or [{}]
         nachricht = auswahl[0].get("message") or {}
         self.denkphase = len(nachricht.get("reasoning_content") or nachricht.get("reasoning") or "")
