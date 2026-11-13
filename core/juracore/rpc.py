@@ -60,6 +60,7 @@ from .gesetze import quelle, wissensbasis
 from .ki import anbieter as ki_anbieter
 from .ki import chat as ki_chat
 from .ki import gegenueberstellung as ki_gegenueberstellung
+from .ki import leistung as ki_leistung
 from .ki import metadaten as ki_metadaten
 from .ki import speicher as ki_speicher
 from .ki import vergleich as ki_vergleich
@@ -598,6 +599,19 @@ class Kern:
                 con.close()
 
         return self.auftraege.starte(aufgabe, arbeit)
+
+    def ki_leistungstest(self) -> dict:
+        """Startet den KI-Leistungstest der Diagnose im Hintergrund; das Ergebnis liefert ``ki.auftrag``.
+
+        Ans Modell gehen nur die festen Testtexte aus ``ki.leistung``, keine Akteninhalte."""
+        e, modell = self._ki_modell()
+        if e.extern:
+            anbieter, ort = ki_anbieter.EXTERNE[e.extern_anbieter]["titel"], "Externer Anbieter"
+        else:
+            anbieter = ki_anbieter.ANBIETER[e.anbieter]["titel"]
+            ort = "Lokales Netzwerk" if ki_anbieter.lokal_ort(e) == ki_anbieter.NETZWERK else "Eigener Rechner"
+        return self.auftraege.starte(ki_leistung.AUFGABE,
+                                     lambda auftrag: ki_leistung.leistungstest(modell, auftrag, anbieter, ort))
 
     def metadaten_ki(self, dokument_id: int, neu: bool = False, automatisch: bool = False) -> dict:
         """Art, Absender, Empfänger und Gegenstand eines Dokuments vom Sprachmodell, sofern eines eingerichtet ist.

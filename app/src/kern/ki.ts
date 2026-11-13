@@ -104,7 +104,8 @@ export type KiAufgabe =
   | "gegenueberstellung"
   | "chat"
   | "metadaten"
-  | "vergleich";
+  | "vergleich"
+  | "leistungstest";
 
 export type GegenueberstellungErgebnis =
   | "traegt"

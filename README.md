@@ -574,6 +574,23 @@ Gerichtsverzeichnis; jeweils nur die ersten Bytes).
 Jeder Fehler kommt mit einer verständlichen Meldung und einem Hinweis „Was tun“. „Bericht kopieren“ legt das Ergebnis
 als Text in die Zwischenablage; er enthält keine Dokumentinhalte und keine Schlüssel.
 
+### KI-Leistungstest
+
+Unter der Diagnose prüft „KI-Leistung testen“ das gewählte Sprachmodell (lokal, Apple Intelligence oder extern):
+
+- **Geschwindigkeit**: erste Antwort (mit Laden des Modells), Antwortzeit einer kurzen Anfrage, Dauer einer
+  Zusammenfassung und Token pro Sekunde (bei Ollama die reine Rechenzeit, sonst die gesamte Antwortzeit; Apple
+  Intelligence meldet keine Token, dort Zeichen pro Sekunde). Dazu, ob das Modell eine Denkphase hat und ob alle
+  Antworten gültiges JSON sind.
+- **16 Prüffragen mit bekannter Antwort**: sechs Fristen mit Datum (Wochenende, Monatsende, Strafsache, KSchG,
+  Versäumnisurteil, Verjährung), vier Zuständigkeiten, vier Fragen zu Normen (drei davon erfunden, eine echte als
+  Gegenprobe) und zwei zur Zitattreue an einem erfundenen Schreiben. advOrdo wertet nach festen Regeln aus (Datum,
+  Auswahl, Zeichenvergleich des Zitats), ohne zweite KI als Richter. Jede erwartete Antwort nennt ihre Fundstelle.
+
+Ans Modell gehen nur diese festen Testtexte, nie Akteninhalte; bei einem externen Anbieter steht jede Anfrage im
+Protokoll der Online-Anfragen. Der Test ist eine Stichprobe und kein Benchmark. Die Fragen stehen in
+`core/juracore/ki/leistung.py`.
+
 ## Rechtsprechung: Urteilszitate prüfen
 
 Beim Einlesen erkennt die App auch Rechtsprechungszitate („BGH, Urteil vom 12.10.2016 – VIII ZR 103/15“,

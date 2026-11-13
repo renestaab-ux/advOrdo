@@ -21,6 +21,7 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "ki.schalten": k.ki_schalten,
         "ki.extern_setzen": k.ki_extern_setzen,
         "ki.starten": k.ki_starten,
+        "ki.leistungstest": k.ki_leistungstest,
         "ki.auftrag": k.auftraege.status,
         "ki.laufend": lambda: (a.als_dict() if (a := k.auftraege.laufend()) else None),
         "ki.abbrechen": k.auftraege.abbrechen,

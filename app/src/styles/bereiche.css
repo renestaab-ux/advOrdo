@@ -20,6 +20,8 @@
 .feed-formular label { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 280px; }
 
 /* Diagnose */
+.ki-leistung h3 { margin: 16px 0 4px; }
+.ki-leistung-antwort { margin-top: 2px; }
 .diagnose { max-width: 900px; }
 .diagnose .aktionen { margin: 12px 0; }
 .diagnose-summe { font-weight: 600; }

@@ -462,6 +462,18 @@ def lies_json(text: str, abgeschnitten: bool = False, denken: int = 0) -> dict:
     return wert
 
 
+def verbrauch(eingabe: object, ausgabe: object, erzeugung_ns: object = None, denken: object = None) -> dict | None:
+    """Token der letzten Anfrage, soweit das Programm sie meldet (für den Leistungstest der Diagnose).
+
+    ``erzeugung_ns``: reine Rechenzeit der Antwort (nur Ollama); ``denken``: Token der Denkphase (nur Gemini).
+    """
+    if not isinstance(ausgabe, int) or isinstance(ausgabe, bool):
+        return None
+    return {"eingabe": eingabe if isinstance(eingabe, int) else None, "ausgabe": ausgabe,
+            "erzeugung_s": erzeugung_ns / 1e9 if isinstance(erzeugung_ns, (int, float)) and erzeugung_ns > 0 else None,
+            "denken": denken if isinstance(denken, int) else None}
+
+
 class Ollama:
     def __init__(self, endpunkt: str, modell: str, kontext: int = 16384):
         self.http = _Http(endpunkt, "Ollama")
@@ -508,6 +520,8 @@ class Ollama:
         antwort = self.http.anfrage("/api/chat", daten)
         nachricht = antwort.get("message") or {}
         self.denkphase = len(nachricht.get("thinking") or "")
+        self.verbrauch = verbrauch(antwort.get("prompt_eval_count"), antwort.get("eval_count"),
+                                   antwort.get("eval_duration"))
         return lies_json(nachricht.get("content", ""), antwort.get("done_reason") == "length", self.denkphase)
 
 
@@ -546,6 +560,8 @@ class OpenAIKompatibel:
         auswahl = antwort.get("choices") or [{}]
         nachricht = auswahl[0].get("message") or {}
         self.denkphase = len(nachricht.get("reasoning_content") or nachricht.get("reasoning") or "")
+        nutzung = antwort.get("usage") or {}
+        self.verbrauch = verbrauch(nutzung.get("prompt_tokens"), nutzung.get("completion_tokens"))
         return lies_json(nachricht.get("content") or "", auswahl[0].get("finish_reason") == "length",
                          self.denkphase)
 
@@ -599,6 +615,8 @@ class AnthropicClaude:
         grund = antwort.get("stop_reason")
         if grund == "refusal":
             raise KiFehler("Anthropic hat die Anfrage abgelehnt (Sicherheitsfilter des Anbieters).")
+        nutzung = antwort.get("usage") or {}
+        self.verbrauch = verbrauch(nutzung.get("input_tokens"), nutzung.get("output_tokens"))
         text = "".join(b.get("text", "") for b in antwort.get("content") or [] if b.get("type") == "text")
         return lies_json(text, grund == "max_tokens")
 
@@ -642,6 +660,8 @@ class OpenAIExtern:
         antwort = self.http.anfrage("/chat/completions", daten)
         auswahl = antwort.get("choices") or [{}]
         nachricht = auswahl[0].get("message") or {}
+        nutzung = antwort.get("usage") or {}
+        self.verbrauch = verbrauch(nutzung.get("prompt_tokens"), nutzung.get("completion_tokens"))
         if nachricht.get("refusal"):
             raise KiFehler(f"{self.titel} hat die Anfrage abgelehnt: {nachricht['refusal']}")
         return lies_json(nachricht.get("content") or "", auswahl[0].get("finish_reason") == "length")
@@ -720,6 +740,9 @@ class GoogleGemini:
                     raise
                 log.warning("Gemini lehnt die Anfrage mit Schema ab (%s), versuche es ohne Schema-Zwang", fehler)
                 antwort = self._schlicht(system, nutzer, schema)
+        nutzung = antwort.get("usageMetadata") or {}
+        self.verbrauch = verbrauch(nutzung.get("promptTokenCount"), nutzung.get("candidatesTokenCount"),
+                                   denken=nutzung.get("thoughtsTokenCount"))
         if (antwort.get("promptFeedback") or {}).get("blockReason"):
             raise KiFehler(f"Google Gemini hat die Anfrage abgelehnt ({antwort['promptFeedback']['blockReason']}).")
         kandidat = (antwort.get("candidates") or [{}])[0]
