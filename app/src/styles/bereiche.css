@@ -343,3 +343,19 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 .ueber-adresse { display: block; color: var(--text-leise); font-weight: 400; font-size: 12px; overflow-wrap: anywhere; }
 @media (max-width: 700px) { .ueber-logo img { width: 140px; } .ueber-tabelle tbody th { width: auto; } }
 .nav-fuss .zeit-leiste + .zeit-leiste { margin-top: 6px; }
+
+/* Skills: Einstellungen → Skills und Auswahl in Chat und Analyse */
+.skills .karte { max-width: 900px; }
+.skill-liste { list-style: none; padding: 0; margin: 0; }
+.skill-liste > li { border-top: 1px solid var(--linie); padding: 12px 0; }
+.skill-liste > li:first-child { border-top: none; padding-top: 0; }
+.skill-liste h3 { margin: 0 0 4px; font-size: 1em; }
+.skill-liste p { margin: 2px 0; }
+.skill-text pre { white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; font-size: 0.9em; }
+.skill-hinweise ul { margin: 4px 0 0; padding-left: 20px; }
+.skill-entwurf form { display: flex; flex-direction: column; gap: 10px; }
+.skill-entwurf label { display: flex; flex-direction: column; gap: 4px; }
+.skill-entwurf textarea { font-family: inherit; resize: vertical; }
+.skill-wahl { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.skill-wahl select { max-width: 22em; }
+.akten-wahl .skill-wahl { margin-left: auto; }

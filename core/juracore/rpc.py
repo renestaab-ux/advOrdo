@@ -61,6 +61,7 @@ from .ki import anbieter as ki_anbieter
 from .ki import chat as ki_chat
 from .ki import gegenueberstellung as ki_gegenueberstellung
 from .ki import metadaten as ki_metadaten
+from .ki import skills as ki_skills
 from .ki import speicher as ki_speicher
 from .ki import vergleich as ki_vergleich
 from .ki import wissen as ki_wissen
@@ -92,6 +93,8 @@ class Kern:
         self._oeffne_akten(self.umgebungen.ordner())
         self.recherche = recherche.Recherche(self.con, diagnose=Path(db_pfad).parent / "diagnose")
         self.ki_datei = Path(db_pfad).parent / "ki.json"
+        # Skills (Arbeitsanweisungen für das Sprachmodell) gelten wie ki.json für das Gerät.
+        self.skills_datei = Path(db_pfad).parent / ki_skills.DATEINAME
         # Externe Programme gelten für das Gerät, nicht je Arbeitsumgebung.
         self.programme_datei = Path(db_pfad).parent / "programme.json"
         self.schluessel_datei = Path(db_pfad).parent / "ki-schluessel.json"
@@ -519,6 +522,11 @@ class Kern:
         ki_anbieter.speichere_einstellungen(self.ki_datei, e)
         return ki_anbieter.gesamtstatus(e, self._schluessel(e), bool(verbindung))
 
+    def _skill_kontext(self) -> int | None:
+        """Kontextfenster des aktiven Modells, damit die Skill-Liste sagt, was hineinpasst; ``None`` ohne Modell."""
+        e = ki_anbieter.lade_einstellungen(self.ki_datei)
+        return None if e.abgeschaltet or not e.aktives_modell else e.aktiver_kontext
+
     def _ki_modell(self) -> tuple[ki_anbieter.KiEinstellungen, ki_anbieter.Anbieter]:
         e = ki_anbieter.lade_einstellungen(self.ki_datei)
         if e.abgeschaltet:
@@ -529,14 +537,16 @@ class Kern:
 
     def ki_chat_fragen(self, akte_id: int, frage: str, dokument_id: int | None = None, rechner: bool = False,
                        gesetze: bool | str = False, land: str = "BY",
-                       gesetze_ergaenzt: list[str] | None = None, rechtsprechung: str = "aus") -> dict:
+                       gesetze_ergaenzt: list[str] | None = None, rechtsprechung: str = "aus",
+                       skill: str | None = None) -> dict:
         """Stellt eine Frage an die Akte bzw. an ein Dokument im Hintergrund; die Antwort liefert ``ki.auftrag``.
 
         ``rechner``: Zinsen und Fristen rechnet die App (Toolbox); ``gesetze``: "aus", "zitiert" (die in der Akte
         zitierten Normen) oder "suche" (dazu Treffer zur Frage), ``True`` gilt als "suche"; ``land``: Bundesland für
         Feiertage beim Fristenrechner; ``gesetze_ergaenzt``: Normzitate, die immer mitgehen, und Gesetze, in denen
         zusätzlich gesucht wird; ``rechtsprechung``: "aus", "akte" (Leitsätze und zitierte Randnummern der
-        Entscheidungen der Akte) oder "suche" (dazu die zur Frage passenden Randnummern)."""
+        Entscheidungen der Akte) oder "suche" (dazu die zur Frage passenden Randnummern); ``skill``: Kennung des
+        gewählten Skills (Einstellungen → Skills) oder leer."""
         stufe = ki_wissen.GESETZE_SUCHE if gesetze is True else ki_wissen.GESETZE_AUS if not gesetze else gesetze
         if stufe not in ki_wissen.GESETZE_STUFEN:
             raise ValueError(f"Unbekannte Stufe für Gesetze: {gesetze}")
@@ -546,6 +556,7 @@ class Kern:
             raise ValueError("Die Frage ist leer.")
         e, modell = self._ki_modell()
         extern = ki_anbieter.EXTERNE[e.extern_anbieter]["titel"] if e.extern else None
+        gewaehlt = ki_skills.fuer_anfrage(self.skills_datei, skill, e.aktiver_kontext)
 
         def arbeit(auftrag) -> dict:
             con = akte.oeffne(self.akten_pfad)
@@ -557,7 +568,8 @@ class Kern:
                                      gesetze_suche=stufe == ki_wissen.GESETZE_SUCHE,
                                      gesetze_ergaenzt=[str(x) for x in gesetze_ergaenzt or []],
                                      rechtsprechung=rechtsprechung,
-                                     basiszins=basiszins.lade(self.basiszins_datei), land=str(land))
+                                     basiszins=basiszins.lade(self.basiszins_datei), land=str(land),
+                                     skill=gewaehlt)
             finally:
                 con.close()
                 if wb is not None:
@@ -570,20 +582,25 @@ class Kern:
 
     def ki_starten(
         self, aufgabe: str, akte_id: int | None = None, dokument_id: int | None = None,
-        dokument_ids: list[int] | None = None, neu: bool = False,
+        dokument_ids: list[int] | None = None, neu: bool = False, skill: str | None = None,
     ) -> dict:
-        """Startet eine Analyse im Hintergrund; Fortschritt und Ergebnis liefert ``ki.auftrag``."""
+        """Startet eine Analyse im Hintergrund; Fortschritt und Ergebnis liefert ``ki.auftrag``.
+
+        ``skill``: Kennung des gewählten Skills; gilt für Zusammenfassungen, Widersprüche und Chronologie, nicht für
+        die Gegenüberstellung (die prüft Zitate und folgt festen Regeln)."""
         if aufgabe not in self.KI_AUFGABEN:
             raise ValueError(f"Unbekannte Aufgabe: {aufgabe!r}")
         if (dokument_id if aufgabe == "zusammenfassung_dokument" else akte_id) is None:
             raise ValueError("Für diese Aufgabe fehlt die Akte bzw. das Dokument.")
         e, modell = self._ki_modell()
+        gewaehlt = None if aufgabe == "gegenueberstellung" else ki_skills.fuer_anfrage(
+            self.skills_datei, skill, e.aktiver_kontext)
 
         def arbeit(auftrag) -> dict:
             # Eigene Verbindung: SQLite-Verbindungen gehören zu dem Thread, der sie geöffnet hat.
             con = akte.oeffne(self.akten_pfad)
             try:
-                analyse = Analyse(con, modell, e.aktiver_kontext, auftrag, neu=bool(neu))
+                analyse = Analyse(con, modell, e.aktiver_kontext, auftrag, neu=bool(neu), skill=gewaehlt)
                 if aufgabe == "zusammenfassung_dokument":
                     return analyse.zusammenfassung_dokument(int(dokument_id))
                 if aufgabe == "zusammenfassung_akte":

@@ -181,6 +181,7 @@ export default function Akte({
   onGeaendert,
   onBeteiligte,
   onEinstellungen,
+  onSkills,
   onVolltext,
 }: {
   akte: AkteTyp;
@@ -193,6 +194,8 @@ export default function Akte({
   /** Ein Beteiligter in der Filterspalte wurde angeklickt. */
   onBeteiligte: () => void;
   onEinstellungen?: () => void;
+  /** Öffnet Einstellungen → Skills. */
+  onSkills?: () => void;
   /** Den Begriff aus dem Suchfeld der Dokumentliste im Reiter „Suche“ suchen (Inhalt der ganzen Akte). */
   onVolltext?: (text: string) => void;
 }) {
@@ -1065,7 +1068,7 @@ export default function Akte({
         {reiter === "normen" &&
           arbeitsflaeche(normen && <NormenAnsicht normen={normen} onFundstelle={oeffneDokument} onZuordnen={zuordnen} gesperrt={!!laeuft} />)}
         {reiter === "rechtsprechung" && arbeitsflaeche(rechtsprechungAnsicht())}
-        {kiAn && reiter === "chat" && <Chat akteId={akteId} onEinstellungen={onEinstellungen} />}
+        {kiAn && reiter === "chat" && <Chat akteId={akteId} onEinstellungen={onEinstellungen} onSkills={onSkills} />}
         {reiter === "anmerkungen" && (
           <div className="anm-reiter-rahmen">
             <div className="segment anm-teil-wahl" role="tablist" aria-label="Was angezeigt wird">
@@ -1481,7 +1484,7 @@ export default function Akte({
                 )}
                 {dokModus === "rechtsprechung" &&
                   rechtsprechungAnsicht("In diesem Dokument wurden keine Rechtsprechungszitate erkannt.", inhalt.dokument.id)}
-                {kiAn && dokModus === "chat" && <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} />}
+                {kiAn && dokModus === "chat" && <Chat akteId={akteId} dokumentId={inhalt.dokument.id} onEinstellungen={onEinstellungen} onSkills={onSkills} />}
                 {dokModus === "details" && (
                   <DokumentDetails
                     key={inhalt.dokument.id}

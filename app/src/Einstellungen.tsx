@@ -9,6 +9,7 @@ import Gerichtsverzeichnis, { GerichtssucheKarte } from "./Gerichtsverzeichnis";
 import Programme from "./Programme";
 import Rechtsquellen from "./Rechtsquellen";
 import SchriftVorlagenEinstellungen from "./SchriftVorlagen";
+import SkillsEinstellungen from "./Skills";
 import Ueber from "./Ueber";
 import Umgebungen from "./Umgebungen";
 import {
@@ -60,6 +61,7 @@ export type EinstellungsReiter =
   | "nachrichten"
   | "ki"
   | "extern"
+  | "skills"
   | "programme"
   | "diagnose"
   | "ueber";
@@ -76,6 +78,7 @@ const REITER: { id: EinstellungsReiter; titel: string }[] = [
   { id: "nachrichten", titel: "Nachrichten" },
   { id: "ki", titel: "Lokales Sprachmodell" },
   { id: "extern", titel: "Externe KI" },
+  { id: "skills", titel: "Skills" },
   { id: "programme", titel: "Programme" },
   { id: "diagnose", titel: "Diagnose" },
   { id: "ueber", titel: "Über advOrdo" },
@@ -453,6 +456,21 @@ export default function Einstellungen({
         ) : (
           <p className="status" role="status">{fehler ?? "Prüfe …"}</p>
         )}
+      </>
+    );
+  } else if (reiter === "skills") {
+    inhalt = (
+      <>
+        {abgeschaltet && (
+          <section className="hinweis-box">
+            Die KI ist ausgeschaltet; Skills wirken erst, wenn sie wieder an ist (
+            <button className="link" onClick={() => onReiter("ki")}>
+              Lokales Sprachmodell
+            </button>
+            ).
+          </section>
+        )}
+        <SkillsEinstellungen />
       </>
     );
   } else if (reiter === "programme") {

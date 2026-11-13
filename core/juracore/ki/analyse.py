@@ -32,7 +32,7 @@ from itertools import combinations
 from typing import Protocol
 
 from ..abgleich.abgleich import PARTEIEN
-from . import belege, chronologie, speicher
+from . import belege, chronologie, skills, speicher
 from .anbieter import Anbieter, KiFehler, antwort_token
 
 log = logging.getLogger("juracore.ki")
@@ -194,6 +194,7 @@ class Analyse:
     kontext: int = 16384
     fortschritt: Fortschritt = field(default_factory=OhneFortschritt)
     neu: bool = False  # das angefragte Ergebnis neu berechnen; Zwischenergebnisse (je Dokument) bleiben gespeichert
+    skill: dict | None = None  # gewählte Arbeitsanweisung (skills.fuer_anfrage); ergänzt die Systemanweisung
 
     def __post_init__(self) -> None:
         speicher.einrichten(self.con)
@@ -201,7 +202,12 @@ class Analyse:
     @property
     def budget(self) -> int:
         """Zeichen Dokumenttext je Anfrage: Kontext abzüglich Anweisung und Antwort, rund 3 Zeichen je Token."""
-        return max(3000, (self.kontext - antwort_token(self.anbieter) - 800) * 3)
+        skill = len(self.skill["text"]) + 600 if self.skill else 0
+        return max(3000, (self.kontext - antwort_token(self.anbieter) - 800) * 3 - skill)
+
+    @property
+    def system(self) -> str:
+        return skills.systemanweisung(SYSTEM, self.skill)
 
     @property
     def modell(self) -> str:
@@ -212,7 +218,7 @@ class Analyse:
     def _frage(self, nutzer: str, schema: dict) -> dict:
         self.fortschritt.pruefe()
         try:
-            return self.anbieter.chat(SYSTEM, nutzer, schema)
+            return self.anbieter.chat(self.system, nutzer, schema)
         except KiFehler as fehler:
             # Abgeschnitten ist eine Antwort auch beim zweiten Mal (gleiche Anfrage, Temperatur 0); das löst der
             # Aufrufer, etwa durch kleinere Stücke.
@@ -220,7 +226,7 @@ class Analyse:
                 raise
             log.warning("Unbrauchbare Antwort, frage erneut: %s", fehler)
             self.fortschritt.pruefe()
-            return self.anbieter.chat(SYSTEM, nutzer, schema)
+            return self.anbieter.chat(self.system, nutzer, schema)
 
     def _frage_oder_luecke(self, teil: int, luecken: list[int], nutzer: str, schema: dict) -> dict | None:
         """Wie _frage, aber eine auch beim zweiten Versuch unbrauchbare Antwort bricht den Lauf nicht ab.
@@ -240,13 +246,14 @@ class Analyse:
         self, aufgabe: str, eingabe: object, berechne: Callable[[], dict], akte_id: int | None,
         dokument_id: int | None = None, bezug: str = "", ziel: bool = True,
     ) -> dict:
-        key = speicher.schluessel(aufgabe, FASSUNG[aufgabe], type(self.anbieter).__name__, self.modell,
-                                  self.kontext, eingabe)
+        key = self._schluessel(aufgabe, eingabe)
         if not (self.neu and ziel) and (alt := speicher.lies(self.con, key)) is not None:
             alt["gespeichert"] = True
             return alt
         ergebnis = berechne()
         ergebnis.update(modell=self.modell, erstellt_am=_jetzt())
+        if self.skill:
+            ergebnis["skill"] = self.skill["name"]
         if ergebnis.get("luecken") or ergebnis.get("unvollstaendig"):
             ergebnis["gespeichert"] = False
             return ergebnis  # unvollständig: nicht speichern, der nächste Lauf fragt erneut
@@ -254,10 +261,16 @@ class Analyse:
         ergebnis["gespeichert"] = False
         return ergebnis
 
+    def _schluessel(self, aufgabe: str, eingabe: object) -> str:
+        teile: list[object] = [aufgabe, FASSUNG[aufgabe], type(self.anbieter).__name__, self.modell, self.kontext,
+                               eingabe]
+        if self.skill:  # ohne Skill bleiben die bisherigen Schlüssel (und gespeicherten Ergebnisse) gültig
+            teile.append({"skill": skills.kennung(self.skill)})
+        return speicher.schluessel(*teile)
+
     def nur_gespeichert(self, aufgabe: str, eingabe: object) -> dict | None:
         """Das gespeicherte Ergebnis zu dieser Eingabe, ohne zu rechnen; ``None``, wenn es keines gibt."""
-        key = speicher.schluessel(aufgabe, FASSUNG[aufgabe], type(self.anbieter).__name__, self.modell,
-                                  self.kontext, eingabe)
+        key = self._schluessel(aufgabe, eingabe)
         return speicher.lies(self.con, key)
 
     def _text(self, dokument_id: int) -> belege.Text:

@@ -168,6 +168,8 @@ export interface KiAussage {
 interface KiErgebnisKopf {
   modell: string;
   erstellt_am: string;
+  /** Name des Skills, mit dem das Ergebnis entstand. */
+  skill?: string;
   gespeichert: boolean;
   /** Anzahl der Anfragen bei Widersprüchen und Chronologie. */
   teile?: number;
@@ -420,6 +422,8 @@ export interface ChatEintrag {
   modell?: string;
   /** Name des externen Anbieters, wenn die Frage das Gerät verlassen hat. */
   extern?: string | null;
+  /** Name des Skills, der die Antwort angeleitet hat. */
+  skill?: string;
   /** Bei Fragen, ob zitierte Entscheidungen den Vortrag tragen: die Gegenüberstellung je Zitat. */
   gegenueberstellung?: Gegenueberstellung;
   /** Zusatzwissen, das mit der Frage ging. */
@@ -443,4 +447,37 @@ export function auswahlText(a: ChatAuswahl): string {
   }
   const aus = a.dokumente_von === 1 ? "" : ` aus ${a.dokumente === a.dokumente_von ? doks(a.dokumente) : `${a.dokumente} von ${doks(a.dokumente_von)}`}`;
   return `${a.absaetze} von ${a.von} Absätzen${aus}, ausgewählt nach den Begriffen der Frage`;
+}
+
+// --- Skills -----------------------------------------------------------------------------------------
+
+/** Arbeitsanweisung für das Sprachmodell (Einstellungen → Skills), im Format von Claude- und ChatGPT-Skills. */
+export interface Skill {
+  id: string;
+  name: string;
+  beschreibung: string;
+  text: string;
+  /** „Eigener Skill“ oder „Importiert aus …“. */
+  herkunft: string;
+  angelegt_am: string;
+  geaendert_am: string;
+  /** Weitere Dateien des Skill-Ordners, die advOrdo nicht übernimmt (etwa references/). */
+  nicht_uebernommen: string[];
+  zeichen: number;
+  /** Was der Skill voraussetzt, das advOrdo nicht bietet (Webseiten, Dateien, Werkzeuge). */
+  hinweise: string[];
+  /** Nur mit Sprachmodell: höchste Länge für dessen Kontextfenster und ob der Skill hineinpasst. */
+  hoechstens?: number;
+  passt?: boolean;
+}
+
+export interface SkillListe {
+  skills: Skill[];
+  /** Kontextfenster des aktiven Modells in Token; null ohne Modell. */
+  kontext: number | null;
+}
+
+export interface SkillImport {
+  uebernommen: Skill[];
+  uebersprungen: { datei: string; grund: string }[];
 }

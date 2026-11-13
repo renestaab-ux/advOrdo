@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..ki import chat as ki_chat
 from ..ki import export as ki_export
+from ..ki import skills as ki_skills
 from ..ki import speicher as ki_speicher
 
 if TYPE_CHECKING:
@@ -35,4 +36,12 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "ki.gegenueberstellung": k.ki_gegenueberstellung,
         "ki.vergleich": k.ki_vergleich,
         "ki.chat_leeren": lambda akte_id, dokument_id=None: ki_chat.leeren(k.akten, akte_id, dokument_id),
+        # Skills: Arbeitsanweisungen für Chat und Analyse (Einstellungen → Skills), für das Gerät.
+        "skills.liste": lambda: {"skills": ki_skills.liste(k.skills_datei, k._skill_kontext()),
+                                 "kontext": k._skill_kontext()},
+        "skills.speichern": lambda name, text, beschreibung="", skill_id=None: ki_skills.speichern(
+                k.skills_datei, name, text, beschreibung, skill_id, k._skill_kontext()),
+        "skills.loeschen": lambda skill_id: ki_skills.loeschen(k.skills_datei, skill_id),
+        "skills.importieren": lambda pfad: ki_skills.importieren(k.skills_datei, pfad, k._skill_kontext()),
+        "skills.exportieren": lambda skill_id, pfad: ki_skills.exportieren(k.skills_datei, skill_id, pfad),
     }
