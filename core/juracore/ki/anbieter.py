@@ -337,19 +337,28 @@ def _beschreibung(pfad: str, daten: dict | None, koerper: bytes | None) -> str:
     return f"Anfrage an {modell or 'das Modell'}: {zeichen} Zeichen (Text nicht protokolliert)"
 
 
+def _kuerzen(text: str, hoechstens: int = 500) -> str:
+    """Kürzt lange Meldungen. Bei einem Python-Traceback (LM Studio) steht die Ursache am Ende; sie bleibt erhalten."""
+    if len(text) <= hoechstens:
+        return text
+    if "Traceback" in text:
+        return text[:200].rstrip() + " … " + text[-(hoechstens - 200):].lstrip()
+    return text[:hoechstens]
+
+
 def _fehlertext(roh: str) -> str:
     """Die Meldung aus einer Fehlerantwort (OpenAI, Anthropic, Google und Mistral verpacken sie verschieden)."""
     try:
         wert: Any = json.loads(roh)
     except ValueError:
-        return roh[:500]
+        return _kuerzen(roh)
     if isinstance(wert, list) and wert:
         wert = wert[0]
     if isinstance(wert, dict):
         wert = wert.get("error", wert.get("message", wert))
     if isinstance(wert, dict):
         wert = wert.get("message", wert)
-    return str(wert)[:500]
+    return _kuerzen(str(wert))
 
 
 def _warten_laut(fehler: urllib.error.HTTPError, vorgabe: float) -> float:

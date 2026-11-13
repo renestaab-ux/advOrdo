@@ -1,6 +1,7 @@
 """KI-Leistungstest der Diagnose: Auswertung der Prüffragen und Messwerte, mit einer Attrappe statt Modell."""
 
 import datetime as dt
+import json
 import re
 import time
 
@@ -152,3 +153,11 @@ def test_widerspruch_zwischen_feld_und_text():
     f = next(f for f in leistung.FRAGEN if f.id == "bgb_823_4")
     richtig, anzeige = f.pruefe({"existiert": True, "inhalt": "Der § 823 Abs. 4 BGB ist nicht vorhanden."})
     assert not richtig and anzeige.startswith("widersprüchlich")
+
+
+def test_traceback_behaelt_ursache():
+    from juracore.ki.anbieter import _fehlertext
+    roh = json.dumps({"error": "Error: Traceback (most recent call last):\n" + "  File x.py, line 1\n" * 60
+                      + "ValueError: Modelltyp wird nicht unterstützt"})
+    text = _fehlertext(roh)
+    assert len(text) <= 505 and text.startswith("Error: Traceback") and text.endswith("nicht unterstützt")
