@@ -33,7 +33,8 @@ from decimal import Decimal
 
 from ..abgleich.abgleich import PARTEIEN
 from ..rechner.basiszins import Basiszins
-from . import belege, gegenueberstellung, skills, wissen
+from . import belege, gegenueberstellung, wissen
+from . import skills as ki_skills
 from .analyse import BELEGT, OHNE_BELEG, Analyse, Fortschritt, OhneFortschritt
 from .anbieter import Anbieter, KiFehler, antwort_token
 
@@ -211,7 +212,8 @@ def frage(
     basiszins: Basiszins | None = None,
     land: str = "BY",
     heute: date | None = None,
-    skill: dict | None = None,
+    skills: list[dict] | None = None,
+    skill_hinweis: str | None = None,
 ) -> dict:
     """Beantwortet eine Frage zur Akte bzw. zum Dokument, speichert Frage und Antwort und gibt die Antwort zurück.
 
@@ -223,11 +225,12 @@ def frage(
     ``rechtsprechung``: ``akte`` legt Leitsätze und zitierte Randnummern der Entscheidungen der Akte vor, ``suche``
     dazu die zur Frage passenden Randnummern (siehe ``wissen.waehle_urteile``); ``aus`` keine.
     ``land``: Bundesland für Feiertage beim Fristenrechner.
-    ``skill``: gewählte Arbeitsanweisung (``skills.fuer_anfrage``); sie ergänzt die Systemanweisung.
+    ``skills``: gewählte Arbeitsanweisungen (``skills.fuer_anfrage``); sie ergänzen die Systemanweisung.
+    ``skill_hinweis``: warum trotz Auswahl kein Skill mitging (steht unter der Antwort).
     """
     fortschritt = fortschritt or OhneFortschritt()
     einrichten(con)
-    system = skills.systemanweisung(SYSTEM, skill)
+    system = ki_skills.systemanweisung(SYSTEM, skills)
     text = text.strip()
     if not text:
         raise ValueError("Die Frage ist leer.")
@@ -271,8 +274,7 @@ def frage(
         ergebnis = {"aussagen": _antwort_aus_gegenueberstellung(anbieter, text, g["zitate"], system),
                     "auswahl": None, "modell": anbieter.modell, "extern": extern, "fassung": FASSUNG,
                     "gegenueberstellung": g}
-        if skill:
-            ergebnis["skill"] = skill["name"]
+        _skills_vermerken(ergebnis, skills, skill_hinweis)
         return _speichere(con, akte_id, dokument_id, text, ergebnis)
     if mit_rechtsprechung:
         fortschritt.melde("Suche passende Stellen in der Rechtsprechung der Akte")
@@ -467,8 +469,7 @@ def frage(
         "extern": extern,
         "fassung": FASSUNG,
     }
-    if skill:
-        ergebnis["skill"] = skill["name"]
+    _skills_vermerken(ergebnis, skills, skill_hinweis)
     if gesetze is not None:
         ergebnis["wissen"] = {
             "gesetze": [f"{n['bezeichnung']} {n['gesetz']}" for n in normen],
@@ -605,6 +606,13 @@ def _antwort_aus_gegenueberstellung(anbieter: Anbieter, frage: str, zitate: list
 
 def _aehnlich(a: set[str], b: set[str]) -> bool:
     return bool(a and b) and len(a & b) / min(len(a), len(b)) >= 0.7
+
+
+def _skills_vermerken(ergebnis: dict, skills: list[dict] | None, hinweis: str | None) -> None:
+    if skills:
+        ergebnis["skills"] = [s["name"] for s in skills]
+    if hinweis:
+        ergebnis["skill_hinweis"] = hinweis
 
 
 def soll_gegenueberstellen(frage: str) -> bool:

@@ -235,6 +235,8 @@ skills.exportieren
 skills.importieren
 skills.liste
 skills.loeschen
+skills.ordner_loeschen
+skills.ordner_umbenennen
 skills.speichern
 umgebungen.anlegen
 umgebungen.liste

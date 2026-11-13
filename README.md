@@ -541,8 +541,17 @@ importieren: eine Datei `SKILL.md`, eine Markdown-Datei, ein ZIP-Archiv oder ein
 für alle Arbeitsumgebungen (Datei `skills.json` im Datenverzeichnis). Importiert wird nur aus Dateien; die App lädt
 dafür nichts aus dem Netz.
 
-Im Chat und in der Analyse einer Akte wählt „Skill:“, welcher Skill gilt; die Wahl wird je Akte gemerkt. Er wirkt
-bei lokaler und externer KI. Die Regeln von advOrdo stehen vor dem Skill und gehen vor: Tatsachen nur aus den
+Jedes importierte Paket kommt in einen eigenen Ordner (Titel aus `.claude-plugin/plugin.json` oder der README,
+sonst der Paketname). Ordner lassen sich umbenennen, verschachteln („Zivilrecht / BGB AT“) und samt Inhalt löschen;
+eine Suche filtert nach Name, Beschreibung und Ordner.
+
+Im Chat und in der Analyse einer Akte öffnet „Skills:“ eine Auswahl mit Suche und Ordnern. Gewählt werden ein oder
+mehrere Skills, ganze Ordner oder „Alle“; die Wahl wird je Akte gemerkt. Bei mehr als einem Skill nimmt advOrdo je
+Frage die passendsten: Wortvergleich der Frage (bei der Analyse Aufgabe, Aktenname und Dokumentnamen) mit Name,
+Überschriften, Beschreibung und Paragraphennummern, ohne zusätzliche Anfrage an das Modell; höchstens fünf und
+zusammen höchstens ein Viertel des Kontextfensters. Einzeln gewählte Skills haben Vorrang; aus Ordnern und „Alle“
+kommt nur, was ausreichend zur Frage passt. Passt keiner, gilt keiner, und die Antwort sagt das. Skills wirken bei
+lokaler und externer KI. Die Regeln von advOrdo stehen vor dem Skill und gehen vor: Tatsachen nur aus den
 vorgelegten Dokumenten, jede Aussage mit geprüftem Beleg, Antwort im festen Format. Was ein Skill an Werkzeugen
 voraussetzt (Webseiten prüfen, Word-Dateien erzeugen), gibt es hier nicht; die Liste in den Einstellungen weist
 darauf hin. Entscheidungen, die nur im Skill stehen, sind nicht geprüft und erscheinen höchstens als Einschätzung.

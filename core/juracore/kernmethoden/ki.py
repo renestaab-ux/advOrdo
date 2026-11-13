@@ -39,9 +39,12 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         # Skills: Arbeitsanweisungen für Chat und Analyse (Einstellungen → Skills), für das Gerät.
         "skills.liste": lambda: {"skills": ki_skills.liste(k.skills_datei, k._skill_kontext()),
                                  "kontext": k._skill_kontext()},
-        "skills.speichern": lambda name, text, beschreibung="", skill_id=None: ki_skills.speichern(
-                k.skills_datei, name, text, beschreibung, skill_id, k._skill_kontext()),
+        "skills.speichern": lambda name, text, beschreibung="", skill_id=None, ordner="": ki_skills.speichern(
+                k.skills_datei, name, text, beschreibung, skill_id, k._skill_kontext(), ordner),
         "skills.loeschen": lambda skill_id: ki_skills.loeschen(k.skills_datei, skill_id),
-        "skills.importieren": lambda pfad: ki_skills.importieren(k.skills_datei, pfad, k._skill_kontext()),
+        "skills.importieren": lambda pfad, ordner=None: ki_skills.importieren(
+                k.skills_datei, pfad, k._skill_kontext(), ordner),
+        "skills.ordner_umbenennen": lambda alt, neu: ki_skills.ordner_umbenennen(k.skills_datei, alt, neu),
+        "skills.ordner_loeschen": lambda ordner: ki_skills.ordner_loeschen(k.skills_datei, ordner),
         "skills.exportieren": lambda skill_id, pfad: ki_skills.exportieren(k.skills_datei, skill_id, pfad),
     }

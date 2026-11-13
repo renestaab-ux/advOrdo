@@ -357,5 +357,21 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 .skill-entwurf label { display: flex; flex-direction: column; gap: 4px; }
 .skill-entwurf textarea { font-family: inherit; resize: vertical; }
 .skill-wahl { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.skill-wahl select { max-width: 22em; }
+
 .akten-wahl .skill-wahl { margin-left: auto; }
+.skill-wahl { position: relative; }
+.skill-flaeche { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; width: min(34em, 90vw); max-height: min(70vh, 560px);
+  display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--flaeche); border: 1px solid var(--linie);
+  border-radius: 8px; box-shadow: var(--schatten); }
+.chat-wissen .skill-flaeche { top: auto; bottom: calc(100% + 4px); }
+.akten-wahl .skill-flaeche { left: auto; right: 0; }
+.skill-gruppen { overflow: auto; flex: 1; min-height: 80px; }
+.skill-gruppe ul { list-style: none; margin: 2px 0 6px; padding-left: 18px; }
+.skill-gruppe li label, .skill-alle { display: flex; gap: 6px; align-items: baseline; }
+.skill-gruppe-kopf { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; padding: 2px 0; }
+.skill-erklaerung { margin: 0; font-size: 0.85em; }
+.skill-suche { width: 100%; max-width: 32em; margin-bottom: 8px; }
+.skill-ordner { border-top: 1px solid var(--linie); padding: 8px 0; }
+.skill-ordner > summary { cursor: pointer; }
+.skill-ordner-aktionen { margin: 6px 0; }
+.skill-umbenennen { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

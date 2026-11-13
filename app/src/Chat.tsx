@@ -20,6 +20,7 @@ import {
   KiStatus,
   auswahlText,
   dauerText,
+  skillText,
   kern,
   zeitpunkt,
 } from "./kern";
@@ -171,7 +172,7 @@ export default function Chat({
             .filter(Boolean),
           land: gespeichertesLand(),
           rechtsprechung,
-          skill: skill || null,
+          skills: skill,
         }),
       );
       setGestellt(frage);
@@ -434,7 +435,7 @@ function ChatAntwort({
           <span>
             {zeitpunkt(eintrag.erstellt_am)} · {eintrag.modell}
             {eintrag.extern ? ` über ${eintrag.extern} (extern)` : ", auf diesem Gerät"}
-            {eintrag.skill && <> · Skill: {eintrag.skill}</>}
+            {skillText(eintrag) && <> · {skillText(eintrag)}</>}
             {eintrag.auswahl && <> · Vorgelegt: {auswahlText(eintrag.auswahl)}</>}
             {eintrag.gegenueberstellung && (
               <> · Vorgelegt: je Zitat die zitierende Stelle und die passenden Stellen der Entscheidung</>

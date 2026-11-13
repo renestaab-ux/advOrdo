@@ -149,8 +149,8 @@ def test_laenge_haengt_am_kontextfenster(tmp_path):
     assert skills.liste(datei, 32768)[0]["passt"] is True
     with pytest.raises(ValueError, match="zu lang für das Kontextfenster"):
         skills.fuer_anfrage(datei, s["id"], 8192)
-    assert skills.fuer_anfrage(datei, s["id"], 32768)["name"] == "Lang"
-    assert skills.fuer_anfrage(datei, None, 8192) is None
+    assert skills.fuer_anfrage(datei, s["id"], 32768)["skills"][0]["name"] == "Lang"
+    assert skills.fuer_anfrage(datei, None, 8192) == {"skills": [], "hinweis": None}
     with pytest.raises(LookupError):
         skills.fuer_anfrage(datei, "weg", 8192)
 
@@ -166,12 +166,13 @@ def test_chat_mit_skill(akten, con, tmp_path):  # noqa: F811
     akte_id, _ = _akte(akten, con, tmp_path)
     modell = Merker(gute_antwort)
     skill = {"id": "1", "name": "Gegnerbrille", "text": "Lies alles aus Sicht der Gegenseite."}
-    antwort = chat.frage(akten, modell, 16384, akte_id, "Lehnt das Autohaus ab?", skill=skill)
+    antwort = chat.frage(akten, modell, 16384, akte_id, "Lehnt das Autohaus ab?", skills=[skill])
     assert "Lies alles aus Sicht der Gegenseite." in modell.systeme[0]
-    assert antwort["skill"] == "Gegnerbrille"
-    assert chat.verlauf(akten, akte_id)[-1]["skill"] == "Gegnerbrille"
-    ohne = chat.frage(akten, modell, 16384, akte_id, "Und sonst?")
-    assert "Gegnerbrille" not in modell.systeme[-1] and "skill" not in ohne
+    assert antwort["skills"] == ["Gegnerbrille"]
+    assert chat.verlauf(akten, akte_id)[-1]["skills"] == ["Gegnerbrille"]
+    ohne = chat.frage(akten, modell, 16384, akte_id, "Und sonst?", skill_hinweis="Kein Skill passte.")
+    assert "Gegnerbrille" not in modell.systeme[-1] and "skills" not in ohne
+    assert ohne["skill_hinweis"] == "Kein Skill passte."
 
 
 def test_analyse_mit_skill_speichert_getrennt(akten, con, tmp_path):  # noqa: F811
@@ -181,11 +182,11 @@ def test_analyse_mit_skill_speichert_getrennt(akten, con, tmp_path):  # noqa: F8
     assert "skill" not in ohne and "Arbeitsanweisung" not in modell.systeme[-1]
     anfragen = len(modell.systeme)
     skill = {"id": "1", "name": "Gegnerbrille", "text": "Lies alles aus Sicht der Gegenseite."}
-    mit = Analyse(akten, modell, skill=skill).zusammenfassung_dokument(ids["03"])
+    mit = Analyse(akten, modell, skills=[skill]).zusammenfassung_dokument(ids["03"])
     assert len(modell.systeme) > anfragen, "mit Skill ist das gespeicherte Ergebnis ohne Skill nicht passend"
-    assert mit["skill"] == "Gegnerbrille" and "Gegenseite" in modell.systeme[-1]
-    wieder = Analyse(akten, modell, skill=skill).zusammenfassung_dokument(ids["03"])
-    assert wieder["gespeichert"] is True and wieder["skill"] == "Gegnerbrille"
+    assert mit["skills"] == ["Gegnerbrille"] and "Gegenseite" in modell.systeme[-1]
+    wieder = Analyse(akten, modell, skills=[skill]).zusammenfassung_dokument(ids["03"])
+    assert wieder["gespeichert"] is True and wieder["skills"] == ["Gegnerbrille"]
 
 
 def test_rpc_skills_und_chat(con, tmp_path):
@@ -207,9 +208,77 @@ def test_rpc_skills_und_chat(con, tmp_path):
     auftrag = aufruf("ki.chat_fragen", akte_id=akte_id, frage="Lehnt das Autohaus ab?", skill=s["id"])
     stand = _warte(lambda: aufruf("ki.auftrag", auftrag_id=auftrag["auftrag_id"]))
     assert stand["status"] == "fertig", stand
-    assert stand["ergebnis"]["skill"] == "Gegnerbrille" and "Gegenseite" in modell.systeme[-1]
+    assert stand["ergebnis"]["skills"] == ["Gegnerbrille"] and "Gegenseite" in modell.systeme[-1]
+
+    # Mehrfachauswahl über einen Ordner: zur Frage passt keiner, also ohne Skill und mit Hinweis.
+    aufruf("skills.speichern", name="Mietminderung", text="Prüfe § 536 BGB.", ordner="Zivilrecht / Miete")
+    auftrag = aufruf("ki.chat_fragen", akte_id=akte_id, frage="Lehnt das Autohaus ab?",
+                     skills=["ordner:Zivilrecht"])
+    stand = _warte(lambda: aufruf("ki.auftrag", auftrag_id=auftrag["auftrag_id"]))
+    assert "skills" not in stand["ergebnis"] and "passte" in stand["ergebnis"]["skill_hinweis"]
     assert (tmp_path / "skills.json").exists()
 
     fehler = kern.bearbeite(json.dumps({"id": 2, "method": "ki.chat_fragen",
                                         "params": {"akte_id": akte_id, "frage": "x", "skill": "gibt-es-nicht"}}))
     assert "Skill" in fehler["error"]["message"]
+
+
+def test_import_ordnet_nach_paket(tmp_path):
+    datei = tmp_path / "skills.json"
+    zip_pfad = tmp_path / "pakete.zip"
+    with zipfile.ZipFile(zip_pfad, "w") as z:
+        z.writestr("bgb-at-pruefer/README.md", "# BGB AT Prüfer\n\nText")
+        z.writestr("bgb-at-pruefer/skills/zugang/SKILL.md", "---\nname: zugang-paragraph-130\n---\nZugang.")
+        z.writestr("bgb-bt-pruefer/.claude-plugin/plugin.json", json.dumps({"displayName": "BGB BT Prüfer"}))
+        z.writestr("bgb-bt-pruefer/skills/miete/SKILL.md", "---\nname: mietminderung\n---\nMiete.")
+        z.writestr("ohne-titel/skills/frist/SKILL.md", "---\nname: fristen\n---\nFristen.")
+    r = skills.importieren(datei, str(zip_pfad))
+    assert {s["name"]: s["ordner"] for s in r["uebernommen"]} == {
+        "zugang-paragraph-130": "BGB AT Prüfer", "mietminderung": "BGB BT Prüfer", "fristen": "Ohne Titel"}
+    md = tmp_path / "einzeln.md"
+    md.write_text("# Einzeln\n\nText.", encoding="utf-8")
+    assert skills.importieren(datei, str(md))["uebernommen"][0]["ordner"] == ""
+    assert skills.importieren(datei, str(zip_pfad),
+                              ordner="Test")["uebernommen"] == []  # schon vorhanden
+    assert [s["ordner"] for s in skills.liste(datei)] == ["BGB AT Prüfer", "BGB BT Prüfer", "Ohne Titel", ""]
+
+
+def test_ordner_umbenennen_und_loeschen(tmp_path):
+    datei = tmp_path / "skills.json"
+    skills.speichern(datei, "A", "a", ordner="BGB AT Prüfer")
+    skills.speichern(datei, "B", "b", ordner=" Zivilrecht/ BGB  BT ")
+    skills.speichern(datei, "C", "c")
+    assert skills.liste(datei)[1]["ordner"] == "Zivilrecht / BGB BT"
+    assert skills.ordner_umbenennen(datei, "BGB AT Prüfer", "Zivilrecht / BGB AT") == {"geaendert": 1}
+    assert [s["ordner"] for s in skills.liste(datei)] == ["Zivilrecht / BGB AT", "Zivilrecht / BGB BT", ""]
+    assert skills.ordner_umbenennen(datei, "Zivilrecht", "Privatrecht") == {"geaendert": 2}
+    assert skills.ordner_loeschen(datei, "Privatrecht") == {"geloescht": 2}
+    assert [s["name"] for s in skills.liste(datei)] == ["C"]
+    with pytest.raises(ValueError):
+        skills.ordner_umbenennen(datei, "", "X")
+
+
+def test_auswahl_nimmt_die_passendsten(tmp_path):
+    datei = tmp_path / "skills.json"
+    zugang = skills.speichern(datei, "zugang-paragraph-130", "# Zugang von Willenserklärungen\nPrüfe § 130 BGB.",
+                              "Zugang unter Abwesenden", ordner="BGB AT")
+    skills.speichern(datei, "anfechtung-irrtum", "# Anfechtung\nPrüfe §§ 119, 142 BGB.", ordner="BGB AT")
+    miete = skills.speichern(datei, "mietminderung-536", "# Mietminderung\nPrüfe § 536 BGB.", ordner="BGB BT")
+    lang = skills.speichern(datei, "zugang-lang", "# Zugang\n" + "x" * 7000, ordner="BGB AT")
+
+    w = skills.fuer_anfrage(datei, ["alle"], 32768, "Ist der Zugang der Kündigung nach § 130 BGB erfolgt?")
+    assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130", "zugang-lang"] and w["hinweis"] is None
+    # Bei 8k passt neben dem kurzen der lange nicht mehr hinein.
+    w = skills.fuer_anfrage(datei, ["alle"], 8192, "Ist der Zugang der Kündigung nach § 130 BGB erfolgt?")
+    assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130"]
+    w = skills.fuer_anfrage(datei, ["ordner:BGB BT"], 32768, "Ist die Kündigung zugegangen?")
+    assert w["skills"] == [] and "passte" in w["hinweis"]
+    # Einzeln gewählte gelten immer, auch ohne Übereinstimmung, und kommen zuerst.
+    w = skills.fuer_anfrage(datei, [miete["id"], "ordner:BGB AT"], 32768, "Zugang nach § 130?")
+    assert [s["name"] for s in w["skills"]][:2] == ["mietminderung-536", "zugang-paragraph-130"]
+    # Ein einzelner zu langer Skill ist ein Fehler, in einer Menge wird er übergangen.
+    with pytest.raises(ValueError):
+        skills.fuer_anfrage(datei, [lang["id"]], 8192, "")
+    assert skills.fuer_anfrage(datei, [zugang["id"], lang["id"]], 8192, "Zugang")["skills"][0]["id"] == zugang["id"]
+    system = skills.systemanweisung("REGELN", w["skills"])
+    assert "gelten die folgenden Arbeitsanweisungen" in system and system.count("<<< Arbeitsanweisung") == len(w["skills"]) == 3

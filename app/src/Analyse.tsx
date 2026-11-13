@@ -23,6 +23,7 @@ import {
   dauerText,
   istDesktop,
   kern,
+  skillText,
   veraltet,
   zeitpunkt,
 } from "./kern";
@@ -104,7 +105,7 @@ export default function Analyse({
   async function starte(aufgabe: KiAufgabe, params: Record<string, unknown>) {
     setFehler(null);
     try {
-      setAuftrag(await kern<KiAuftrag>("ki.starten", { aufgabe, ...params, skill: skill || null }));
+      setAuftrag(await kern<KiAuftrag>("ki.starten", { aufgabe, ...params, skills: skill }));
       if (aufgabe === "zusammenfassung_akte") setAnsicht("akte");
       if (aufgabe === "chronologie") setAnsicht("chronologie");
     } catch (e) {
@@ -266,7 +267,7 @@ export default function Analyse({
                       <strong>{d.dateiname}</strong> {zf ? (
                         <span className="leise">
                           {zaehlungText(zf)}
-                          {zf.skill ? ` · Skill: ${zf.skill}` : ""}
+                          {skillText(zf) ? ` · ${skillText(zf)}` : ""}
                         </span>
                       ) : null}
                       <button
@@ -406,6 +407,8 @@ function ErgebnisKopf({
     modell: string;
     erstellt_am: string;
     skill?: string;
+    skills?: string[];
+    skill_hinweis?: string;
     teile?: number;
     luecken?: number[];
     luecken_dokumente?: { dateiname: string; absaetze: string[] }[];
@@ -421,7 +424,7 @@ function ErgebnisKopf({
       <p className="zusammenfassung">{text}</p>
       <p className="ki-herkunft">
         Erstellt {zeitpunkt(ergebnis.erstellt_am)} mit {ergebnis.modell}
-        {ergebnis.skill && <> · Skill: {ergebnis.skill}</>}
+        {skillText(ergebnis) && <> · {skillText(ergebnis)}</>}
         {veraltet && <span className="hinweis"> · Die Akte hat sich seitdem geändert, bitte neu berechnen.</span>}
         {mitSchalter && (
           <>

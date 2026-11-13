@@ -1,36 +1,47 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { Rueckfrage } from "./Rueckfrage";
 import { useFokusAuf } from "./barrierefrei";
 import { Skill, SkillImport, SkillListe, istDesktop, kern } from "./kern";
 
 const zahl = (n: number) => n.toLocaleString("de-DE");
+const ALLE = "alle";
+const ORDNER = "ordner:";
+const OHNE_ORDNER = "Ohne Ordner";
 
-/** Wo ein Skill gewählt wird; die Wahl gilt je Akte und wird auf dem Gerät gemerkt. */
+/** Wo Skills gewählt werden; die Wahl gilt je Akte und wird auf dem Gerät gemerkt. */
 export type SkillBereich = "chat" | "analyse";
 
 function schluessel(bereich: SkillBereich, akteId: number | null) {
-  return `skill.${bereich}.${akteId ?? "ohne"}`;
+  return `skills.${bereich}.${akteId ?? "ohne"}`;
 }
 
-function gemerkterSkill(bereich: SkillBereich, akteId: number | null): string {
+function gemerkteSkills(bereich: SkillBereich, akteId: number | null): string[] {
   try {
-    return localStorage.getItem(schluessel(bereich, akteId)) ?? "";
+    const roh = localStorage.getItem(schluessel(bereich, akteId));
+    if (roh) {
+      const liste: unknown = JSON.parse(roh);
+      if (Array.isArray(liste)) return liste.filter((x): x is string => typeof x === "string");
+    }
+    // Frühere Fassung: ein einzelner Skill je Akte.
+    const alt = localStorage.getItem(`skill.${bereich}.${akteId ?? "ohne"}`);
+    return alt ? [alt] : [];
   } catch {
-    return "";
+    return [];
   }
 }
 
-/** Der gewählte Skill (Kennung, leer = keiner) für Chat bzw. Analyse dieser Akte. */
-export function useSkillWahl(bereich: SkillBereich, akteId: number | null): [string, (id: string) => void] {
-  const [wert, setWert] = useState(() => gemerkterSkill(bereich, akteId));
-  useEffect(() => setWert(gemerkterSkill(bereich, akteId)), [bereich, akteId]);
+/** Die gewählten Skills für Chat bzw. Analyse dieser Akte: Kennungen, „ordner:Name“ oder „alle“; leer = keine. */
+export function useSkillWahl(bereich: SkillBereich, akteId: number | null): [string[], (auswahl: string[]) => void] {
+  const [wert, setWert] = useState(() => gemerkteSkills(bereich, akteId));
+  useEffect(() => setWert(gemerkteSkills(bereich, akteId)), [bereich, akteId]);
   const setze = useCallback(
-    (id: string) => {
-      setWert(id);
+    (auswahl: string[]) => {
+      setWert(auswahl);
       try {
-        if (id) localStorage.setItem(schluessel(bereich, akteId), id);
+        if (auswahl.length) localStorage.setItem(schluessel(bereich, akteId), JSON.stringify(auswahl));
         else localStorage.removeItem(schluessel(bereich, akteId));
+        localStorage.removeItem(`skill.${bereich}.${akteId ?? "ohne"}`);
       } catch {
         // ohne Speicher gilt die Wahl bis zum Neustart
       }
@@ -40,9 +51,46 @@ export function useSkillWahl(bereich: SkillBereich, akteId: number | null): [str
   return [wert, setze];
 }
 
+/** Liegt der Skill in diesem Ordner oder einem Unterordner davon? */
+function imOrdner(s: Skill, ordner: string) {
+  return s.ordner === ordner || s.ordner.startsWith(`${ordner} / `);
+}
+
+/** Skills nach Ordnern, in der Reihenfolge des Kerns (Ordner alphabetisch, ohne Ordner zuletzt). */
+function nachOrdnern(skills: Skill[]): [string, Skill[]][] {
+  const gruppen = new Map<string, Skill[]>();
+  for (const s of skills) {
+    const liste = gruppen.get(s.ordner) ?? [];
+    liste.push(s);
+    gruppen.set(s.ordner, liste);
+  }
+  return [...gruppen.entries()];
+}
+
+/** Suchbegriffe: alle Wörter müssen in Name, Beschreibung oder Ordner vorkommen (Groß-/Kleinschreibung egal). */
+function passtZurSuche(s: Skill, suche: string) {
+  const woerter = suche.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!woerter.length) return true;
+  const heu = `${s.name} ${s.beschreibung} ${s.ordner}`.toLowerCase().replace(/-/g, " ");
+  return woerter.every((w) => heu.includes(w));
+}
+
+/** Kurztext der Auswahl für den Knopf, z. B. „Alle (passende je Frage)“ oder „3 gewählt“. */
+export function auswahlText(auswahl: string[], skills: Skill[]): string {
+  if (!auswahl.length) return "keine";
+  if (auswahl.includes(ALLE)) return "Alle (passende je Frage)";
+  if (auswahl.length === 1) {
+    const a = auswahl[0];
+    if (a.startsWith(ORDNER)) return `Ordner ${a.slice(ORDNER.length)}`;
+    return skills.find((s) => s.id === a)?.name ?? "1 gewählt";
+  }
+  return `${auswahl.length} gewählt`;
+}
+
 /**
- * Auswahl „Skill: keiner / …“ in Chat und Analyse. Ohne angelegte Skills erscheint nur ein Verweis auf die
- * Einstellungen. Skills, die nicht in das Kontextfenster des Modells passen, sind nicht wählbar.
+ * Auswahl der Skills in Chat und Analyse: ein Knopf öffnet eine Liste mit Suche, Ordnern und „Alle“. Mehrere
+ * Skills, ganze Ordner oder alle lassen sich wählen; je Frage nimmt advOrdo davon die passendsten, so viele in das
+ * Kontextfenster passen. Escape oder „Fertig“ schließt die Liste.
  */
 export function SkillWahl({
   wert,
@@ -50,71 +98,225 @@ export function SkillWahl({
   disabled,
   onEinstellungen,
 }: {
-  wert: string;
-  onWert: (id: string) => void;
+  wert: string[];
+  onWert: (auswahl: string[]) => void;
   disabled?: boolean;
   onEinstellungen?: () => void;
 }) {
-  const [liste, setListe] = useState<Skill[] | null>(null);
+  const [liste, setListe] = useState<SkillListe | null>(null);
+  const [offen, setOffen] = useState(false);
+  const [suche, setSuche] = useState("");
+  const [aufgeklappt, setAufgeklappt] = useState<Set<string>>(new Set());
+  const knopf = useRef<HTMLButtonElement>(null);
+  const flaeche = useRef<HTMLDivElement>(null);
+  const id = useId();
+
   useEffect(() => {
     if (!istDesktop) return;
     let aktuell = true;
     kern<SkillListe>("skills.liste")
-      .then((l) => aktuell && setListe(l.skills))
-      .catch(() => aktuell && setListe([]));
+      .then((l) => aktuell && setListe(l))
+      .catch(() => aktuell && setListe({ skills: [], kontext: null }));
     return () => {
       aktuell = false;
     };
   }, []);
-  // Ein gelöschter Skill ist keine gültige Wahl mehr.
+
+  // Gelöschte Skills und Ordner sind keine gültige Wahl mehr.
   useEffect(() => {
-    if (liste && wert && !liste.some((s) => s.id === wert)) onWert("");
+    if (!liste) return;
+    const gueltig = wert.filter(
+      (a) =>
+        a === ALLE ||
+        (a.startsWith(ORDNER) ? liste.skills.some((s) => imOrdner(s, a.slice(ORDNER.length))) : liste.skills.some((s) => s.id === a)),
+    );
+    if (gueltig.length !== wert.length) onWert(gueltig);
   }, [liste, wert, onWert]);
 
+  // Klick außerhalb schließt die Liste.
+  useEffect(() => {
+    if (!offen) return;
+    function weg(e: MouseEvent) {
+      const ziel = e.target as Node;
+      if (!flaeche.current?.contains(ziel) && !knopf.current?.contains(ziel)) setOffen(false);
+    }
+    document.addEventListener("mousedown", weg);
+    return () => document.removeEventListener("mousedown", weg);
+  }, [offen]);
+
+  const skills = liste?.skills ?? [];
+  const gruppen = useMemo(() => nachOrdnern(skills.filter((s) => passtZurSuche(s, suche))), [skills, suche]);
+
   if (!liste) return null;
-  if (liste.length === 0) {
+  if (skills.length === 0) {
     return onEinstellungen ? (
       <span className="skill-wahl leise">
-        Skill: keiner angelegt{" "}
+        Skills: keine angelegt{" "}
         <button type="button" className="link klein" onClick={onEinstellungen}>
           Skills anlegen
         </button>
       </span>
     ) : null;
   }
-  const gewaehlt = liste.find((s) => s.id === wert);
+
+  const alle = wert.includes(ALLE);
+  const gewaehlt = new Set(wert);
+  const kontext = liste.kontext;
+  const grenze = kontext ? Math.max(1000, Math.floor(kontext / 4) * 3) : null;
+
+  function schliessen() {
+    setOffen(false);
+    setSuche("");
+    knopf.current?.focus();
+  }
+
+  function taste(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      schliessen();
+    }
+  }
+
+  function umschalten(eintrag: string, an: boolean) {
+    const rest = wert.filter((a) => a !== eintrag && a !== ALLE);
+    onWert(an ? [...rest, eintrag] : rest);
+  }
+
+  function aufklappen(ordner: string) {
+    const neu = new Set(aufgeklappt);
+    if (neu.has(ordner)) neu.delete(ordner);
+    else neu.add(ordner);
+    setAufgeklappt(neu);
+  }
+
   return (
-    <label
-      className="skill-wahl"
-      title={
-        gewaehlt?.beschreibung ||
-        "Ein Skill gibt dem Sprachmodell Rolle und Vorgehen vor. Die Regeln von advOrdo (Belege aus der Akte) gelten weiter."
-      }
-    >
-      Skill:{" "}
-      <select value={wert} disabled={disabled} onChange={(e) => onWert(e.target.value)}>
-        <option value="">keiner</option>
-        {liste.map((s) => (
-          <option key={s.id} value={s.id} disabled={s.passt === false}>
-            {s.name}
-            {s.passt === false ? " (zu lang für das Modell)" : ""}
-          </option>
-        ))}
-      </select>
-    </label>
+    <span className="skill-wahl">
+      <button
+        type="button"
+        ref={knopf}
+        className="zweitrangig klein"
+        aria-expanded={offen}
+        aria-controls={`${id}-flaeche`}
+        disabled={disabled}
+        onClick={() => (offen ? schliessen() : setOffen(true))}
+        title="Skills geben dem Sprachmodell Rolle und Vorgehen vor. Die Regeln von advOrdo (Belege aus der Akte) gelten weiter."
+      >
+        Skills: {auswahlText(wert, skills)} ▾
+      </button>
+      {offen && (
+        <div
+          className="skill-flaeche"
+          id={`${id}-flaeche`}
+          ref={flaeche}
+          role="group"
+          aria-label="Skills wählen"
+          onKeyDown={taste}
+        >
+          <input
+            type="search"
+            value={suche}
+            autoFocus
+            placeholder="Skills suchen, z. B. Zugang oder 130"
+            aria-label="Skills suchen"
+            onChange={(e) => setSuche(e.target.value)}
+          />
+          <label className="skill-alle">
+            <input type="checkbox" checked={alle} onChange={(e) => onWert(e.target.checked ? [ALLE] : [])} /> Alle
+            Skills <span className="leise">(je Frage die passendsten)</span>
+          </label>
+          <div className="skill-gruppen">
+            {gruppen.length === 0 && <p className="leise">Kein Skill passt zur Suche.</p>}
+            {gruppen.map(([ordner, eintraege]) => {
+              const name = ordner || OHNE_ORDNER;
+              const ordnerGewaehlt = alle || (!!ordner && gewaehlt.has(ORDNER + ordner));
+              const zeigen = suche.trim() !== "" || aufgeklappt.has(ordner) || gruppen.length === 1;
+              const listeId = `${id}-o-${name}`;
+              return (
+                <div key={ordner} className="skill-gruppe">
+                  <div className="skill-gruppe-kopf">
+                    <button
+                      type="button"
+                      className="link"
+                      aria-expanded={zeigen}
+                      aria-controls={listeId}
+                      onClick={() => aufklappen(ordner)}
+                    >
+                      {zeigen ? "▾" : "▸"} {name} ({zahl(eintraege.length)})
+                    </button>
+                    {ordner && (
+                      <label className="leise">
+                        <input
+                          type="checkbox"
+                          checked={ordnerGewaehlt}
+                          disabled={alle}
+                          onChange={(e) => umschalten(ORDNER + ordner, e.target.checked)}
+                        />{" "}
+                        ganzer Ordner
+                      </label>
+                    )}
+                  </div>
+                  {zeigen && (
+                    <ul id={listeId}>
+                      {eintraege.map((s) => (
+                        <li key={s.id}>
+                          <label title={s.beschreibung || undefined}>
+                            <input
+                              type="checkbox"
+                              checked={ordnerGewaehlt || gewaehlt.has(s.id)}
+                              disabled={ordnerGewaehlt || s.passt === false}
+                              onChange={(e) => umschalten(s.id, e.target.checked)}
+                            />{" "}
+                            {s.name}
+                            {s.passt === false && <span className="leise"> (zu lang für das Modell)</span>}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="leise skill-erklaerung">
+            Bei mehreren Skills, einem Ordner oder „Alle“ nimmt advOrdo je Frage die passendsten (nach Name, Überschriften
+            und Beschreibung), höchstens fünf
+            {grenze ? ` und zusammen bis etwa ${zahl(grenze)} Zeichen` : ""}. Passt keiner, gilt keiner. Unter der Antwort
+            steht, welche gewirkt haben.
+          </p>
+          <div className="aktionen">
+            <button type="button" onClick={schliessen}>
+              Fertig
+            </button>
+            <button type="button" className="zweitrangig" disabled={!wert.length} onClick={() => onWert([])}>
+              Keine
+            </button>
+            {onEinstellungen && (
+              <button type="button" className="link klein" onClick={onEinstellungen}>
+                Skills verwalten
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </span>
   );
 }
 
-type Entwurf = { id: string | null; name: string; beschreibung: string; text: string };
+type Entwurf = { id: string | null; name: string; beschreibung: string; text: string; ordner: string };
 
 /**
  * Einstellungen → Skills: eigene Skills anlegen und bearbeiten, Skills aus Claude oder ChatGPT importieren
- * (SKILL.md, ZIP, Ordner), exportieren und löschen. Gilt für alle Arbeitsumgebungen dieses Geräts.
+ * (SKILL.md, ZIP, Ordner), in Ordnern ordnen, suchen, exportieren und löschen. Gilt für alle Arbeitsumgebungen
+ * dieses Geräts.
  */
 export default function SkillsEinstellungen() {
   const [liste, setListe] = useState<SkillListe | null>(null);
   const [entwurf, setEntwurf] = useState<Entwurf | null>(null);
   const [loeschen, setLoeschen] = useState<Skill | null>(null);
+  const [ordnerLoeschen, setOrdnerLoeschen] = useState<{ ordner: string; anzahl: number } | null>(null);
+  const [umbenennen, setUmbenennen] = useState<{ alt: string; neu: string } | null>(null);
+  const [suche, setSuche] = useState("");
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -128,6 +330,10 @@ export default function SkillsEinstellungen() {
   useEffect(() => {
     if (istDesktop) void laden().catch((e) => setFehler(String(e)));
   }, [laden]);
+
+  const skills = useMemo(() => liste?.skills ?? [], [liste]);
+  const alleOrdner = useMemo(() => [...new Set(skills.map((s) => s.ordner).filter(Boolean))], [skills]);
+  const gruppen = useMemo(() => nachOrdnern(skills.filter((s) => passtZurSuche(s, suche))), [skills, suche]);
 
   async function mit<T>(f: () => Promise<T>): Promise<T | undefined> {
     setFehler(null);
@@ -158,13 +364,13 @@ export default function SkillsEinstellungen() {
     if (!r) return;
     await laden();
     const n = r.uebernommen.length;
+    const ordnerNamen = [...new Set(r.uebernommen.map((s) => s.ordner || OHNE_ORDNER))];
     const teile = [
       n === 0
         ? "Kein neuer Skill übernommen."
-        : `${n === 1 ? "1 Skill" : `${zahl(n)} Skills`} übernommen: ${r.uebernommen
-            .slice(0, 8)
-            .map((s) => s.name)
-            .join(", ")}${n > 8 ? " …" : ""}.`,
+        : `${n === 1 ? "1 Skill" : `${zahl(n)} Skills`} übernommen, in ${
+            ordnerNamen.length === 1 ? `den Ordner „${ordnerNamen[0]}“` : `die Ordner ${ordnerNamen.map((o) => `„${o}“`).join(", ")}`
+          }.`,
     ];
     if (r.uebersprungen.length) {
       const vorhanden = r.uebersprungen.filter((u) => u.grund === "schon vorhanden").length;
@@ -200,6 +406,7 @@ export default function SkillsEinstellungen() {
         name: entwurf.name,
         beschreibung: entwurf.beschreibung,
         text: entwurf.text,
+        ordner: entwurf.ordner,
         skill_id: entwurf.id,
       }),
     );
@@ -219,6 +426,28 @@ export default function SkillsEinstellungen() {
     }
   }
 
+  async function ordnerLoeschenBestaetigt() {
+    const o = ordnerLoeschen;
+    setOrdnerLoeschen(null);
+    if (!o) return;
+    const r = await mit(() => kern<{ geloescht: number }>("skills.ordner_loeschen", { ordner: o.ordner }));
+    if (r) {
+      await laden();
+      setMeldung(`Ordner „${o.ordner}“ mit ${r.geloescht === 1 ? "1 Skill" : `${zahl(r.geloescht)} Skills`} gelöscht.`);
+    }
+  }
+
+  async function umbenennenSpeichern(e: FormEvent) {
+    e.preventDefault();
+    const u = umbenennen;
+    if (!u) return;
+    const r = await mit(() => kern<{ geaendert: number }>("skills.ordner_umbenennen", { alt: u.alt, neu: u.neu }));
+    if (!r) return;
+    setUmbenennen(null);
+    await laden();
+    setMeldung(u.neu.trim() ? `Ordner „${u.alt}“ heißt jetzt „${u.neu.trim()}“.` : `Ordner „${u.alt}“ aufgelöst.`);
+  }
+
   if (!istDesktop) {
     return (
       <section className="hinweis-box">
@@ -229,6 +458,7 @@ export default function SkillsEinstellungen() {
 
   const kontext = liste?.kontext ?? null;
   const grenze = kontext ? Math.max(1000, Math.floor(kontext / 4) * 3) : null;
+  const sucht = suche.trim() !== "";
 
   return (
     <div className="skills">
@@ -237,23 +467,25 @@ export default function SkillsEinstellungen() {
         <p className="leise">
           Ein Skill ist eine Arbeitsanweisung für das Sprachmodell: welche Rolle es einnimmt, wie es vorgeht und worauf
           es achtet, etwa „Lies den Schriftsatz wie die Gegenseite“ oder „Prüfe zuerst Fristen und Zuständigkeit“. Im
-          Chat und in der Analyse einer Akte wählst du, welcher Skill gilt. Er wirkt bei lokaler und externer KI.
+          Chat und in der Analyse einer Akte wählst du einen oder mehrere Skills, ganze Ordner oder alle; advOrdo nimmt
+          dann je Frage die passendsten. Skills wirken bei lokaler und externer KI.
         </p>
         <p className="leise">
           Skills aus Claude oder ChatGPT lassen sich importieren: eine Datei <code>SKILL.md</code>, ein ZIP-Archiv oder
-          ein Ordner mit vielen Skills. advOrdo übernimmt Name, Beschreibung und Anweisung. Was ein Skill an Werkzeugen
-          voraussetzt (Webseiten, Word-Dateien, weitere Dateien im Ordner), gibt es hier nicht; darauf weist die Liste
-          hin. Die Regeln von advOrdo gehen immer vor: Tatsachen nur aus der Akte, jede Aussage mit Beleg.
+          ein Ordner mit vielen Skills. Jedes Paket kommt in einen eigenen Ordner, den du umbenennen kannst (Unterordner
+          mit „/“, etwa „Zivilrecht / BGB AT“). Was ein Skill an Werkzeugen voraussetzt (Webseiten, Word-Dateien,
+          weitere Dateien im Ordner), gibt es hier nicht; darauf weist die Liste hin. Die Regeln von advOrdo gehen immer
+          vor: Tatsachen nur aus der Akte, jede Aussage mit Beleg.
         </p>
         <p className="leise">
           {kontext && grenze
-            ? `Das aktive Sprachmodell hat ein Kontextfenster von ${zahl(kontext)} Token. Ein Skill darf höchstens ein Viertel davon belegen, rund ${zahl(grenze)} Zeichen; der Rest bleibt für Dokumenttext und Antwort.`
+            ? `Das aktive Sprachmodell hat ein Kontextfenster von ${zahl(kontext)} Token. Skills dürfen zusammen höchstens ein Viertel davon belegen, rund ${zahl(grenze)} Zeichen; der Rest bleibt für Dokumenttext und Antwort.`
             : "Ist ein Sprachmodell eingerichtet, zeigt die Liste, welche Skills in sein Kontextfenster passen."}
         </p>
         <div className="aktionen">
           <button
             disabled={laeuft || entwurf != null}
-            onClick={() => setEntwurf({ id: null, name: "", beschreibung: "", text: "" })}
+            onClick={() => setEntwurf({ id: null, name: "", beschreibung: "", text: "", ordner: "" })}
           >
             Neuer Skill
           </button>
@@ -286,7 +518,21 @@ export default function SkillsEinstellungen() {
               />
             </label>
             <label>
-              Kurzbeschreibung <span className="leise">(wofür der Skill gedacht ist)</span>
+              Ordner <span className="leise">(leer = ohne Ordner, Unterordner mit „/“)</span>
+              <input
+                value={entwurf.ordner}
+                maxLength={120}
+                list="skill-ordner"
+                onChange={(e) => setEntwurf({ ...entwurf, ordner: e.target.value })}
+              />
+              <datalist id="skill-ordner">
+                {alleOrdner.map((o) => (
+                  <option key={o} value={o} />
+                ))}
+              </datalist>
+            </label>
+            <label>
+              Kurzbeschreibung <span className="leise">(wofür der Skill gedacht ist; hilft auch bei der Auswahl)</span>
               <input
                 value={entwurf.beschreibung}
                 maxLength={400}
@@ -305,10 +551,7 @@ export default function SkillsEinstellungen() {
                 }
               />
             </label>
-            <p
-              id="skill-laenge"
-              className={grenze && entwurf.text.length > grenze ? "hinweis" : "leise"}
-            >
+            <p id="skill-laenge" className={grenze && entwurf.text.length > grenze ? "hinweis" : "leise"}>
               {zahl(entwurf.text.trim().length)} Zeichen
               {grenze &&
                 (entwurf.text.trim().length > grenze
@@ -328,7 +571,7 @@ export default function SkillsEinstellungen() {
       )}
 
       <section className="karte">
-        <h2>Angelegte Skills{liste ? ` (${zahl(liste.skills.length)})` : ""}</h2>
+        <h2>Angelegte Skills{liste ? ` (${zahl(skills.length)})` : ""}</h2>
         {loeschen && (
           <Rueckfrage
             frage={`Skill „${loeschen.name}“ löschen?`}
@@ -338,63 +581,136 @@ export default function SkillsEinstellungen() {
             onNein={() => setLoeschen(null)}
           />
         )}
-        {liste == null && !fehler && <p className="status" role="status">Lade Skills …</p>}
-        {liste && liste.skills.length === 0 && <p className="leise">Noch kein Skill angelegt oder importiert.</p>}
-        {liste && liste.skills.length > 0 && (
-          <ul className="skill-liste">
-            {liste.skills.map((s) => (
-              <li key={s.id}>
-                <h3>{s.name}</h3>
-                {s.beschreibung && <p>{s.beschreibung}</p>}
-                <p className="leise">
-                  {s.herkunft} · {zahl(s.zeichen)} Zeichen
-                  {s.passt === false && (
-                    <span className="hinweis">
-                      {" "}
-                      · zu lang für das aktive Sprachmodell (höchstens {zahl(s.hoechstens ?? 0)})
-                    </span>
-                  )}
-                </p>
-                {(s.hinweise.length > 0 || s.nicht_uebernommen.length > 0) && (
-                  <details className="skill-hinweise">
-                    <summary>
-                      Hinweise ({s.hinweise.length + (s.nicht_uebernommen.length > 0 ? 1 : 0)})
-                    </summary>
-                    <ul>
-                      {s.hinweise.map((h) => (
-                        <li key={h}>{h}</li>
-                      ))}
-                      {s.nicht_uebernommen.length > 0 && (
-                        <li>Nicht übernommen: {s.nicht_uebernommen.join(", ")}</li>
-                      )}
-                    </ul>
-                  </details>
-                )}
-                <details className="skill-text">
-                  <summary>Anweisung ansehen</summary>
-                  <pre>{s.text}</pre>
-                </details>
-                <div className="aktionen">
-                  <button
-                    className="zweitrangig"
-                    disabled={laeuft || entwurf != null}
-                    onClick={() =>
-                      setEntwurf({ id: s.id, name: s.name, beschreibung: s.beschreibung ?? "", text: s.text })
-                    }
-                  >
-                    Bearbeiten
-                  </button>
-                  <button className="zweitrangig" disabled={laeuft} onClick={() => exportieren(s)}>
-                    Exportieren …
-                  </button>
-                  <button className="zweitrangig gefahr" disabled={laeuft} onClick={() => setLoeschen(s)}>
-                    Löschen
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+        {ordnerLoeschen && (
+          <Rueckfrage
+            frage={`Ordner „${ordnerLoeschen.ordner}“ mit ${ordnerLoeschen.anzahl === 1 ? "1 Skill" : `${zahl(ordnerLoeschen.anzahl)} Skills`} löschen?`}
+            erklaerung="Gelöscht werden alle Skills in diesem Ordner und seinen Unterordnern. Antworten und Analysen, die schon mit ihnen entstanden sind, bleiben erhalten."
+            ja="Ordner löschen"
+            onJa={ordnerLoeschenBestaetigt}
+            onNein={() => setOrdnerLoeschen(null)}
+          />
         )}
+        {liste == null && !fehler && <p className="status" role="status">Lade Skills …</p>}
+        {liste && skills.length === 0 && <p className="leise">Noch kein Skill angelegt oder importiert.</p>}
+        {skills.length > 0 && (
+          <input
+            type="search"
+            className="skill-suche"
+            value={suche}
+            placeholder="Skills suchen (Name, Beschreibung, Ordner)"
+            aria-label="Skills suchen"
+            onChange={(e) => setSuche(e.target.value)}
+          />
+        )}
+        {sucht && gruppen.length === 0 && <p className="leise">Kein Skill passt zur Suche.</p>}
+        {gruppen.map(([ordner, eintraege]) => {
+          const name = ordner || OHNE_ORDNER;
+          const gesamt = skills.filter((s) => s.ordner === ordner).length;
+          return (
+            <details key={ordner} className="skill-ordner" open={sucht || gruppen.length === 1}>
+              <summary>
+                <strong>{name}</strong>{" "}
+                <span className="leise">
+                  ({sucht ? `${zahl(eintraege.length)} von ${zahl(gesamt)}` : zahl(gesamt)})
+                </span>
+              </summary>
+              {ordner && (
+                <div className="aktionen skill-ordner-aktionen">
+                  {umbenennen?.alt === ordner ? (
+                    <form className="skill-umbenennen" onSubmit={umbenennenSpeichern}>
+                      <input
+                        value={umbenennen.neu}
+                        autoFocus
+                        maxLength={120}
+                        aria-label={`Neuer Name für Ordner ${ordner}`}
+                        onChange={(e) => setUmbenennen({ alt: ordner, neu: e.target.value })}
+                        onKeyDown={(e) => e.key === "Escape" && setUmbenennen(null)}
+                      />
+                      <button type="submit" className="zweitrangig" disabled={laeuft}>
+                        Umbenennen
+                      </button>
+                      <button type="button" className="link klein" onClick={() => setUmbenennen(null)}>
+                        Abbrechen
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <button
+                        className="zweitrangig klein"
+                        disabled={laeuft}
+                        onClick={() => setUmbenennen({ alt: ordner, neu: ordner })}
+                      >
+                        Ordner umbenennen
+                      </button>
+                      <button
+                        className="zweitrangig gefahr klein"
+                        disabled={laeuft}
+                        onClick={() => setOrdnerLoeschen({ ordner, anzahl: gesamt })}
+                      >
+                        Ordner löschen
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              <ul className="skill-liste">
+                {eintraege.map((s) => (
+                  <li key={s.id}>
+                    <h3>{s.name}</h3>
+                    {s.beschreibung && <p>{s.beschreibung}</p>}
+                    <p className="leise">
+                      {s.herkunft} · {zahl(s.zeichen)} Zeichen
+                      {s.passt === false && (
+                        <span className="hinweis">
+                          {" "}
+                          · zu lang für das aktive Sprachmodell (höchstens {zahl(s.hoechstens ?? 0)})
+                        </span>
+                      )}
+                    </p>
+                    {(s.hinweise.length > 0 || s.nicht_uebernommen.length > 0) && (
+                      <details className="skill-hinweise">
+                        <summary>Hinweise ({s.hinweise.length + (s.nicht_uebernommen.length > 0 ? 1 : 0)})</summary>
+                        <ul>
+                          {s.hinweise.map((h) => (
+                            <li key={h}>{h}</li>
+                          ))}
+                          {s.nicht_uebernommen.length > 0 && <li>Nicht übernommen: {s.nicht_uebernommen.join(", ")}</li>}
+                        </ul>
+                      </details>
+                    )}
+                    <details className="skill-text">
+                      <summary>Anweisung ansehen</summary>
+                      <pre>{s.text}</pre>
+                    </details>
+                    <div className="aktionen">
+                      <button
+                        className="zweitrangig"
+                        disabled={laeuft || entwurf != null}
+                        onClick={() =>
+                          setEntwurf({
+                            id: s.id,
+                            name: s.name,
+                            beschreibung: s.beschreibung ?? "",
+                            text: s.text,
+                            ordner: s.ordner,
+                          })
+                        }
+                      >
+                        Bearbeiten
+                      </button>
+                      <button className="zweitrangig" disabled={laeuft} onClick={() => exportieren(s)}>
+                        Exportieren …
+                      </button>
+                      <button className="zweitrangig gefahr" disabled={laeuft} onClick={() => setLoeschen(s)}>
+                        Löschen
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          );
+        })}
       </section>
     </div>
   );

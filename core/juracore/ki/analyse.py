@@ -194,7 +194,8 @@ class Analyse:
     kontext: int = 16384
     fortschritt: Fortschritt = field(default_factory=OhneFortschritt)
     neu: bool = False  # das angefragte Ergebnis neu berechnen; Zwischenergebnisse (je Dokument) bleiben gespeichert
-    skill: dict | None = None  # gewählte Arbeitsanweisung (skills.fuer_anfrage); ergänzt die Systemanweisung
+    skills: list[dict] = field(default_factory=list)  # gewählte Arbeitsanweisungen (skills.fuer_anfrage)
+    skill_hinweis: str | None = None  # warum trotz Auswahl kein Skill mitging
 
     def __post_init__(self) -> None:
         speicher.einrichten(self.con)
@@ -202,12 +203,12 @@ class Analyse:
     @property
     def budget(self) -> int:
         """Zeichen Dokumenttext je Anfrage: Kontext abzüglich Anweisung und Antwort, rund 3 Zeichen je Token."""
-        skill = len(self.skill["text"]) + 600 if self.skill else 0
+        skill = sum(len(s["text"]) + 200 for s in self.skills) + (400 if self.skills else 0)
         return max(3000, (self.kontext - antwort_token(self.anbieter) - 800) * 3 - skill)
 
     @property
     def system(self) -> str:
-        return skills.systemanweisung(SYSTEM, self.skill)
+        return skills.systemanweisung(SYSTEM, self.skills)
 
     @property
     def modell(self) -> str:
@@ -252,8 +253,10 @@ class Analyse:
             return alt
         ergebnis = berechne()
         ergebnis.update(modell=self.modell, erstellt_am=_jetzt())
-        if self.skill:
-            ergebnis["skill"] = self.skill["name"]
+        if self.skills:
+            ergebnis["skills"] = [s["name"] for s in self.skills]
+        elif self.skill_hinweis:
+            ergebnis["skill_hinweis"] = self.skill_hinweis
         if ergebnis.get("luecken") or ergebnis.get("unvollstaendig"):
             ergebnis["gespeichert"] = False
             return ergebnis  # unvollständig: nicht speichern, der nächste Lauf fragt erneut
@@ -264,8 +267,8 @@ class Analyse:
     def _schluessel(self, aufgabe: str, eingabe: object) -> str:
         teile: list[object] = [aufgabe, FASSUNG[aufgabe], type(self.anbieter).__name__, self.modell, self.kontext,
                                eingabe]
-        if self.skill:  # ohne Skill bleiben die bisherigen Schlüssel (und gespeicherten Ergebnisse) gültig
-            teile.append({"skill": skills.kennung(self.skill)})
+        if self.skills:  # ohne Skill bleiben die bisherigen Schlüssel (und gespeicherten Ergebnisse) gültig
+            teile.append({"skill": skills.kennung(self.skills)})
         return speicher.schluessel(*teile)
 
     def nur_gespeichert(self, aufgabe: str, eingabe: object) -> dict | None:

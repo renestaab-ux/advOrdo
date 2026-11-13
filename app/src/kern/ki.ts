@@ -168,7 +168,11 @@ export interface KiAussage {
 interface KiErgebnisKopf {
   modell: string;
   erstellt_am: string;
-  /** Name des Skills, mit dem das Ergebnis entstand. */
+  /** Namen der Skills, mit denen das Ergebnis entstand. */
+  skills?: string[];
+  /** Warum trotz Auswahl kein Skill mitging. */
+  skill_hinweis?: string;
+  /** Ältere Ergebnisse: ein Skill. */
   skill?: string;
   gespeichert: boolean;
   /** Anzahl der Anfragen bei Widersprüchen und Chronologie. */
@@ -422,7 +426,11 @@ export interface ChatEintrag {
   modell?: string;
   /** Name des externen Anbieters, wenn die Frage das Gerät verlassen hat. */
   extern?: string | null;
-  /** Name des Skills, der die Antwort angeleitet hat. */
+  /** Namen der Skills, die die Antwort angeleitet haben. */
+  skills?: string[];
+  /** Warum trotz Auswahl kein Skill mitging. */
+  skill_hinweis?: string;
+  /** Ältere Antworten: ein Skill. */
   skill?: string;
   /** Bei Fragen, ob zitierte Entscheidungen den Vortrag tragen: die Gegenüberstellung je Zitat. */
   gegenueberstellung?: Gegenueberstellung;
@@ -459,6 +467,8 @@ export interface Skill {
   text: string;
   /** „Eigener Skill“ oder „Importiert aus …“. */
   herkunft: string;
+  /** Ordner, z. B. „BGB AT Prüfer“ oder „Zivilrecht / BGB AT“; leer = ohne Ordner. */
+  ordner: string;
   angelegt_am: string;
   geaendert_am: string;
   /** Weitere Dateien des Skill-Ordners, die advOrdo nicht übernimmt (etwa references/). */
@@ -480,4 +490,11 @@ export interface SkillListe {
 export interface SkillImport {
   uebernommen: Skill[];
   uebersprungen: { datei: string; grund: string }[];
+}
+
+/** Welche Skills ein Ergebnis angeleitet haben, als Text für die Herkunftszeile; null ohne Skill und Hinweis. */
+export function skillText(e: { skills?: string[]; skill?: string; skill_hinweis?: string }): string | null {
+  const namen = e.skills ?? (e.skill ? [e.skill] : []);
+  if (namen.length) return `${namen.length === 1 ? "Skill" : "Skills"}: ${namen.join(", ")}`;
+  return e.skill_hinweis ?? null;
 }
