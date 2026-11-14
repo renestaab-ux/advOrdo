@@ -45,6 +45,9 @@ VERLAUF = 6
 # Absätze je Dokument, die bei einer Auswahl immer mitgehen (Kopf: Art, Absender, Datum, Parteien).
 KOPF = 2
 HOECHSTENS = 12  # Aussagen je Antwort
+KLAUSEL_HOECHSTENS = 40  # Aussagen bei der Prüfung je Paragraph (bis zu drei je Paragraph)
+UNWIRKSAM, BEDENKLICH, WIRKSAM = "unwirksam", "bedenklich", "wirksam"
+KLAUSEL_ERGEBNISSE = (UNWIRKSAM, BEDENKLICH, WIRKSAM)
 # Gesetzestext, der auch dann mitgeht, wenn die Dokumente das Kontextfenster füllen (etwa § 309 BGB gekürzt).
 GESETZE_MINDESTENS = 4000
 
@@ -247,6 +250,105 @@ def _klauselpruefung(texte: list[belege.Text]) -> str:
     )
 
 
+# Absätze vor dem ersten Paragraphen (Parteien, Tarif, Laufzeit), die jede Einzelprüfung als Zusammenhang bekommt.
+VERTRAGSKOPF_ZEICHEN = 1500
+
+
+def _paragraphen(texte: list[belege.Text]) -> list[tuple[int, belege.Text, str, list]]:
+    """Die Paragraphen der gegliederten Dokumente: (Dokumentnummer, Text, „§ 4“, Absätze). Ein Absatz, in dem
+    ein neuer Paragraph beginnt, gehört zu beiden."""
+    aus: list[tuple[int, belege.Text, str, list]] = []
+    for nr, t in enumerate(texte, 1):
+        reihe: dict[str, list] = {}
+        for a in t.abschnitte:
+            for p in dict.fromkeys(name.split(" Abs.")[0] for _, name in t.gliederung.get(a["nr"], [])):
+                reihe.setdefault(p, []).append(a)
+        aus += [(nr, t, p, absaetze) for p, absaetze in reihe.items()]
+    return aus
+
+
+def _zeile(nr: int, t: belege.Text, a) -> str:
+    return f"[{nr}.{a['nr']}] " + _bestimmungen(t, a["nr"]) + " ".join(a["text"].split())
+
+
+def _klauseln_einzeln(anbieter: Anbieter, system: str, texte: list[belege.Text], normen: list[dict],
+                      normtext: str, frage: str, fortschritt: Fortschritt) -> dict:
+    """Prüft jeden Paragraphen eines gegliederten Vertrags in einer eigenen Anfrage; die Aussagen aller Anfragen
+    zusammen sind die Antwort (geprüft wird sie danach wie jede andere)."""
+    gruppen = _paragraphen(texte)
+    schema = json.loads(json.dumps(SCHEMA))
+    aussage = schema["properties"]["aussagen"]["items"]
+    aussage["properties"]["ergebnis"] = {"type": "string", "enum": list(KLAUSEL_ERGEBNISSE)}
+    aussage["required"] = [*aussage["required"], "ergebnis"]
+    if normen:
+        aussage["properties"]["normbelege"] = wissen.SCHEMA_NORMBELEGE
+        aussage["required"] = [*aussage["required"], "normbelege"]
+    schema = _begrenzt(schema)
+    schema["properties"]["aussagen"]["maxItems"] = 3
+    aussagen: list[dict] = []
+    for k, (nr, t, paragraph, absaetze) in enumerate(gruppen, 1):
+        fortschritt.melde(f"Das Sprachmodell prüft {paragraph} des Vertrags ({k} von {len(gruppen)})")
+        fortschritt.pruefe()
+        kopf, laenge = [], 0
+        for a in t.abschnitte:
+            if t.gliederung.get(a["nr"]) or laenge > VERTRAGSKOPF_ZEICHEN:
+                break
+            kopf.append(_zeile(nr, t, a))
+            laenge += len(kopf[-1])
+        nutzer = (
+            (f"Kopf des Vertrags (Dokument {nr}: {t.dateiname}), nur zum Zusammenhang:\n" + "\n".join(kopf) + "\n\n"
+             if kopf else "")
+            + f"Zu prüfen: {paragraph} des Vertrags (Dokument {nr}: {t.dateiname})\n"
+            + "\n".join(_zeile(nr, t, a) for a in absaetze) + "\n\n"
+            + (f"Gesetze aus der Wissensbasis:\n{normtext}\n\n" if normen else "")
+            + f"Frage zum ganzen Vertrag: {frage}\n\n"
+            f"Aufgabe: Prüfe nur {paragraph} des Vertrags als vorformulierte Vertragsbedingung (§§ 305 ff. BGB). Gehe "
+            "die Klauselverbote der vorgelegten Normen durch, die zum Inhalt passen (zuerst § 309, dann § 308, dann "
+            "§ 307 BGB; beim Gerichtsstand § 38 ZPO), und vergleiche den Wortlaut der Klausel genau mit dem der "
+            "Norm, auch Beträge, Fristen und Formen. Gib für jeden Absatz mit Bedenken eine Einschätzung, die mit "
+            "der Bestimmung beginnt, dann Ergebnis, Norm mit Nummer und Buchstabe und Grund (etwa „§ 6 Abs. 1 des "
+            f"Vertrags: unwirksam nach § 309 Nr. 7 Buchst. a BGB, weil …“). Hat {paragraph} keine Bedenken, gib "
+            f"genau eine Einschätzung „{paragraph} des Vertrags: keine Bedenken, weil …“. Höchstens drei Aussagen. "
+            "Setze „ergebnis“ auf unwirksam, bedenklich (wenn es auf Umstände ankommt) oder wirksam. Belege jede "
+            "Aussage mit der Nummer des Absatzes ([Dokument.Absatz]) und einem wörtlichen Zitat von 4 bis 25 Wörtern "
+            "aus genau diesem Absatz; die geschweiften Klammern gehören nicht zum Text."
+            + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
+        )
+        try:
+            antwort = anbieter.chat(system, nutzer, schema)
+        except KiFehler as fehler:
+            if _zu_lang(fehler):
+                raise KiFehler(_zu_lang_text(fehler)) from fehler
+            aussagen.append({"text": f"{paragraph} des Vertrags konnte nicht geprüft werden: {fehler}",
+                             "art": HINWEIS, "belege": []})
+            continue
+        aussagen += [a for a in (antwort.get("aussagen") or []) if isinstance(a, dict)][:3]
+    return {"aussagen": aussagen}
+
+
+def _klauseln_ordnen(aussagen: list[dict]) -> list[dict]:
+    """Bedenken zuerst (in Vertragsreihenfolge), dann die unbedenklichen Bestimmungen; vorn eine Übersicht."""
+    def bestimmung(a: dict) -> str | None:
+        return next((f.get("bestimmung") for f in a["fundstellen"] if f.get("bestimmung")), None)
+
+    bedenken = [a for a in aussagen if a.get("klausel") in (UNWIRKSAM, BEDENKLICH)]
+    rest = [a for a in aussagen if a.get("klausel") not in (UNWIRKSAM, BEDENKLICH)]
+    teile = []
+    for art, wort in ((UNWIRKSAM, "Wohl unwirksam"), (BEDENKLICH, "Bedenklich")):
+        namen = [n for n in dict.fromkeys(bestimmung(a) for a in bedenken if a["klausel"] == art) if n]
+        if namen:
+            teile.append(f"{wort}: {', '.join(namen)}.")
+    ohne = [n for n in dict.fromkeys(bestimmung(a) for a in rest if a.get("klausel") == WIRKSAM) if n]
+    if ohne:
+        teile.append(f"Ohne Bedenken: {', '.join(ohne)}.")
+    for a in aussagen:
+        a.pop("klausel", None)
+    kopf = "Übersicht der Einzelprüfung je Paragraph (von der App zusammengestellt): "
+    uebersicht = ({"text": kopf + " ".join(teile), "art": HINWEIS, "status": HINWEIS, "fundstellen": []}
+                  if teile else None)
+    return ([uebersicht] if uebersicht else []) + bedenken + rest
+
+
 def _zusammenhang(eintraege: list[dict]) -> str:
     zeilen = []
     for e in eintraege[-VERLAUF:]:
@@ -430,40 +532,49 @@ def frage(
     fortschritt.melde("Wähle die passenden Absätze aus")
     nutzer, schema, teile, auswahl, normtext, urteiltext = baue(normen, urteile)
 
-    fortschritt.melde("Das Sprachmodell beantwortet die Frage")
-    fortschritt.pruefe()
+    einzeln = _ist_klauselpruefung(text, texte) and not rechnen and not urteile
     gekuerzt = False
-    try:
-        antwort = anbieter.chat(system, nutzer, schema)
-    except KiFehler as fehler:
-        if _zu_lang(fehler) and (normen or urteile):
-            # Der im Programm eingestellte Kontext ist kleiner als angegeben: noch einmal mit weniger Gesetzes-
-            # und Urteilstext (zitierte Normen, nur Leitsätze).
-            fortschritt.melde("Die Anfrage war zu lang; frage noch einmal mit weniger Gesetzes- und Urteilstext")
-            fortschritt.pruefe()
-            normen = [n for n in normen if n["herkunft"] in ("thema", "zitiert")][:3]
-            for i, n in enumerate(normen, 1):
-                n["nr"] = i
-            urteile = wissen.nur_leitsaetze(urteile)
-            nutzer, schema, teile, auswahl, normtext, urteiltext = baue(normen, urteile)
-            gekuerzt = True
-            try:
-                antwort = anbieter.chat(system, nutzer, schema)
-            except KiFehler as noch:
-                if not _zu_lang(noch):
-                    raise
-                raise KiFehler(_zu_lang_text(noch)) from noch
-        elif _zu_lang(fehler):
-            raise KiFehler(_zu_lang_text(fehler)) from fehler
-        elif "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
-            raise
-        else:
-            fortschritt.pruefe()
-            antwort = anbieter.chat(system, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
+    if einzeln:
+        # Ein kleines Modell urteilt über eine Bestimmung mit dem Normtext daneben verlässlicher als über einen
+        # ganzen Vertrag auf einmal; je Paragraph eine Anfrage.
+        antwort = _klauseln_einzeln(anbieter, system, texte, normen, normtext, text, fortschritt)
+        gesamt = sum(len(t.abschnitte) for t in texte)
+        auswahl = {"vollstaendig": True, "absaetze": gesamt, "von": gesamt, "dokumente": len(texte),
+                   "dokumente_von": len(texte), "je_bestimmung": True}
+    else:
+        fortschritt.melde("Das Sprachmodell beantwortet die Frage")
+        fortschritt.pruefe()
+        try:
+            antwort = anbieter.chat(system, nutzer, schema)
+        except KiFehler as fehler:
+            if _zu_lang(fehler) and (normen or urteile):
+                # Der im Programm eingestellte Kontext ist kleiner als angegeben: noch einmal mit weniger Gesetzes-
+                # und Urteilstext (zitierte Normen, nur Leitsätze).
+                fortschritt.melde("Die Anfrage war zu lang; frage noch einmal mit weniger Gesetzes- und Urteilstext")
+                fortschritt.pruefe()
+                normen = [n for n in normen if n["herkunft"] in ("thema", "zitiert")][:3]
+                for i, n in enumerate(normen, 1):
+                    n["nr"] = i
+                urteile = wissen.nur_leitsaetze(urteile)
+                nutzer, schema, teile, auswahl, normtext, urteiltext = baue(normen, urteile)
+                gekuerzt = True
+                try:
+                    antwort = anbieter.chat(system, nutzer, schema)
+                except KiFehler as noch:
+                    if not _zu_lang(noch):
+                        raise
+                    raise KiFehler(_zu_lang_text(noch)) from noch
+            elif _zu_lang(fehler):
+                raise KiFehler(_zu_lang_text(fehler)) from fehler
+            elif "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
+                raise
+            else:
+                fortschritt.pruefe()
+                antwort = anbieter.chat(system, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
 
     aussagen = []
     gesehen: set[str] = set()
-    for a in (antwort.get("aussagen") or [])[:HOECHSTENS]:
+    for a in (antwort.get("aussagen") or [])[:KLAUSEL_HOECHSTENS if einzeln else HOECHSTENS]:
         if not isinstance(a, dict) or not str(a.get("text", "")).strip():
             continue
         # Dieselbe Aussage noch einmal (etwa als Tatsache und als Einschätzung) zeigt nur die erste.
@@ -497,7 +608,11 @@ def frage(
             eintrag["normbelege"] = normbelege
         if urteilsbelege:
             eintrag["urteilsbelege"] = urteilsbelege
+        if einzeln:
+            eintrag["klausel"] = a.get("ergebnis") if a.get("ergebnis") in KLAUSEL_ERGEBNISSE else None
         aussagen.append(eintrag)
+    if einzeln:
+        aussagen = _klauseln_ordnen(aussagen)
 
     berechnungen = []
     if rechnen:

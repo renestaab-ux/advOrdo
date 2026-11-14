@@ -174,8 +174,10 @@ class Text:
         for a in self.abschnitte:
             text = a["text"] or ""
             stellen: list[tuple[int, str]] = []
-            marken = sorted([(m.start(m.lastindex), "§", m.group(m.lastindex)) for m in _UEBERSCHRIFT.finditer(text)]
-                            + [(m.start(1), "abs", m.group(1)) for m in _ABSATZ.finditer(text)])
+            # Position des Zeichens „§“ bzw. der Klammer, damit ein Zitat ab „(1) …“ schon dazu zählt.
+            marken = sorted([(text.rfind("§", 0, m.start(m.lastindex)), "§", m.group(m.lastindex))
+                             for m in _UEBERSCHRIFT.finditer(text)]
+                            + [(m.start(1) - 1, "abs", m.group(1)) for m in _ABSATZ.finditer(text)])
             # Die vorige Bestimmung läuft weiter, außer der Abschnitt beginnt selbst mit „§ 3“ oder „(2)“.
             beginnt_neu = bool(marken) and not text[: marken[0][0]].strip(" \n§(")
             if paragraph and not beginnt_neu:

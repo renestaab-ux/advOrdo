@@ -414,6 +414,8 @@ export interface ChatAuswahl {
   von: number;
   dokumente: number;
   dokumente_von: number;
+  /** Vertrag je Paragraph in einer eigenen Anfrage geprüft (Klauselprüfung). */
+  je_bestimmung?: boolean;
 }
 
 export interface ChatEintrag {
@@ -451,6 +453,7 @@ export interface ChatEintrag {
 /** Was dem Modell vorlag, z. B. „alle 3 Dokumente vollständig“ oder „120 von 450 Absätzen aus 6 von 8 Dokumenten“. */
 export function auswahlText(a: ChatAuswahl): string {
   const doks = (n: number) => `${n} ${n === 1 ? "Dokument" : "Dokumenten"}`;
+  if (a.je_bestimmung) return "der Vertrag vollständig, je Paragraph einzeln geprüft";
   if (a.vollstaendig) {
     return a.dokumente_von === 1 ? "das Dokument vollständig" : `alle ${a.dokumente_von} Dokumente vollständig`;
   }

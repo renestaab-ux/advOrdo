@@ -393,19 +393,32 @@ def test_klauselpruefung_nennt_die_bestimmungen_des_vertrags(akten, con, tmp_pat
     akte.importiere(akten, con, akte_id, vertrag, tmp_path / "ablage", ocr=False)
 
     def antwort(prompt: str, schema: dict) -> dict:
-        d, n = _zeile(prompt, "gleich aus welchem")
-        return {"aussagen": [{"text": "Der Haftungsausschluss ist unwirksam.", "art": "einschaetzung", "belege": [
-            {"dokument": d, "absatz": n, "zitat": "{§ 6 Abs. 1} Das Studio haftet nicht für Schäden"}]}]}
+        assert schema["properties"]["aussagen"]["items"]["properties"]["ergebnis"]["enum"] == [
+            "unwirksam", "bedenklich", "wirksam"]
+        if "Zu prüfen: § 6" in prompt:
+            d, n = _zeile(prompt, "gleich aus welchem")
+            return {"aussagen": [{"text": "§ 6 Abs. 1 des Vertrags: unwirksam.", "art": "einschaetzung",
+                                  "ergebnis": "unwirksam", "belege": [
+                {"dokument": d, "absatz": n, "zitat": "{§ 6 Abs. 1} Das Studio haftet nicht für Schäden"}]}]}
+        d, n, stueck = next((int(d), int(n), s) for d, n, s in re.findall(r"^\[(\d+)\.(\d+)\] \{§ \d+ Abs\. 1\} (.*)$",
+                                                                        prompt, re.M))
+        return {"aussagen": [{"text": f"{stueck[:12]}: keine Bedenken.", "art": "einschaetzung", "ergebnis": "wirksam",
+                              "belege": [{"dokument": d, "absatz": n, "zitat": stueck}]}]}
 
     modell = Attrappe(antwort)
-    a = chat.frage(akten, modell, 16384, akte_id, "Welche Klauseln sind unwirksam?")["aussagen"][0]
-    prompt = modell.anfragen[0]
-    assert "{§ 2 Abs. 2} (2) Der Vertrag verlängert sich" in prompt
-    assert "gegliedert (§ 1, § 2, § 6)" in prompt
-    assert a["status"] == "belegt" and a["fundstellen"][0]["bestimmung"] == "§ 6 Abs. 1"
+    ergebnis = chat.frage(akten, modell, 16384, akte_id, "Welche Klauseln sind unwirksam?")
+    # Eine Anfrage je Paragraph, jede mit dem Kopf des Vertrags als Zusammenhang.
+    assert len(modell.anfragen) == 3 and all("Studio Muster" in a for a in modell.anfragen)
+    assert "{§ 2 Abs. 2} (2) Der Vertrag verlängert sich" in modell.anfragen[1]
+    assert "Haftung" not in modell.anfragen[1]
+    a = ergebnis["aussagen"]
+    assert a[0]["text"].endswith("Wohl unwirksam: § 6 Abs. 1. Ohne Bedenken: § 1 Abs. 1, § 2 Abs. 1.")
+    assert a[1]["status"] == "belegt" and a[1]["fundstellen"][0]["bestimmung"] == "§ 6 Abs. 1"
+    assert ergebnis["auswahl"]["je_bestimmung"] and "klausel" not in a[1]
     # Ohne Frage nach Klauseln keine Prüfanweisung, die Kennzeichen bleiben.
+    modell = Attrappe(lambda p, s: {"aussagen": []})
     chat.frage(akten, modell, 16384, akte_id, "Wie lange läuft der Vertrag?")
-    assert "gegliedert" not in modell.anfragen[1] and "{§ 2 Abs. 1}" in modell.anfragen[1]
+    assert len(modell.anfragen) == 1 and "{§ 2 Abs. 1}" in modell.anfragen[0]
 
 
 def test_gesetze_weichen_einem_vertrag_der_sonst_nicht_ganz_passt(akten, con, tmp_path):

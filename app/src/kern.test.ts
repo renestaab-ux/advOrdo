@@ -286,6 +286,9 @@ describe("auswahlText", () => {
     expect(auswahlText({ vollstaendig: true, absaetze: 12, von: 12, dokumente: 1, dokumente_von: 1 })).toBe(
       "das Dokument vollständig",
     );
+    expect(
+      auswahlText({ vollstaendig: true, absaetze: 46, von: 46, dokumente: 1, dokumente_von: 1, je_bestimmung: true }),
+    ).toBe("der Vertrag vollständig, je Paragraph einzeln geprüft");
     expect(auswahlText({ vollstaendig: false, absaetze: 120, von: 450, dokumente: 6, dokumente_von: 8 })).toBe(
       "120 von 450 Absätzen aus 6 von 8 Dokumenten, ausgewählt nach den Begriffen der Frage",
     );
