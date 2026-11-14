@@ -62,6 +62,7 @@ from .ki import chat as ki_chat
 from .ki import gegenueberstellung as ki_gegenueberstellung
 from .ki import leistung as ki_leistung
 from .ki import metadaten as ki_metadaten
+from .ki import skill_quellen
 from .ki import skills as ki_skills
 from .ki import speicher as ki_speicher
 from .ki import vergleich as ki_vergleich
@@ -96,6 +97,7 @@ class Kern:
         self.ki_datei = Path(db_pfad).parent / "ki.json"
         # Skills (Arbeitsanweisungen für das Sprachmodell) gelten wie ki.json für das Gerät.
         self.skills_datei = Path(db_pfad).parent / ki_skills.DATEINAME
+        self.skill_quellen_datei = Path(db_pfad).parent / skill_quellen.DATEINAME
         # Externe Programme gelten für das Gerät, nicht je Arbeitsumgebung.
         self.programme_datei = Path(db_pfad).parent / "programme.json"
         self.schluessel_datei = Path(db_pfad).parent / "ki-schluessel.json"

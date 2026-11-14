@@ -141,6 +141,8 @@ def _oeffentlich(s: dict, kontext: int | None) -> dict:
     aus = {k: s.get(k) for k in ("id", "name", "beschreibung", "text", "herkunft", "angelegt_am", "geaendert_am",
                                  "nicht_uebernommen")}
     aus["ordner"] = s.get("ordner") or ""
+    if s.get("quelle"):
+        aus["quelle"] = s["quelle"]
     aus["zeichen"] = len(s["text"])
     aus["hinweise"] = hinweise(s["text"])
     if kontext:
@@ -352,9 +354,19 @@ def importieren(datei: Path, pfad: str, kontext: int | None = None, ordner: str 
         raise ValueError("Bitte eine Datei SKILL.md, eine Markdown-Datei, ein ZIP-Archiv oder einen Ordner wählen.")
     if not funde:
         raise ValueError("Darin wurde keine Datei SKILL.md gefunden.")
+    return uebernehmen(datei, funde, lambda ort: f"Importiert aus {quelle.name}" + (
+        f" ({ort})" if ort != quelle.name else ""), kontext, ordner)
 
+
+def uebernehmen(datei: Path, funde: list[Fund], herkunft: Callable[[str], str], kontext: int | None = None,
+                ordner: str | None = None, quelle: Callable[[str], str] | None = None) -> dict:
+    """Legt die gefundenen Skills an. ``herkunft(ort)`` beschreibt, woher ein Skill kommt. ``quelle(ort)`` ist eine
+    feste Kennung des Orts (z. B. Datei in einem GitHub-Repository): Gibt es dazu schon einen Skill, wird er
+    aktualisiert statt doppelt angelegt; Name und Ordner, die der Nutzer geändert hat, bleiben."""
     skills = lade(datei)
+    nach_quelle = {s["quelle"]: s for s in skills if s.get("quelle")}
     uebernommen: list[dict] = []
+    aktualisiert: list[dict] = []
     uebersprungen: list[dict] = []
     jetzt = _jetzt()
     for ort, inhalt, ersatz, weitere, paket in funde:
@@ -367,18 +379,34 @@ def importieren(datei: Path, pfad: str, kontext: int | None = None, ordner: str 
         except ValueError as fehler:
             uebersprungen.append({"datei": ort, "grund": str(fehler)})
             continue
+        kennung = quelle(ort) if quelle else None
+        if kennung and (alt := nach_quelle.get(kennung)):
+            if alt["text"] == text and (alt.get("beschreibung") or "") == gelesen["beschreibung"]:
+                uebersprungen.append({"datei": ort, "grund": "schon vorhanden, unverändert"})
+                continue
+            alt.update(text=text, beschreibung=gelesen["beschreibung"], geaendert_am=jetzt, nicht_uebernommen=weitere)
+            aktualisiert.append(_oeffentlich(alt, kontext))
+            continue
         if any(s["name"].lower() == name.lower() and s["text"] == text for s in skills):
             uebersprungen.append({"datei": ort, "grund": "schon vorhanden"})
             continue
         s = {"id": uuid.uuid4().hex, "name": _freier_name(skills, name), "beschreibung": gelesen["beschreibung"],
-             "text": text, "herkunft": f"Importiert aus {quelle.name}" + (f" ({ort})" if ort != quelle.name else ""),
+             "text": text, "herkunft": herkunft(ort),
              "ordner": _ordnername(ordner if ordner is not None else paket),
              "angelegt_am": jetzt, "geaendert_am": jetzt, "nicht_uebernommen": weitere}
+        if kennung:
+            s["quelle"] = kennung
+            nach_quelle[kennung] = s
         skills.append(s)
         uebernommen.append(_oeffentlich(s, kontext))
-    if uebernommen:
+    if uebernommen or aktualisiert:
         _schreibe(datei, skills)
-    return {"uebernommen": uebernommen, "uebersprungen": uebersprungen}
+    return {"uebernommen": uebernommen, "aktualisiert": aktualisiert, "uebersprungen": uebersprungen}
+
+
+def aus_quellen(datei: Path) -> set[str]:
+    """Kennungen der Orte, aus denen schon Skills übernommen wurden (siehe ``uebernehmen``)."""
+    return {s["quelle"] for s in lade(datei) if s.get("quelle")}
 
 
 # --- Ordner ------------------------------------------------------------------------------------------------------

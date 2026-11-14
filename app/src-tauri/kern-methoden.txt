@@ -238,6 +238,12 @@ skills.liste
 skills.loeschen
 skills.ordner_loeschen
 skills.ordner_umbenennen
+skills.quelle_aktualisieren
+skills.quelle_anbinden
+skills.quelle_entfernen
+skills.quelle_importieren
+skills.quelle_paket
+skills.quellen
 skills.speichern
 umgebungen.anlegen
 umgebungen.liste

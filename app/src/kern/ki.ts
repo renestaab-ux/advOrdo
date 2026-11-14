@@ -480,6 +480,8 @@ export interface Skill {
   /** Nur mit Sprachmodell: höchste Länge für dessen Kontextfenster und ob der Skill hineinpasst. */
   hoechstens?: number;
   passt?: boolean;
+  /** Bei Skills aus einer Quelle: Kennung der Datei dort (github:besitzer/repo:pfad). */
+  quelle?: string;
 }
 
 export interface SkillListe {
@@ -490,7 +492,34 @@ export interface SkillListe {
 
 export interface SkillImport {
   uebernommen: Skill[];
+  /** Nur beim Import aus einer Quelle: schon übernommene Skills mit neuem Text. */
+  aktualisiert?: Skill[];
   uebersprungen: { datei: string; grund: string }[];
+}
+
+/** Ein angebundenes GitHub-Repository mit Skills (Einstellungen → Skills → Quellen). */
+export interface SkillQuelle {
+  id: string;
+  adresse: string;
+  besitzer: string;
+  repo: string;
+  zweig: string;
+  pfad: string;
+  titel: string;
+  beschreibung: string;
+  /** „marktplatz“: Plugin-Verzeichnis, Inhalte je Paket beim Öffnen; „baum“: alle SKILL.md aus dem Dateibaum. */
+  art: "marktplatz" | "baum";
+  geladen_am: string;
+  hinweis: string | null;
+  /** anzahl null: Inhalt noch nicht geladen. */
+  pakete: { pfad: string; name: string; beschreibung: string; anzahl: number | null }[];
+}
+
+export interface SkillQuellenPaket {
+  quelle_id: string;
+  pfad: string;
+  name: string;
+  skills: { pfad: string; name: string; importiert: boolean }[];
 }
 
 /** Welche Skills ein Ergebnis angeleitet haben, als Text für die Herkunftszeile; null ohne Skill und Hinweis. */

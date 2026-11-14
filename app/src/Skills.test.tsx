@@ -52,6 +52,7 @@ vi.mock("./kern", async (original) => ({
   kern: vi.fn(async (methode: string, params: Record<string, unknown> = {}) => {
     aufrufe.push({ methode, params });
     if (methode === "skills.liste") return liste;
+    if (methode === "skills.quellen") return { quellen: [] };
     if (methode === "skills.loeschen") return { geloescht: (params.skill_ids as string[]).length };
     throw new Error(`unerwartet: ${methode}`);
   }),

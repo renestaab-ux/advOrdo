@@ -5,8 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from .. import hintergrund
 from ..ki import chat as ki_chat
 from ..ki import export as ki_export
+from ..ki import skill_quellen
 from ..ki import skills as ki_skills
 from ..ki import speicher as ki_speicher
 
@@ -49,4 +51,15 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "skills.ordner_umbenennen": lambda alt, neu: ki_skills.ordner_umbenennen(k.skills_datei, alt, neu),
         "skills.ordner_loeschen": lambda ordner: ki_skills.ordner_loeschen(k.skills_datei, ordner),
         "skills.exportieren": lambda skill_id, pfad: ki_skills.exportieren(k.skills_datei, skill_id, pfad),
+        # Quellen: öffentliche GitHub-Repositorys mit Skills; Netzzugriffe laufen als Hintergrundauftrag.
+        "skills.quellen": lambda: {"quellen": skill_quellen.liste(k.skill_quellen_datei)},
+        "skills.quelle_anbinden": lambda adresse: skill_quellen.anbinden(k.skill_quellen_datei, adresse),
+        "skills.quelle_aktualisieren": lambda quelle_id: skill_quellen.aktualisieren(
+                k.skill_quellen_datei, quelle_id),
+        "skills.quelle_entfernen": lambda quelle_id: skill_quellen.entfernen(k.skill_quellen_datei, quelle_id),
+        "skills.quelle_paket": lambda quelle_id, pfad: skill_quellen.paket(
+                k.skill_quellen_datei, k.skills_datei, quelle_id, pfad),
+        "skills.quelle_importieren": lambda quelle_id, pfade: skill_quellen.importieren(
+                k.skill_quellen_datei, k.skills_datei, quelle_id, pfade, k._skill_kontext(),
+                melde=hintergrund.melde),
     }

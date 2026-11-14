@@ -1,6 +1,7 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { Rueckfrage } from "./Rueckfrage";
+import SkillQuellen from "./SkillQuellen";
 import { useFokusAuf } from "./barrierefrei";
 import { Skill, SkillImport, SkillListe, istDesktop, kern } from "./kern";
 
@@ -512,7 +513,8 @@ export default function SkillsEinstellungen() {
         <p className="leise">
           Skills aus Claude oder ChatGPT lassen sich importieren: eine Datei <code>SKILL.md</code>, ein ZIP-Archiv oder
           ein Ordner mit vielen Skills. Jedes Paket kommt in einen eigenen Ordner, den du umbenennen kannst (Unterordner
-          mit „/“, etwa „Zivilrecht / BGB AT“). Was ein Skill an Werkzeugen voraussetzt (Webseiten, Word-Dateien,
+          mit „/“, etwa „Zivilrecht / BGB AT“). Ganze Sammlungen auf GitHub bindest du unten unter „Quellen“ an und
+          holst dir daraus einzelne Skills. Was ein Skill an Werkzeugen voraussetzt (Webseiten, Word-Dateien,
           weitere Dateien im Ordner), gibt es hier nicht; darauf weist die Liste hin. Die Regeln von advOrdo gehen immer
           vor: Tatsachen nur aus der Akte, jede Aussage mit Beleg.
         </p>
@@ -542,6 +544,8 @@ export default function SkillsEinstellungen() {
         )}
         {fehler && <p className="fehler" role="alert">{fehler}</p>}
       </section>
+
+      <SkillQuellen onImportiert={laden} />
 
       {entwurf && (
         <section className="karte skill-entwurf">
