@@ -65,6 +65,8 @@ export interface KiPrueffrage {
   richtig: boolean;
   fundstelle: string;
   sekunden: number;
+  /** Im Durchgang „mit Gesetzen“: die mitgegebenen Normen. */
+  gesetze?: string[];
 }
 
 export interface KiLeistung {
@@ -77,6 +79,7 @@ export interface KiLeistung {
   bereiche: { bereich: string; richtig: number; von: number }[];
   gesamt: { richtig: number; von: number; stand: "ok" | "warnung" | "fehler"; meldung: string };
   stand_fundstellen: string;
+  mit_gesetzen?: boolean;
 }
 
 /** Klartext-Bericht des KI-Leistungstests; enthält nur die festen Testfragen und die Antworten des Modells. */
@@ -85,6 +88,7 @@ export function leistungsBericht(l: KiLeistung, zeitpunkt: Date): string {
   const zeilen = [
     `advOrdo – KI-Leistungstest vom ${zeitpunkt.toLocaleString("de-DE")}`,
     `Modell: ${l.modell || "–"} (${l.anbieter}, ${l.ort}), Dauer ${l.dauer} s`,
+    l.mit_gesetzen ? "Durchgang mit Gesetzen aus der Wissensbasis" : "Durchgang ohne Gesetze (Wissen des Modells)",
     "",
     "## Geschwindigkeit",
   ];
@@ -97,6 +101,7 @@ export function leistungsBericht(l: KiLeistung, zeitpunkt: Date): string {
   for (const f of l.fragen) {
     zeilen.push("", `[${f.richtig ? "RICHTIG" : "FALSCH"}] ${f.bereich}: ${f.frage}`);
     zeilen.push(`    Antwort: ${f.antwort}`, `    Erwartet: ${f.erwartet}`, `    Fundstelle: ${f.fundstelle}`);
+    if (f.gesetze?.length) zeilen.push(`    Mitgegeben: ${f.gesetze.join(", ")}`);
   }
   zeilen.push(
     "",

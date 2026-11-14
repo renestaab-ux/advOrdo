@@ -199,3 +199,30 @@ def test_626_zeigt_existiert_mit():
     assert f.pruefe({"existiert": False, "thema": leistung.THEMEN_626[0]}) == (
         False, f"existiert nicht, Thema: {leistung.THEMEN_626[0]}")
     assert f.pruefe({"existiert": True, "thema": leistung.THEMEN_626[0]})[0]
+
+
+def test_mit_gesetzen_aus_der_wissensbasis(con):
+    m = Modell(richtige_antwort)
+    e = leistung.leistungstest(m, Auftrag(), "LM Studio", "Eigener Rechner", wb=con)
+    assert e["mit_gesetzen"] is True
+    prompts = {f.id: p for f, p in zip(leistung.FRAGEN, m.anfragen[3:], strict=True)}
+    assert "§ 195 BGB" in prompts["verjaehrung"] and "§ 199 BGB" in prompts["verjaehrung"]
+    assert "Fassung:" in prompts["verjaehrung"] and prompts["verjaehrung"].endswith(
+        next(f.frage for f in leistung.FRAGEN if f.id == "verjaehrung"))
+    assert "§ 312z BGB: In der Gesetzessammlung der App (BGB) nicht vorhanden." in prompts["bgb_312z"]
+    assert "MandAktG: Ein Gesetz mit dieser Abkürzung ist in der Gesetzessammlung der App nicht enthalten." in \
+        prompts["mandaktg"]
+    # Nicht geladene echte Gesetze gehen nicht als „nicht enthalten“ hinaus, sondern werden gemeldet.
+    assert "KSchG" not in prompts["kschg"].split("Frage:")[0]
+    fragen = {f["id"]: f for f in e["fragen"]}
+    assert fragen["verjaehrung"]["gesetze"] == ["§ 195 BGB", "§ 199 BGB"]
+    assert fragen["zitat"]["gesetze"] == []
+    hinweis = next(w for w in e["messwerte"] if w["titel"] == "Gesetze in der Wissensbasis")
+    assert "StPO" in hinweis["wert"] and "KSchG" in hinweis["wert"] and "§ 626 BGB" in hinweis["wert"]
+
+
+def test_ohne_gesetze_gleiche_fragen():
+    m = Modell(richtige_antwort)
+    e = leistung.leistungstest(m, Auftrag(), "LM Studio", "Eigener Rechner")
+    assert e["mit_gesetzen"] is False
+    assert m.anfragen[3:] == [f.frage for f in leistung.FRAGEN]

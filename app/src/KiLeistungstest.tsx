@@ -14,6 +14,7 @@ export default function KiLeistungstest() {
   const [zeitpunkt, setZeitpunkt] = useState<Date | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
+  const [mitGesetzen, setMitGesetzen] = useState(false);
   const laeuft = auftrag?.status === "laeuft";
 
   useAuftrag(
@@ -37,7 +38,7 @@ export default function KiLeistungstest() {
     setMeldung(null);
     setErgebnis(null);
     try {
-      setAuftrag(await kern<KiAuftrag>("ki.leistungstest"));
+      setAuftrag(await kern<KiAuftrag>("ki.leistungstest", { mit_gesetzen: mitGesetzen }));
     } catch (e) {
       setFehler(String(e));
     }
@@ -66,6 +67,16 @@ export default function KiLeistungstest() {
         aus; jede erwartete Antwort nennt ihre Fundstelle. Ans Modell gehen nur diese Testtexte, keine Akteninhalte. Mit
         einem lokalen Modell dauert der Test einige Minuten. Ein Dutzend Fragen ist eine Stichprobe, kein Benchmark.
       </p>
+      <label className="ki-leistung-wahl">
+        <input
+          type="checkbox"
+          checked={mitGesetzen}
+          disabled={laeuft}
+          onChange={(e) => setMitGesetzen(e.target.checked)}
+        />
+        Mit Gesetzen aus der Wissensbasis: Jede Frage bekommt die einschlägigen Normen mit, wie im Chat mit „Gesetze
+        einbeziehen“. Der Vergleich mit einem Durchgang ohne zeigt, wie viel die Anbindung bringt.
+      </label>
       <div className="aktionen">
         <button onClick={() => void starten()} disabled={laeuft}>
           {laeuft ? "Test läuft …" : ergebnis ? "Erneut testen" : "KI-Leistung testen"}
@@ -97,7 +108,8 @@ export default function KiLeistungstest() {
       {ergebnis && (
         <>
           <p className="leise klein">
-            Modell {ergebnis.modell || "–"} ({ergebnis.anbieter}, {ergebnis.ort}), Dauer {ergebnis.dauer} s
+            Modell {ergebnis.modell || "–"} ({ergebnis.anbieter}, {ergebnis.ort}), Dauer {ergebnis.dauer} s,{" "}
+            {ergebnis.mit_gesetzen ? "mit Gesetzen aus der Wissensbasis" : "ohne Gesetze (Wissen des Modells)"}
           </p>
           <h3>Geschwindigkeit</h3>
           <ul className="diagnose-liste">
@@ -140,6 +152,7 @@ export default function KiLeistungstest() {
                   <details className="leise klein">
                     <summary>Fundstelle</summary>
                     {f.fundstelle}
+                    {f.gesetze && f.gesetze.length > 0 && <div>Mitgegeben: {f.gesetze.join(", ")}</div>}
                   </details>
                 </div>
               </li>
