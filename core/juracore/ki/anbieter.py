@@ -426,8 +426,9 @@ class _Http:
                 grund = getattr(fehler, "reason", fehler)
                 if isinstance(grund, TimeoutError) or "timed out" in str(grund):
                     raise KiFehler(f"{self.titel} hat nicht innerhalb von {int(timeout / 60)} Minuten geantwortet. "
-                                   "Das Modell braucht für diese Anfrage zu lange; weniger Zusatzwissen (etwa ohne "
-                                   "Gesetze) oder eine kürzere Frage hilft.") from fehler
+                                   "Das Modell braucht für diese Anfrage zu lange. Häufige Ursachen: Die Denkphase "
+                                   "(„Reasoning“) ist eingeschaltet, das Modell läuft nicht auf der Grafikkarte (GPU "
+                                   "Offload), oder die Frage bringt viel Zusatzwissen mit (etwa Gesetze).") from fehler
                 frage = "Besteht eine Internetverbindung?" if self.extern else "Läuft das Programm?"
                 raise KiFehler(
                     f"{self.titel} ist unter {self.endpunkt} nicht erreichbar ({grund}). {frage}") from fehler

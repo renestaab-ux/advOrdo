@@ -31,6 +31,10 @@ SYSTEM = ("Du bist ein juristischer Assistent für deutsches Recht. Beantworte d
 
 _KURZ_SCHEMA = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
 
+# Alle Freitextfelder haben Längengrenzen: Ein lokales Modell, das sich in einer Wiederholung verfängt, schreibt sonst
+# bis zur Antwortgrenze weiter und überschreitet die Wartezeit (wie beim Chat, siehe ki.chat). Externe Anbieter
+# bekommen die Grenzen nicht (anbieter._streng).
+
 # Erfundener Sachverhalt für die längere Anfrage; ähnelt einer echten Aufgabe (Zusammenfassung).
 SACHVERHALT = (
     "Die Klägerin, die Muster Bau GmbH, verlangt von der Beklagten, Frau Erika Beispiel, Restwerklohn in Höhe von "
@@ -47,7 +51,8 @@ SACHVERHALT = (
     "Beklagte erklärte daraufhin die Aufrechnung mit einem Vorschuss für die Mängelbeseitigung und behielt den Rest "
     "des Werklohns zurück."
 )
-_LANG_SCHEMA = {"type": "object", "properties": {"saetze": {"type": "array", "items": {"type": "string"}}},
+_LANG_SCHEMA = {"type": "object", "properties": {"saetze": {"type": "array", "maxItems": 8,
+                                                                 "items": {"type": "string", "maxLength": 400}}},
                 "required": ["saetze"]}
 
 
@@ -65,8 +70,8 @@ class Frage:
 
 
 _DATUM_SCHEMA = {"type": "object", "properties": {
-    "datum": {"type": "string", "description": "Letzter Tag der Frist im Format JJJJ-MM-TT"},
-    "begruendung": {"type": "string"}}, "required": ["datum", "begruendung"]}
+    "datum": {"type": "string", "maxLength": 40, "description": "Letzter Tag der Frist im Format JJJJ-MM-TT"},
+    "begruendung": {"type": "string", "maxLength": 400}}, "required": ["datum", "begruendung"]}
 
 
 def lies_datum(text: object) -> str | None:
@@ -97,7 +102,8 @@ def _frist(id_: str, frage: str, soll: str, fundstelle: str) -> Frage:
 GERICHTE = ["Amtsgericht", "Landgericht", "Oberlandesgericht", "Arbeitsgericht", "Verwaltungsgericht",
             "Sozialgericht", "Finanzgericht"]
 _GERICHT_SCHEMA = {"type": "object", "properties": {
-    "gericht": {"type": "string", "enum": GERICHTE}, "norm": {"type": "string"}}, "required": ["gericht", "norm"]}
+    "gericht": {"type": "string", "enum": GERICHTE}, "norm": {"type": "string", "maxLength": 200}},
+    "required": ["gericht", "norm"]}
 
 
 def _gericht(id_: str, frage: str, soll: str, fundstelle: str) -> Frage:
@@ -109,7 +115,8 @@ def _gericht(id_: str, frage: str, soll: str, fundstelle: str) -> Frage:
 
 
 _NORM_SCHEMA = {"type": "object", "properties": {
-    "existiert": {"type": "boolean"}, "inhalt": {"type": "string", "description": "Kurz, was die Norm regelt"}},
+    "existiert": {"type": "boolean"},
+    "inhalt": {"type": "string", "maxLength": 300, "description": "Kurz, was die Norm regelt"}},
     "required": ["existiert", "inhalt"]}
 
 
@@ -154,9 +161,11 @@ SCHREIBEN = (
     "fiel die Hydraulik aus, sodass keine Lasten mehr gehoben werden konnten. Wir fordern Sie auf, den Mangel bis zum "
     "15. Juni 2026 zu beseitigen. Mit freundlichen Grüßen"
 )
-_ZITAT_SCHEMA = {"type": "object", "properties": {"zitat": {"type": "string"}}, "required": ["zitat"]}
+_ZITAT_SCHEMA = {"type": "object", "properties": {"zitat": {"type": "string", "maxLength": 400}},
+                 "required": ["zitat"]}
 _NICHT_SCHEMA = {"type": "object", "properties": {
-    "im_text": {"type": "boolean"}, "zitat": {"type": "string", "description": "Wörtliches Zitat oder leer"}},
+    "im_text": {"type": "boolean"},
+    "zitat": {"type": "string", "maxLength": 400, "description": "Wörtliches Zitat oder leer"}},
     "required": ["im_text", "zitat"]}
 
 
