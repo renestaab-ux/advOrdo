@@ -188,14 +188,28 @@ def waehle(texte: list[belege.Text], frage: str, budget: int) -> tuple[list[list
     }
 
 
-def _gesetze_budget(texte: list[belege.Text], kontext: int, anbieter: Anbieter, sonst: int) -> int:
+def _gesetze_budget(texte: list[belege.Text], kontext: int, anbieter: Anbieter, sonst: int, roh: bool = False) -> int:
     """Zeichen für Gesetzestext: höchstens ``wissen.GESETZE_ZEICHEN``, aber nur so viel, dass die Dokumente der
     Akte daneben noch ganz in die Anfrage passen. Ein kurzer Vertrag geht vor dem Wortlaut von § 309 BGB: Fehlt
     eine Klausel, kann das Modell sie nicht prüfen."""
     dokumente = sum(len(" ".join(a["text"].split())) + 30 for t in texte for a in t.abschnitte)
     dokumente += sum(len(t.dateiname) + 40 for t in texte)
     frei = (kontext - antwort_token(anbieter) - 1200) * 3 - sonst - 3000 - dokumente  # 3000: Aufgabe, Schema
-    return max(GESETZE_MINDESTENS, min(wissen.GESETZE_ZEICHEN, frei))
+    return frei if roh else max(GESETZE_MINDESTENS, min(wissen.GESETZE_ZEICHEN, frei))
+
+
+def _skills_kuerzen(skills: list[dict], texte: list[belege.Text], kontext: int, anbieter: Anbieter,
+                   sonst: int) -> tuple[list[dict], list[str]]:
+    """Skills, die neben den ganzen Dokumenten und dem Mindestmaß an Gesetzestext Platz haben; die zuletzt
+    gewählten weichen zuerst. Eine Arbeitsanweisung hilft nichts, wenn die Klausel fehlt, die sie prüfen soll."""
+    behalten = list(skills)
+    weg: list[str] = []
+    while behalten:
+        laenge = len(ki_skills.systemanweisung(SYSTEM, behalten)) - len(SYSTEM)
+        if _gesetze_budget(texte, kontext, anbieter, sonst + laenge, roh=True) >= GESETZE_MINDESTENS:
+            break
+        weg.insert(0, behalten.pop()["name"])
+    return behalten, weg
 
 
 def _bestimmungen(t: belege.Text, abschnitt: int) -> str:
@@ -299,6 +313,14 @@ def frage(
 
     frueher = verlauf(con, akte_id, dokument_id)
     bisher = _zusammenhang(frueher)
+    if skills:
+        skills, weggelassen = _skills_kuerzen(skills, texte, kontext, anbieter, len(bisher) + len(text))
+        if weggelassen:
+            system = ki_skills.systemanweisung(SYSTEM, skills)
+            satz = (f"Ohne Skill {', '.join(weggelassen)}: Er hätte Teile der Dokumente aus der Anfrage verdrängt."
+                    if len(weggelassen) == 1 else f"Ohne die Skills {', '.join(weggelassen)}: Sie hätten Teile der "
+                    "Dokumente aus der Anfrage verdrängt.")
+            skill_hinweis = f"{skill_hinweis} {satz}" if skill_hinweis else satz
     rechnen = rechner and wissen.soll_rechnen(text)
     vorige_frage = next((e.get("text", "") for e in reversed(frueher) if e["rolle"] == "frage"), "")
     passende_rechner = wissen.passende_rechner(text, vorige_frage)

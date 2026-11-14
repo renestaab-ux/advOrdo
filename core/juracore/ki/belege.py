@@ -136,7 +136,12 @@ def finde(zitat: str, abschnitte: dict[int, str], bevorzugt: int | None = None) 
 
 
 # Überschrift einer Bestimmung am Anfang einer Zeile: „§ 2 Laufzeit“ (nicht „§ 309 BGB“ mitten im Satz).
-_UEBERSCHRIFT = re.compile(r"(?:^|\n)\s*§\s*(\d{1,3}[a-z]?)\s+(?![A-Z]{2,}\b)[A-ZÄÖÜ][a-zäöüß]")
+_UEBERSCHRIFT = re.compile(
+    r"(?:^|\n)\s*§\s*(\d{1,3}[a-z]?)\s+(?![A-Z]{2,}\b|Abs\b|Nr\b|Satz\b|S\b)[A-ZÄÖÜ][a-zäöüß]"
+    # Die Texterkennung hängt eine Überschrift manchmal an den vorigen Absatz: „… vorbehalten. § 5 Ruhen des
+    # Vertrags“ (am Ende des Abschnitts, ohne weiteren Satz danach).
+    r"|(?<=[.:;] )§\s*(\d{1,3}[a-z]?)\s+(?![A-Z]{2,}\b|Abs\b|Nr\b|Satz\b|S\b)[A-ZÄÖÜ][^.;:§]{0,70}$"
+)
 # Absatz einer Bestimmung: „(2)“ am Anfang einer Zeile oder nach einem Satzende.
 _ABSATZ = re.compile(r"(?:^|\n|(?<=[.:;]) )\s*\((\d{1,2})\)\s")
 
@@ -169,7 +174,7 @@ class Text:
         for a in self.abschnitte:
             text = a["text"] or ""
             stellen: list[tuple[int, str]] = []
-            marken = sorted([(m.start(1), "§", m.group(1)) for m in _UEBERSCHRIFT.finditer(text)]
+            marken = sorted([(m.start(m.lastindex), "§", m.group(m.lastindex)) for m in _UEBERSCHRIFT.finditer(text)]
                             + [(m.start(1), "abs", m.group(1)) for m in _ABSATZ.finditer(text)])
             # Die vorige Bestimmung läuft weiter, außer der Abschnitt beginnt selbst mit „§ 3“ oder „(2)“.
             beginnt_neu = bool(marken) and not text[: marken[0][0]].strip(" \n§(")

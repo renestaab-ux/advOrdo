@@ -45,6 +45,8 @@ THEMA_ZEICHEN = 8000  # je Kernnorm eines Themas (§ 309 BGB ist lang und wird s
 # Themen, deren Kernnormen immer mitgehen, wenn Frage oder vorgelegter Text sie berühren: Die Volltextsuche findet
 # sie aus einer Frage wie „Welche Klauseln sind unwirksam?“ nicht verlässlich. Reihenfolge = Vorrang im Budget.
 THEMEN: list[tuple[str, re.Pattern, list[str]]] = [
+    # Kurz und vor dem AGB-Recht, damit es neben dem langen § 309 BGB noch Platz hat.
+    ("Gerichtsstand", re.compile(r"gerichtsstand", re.IGNORECASE), ["§ 38 ZPO"]),
     ("AGB-Recht",
      re.compile(r"\bAGB\b|allgemeinen?\s+geschäftsbedingungen|\bklausel|formularvertrag", re.IGNORECASE),
      ["§ 307 BGB", "§ 309 BGB", "§ 308 BGB", "§ 305c BGB", "§ 306 BGB", "§ 310 BGB"]),

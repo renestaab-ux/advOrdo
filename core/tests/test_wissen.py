@@ -603,3 +603,24 @@ def test_bestimmung_eines_vertrags_und_nummer_der_norm():
                           "Gesundheit und bei grobem Verschulden) a) ein Ausschluss oder eine Begrenzung der Haftung"}]}
     b = wissen.normbeleg([norm], 1, "ein Ausschluss oder eine Begrenzung der Haftung")
     assert b["norm"] == "§ 309 Nr. 7 BGB"
+
+
+def test_ueberschrift_am_ende_des_vorigen_absatzes_und_thema_gerichtsstand():
+    from juracore.ki import belege
+
+    def a(nr, text):
+        return {"nr": nr, "text": text, "seite": 1, "seitenwechsel": "[]", "rn": None}
+
+    # So setzt die Texterkennung den Scan manchmal zusammen (frei erfunden).
+    vertrag = belege.Text(1, "scan.pdf", [], [
+        a(1, "§ 4 Rücklastschriften"),
+        a(2, "(2) Pauschale 25,00 €. Weitere Ansprüche bleiben vorbehalten. § 5 Ruhen des Vertrags"),
+        a(3, "(1) Bei Krankheit ruht der Vertrag."),
+    ])
+    assert vertrag.fundstelle(belege.finde("Bei Krankheit ruht", vertrag.nach_nr))["bestimmung"] == "§ 5 Abs. 1"
+    assert vertrag.fundstelle(belege.finde("Weitere Ansprüche", vertrag.nach_nr))["bestimmung"] == "§ 4 Abs. 2"
+    # Ein Normzitat mitten im Satz ist keine Überschrift.
+    satz = belege.Text(2, "x.pdf", [], [a(1, "§ 1 Zweck"), a(2, "§ 2 Pflichten"),
+                                        a(3, "Das gilt. § 309 Nr. 7 BGB bleibt unberührt, ebenso weiteres.")])
+    assert [n for _, n in satz.gliederung[3]] == ["§ 2"]
+    assert [n for n, _ in wissen.themen("Gerichtsstand ist Freiburg; AGB")] == ["Gerichtsstand", "AGB-Recht"]

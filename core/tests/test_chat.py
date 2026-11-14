@@ -415,3 +415,14 @@ def test_gesetze_weichen_einem_vertrag_der_sonst_nicht_ganz_passt(akten, con, tm
     modell = Attrappe(gute_antwort)
     assert chat._gesetze_budget(texte, 32768, modell, 0) == chat.wissen.GESETZE_ZEICHEN
     assert chat._gesetze_budget(texte, 8192 + 1200 + 1000, modell, 0) == chat.GESETZE_MINDESTENS
+
+
+def test_skills_weichen_den_dokumenten():
+    from juracore.ki import belege
+    text = belege.Text(1, "v.md", [], [{"nr": 1, "text": "Vertrag " * 600, "seite": 1, "seitenwechsel": "[]",
+                                        "rn": None}])
+    skills = [{"name": "eins", "text": "a" * 2000}, {"name": "zwei", "text": "b" * 9000}]
+    modell = Attrappe(gute_antwort)
+    behalten, weg = chat._skills_kuerzen(skills, [text], 8192 + 1200 + 5000, modell, 0)
+    assert [s["name"] for s in behalten] == ["eins"] and weg == ["zwei"]
+    assert chat._skills_kuerzen(skills, [text], 32768, modell, 0) == (skills, [])
