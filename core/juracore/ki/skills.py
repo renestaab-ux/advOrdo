@@ -23,6 +23,7 @@ import zipfile
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 DATEINAME = "skills.json"
 SKILL_DATEI = "SKILL.md"
@@ -561,14 +562,48 @@ def _kandidaten(skills: list[dict], auswahl: list[str]) -> tuple[list[dict], set
     return [s for s in skills if s["id"] in einzeln or any(im_ordner(s, o) for o in ordner)], einzeln
 
 
-def fuer_anfrage(datei: Path, auswahl: list[str] | str | None, kontext: int, frage: str = "") -> dict:
+VORAUSWAHL = 15  # so viele Kandidaten bekommt das Modell zur Wahl
+MODELL_HOECHSTENS = 3  # so viele darf es wählen
+
+Waehler = Callable[[str, list[dict]], list[int]]
+
+
+def modellwahl_anfrage(frage: str, kandidaten: list[dict]) -> tuple[str, str, dict]:
+    """Systemanweisung, Nutzertext und Schema für die Wahl der Skills durch das Sprachmodell: Es bekommt nur
+    Namen, Ordner und Kurzbeschreibungen (keinen Akteninhalt) und nennt die Nummern der passenden."""
+    system = ("Du wählst für eine Frage in einer deutschen Anwaltskanzlei die hilfreichsten Arbeitsanweisungen "
+              "(Skills) aus einer Liste. Du antwortest nur mit JSON nach dem vorgegebenen Schema.")
+    zeilen = []
+    for i, s in enumerate(kandidaten, 1):
+        teile = [s["name"]]
+        if s.get("ordner"):
+            teile.append(f"Ordner: {s['ordner']}")
+        if s.get("beschreibung"):
+            teile.append(" ".join(s["beschreibung"].split())[:240])
+        zeilen.append(f"{i}. " + " – ".join(teile))
+    nutzer = (f"Frage bzw. Aufgabe:\n{frage.strip()}\n\nSkills:\n" + "\n".join(zeilen) +
+              f"\n\nWähle höchstens {MODELL_HOECHSTENS} Skills, die für genau diese Frage fachlich passen und "
+              "helfen; im Zweifel weniger. Allgemeine Skills (Einstieg, Routing, Ausgabeformat) nur, wenn die Frage "
+              "danach verlangt. Passt keiner, gib eine leere Liste. Antworte mit den Nummern unter \"skills\".")
+    schema = {"type": "object", "properties": {"skills": {"type": "array", "items": {"type": "integer"},
+                                                          "maxItems": MODELL_HOECHSTENS}},
+              "required": ["skills"]}
+    return system, nutzer, schema
+
+
+def fuer_anfrage(datei: Path, auswahl: list[str] | str | None, kontext: int, frage: str = "",
+                 waehler: Waehler | None = None) -> dict:
     """Die Skills für eine Anfrage aus der Auswahl (Kennungen einzelner Skills, „ordner:Name“, „alle“).
 
     Ein einzeln gewählter Skill gilt immer; ist er zu lang für das Kontextfenster, sagt das ein Fehler, statt ihn
     still zu kürzen. Bei mehreren, einem Ordner oder „Alle“ nimmt die App die zur Frage passendsten (Wortvergleich
     mit Name, Überschriften und Beschreibung, ohne Anfrage an das Modell), höchstens fünf und nur so viele, wie in
     ein Viertel des Kontextfensters passen. Einzeln gewählte haben Vorrang; aus Ordnern und „Alle“ kommt nur, was
-    genug übereinstimmt. Zurück: ``skills`` (je id, name, text) und ``hinweis``, wenn keiner passte."""
+    genug übereinstimmt. Zurück: ``skills`` (je id, name, text) und ``hinweis``, wenn keiner passte.
+
+    ``waehler(frage, kandidaten)``: Mit ihm wählt das Sprachmodell aus Ordnern und „Alle“: Der Wortvergleich
+    schlägt bis zu ``VORAUSWAHL`` Skills vor, das Modell nennt die Nummern (1 …) der passenden, höchstens
+    ``MODELL_HOECHSTENS``. Scheitert das, gilt der Wortvergleich. ``gewaehlt_von`` sagt, wer gewählt hat."""
     if isinstance(auswahl, str):
         auswahl = [auswahl]
     auswahl = [str(a) for a in auswahl or [] if a]
@@ -593,6 +628,32 @@ def fuer_anfrage(datei: Path, auswahl: list[str] | str | None, kontext: int, fra
     gewichte = _gewichte(kandidaten, woerter)
     bewertet = sorted(((s["id"] in einzeln, _punkte(s, woerter, nummern, gewichte), s) for s in kandidaten),
                       key=lambda x: (-int(x[0]), -x[1], x[2]["name"].lower()))
+    if waehler is not None:
+        vorschlag = [s for v, p, s in bewertet if not v and p > 0 and len(s["text"]) <= grenze][:VORAUSWAHL]
+        if vorschlag:
+            try:
+                nummern_modell = waehler(frage, vorschlag)
+            except Exception:  # noqa: BLE001 – jede Störung: Wortvergleich wie ohne Modell
+                nummern_modell = None
+            if isinstance(nummern_modell, list):
+                ids = []
+                for n in nummern_modell:
+                    if isinstance(n, int) and 1 <= n <= len(vorschlag) and vorschlag[n - 1]["id"] not in ids:
+                        ids.append(vorschlag[n - 1]["id"])
+                ids = ids[:MODELL_HOECHSTENS]
+                reihe = [(v, s) for v, _, s in bewertet if v] + [
+                    (False, next(s for s in vorschlag if s["id"] == i)) for i in ids]
+                gewaehlt, rest = [], grenze
+                for _, s in reihe:
+                    if len(gewaehlt) >= HOECHST_JE_ANFRAGE:
+                        break
+                    if len(s["text"]) + 200 <= rest:
+                        gewaehlt.append({"id": s["id"], "name": s["name"], "text": s["text"]})
+                        rest -= len(s["text"]) + 200
+                hinweis = None if gewaehlt else (
+                    "Das Sprachmodell hielt keinen der vorgeschlagenen Skills für passend; geantwortet wurde ohne "
+                    "Skill.")
+                return {"skills": gewaehlt, "hinweis": hinweis, "gewaehlt_von": "modell"}
     # Aus Ordnern und „Alle“ nur, was nah an den besten herankommt: lieber zwei passende als fünf mittelmäßige.
     bester = max((p for v, p, _ in bewertet if not v), default=0.0)
     schwelle = max(MINDEST_PUNKTE, 0.6 * bester)
@@ -612,7 +673,19 @@ def fuer_anfrage(datei: Path, auswahl: list[str] | str | None, kontext: int, fra
         hinweis = ("Kein Skill der Auswahl passte gut genug zur Frage; geantwortet wurde ohne Skill."
                    if any(not v for v, _, _ in bewertet) else
                    "Die gewählten Skills sind zu lang für das Kontextfenster des Sprachmodells.")
-    return {"skills": gewaehlt, "hinweis": hinweis}
+    return {"skills": gewaehlt, "hinweis": hinweis, "gewaehlt_von": "wortvergleich"}
+
+
+def waehler_mit(anbieter: Any) -> Waehler:
+    """``waehler`` für ``fuer_anfrage`` mit diesem Sprachmodell (``anbieter.chat``)."""
+    def waehle(frage: str, kandidaten: list[dict]) -> list[int]:
+        system, nutzer, schema = modellwahl_anfrage(frage, kandidaten)
+        antwort = anbieter.chat(system, nutzer, schema)
+        nummern = antwort.get("skills") if isinstance(antwort, dict) else None
+        if not isinstance(nummern, list):
+            raise ValueError("Antwort ohne Liste")
+        return [int(n) for n in nummern if isinstance(n, int | float | str) and str(n).strip().isdigit()]
+    return waehle
 
 
 def systemanweisung(basis: str, skills: list[dict] | dict | None) -> str:

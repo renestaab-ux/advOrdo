@@ -296,3 +296,34 @@ def test_auswahl_nimmt_die_passendsten(tmp_path):
     assert skills.fuer_anfrage(datei, [zugang["id"], lang["id"]], 8192, "Zugang")["skills"][0]["id"] == zugang["id"]
     system = skills.systemanweisung("REGELN", w["skills"])
     assert "gelten die folgenden Arbeitsanweisungen" in system and system.count("<<< Arbeitsanweisung") == len(w["skills"]) == 2
+
+
+def test_modell_waehlt_aus_vorauswahl(tmp_path):
+    datei = tmp_path / "skills.json"
+    for name, beschreibung in [("agb-haftung", "Haftungsklauseln in AGB"),
+                               ("agb-laufzeit", "Laufzeit und Kündigung in AGB"),
+                               ("agb-inhaltskontrolle", "Unwirksame Klauseln in AGB erkennen"),
+                               ("mietminderung", "Minderung der Miete")]:
+        skills.speichern(datei, name, f"# {name}\nPrüfe genau.", beschreibung,
+                         ordner="Miete" if name == "mietminderung" else "AGB")
+    gesehen = []
+
+    def waehler(frage, kandidaten):
+        gesehen.append([k["name"] for k in kandidaten])
+        return [3, 3, 99]  # doppelt und ungültig wird ignoriert
+
+    w = skills.fuer_anfrage(datei, ["alle"], 32768, "Welche AGB-Klauseln sind unwirksam?", waehler)
+    assert "mietminderung" not in gesehen[0]  # nur, was zum Wortvergleich passt
+    assert [s["name"] for s in w["skills"]] == [gesehen[0][2]] and w["gewaehlt_von"] == "modell"
+    w = skills.fuer_anfrage(datei, ["alle"], 32768, "Welche AGB-Klauseln sind unwirksam?", lambda f, k: [])
+    assert w["skills"] == [] and "Sprachmodell hielt keinen" in w["hinweis"]
+
+    def kaputt(frage, kandidaten):
+        raise RuntimeError("Modell nicht erreichbar")
+
+    w = skills.fuer_anfrage(datei, ["alle"], 32768, "Welche AGB-Klauseln sind unwirksam?", kaputt)
+    assert w["skills"] and w["gewaehlt_von"] == "wortvergleich"
+    # Die Anfrage enthält nur Namen, Ordner und Beschreibung, keinen Skilltext und keine Akte.
+    system, nutzer, schema = skills.modellwahl_anfrage("Frage?", skills.lade(datei)[:2])
+    assert "1. agb-haftung – Ordner: AGB – Haftungsklauseln in AGB" in nutzer and "Prüfe genau" not in nutzer
+    assert schema["properties"]["skills"]["maxItems"] == 3

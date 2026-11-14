@@ -541,6 +541,16 @@ class Kern:
                                                        (int(akte_id),))]
         return " ".join(teile + self._themen(akte_id, dokument_id))
 
+    def _skills_vom_modell(self, auswahl: list[str], anlass: str, kontext: int, modell, auftrag) -> dict | None:
+        """Bei Ordnern oder „Alle“ wählt das Sprachmodell aus der Vorauswahl des Wortvergleichs (im
+        Hintergrundauftrag, eine kurze Anfrage); ``None`` bei einzeln gewählten Skills oder ohne Auswahl."""
+        if not any(a == ki_skills.ALLE or str(a).startswith(ki_skills.ORDNER_PRAEFIX) for a in auswahl):
+            return None
+        auftrag.melde("Das Sprachmodell wählt die passenden Skills")
+        auftrag.pruefe()
+        return ki_skills.fuer_anfrage(self.skills_datei, auswahl, kontext, anlass,
+                                      waehler=ki_skills.waehler_mit(modell))
+
     def _themen(self, akte_id: int | None, dokument_id: int | None) -> list[str]:
         """Themen (``ki_wissen.THEMEN``, etwa „AGB-Recht“), die die Dokumente berühren; sie helfen bei der Wahl der
         Skills, wenn die Frage das Thema nicht nennt („Welche Klauseln sind unwirksam?“)."""
@@ -591,6 +601,7 @@ class Kern:
         gewaehlt = ki_skills.fuer_anfrage(self.skills_datei, auswahl, e.aktiver_kontext, anlass)
 
         def arbeit(auftrag) -> dict:
+            gew = self._skills_vom_modell(auswahl, anlass, e.aktiver_kontext, modell, auftrag) or gewaehlt
             con = akte.oeffne(self.akten_pfad)
             wb = db.oeffne(self.db_pfad) if stufe != ki_wissen.GESETZE_AUS else None
             try:
@@ -601,7 +612,7 @@ class Kern:
                                      gesetze_ergaenzt=[str(x) for x in gesetze_ergaenzt or []],
                                      rechtsprechung=rechtsprechung,
                                      basiszins=basiszins.lade(self.basiszins_datei), land=str(land),
-                                     skills=gewaehlt["skills"], skill_hinweis=gewaehlt["hinweis"])
+                                     skills=gew["skills"], skill_hinweis=gew["hinweis"])
             finally:
                 con.close()
                 if wb is not None:
@@ -628,15 +639,16 @@ class Kern:
             raise ValueError("Für diese Aufgabe fehlt die Akte bzw. das Dokument.")
         e, modell = self._ki_modell()
         auswahl = [] if aufgabe == "gegenueberstellung" else skills or ([skill] if skill else [])
-        gewaehlt = ki_skills.fuer_anfrage(self.skills_datei, auswahl, e.aktiver_kontext,
-                                          self._skill_anlass(aufgabe, akte_id, dokument_id) if auswahl else "")
+        anlass = self._skill_anlass(aufgabe, akte_id, dokument_id) if auswahl else ""
+        gewaehlt = ki_skills.fuer_anfrage(self.skills_datei, auswahl, e.aktiver_kontext, anlass)
 
         def arbeit(auftrag) -> dict:
+            gew = self._skills_vom_modell(auswahl, anlass, e.aktiver_kontext, modell, auftrag) or gewaehlt
             # Eigene Verbindung: SQLite-Verbindungen gehören zu dem Thread, der sie geöffnet hat.
             con = akte.oeffne(self.akten_pfad)
             try:
                 analyse = Analyse(con, modell, e.aktiver_kontext, auftrag, neu=bool(neu),
-                                  skills=gewaehlt["skills"], skill_hinweis=gewaehlt["hinweis"])
+                                  skills=gew["skills"], skill_hinweis=gew["hinweis"])
                 if aufgabe == "zusammenfassung_dokument":
                     return analyse.zusammenfassung_dokument(int(dokument_id))
                 if aufgabe == "zusammenfassung_akte":
