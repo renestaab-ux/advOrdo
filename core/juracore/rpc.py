@@ -638,18 +638,27 @@ class Kern:
 
         return self.auftraege.starte(aufgabe, arbeit)
 
-    def ki_leistungstest(self) -> dict:
+    def ki_leistungstest(self, mit_gesetzen: bool = False, mit_fristenrechner: bool = False) -> dict:
         """Startet den KI-Leistungstest der Diagnose im Hintergrund; das Ergebnis liefert ``ki.auftrag``.
 
-        Ans Modell gehen nur die festen Testtexte aus ``ki.leistung``, keine Akteninhalte."""
+        Ans Modell gehen nur die festen Testtexte aus ``ki.leistung``, keine Akteninhalte; ``mit_gesetzen`` gibt
+        jeder Frage die einschlägigen Normen aus der Wissensbasis mit (öffentliche Rechtsquellen);
+        ``mit_fristenrechner`` lässt das Fristende vom Fristenrechner der App rechnen."""
         e, modell = self._ki_modell()
         if e.extern:
             anbieter, ort = ki_anbieter.EXTERNE[e.extern_anbieter]["titel"], "Externer Anbieter"
         else:
             anbieter = ki_anbieter.ANBIETER[e.anbieter]["titel"]
             ort = "Lokales Netzwerk" if ki_anbieter.lokal_ort(e) == ki_anbieter.NETZWERK else "Eigener Rechner"
-        return self.auftraege.starte(ki_leistung.AUFGABE,
-                                     lambda auftrag: ki_leistung.leistungstest(modell, auftrag, anbieter, ort))
+        def arbeit(auftrag) -> dict:
+            wb = db.oeffne(self.db_pfad) if mit_gesetzen else None
+            try:
+                return ki_leistung.leistungstest(modell, auftrag, anbieter, ort, wb, mit_fristenrechner)
+            finally:
+                if wb is not None:
+                    wb.close()
+
+        return self.auftraege.starte(ki_leistung.AUFGABE, arbeit)
 
     def metadaten_ki(self, dokument_id: int, neu: bool = False, automatisch: bool = False) -> dict:
         """Art, Absender, Empfänger und Gegenstand eines Dokuments vom Sprachmodell, sofern eines eingerichtet ist.

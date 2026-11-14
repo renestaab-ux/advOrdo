@@ -17,11 +17,13 @@ const ergebnis: KiLeistung = {
       richtig: false,
       fundstelle: "§ 517 ZPO",
       sekunden: 4.2,
+      gesetze: ["§ 517 ZPO", "§ 222 ZPO"],
     },
   ],
   bereiche: [{ bereich: "Fristen", richtig: 0, von: 1 }],
   gesamt: { richtig: 0, von: 1, stand: "fehler", meldung: "0 von 1 Prüffragen richtig beantwortet." },
   stand_fundstellen: "13.11.2026",
+  mit_gesetzen: true,
 };
 
 describe("Bericht des KI-Leistungstests", () => {
@@ -32,5 +34,15 @@ describe("Bericht des KI-Leistungstests", () => {
     expect(text).toContain("[FALSCH] Fristen: Bis wann läuft die Berufungsfrist?");
     expect(text).toContain("Erwartet: Fristende 14.09.2026");
     expect(text).toContain("Fundstelle: § 517 ZPO");
+    expect(text).toContain("Durchgang mit Gesetzen aus der Wissensbasis");
+    expect(text).toContain("Mitgegeben: § 517 ZPO, § 222 ZPO");
+    expect(text).not.toContain("Fristenrechner");
+  });
+
+  it("nennt den Fristenrechner im Durchgang", () => {
+    const text = leistungsBericht({ ...ergebnis, mit_fristenrechner: true }, new Date(2026, 10, 14, 19, 0));
+    expect(text).toContain(
+      "Durchgang mit Gesetzen aus der Wissensbasis, Fristende vom Fristenrechner der App",
+    );
   });
 });

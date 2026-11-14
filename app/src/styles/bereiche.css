@@ -22,6 +22,7 @@
 /* Diagnose */
 .ki-leistung h3 { margin: 16px 0 4px; }
 .ki-leistung-antwort { margin-top: 2px; }
+.ki-leistung-wahl { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; }
 .diagnose { max-width: 900px; }
 .diagnose .aktionen { margin: 12px 0; }
 .diagnose-summe { font-weight: 600; }

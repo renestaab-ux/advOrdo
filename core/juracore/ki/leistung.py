@@ -13,13 +13,19 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
+from .. import db
+from ..gesetze import wissensbasis
+from ..rechner import fristen
 from . import belege
 from .anbieter import KiFehler
+from .wissen import _dauer
 
 AUFGABE = "leistungstest"
 STAND_FUNDSTELLEN = "13.11.2026"
@@ -91,11 +97,14 @@ def _datum_text(iso: str) -> str:
     return f"{t}.{m}.{j}"
 
 
+FRIST_SCHLUSS = " Nenne den letzten Tag der Frist."
+
+
 def _frist(id_: str, frage: str, soll: str, fundstelle: str) -> Frage:
     def pruefe(a: dict) -> tuple[bool, str]:
         ist = lies_datum(a.get("datum"))
         return ist == soll, _datum_text(ist) if ist else f"kein Datum ({str(a.get('datum') or '')[:40]})"
-    return Frage(id_, "Fristen", frage + " Nenne den letzten Tag der Frist.", _DATUM_SCHEMA,
+    return Frage(id_, "Fristen", frage + FRIST_SCHLUSS, _DATUM_SCHEMA,
                  f"Fristende {_datum_text(soll)}", fundstelle, pruefe)
 
 
@@ -254,6 +263,101 @@ FRAGEN: list[Frage] = [
 ]
 
 
+# --------------------------------------------------------------------------- Durchgang „mit Gesetzen“
+
+# Normen, die im zweiten Durchgang aus der Wissensbasis mitgehen: (Gesetz, Nummer, Fehlen melden). Bei den Fragen
+# nach erfundenen Normen gehört das Fehlen zur Auskunft der Sammlung („nicht enthalten“); bei echten Normen, deren
+# Gesetz nur nicht geladen ist, würde dieselbe Auskunft das Modell in die Irre führen, sie fehlen dann stillschweigend.
+NORMEN: dict[str, list[tuple[str, str | None, bool]]] = {
+    "berufung_wochenende": [("ZPO", "517", False), ("ZPO", "222", False), ("BGB", "187", False),
+                            ("BGB", "188", False)],
+    "berufung_monatsende": [("ZPO", "517", False), ("ZPO", "222", False), ("BGB", "187", False),
+                            ("BGB", "188", False)],
+    "berufung_strafrecht": [("StPO", "314", False), ("StPO", "43", False)],
+    "kschg": [("KSchG", "4", False), ("BGB", "187", False), ("BGB", "188", False)],
+    "einspruch_vu": [("ZPO", "339", False), ("ZPO", "222", False), ("BGB", "187", False), ("BGB", "188", False)],
+    "verjaehrung": [("BGB", "195", False), ("BGB", "199", False)],
+    "raeumung": [("GVG", "23", False), ("ZPO", "29a", False)],
+    "zahlung": [("GVG", "23", False), ("GVG", "71", False)],
+    "kuendigungsschutz": [("ArbGG", "2", False), ("KSchG", "4", False)],
+    "baugenehmigung": [("VwGO", "40", False)],
+    "bgb_312z": [("BGB", "312z", True)],
+    "bgb_823_4": [("BGB", "823", False)],
+    "mandaktg": [("MandAktG", None, True)],
+    "bgb_626": [("BGB", "626", False)],
+}
+NORM_ZEICHEN = 2500  # je Norm; § 2 ArbGG etwa ist lang
+
+SYSTEM_GESETZE = (SYSTEM + " Vor der Frage steht ein Auszug aus der Gesetzessammlung der App im Wortlaut der genannten "
+                  "Fassung. Stütze dich darauf, soweit die Normen einschlägig sind.")
+
+
+def _normtext(n: dict) -> str:
+    f = n["fassung"]
+    stand = "; ".join(f.get("stand") or []) or f"abgerufen {str(f.get('abgerufen_am', ''))[:10]}"
+    text = "\n".join(" ".join(a["text"].split()) for a in n["absaetze"])
+    if len(text) > NORM_ZEICHEN:
+        text = text[:NORM_ZEICHEN].rsplit(" ", 1)[0] + " …"
+    kopf = f"{n['bezeichnung']} {n['gesetz']}" + (f" – {n['titel']}" if n.get("titel") else "")
+    return f"{kopf} (Fassung: {stand})\n{text}"
+
+
+# --------------------------------------------------------------------------- Fristenrechner
+
+# Wie im Chat mit „Rechner (Zinsen, Fristen)“ (ki.wissen): Das Modell nennt nur Bezugstag und Dauer, das Datum rechnet
+# der Fristenrechner der App. Geprüft wird damit, ob das Modell die Frist richtig erkennt, nicht seine Datumsrechnung.
+RECHNER_SCHLUSS = (" Rechne das Fristende nicht selbst. Nenne den Tag des Ereignisses oder Zeitpunkts, an den die "
+                   "Frist anknüpft, und die Dauer der Frist.")
+SYSTEM_RECHNER = (" Fristen rechnet der Fristenrechner der App nach §§ 187, 188, 193 BGB einschließlich Wochenenden "
+                  "und Feiertagen; du lieferst nur seine Eingaben.")
+_RECHNER_SCHEMA = {"type": "object", "properties": {
+    "bezugstag": {"type": "string", "maxLength": 40, "description": "TT.MM.JJJJ"},
+    "dauer": {"type": "string", "maxLength": 40, "description": "z. B. \"2 Wochen\", \"1 Monat\", \"3 Jahre\""},
+    "begruendung": {"type": "string", "maxLength": 400}}, "required": ["bezugstag", "dauer", "begruendung"]}
+
+
+def mit_fristenrechner(f: Frage, antwort: dict) -> tuple[bool, str]:
+    """Rechnet aus Bezugstag und Dauer des Modells das Fristende (Fristenrechner der App) und prüft es."""
+    tag = lies_datum(antwort.get("bezugstag"))
+    dauer = _dauer(str(antwort.get("dauer") or ""))
+    eingabe = f"Bezugstag {_datum_text(tag) if tag else str(antwort.get('bezugstag') or '–')[:40]}, " \
+              f"Dauer {str(antwort.get('dauer') or '–')[:40]}"
+    if tag is None or dauer is None:
+        return False, f"keine verwertbaren Angaben für den Fristenrechner ({eingabe})"
+    try:
+        ende = fristen.berechne(date.fromisoformat(tag), dauer[0], dauer[1])["ende"]
+    except ValueError as e:
+        return False, f"Fristenrechner: {e} ({eingabe})"
+    richtig, _ = f.pruefe({"datum": ende})
+    return richtig, f"{_datum_text(ende)} (Fristenrechner aus: {eingabe})"
+
+
+def gesetze_zur_frage(wb: sqlite3.Connection, frage_id: str) -> tuple[str, list[str], list[str]]:
+    """Auszug aus der Wissensbasis zur Frage; dazu die mitgegebenen und die fehlenden Normen (für die Anzeige)."""
+    teile, mit, fehlend = [], [], []
+    for gesetz, nummer, melden in NORMEN.get(frage_id, []):
+        bezeichnung = f"§ {nummer} {gesetz}" if nummer else gesetz
+        if db.aktuelle_fassung(wb, gesetz) is None:
+            if melden:
+                teile.append(f"{gesetz}: Ein Gesetz mit dieser Abkürzung ist in der Gesetzessammlung der App nicht "
+                             "enthalten.")
+                mit.append(f"{bezeichnung} (nicht enthalten)")
+            else:
+                fehlend.append(gesetz)
+            continue
+        n = wissensbasis.norm(wb, gesetz, nummer, typ="paragraph") if nummer else None
+        if n is None or n["weggefallen"]:
+            if melden:
+                teile.append(f"{bezeichnung}: In der Gesetzessammlung der App ({gesetz}) nicht vorhanden.")
+                mit.append(f"{bezeichnung} (nicht vorhanden)")
+            else:
+                fehlend.append(bezeichnung)
+            continue
+        teile.append(_normtext(n))
+        mit.append(bezeichnung)
+    return "\n\n".join(teile), mit, fehlend
+
+
 # --------------------------------------------------------------------------- Ablauf
 
 class _Messung:
@@ -334,23 +438,43 @@ def geschwindigkeit(m: _Messung, auftrag: Any) -> list[dict]:
     return werte
 
 
-def leistungstest(modell: Any, auftrag: Any, anbieter: str, ort: str) -> dict:
-    """Führt den Test aus; ``auftrag`` meldet Fortschritt und prüft auf Abbruch (siehe ``auftraege``)."""
+def leistungstest(modell: Any, auftrag: Any, anbieter: str, ort: str, wb: sqlite3.Connection | None = None,
+                  rechner: bool = False) -> dict:
+    """Führt den Test aus; ``auftrag`` meldet Fortschritt und prüft auf Abbruch (siehe ``auftraege``).
+
+    ``wb``: Wissensbasis für den Durchgang „mit Gesetzen“; jede Frage bekommt dann die einschlägigen Normen mit.
+    ``rechner``: Bei den Fristfragen nennt das Modell nur Bezugstag und Dauer, das Ende rechnet der Fristenrechner."""
     m = _Messung(modell)
     beginn = time.monotonic()
     messwerte = geschwindigkeit(m, auftrag)
     fragen = []
+    fehlend: list[str] = []
     for nr, f in enumerate(FRAGEN, start=4):
         auftrag.pruefe()
         auftrag.melde(f"Prüffrage {nr - 3} von {len(FRAGEN)}: {f.bereich} …", nr, 3 + len(FRAGEN))
-        antwort, dauer, _, fehler = m.frage(f.frage, f.schema)
+        mit: list[str] = []
+        per_rechner = rechner and f.bereich == "Fristen"
+        text, schema = f.frage, f.schema
+        if per_rechner:
+            text, schema = f.frage.replace(FRIST_SCHLUSS, RECHNER_SCHLUSS), _RECHNER_SCHEMA
+        system = SYSTEM
+        if wb is not None and f.id in NORMEN:
+            auszug, mit, fehlen = gesetze_zur_frage(wb, f.id)
+            for x in fehlen:
+                if x not in fehlend:
+                    fehlend.append(x)
+            if auszug:
+                text, system = f"Gesetze:\n{auszug}\n\nFrage: {text}", SYSTEM_GESETZE
+        antwort, dauer, _, fehler = m.frage(text, schema, system + (SYSTEM_RECHNER if per_rechner else ""))
         if antwort is None:
             richtig, anzeige = False, f"Keine gültige Antwort ({fehler})"
+        elif per_rechner:
+            richtig, anzeige = mit_fristenrechner(f, antwort)
         else:
             richtig, anzeige = f.pruefe(antwort)
         fragen.append({"id": f.id, "bereich": f.bereich, "frage": f.frage.split("\n\n")[-1] if "Text:\n" in f.frage
                        else f.frage, "erwartet": f.erwartet, "antwort": anzeige, "richtig": richtig,
-                       "fundstelle": f.fundstelle, "sekunden": round(dauer, 1)})
+                       "fundstelle": f.fundstelle, "sekunden": round(dauer, 1), "gesetze": mit})
     if m.denkphase:
         messwerte.append(_wert("Denkphase", f"{m.denkphase} Zeichen", "warnung",
                                "Das Modell denkt vor jeder Antwort; das kostet Zeit und kann Antworten abschneiden. "
@@ -369,6 +493,10 @@ def leistungstest(modell: Any, auftrag: Any, anbieter: str, ort: str) -> dict:
         "Fristen, Zuständigkeiten und Normen aus diesem Modell immer selbst nachrechnen und prüfen."
         if stand == "warnung" else
         "Das Modell eignet sich nicht für rechtliche Einschätzungen; allenfalls für einfache Zusammenfassungen."))
+    if fehlend:
+        messwerte.append(_wert("Gesetze in der Wissensbasis", "Nicht geladen: " + ", ".join(fehlend), "warnung",
+                               "Diese Fragen liefen ohne die einschlägige Norm. Unter „Gesetze“ das Paket "
+                               "(Strafrecht, Verwaltungsrecht) einschalten oder das Gesetz einzeln hinzufügen."))
     if m.json_fehler:
         messwerte.append(_wert("Antworten als gültiges JSON", f"{m.json_fehler} fehlerhaft", "warnung",
                                "Analysen brechen bei solchen Antworten ab oder fragen erneut."))
@@ -380,4 +508,6 @@ def leistungstest(modell: Any, auftrag: Any, anbieter: str, ort: str) -> dict:
         "bereiche": [{"bereich": b, "richtig": sum(w), "von": len(w)} for b, w in bereiche.items()],
         "gesamt": {"richtig": richtig, "von": len(fragen), "stand": stand, "meldung": meldung},
         "stand_fundstellen": STAND_FUNDSTELLEN,
+        "mit_gesetzen": wb is not None,
+        "mit_fristenrechner": rechner,
     }
