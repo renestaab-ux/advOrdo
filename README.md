@@ -621,6 +621,16 @@ Ans Modell gehen nur diese festen Testtexte, nie Akteninhalte; bei einem externe
 Protokoll der Online-Anfragen. Der Test ist eine Stichprobe und kein Benchmark. Die Fragen stehen in
 `core/juracore/ki/leistung.py`.
 
+Zwei Schalter ändern den Durchgang, damit sich der Nutzen der Anbindungen messen lässt:
+
+- **Mit Gesetzen aus der Wissensbasis**: Jede Frage bekommt die einschlägigen Normen im Wortlaut der gespeicherten
+  Fassung mit, wie im Chat mit „Gesetze einbeziehen“. Bei erfundenen Normen steht im Auszug, dass es sie in der
+  Gesetzessammlung nicht gibt. Echte Gesetze, die nicht geladen sind (etwa KSchG, StPO oder VwGO ohne das passende
+  Paket), fehlen im Auszug und werden im Ergebnis genannt.
+- **Mit Fristenrechner**: Bei den Fristfragen nennt das Modell nur Bezugstag und Dauer; das Fristende rechnet der
+  Fristenrechner der App (§§ 187, 188, 193 BGB), wie im Chat mit „Rechner (Zinsen, Fristen)“. Geprüft wird dann, ob
+  das Modell die Frist richtig erkennt, nicht seine Datumsrechnung.
+
 ## Rechtsprechung: Urteilszitate prüfen
 
 Beim Einlesen erkennt die App auch Rechtsprechungszitate („BGH, Urteil vom 12.10.2016 – VIII ZR 103/15“,

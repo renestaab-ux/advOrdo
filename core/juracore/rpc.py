@@ -638,11 +638,12 @@ class Kern:
 
         return self.auftraege.starte(aufgabe, arbeit)
 
-    def ki_leistungstest(self, mit_gesetzen: bool = False) -> dict:
+    def ki_leistungstest(self, mit_gesetzen: bool = False, mit_fristenrechner: bool = False) -> dict:
         """Startet den KI-Leistungstest der Diagnose im Hintergrund; das Ergebnis liefert ``ki.auftrag``.
 
         Ans Modell gehen nur die festen Testtexte aus ``ki.leistung``, keine Akteninhalte; ``mit_gesetzen`` gibt
-        jeder Frage die einschlägigen Normen aus der Wissensbasis mit (öffentliche Rechtsquellen)."""
+        jeder Frage die einschlägigen Normen aus der Wissensbasis mit (öffentliche Rechtsquellen);
+        ``mit_fristenrechner`` lässt das Fristende vom Fristenrechner der App rechnen."""
         e, modell = self._ki_modell()
         if e.extern:
             anbieter, ort = ki_anbieter.EXTERNE[e.extern_anbieter]["titel"], "Externer Anbieter"
@@ -652,7 +653,7 @@ class Kern:
         def arbeit(auftrag) -> dict:
             wb = db.oeffne(self.db_pfad) if mit_gesetzen else None
             try:
-                return ki_leistung.leistungstest(modell, auftrag, anbieter, ort, wb)
+                return ki_leistung.leistungstest(modell, auftrag, anbieter, ort, wb, mit_fristenrechner)
             finally:
                 if wb is not None:
                     wb.close()

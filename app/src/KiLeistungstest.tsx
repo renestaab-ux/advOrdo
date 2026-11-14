@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type KiAuftrag, type KiLeistung, kern, leistungsBericht } from "./kern";
+import { type KiAuftrag, type KiLeistung, durchgang, kern, leistungsBericht } from "./kern";
 import { useAuftrag } from "./useAuftrag";
 
 const STAND_TEXT = { ok: "in Ordnung", warnung: "Hinweis", fehler: "Fehler" } as const;
@@ -15,6 +15,7 @@ export default function KiLeistungstest() {
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [mitGesetzen, setMitGesetzen] = useState(false);
+  const [mitRechner, setMitRechner] = useState(false);
   const laeuft = auftrag?.status === "laeuft";
 
   useAuftrag(
@@ -38,7 +39,10 @@ export default function KiLeistungstest() {
     setMeldung(null);
     setErgebnis(null);
     try {
-      setAuftrag(await kern<KiAuftrag>("ki.leistungstest", { mit_gesetzen: mitGesetzen }));
+      setAuftrag(await kern<KiAuftrag>("ki.leistungstest", {
+          mit_gesetzen: mitGesetzen,
+          mit_fristenrechner: mitRechner,
+        }));
     } catch (e) {
       setFehler(String(e));
     }
@@ -77,6 +81,17 @@ export default function KiLeistungstest() {
         Mit Gesetzen aus der Wissensbasis: Jede Frage bekommt die einschlägigen Normen mit, wie im Chat mit „Gesetze
         einbeziehen“. Der Vergleich mit einem Durchgang ohne zeigt, wie viel die Anbindung bringt.
       </label>
+      <label className="ki-leistung-wahl">
+        <input
+          type="checkbox"
+          checked={mitRechner}
+          disabled={laeuft}
+          onChange={(e) => setMitRechner(e.target.checked)}
+        />
+        Mit Fristenrechner: Bei den Fristfragen nennt das Modell nur den Bezugstag und die Dauer, das Fristende rechnet
+        der Fristenrechner der App, wie im Chat mit „Rechner (Zinsen, Fristen)“. Geprüft wird dann, ob das Modell die
+        Frist richtig erkennt.
+      </label>
       <div className="aktionen">
         <button onClick={() => void starten()} disabled={laeuft}>
           {laeuft ? "Test läuft …" : ergebnis ? "Erneut testen" : "KI-Leistung testen"}
@@ -109,7 +124,7 @@ export default function KiLeistungstest() {
         <>
           <p className="leise klein">
             Modell {ergebnis.modell || "–"} ({ergebnis.anbieter}, {ergebnis.ort}), Dauer {ergebnis.dauer} s,{" "}
-            {ergebnis.mit_gesetzen ? "mit Gesetzen aus der Wissensbasis" : "ohne Gesetze (Wissen des Modells)"}
+            {durchgang(ergebnis)}
           </p>
           <h3>Geschwindigkeit</h3>
           <ul className="diagnose-liste">

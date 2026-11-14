@@ -36,5 +36,13 @@ describe("Bericht des KI-Leistungstests", () => {
     expect(text).toContain("Fundstelle: § 517 ZPO");
     expect(text).toContain("Durchgang mit Gesetzen aus der Wissensbasis");
     expect(text).toContain("Mitgegeben: § 517 ZPO, § 222 ZPO");
+    expect(text).not.toContain("Fristenrechner");
+  });
+
+  it("nennt den Fristenrechner im Durchgang", () => {
+    const text = leistungsBericht({ ...ergebnis, mit_fristenrechner: true }, new Date(2026, 10, 14, 19, 0));
+    expect(text).toContain(
+      "Durchgang mit Gesetzen aus der Wissensbasis, Fristende vom Fristenrechner der App",
+    );
   });
 });

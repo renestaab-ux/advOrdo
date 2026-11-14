@@ -17,12 +17,15 @@ import sqlite3
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from .. import db
 from ..gesetze import wissensbasis
+from ..rechner import fristen
 from . import belege
 from .anbieter import KiFehler
+from .wissen import _dauer
 
 AUFGABE = "leistungstest"
 STAND_FUNDSTELLEN = "13.11.2026"
@@ -94,11 +97,14 @@ def _datum_text(iso: str) -> str:
     return f"{t}.{m}.{j}"
 
 
+FRIST_SCHLUSS = " Nenne den letzten Tag der Frist."
+
+
 def _frist(id_: str, frage: str, soll: str, fundstelle: str) -> Frage:
     def pruefe(a: dict) -> tuple[bool, str]:
         ist = lies_datum(a.get("datum"))
         return ist == soll, _datum_text(ist) if ist else f"kein Datum ({str(a.get('datum') or '')[:40]})"
-    return Frage(id_, "Fristen", frage + " Nenne den letzten Tag der Frist.", _DATUM_SCHEMA,
+    return Frage(id_, "Fristen", frage + FRIST_SCHLUSS, _DATUM_SCHEMA,
                  f"Fristende {_datum_text(soll)}", fundstelle, pruefe)
 
 
@@ -296,6 +302,36 @@ def _normtext(n: dict) -> str:
     return f"{kopf} (Fassung: {stand})\n{text}"
 
 
+# --------------------------------------------------------------------------- Fristenrechner
+
+# Wie im Chat mit „Rechner (Zinsen, Fristen)“ (ki.wissen): Das Modell nennt nur Bezugstag und Dauer, das Datum rechnet
+# der Fristenrechner der App. Geprüft wird damit, ob das Modell die Frist richtig erkennt, nicht seine Datumsrechnung.
+RECHNER_SCHLUSS = (" Rechne das Fristende nicht selbst. Nenne den Tag des Ereignisses oder Zeitpunkts, an den die "
+                   "Frist anknüpft, und die Dauer der Frist.")
+SYSTEM_RECHNER = (" Fristen rechnet der Fristenrechner der App nach §§ 187, 188, 193 BGB einschließlich Wochenenden "
+                  "und Feiertagen; du lieferst nur seine Eingaben.")
+_RECHNER_SCHEMA = {"type": "object", "properties": {
+    "bezugstag": {"type": "string", "maxLength": 40, "description": "TT.MM.JJJJ"},
+    "dauer": {"type": "string", "maxLength": 40, "description": "z. B. \"2 Wochen\", \"1 Monat\", \"3 Jahre\""},
+    "begruendung": {"type": "string", "maxLength": 400}}, "required": ["bezugstag", "dauer", "begruendung"]}
+
+
+def mit_fristenrechner(f: Frage, antwort: dict) -> tuple[bool, str]:
+    """Rechnet aus Bezugstag und Dauer des Modells das Fristende (Fristenrechner der App) und prüft es."""
+    tag = lies_datum(antwort.get("bezugstag"))
+    dauer = _dauer(str(antwort.get("dauer") or ""))
+    eingabe = f"Bezugstag {_datum_text(tag) if tag else str(antwort.get('bezugstag') or '–')[:40]}, " \
+              f"Dauer {str(antwort.get('dauer') or '–')[:40]}"
+    if tag is None or dauer is None:
+        return False, f"keine verwertbaren Angaben für den Fristenrechner ({eingabe})"
+    try:
+        ende = fristen.berechne(date.fromisoformat(tag), dauer[0], dauer[1])["ende"]
+    except ValueError as e:
+        return False, f"Fristenrechner: {e} ({eingabe})"
+    richtig, _ = f.pruefe({"datum": ende})
+    return richtig, f"{_datum_text(ende)} (Fristenrechner aus: {eingabe})"
+
+
 def gesetze_zur_frage(wb: sqlite3.Connection, frage_id: str) -> tuple[str, list[str], list[str]]:
     """Auszug aus der Wissensbasis zur Frage; dazu die mitgegebenen und die fehlenden Normen (für die Anzeige)."""
     teile, mit, fehlend = [], [], []
@@ -402,10 +438,12 @@ def geschwindigkeit(m: _Messung, auftrag: Any) -> list[dict]:
     return werte
 
 
-def leistungstest(modell: Any, auftrag: Any, anbieter: str, ort: str, wb: sqlite3.Connection | None = None) -> dict:
+def leistungstest(modell: Any, auftrag: Any, anbieter: str, ort: str, wb: sqlite3.Connection | None = None,
+                  rechner: bool = False) -> dict:
     """Führt den Test aus; ``auftrag`` meldet Fortschritt und prüft auf Abbruch (siehe ``auftraege``).
 
-    ``wb``: Wissensbasis für den Durchgang „mit Gesetzen“; jede Frage bekommt dann die einschlägigen Normen mit."""
+    ``wb``: Wissensbasis für den Durchgang „mit Gesetzen“; jede Frage bekommt dann die einschlägigen Normen mit.
+    ``rechner``: Bei den Fristfragen nennt das Modell nur Bezugstag und Dauer, das Ende rechnet der Fristenrechner."""
     m = _Messung(modell)
     beginn = time.monotonic()
     messwerte = geschwindigkeit(m, auftrag)
@@ -415,17 +453,23 @@ def leistungstest(modell: Any, auftrag: Any, anbieter: str, ort: str, wb: sqlite
         auftrag.pruefe()
         auftrag.melde(f"Prüffrage {nr - 3} von {len(FRAGEN)}: {f.bereich} …", nr, 3 + len(FRAGEN))
         mit: list[str] = []
+        per_rechner = rechner and f.bereich == "Fristen"
+        text, schema = f.frage, f.schema
+        if per_rechner:
+            text, schema = f.frage.replace(FRIST_SCHLUSS, RECHNER_SCHLUSS), _RECHNER_SCHEMA
+        system = SYSTEM
         if wb is not None and f.id in NORMEN:
             auszug, mit, fehlen = gesetze_zur_frage(wb, f.id)
             for x in fehlen:
                 if x not in fehlend:
                     fehlend.append(x)
-            nutzer = f"Gesetze:\n{auszug}\n\nFrage: {f.frage}" if auszug else f.frage
-            antwort, dauer, _, fehler = m.frage(nutzer, f.schema, SYSTEM_GESETZE)
-        else:
-            antwort, dauer, _, fehler = m.frage(f.frage, f.schema)
+            if auszug:
+                text, system = f"Gesetze:\n{auszug}\n\nFrage: {text}", SYSTEM_GESETZE
+        antwort, dauer, _, fehler = m.frage(text, schema, system + (SYSTEM_RECHNER if per_rechner else ""))
         if antwort is None:
             richtig, anzeige = False, f"Keine gültige Antwort ({fehler})"
+        elif per_rechner:
+            richtig, anzeige = mit_fristenrechner(f, antwort)
         else:
             richtig, anzeige = f.pruefe(antwort)
         fragen.append({"id": f.id, "bereich": f.bereich, "frage": f.frage.split("\n\n")[-1] if "Text:\n" in f.frage
@@ -465,4 +509,5 @@ def leistungstest(modell: Any, auftrag: Any, anbieter: str, ort: str, wb: sqlite
         "gesamt": {"richtig": richtig, "von": len(fragen), "stand": stand, "meldung": meldung},
         "stand_fundstellen": STAND_FUNDSTELLEN,
         "mit_gesetzen": wb is not None,
+        "mit_fristenrechner": rechner,
     }

@@ -226,3 +226,49 @@ def test_ohne_gesetze_gleiche_fragen():
     e = leistung.leistungstest(m, Auftrag(), "LM Studio", "Eigener Rechner")
     assert e["mit_gesetzen"] is False
     assert m.anfragen[3:] == [f.frage for f in leistung.FRAGEN]
+
+
+# Bezugstag und Dauer, wie sie ein Modell für den Fristenrechner liefern soll.
+EINGABEN = {
+    "berufung_wochenende": ("12.08.2026", "1 Monat"),
+    "berufung_monatsende": ("31.03.2026", "1 Monat"),
+    "berufung_strafrecht": ("03.11.2026", "eine Woche"),
+    "kschg": ("02.10.2026", "drei Wochen"),
+    "einspruch_vu": ("20.11.2026", "2 Wochen"),
+    "verjaehrung": ("31.12.2023", "3 Jahre"),
+}
+
+
+def test_mit_fristenrechner():
+    systeme = []
+
+    def antwort(nutzer, schema):
+        if "bezugstag" in schema["properties"]:
+            f = next(f for f in leistung.FRAGEN if f.frage.replace(leistung.FRIST_SCHLUSS, leistung.RECHNER_SCHLUSS)
+                     in nutzer)
+            tag, dauer = EINGABEN[f.id]
+            return {"bezugstag": tag, "dauer": dauer, "begruendung": "…"}
+        return richtige_antwort(nutzer, schema)
+
+    class MitSystem(Modell):
+        def chat(self, system, nutzer, schema):
+            systeme.append(system)
+            return super().chat(system, nutzer, schema)
+
+    m = MitSystem(antwort)
+    e = leistung.leistungstest(m, Auftrag(), "LM Studio", "Eigener Rechner", rechner=True)
+    assert e["mit_fristenrechner"] is True
+    assert e["gesamt"]["richtig"] == len(leistung.FRAGEN)
+    fragen = {f["id"]: f for f in e["fragen"]}
+    assert fragen["berufung_wochenende"]["antwort"] == \
+        "14.09.2026 (Fristenrechner aus: Bezugstag 12.08.2026, Dauer 1 Monat)"
+    assert "Nenne den letzten Tag" not in m.anfragen[3]
+    assert leistung.SYSTEM_RECHNER in systeme[3] and leistung.SYSTEM_RECHNER not in systeme[-1]
+
+
+def test_fristenrechner_falscher_bezugstag_und_unbrauchbare_dauer():
+    f = next(f for f in leistung.FRAGEN if f.id == "verjaehrung")
+    richtig, anzeige = leistung.mit_fristenrechner(f, {"bezugstag": "15.06.2023", "dauer": "3 Jahre"})
+    assert not richtig and anzeige.startswith("15.06.2026 (Fristenrechner aus: Bezugstag 15.06.2023")
+    richtig, anzeige = leistung.mit_fristenrechner(f, {"bezugstag": "15.06.2023", "dauer": "bis Jahresende"})
+    assert not richtig and anzeige.startswith("keine verwertbaren Angaben")
