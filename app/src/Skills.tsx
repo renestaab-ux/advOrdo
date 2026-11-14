@@ -326,9 +326,9 @@ export function SkillWahl({
             })}
           </div>
           <p className="leise skill-erklaerung">
-            Bei mehreren Skills, einem Ordner oder „Alle“ nimmt advOrdo je Frage die passendsten (nach Name, Überschriften
-            und Beschreibung), höchstens fünf
-            {grenze ? ` und zusammen bis etwa ${zahl(grenze)} Zeichen` : ""}. Passt keiner, gilt keiner. Unter der Antwort
+            Einzeln gewählte Skills gelten immer. Aus einem Ordner oder „Alle“ schlägt advOrdo je Frage passende vor
+            (nach Name, Ordner und Beschreibung), und das Sprachmodell wählt daraus höchstens drei; zusammen höchstens
+            fünf{grenze ? ` und bis etwa ${zahl(grenze)} Zeichen` : ""}. Passt keiner, gilt keiner. Unter der Antwort
             steht, welche gewirkt haben.
           </p>
           <div className="aktionen">
