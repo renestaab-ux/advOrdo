@@ -378,3 +378,40 @@ def test_ueberlastet_503_wartet_ebenfalls(monkeypatch):
     with pytest.raises(anbieter.KiFehler, match="überlastet .*3-mal"):
         anbieter.erzeuge_aktiv(e, "schluessel").chat("s", "n", {"type": "object"})
     assert len(pausen) == 3
+
+
+def test_klauselpruefung_nennt_die_bestimmungen_des_vertrags(akten, con, tmp_path):
+    """Ein gegliederter Vertrag (frei erfunden): Absätze tragen ihre Bestimmung, die Fundstelle nennt sie."""
+    akte_id = akte.akte_anlegen(akten, "Studio ./. Kundin")["id"]
+    vertrag = tmp_path / "Mitgliedsvertrag.md"
+    vertrag.write_text(
+        "Mitgliedsvertrag Studio Muster\n\n§ 1 Leistungen\n\n(1) Das Studio stellt Trainingsflächen bereit.\n\n"
+        "§ 2 Laufzeit\n\n(1) Die Erstlaufzeit beträgt 24 Monate.\n\n"
+        "(2) Der Vertrag verlängert sich danach jeweils um weitere 12 Monate.\n\n"
+        "§ 6 Haftung\n\n(1) Das Studio haftet nicht für Schäden, gleich aus welchem Rechtsgrund.\n",
+        encoding="utf-8")
+    akte.importiere(akten, con, akte_id, vertrag, tmp_path / "ablage", ocr=False)
+
+    def antwort(prompt: str, schema: dict) -> dict:
+        d, n = _zeile(prompt, "gleich aus welchem")
+        return {"aussagen": [{"text": "Der Haftungsausschluss ist unwirksam.", "art": "einschaetzung", "belege": [
+            {"dokument": d, "absatz": n, "zitat": "{§ 6 Abs. 1} Das Studio haftet nicht für Schäden"}]}]}
+
+    modell = Attrappe(antwort)
+    a = chat.frage(akten, modell, 16384, akte_id, "Welche Klauseln sind unwirksam?")["aussagen"][0]
+    prompt = modell.anfragen[0]
+    assert "{§ 2 Abs. 2} (2) Der Vertrag verlängert sich" in prompt
+    assert "gegliedert (§ 1, § 2, § 6)" in prompt
+    assert a["status"] == "belegt" and a["fundstellen"][0]["bestimmung"] == "§ 6 Abs. 1"
+    # Ohne Frage nach Klauseln keine Prüfanweisung, die Kennzeichen bleiben.
+    chat.frage(akten, modell, 16384, akte_id, "Wie lange läuft der Vertrag?")
+    assert "gegliedert" not in modell.anfragen[1] and "{§ 2 Abs. 1}" in modell.anfragen[1]
+
+
+def test_gesetze_weichen_einem_vertrag_der_sonst_nicht_ganz_passt(akten, con, tmp_path):
+    akte_id, _ = _akte(akten, con, tmp_path)
+    texte = [chat.belege.lade_text(akten, i, chat.PARTEIEN)
+             for (i,) in akten.execute("SELECT id FROM dokument WHERE akte_id = ?", (akte_id,))]
+    modell = Attrappe(gute_antwort)
+    assert chat._gesetze_budget(texte, 32768, modell, 0) == chat.wissen.GESETZE_ZEICHEN
+    assert chat._gesetze_budget(texte, 8192 + 1200 + 1000, modell, 0) == chat.GESETZE_MINDESTENS

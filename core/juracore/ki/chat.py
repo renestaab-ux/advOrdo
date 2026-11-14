@@ -45,6 +45,8 @@ VERLAUF = 6
 # Absätze je Dokument, die bei einer Auswahl immer mitgehen (Kopf: Art, Absender, Datum, Parteien).
 KOPF = 2
 HOECHSTENS = 12  # Aussagen je Antwort
+# Gesetzestext, der auch dann mitgeht, wenn die Dokumente das Kontextfenster füllen (etwa § 309 BGB gekürzt).
+GESETZE_MINDESTENS = 4000
 
 TATSACHE = "tatsache"
 EINSCHAETZUNG = "einschaetzung"
@@ -54,8 +56,9 @@ BERECHNUNG = "berechnung"
 SYSTEM = (
     "Du bist ein sorgfältiger juristischer Assistent in einer deutschen Anwaltskanzlei. Du beantwortest Fragen zu "
     "den vorgelegten Dokumenten einer Akte. Tatsachen entnimmst du ausschließlich dem vorgelegten Text und "
-    "erfindest nichts. Rechtliche Würdigungen kennzeichnest du als Einschätzung. Du antwortest nur mit JSON nach "
-    "dem vorgegebenen Schema, auf Deutsch."
+    "erfindest nichts. Rechtliche Würdigungen kennzeichnest du als Einschätzung. Betrifft eine Aussage eine "
+    "nummerierte Bestimmung eines Dokuments (etwa § 2 Abs. 2 eines Vertrags), nennst du sie im Text der Aussage "
+    "(„§ 2 Abs. 2 des Vertrags“). Du antwortest nur mit JSON nach dem vorgegebenen Schema, auf Deutsch."
 )
 
 SCHEMA = {
@@ -185,6 +188,51 @@ def waehle(texte: list[belege.Text], frage: str, budget: int) -> tuple[list[list
     }
 
 
+def _gesetze_budget(texte: list[belege.Text], kontext: int, anbieter: Anbieter, sonst: int) -> int:
+    """Zeichen für Gesetzestext: höchstens ``wissen.GESETZE_ZEICHEN``, aber nur so viel, dass die Dokumente der
+    Akte daneben noch ganz in die Anfrage passen. Ein kurzer Vertrag geht vor dem Wortlaut von § 309 BGB: Fehlt
+    eine Klausel, kann das Modell sie nicht prüfen."""
+    dokumente = sum(len(" ".join(a["text"].split())) + 30 for t in texte for a in t.abschnitte)
+    dokumente += sum(len(t.dateiname) + 40 for t in texte)
+    frei = (kontext - antwort_token(anbieter) - 1200) * 3 - sonst - 3000 - dokumente  # 3000: Aufgabe, Schema
+    return max(GESETZE_MINDESTENS, min(wissen.GESETZE_ZEICHEN, frei))
+
+
+def _bestimmungen(t: belege.Text, abschnitt: int) -> str:
+    """Kennzeichen vor einem Absatz eines gegliederten Vertrags: „{§ 6 Abs. 1}“, damit das Modell die Bestimmung
+    nennen kann, ohne sie aus dem Text zu erschließen."""
+    namen = list(dict.fromkeys(name for _, name in t.gliederung.get(abschnitt, [])))
+    return "{" + "; ".join(namen) + "} " if namen else ""
+
+
+_KLAUSELFRAGE = re.compile(r"klausel|\bagb\b|geschäftsbedingung|(?:un)?wirksam|inhaltskontrolle|vertrag\w* prüf",
+                           re.IGNORECASE)
+
+
+def _ist_klauselpruefung(frage: str, texte: list[belege.Text]) -> bool:
+    return bool(_KLAUSELFRAGE.search(frage)) and any(t.gliederung for t in texte)
+
+
+def _klauselpruefung(texte: list[belege.Text]) -> str:
+    """Anweisung für die Prüfung eines gegliederten Vertrags: jede Bestimmung ansehen, nicht nur die erste."""
+    paragraphen: list[str] = []
+    for t in texte:
+        for stellen in t.gliederung.values():
+            for _, name in stellen:
+                p = name.split(" Abs.")[0]
+                if p not in paragraphen:
+                    paragraphen.append(p)
+    return (
+        "Der Vertrag ist in Bestimmungen gegliedert (" + ", ".join(paragraphen) + "); vor jedem Absatz steht in "
+        "geschweiften Klammern, zu welcher Bestimmung er gehört. Gehe alle Bestimmungen der Reihe nach durch. Nenne "
+        "jede Bestimmung, die unwirksam sein kann, in einer eigenen Einschätzung: zuerst die Bestimmung, dann das "
+        "Ergebnis und die Norm mit Nummer und Buchstabe, dann den Grund (etwa „§ 6 Abs. 1 des Vertrags: unwirksam "
+        "nach § 309 Nr. 7 Buchst. a BGB, weil …“). Eine Aussage je Bestimmung; wiederhole keine. Bestimmungen ohne "
+        "Bedenken fasse am Ende in einer Einschätzung zusammen. Gib den Vertragsinhalt nicht als Tatsachen wieder; "
+        "die Fundstellen zeigen ihn. Die geschweiften Klammern gehören nicht zum Text und nie in ein Zitat."
+    )
+
+
 def _zusammenhang(eintraege: list[dict]) -> str:
     zeilen = []
     for e in eintraege[-VERLAUF:]:
@@ -263,7 +311,8 @@ def frage(
         thema_text = "\n".join(a["text"] for t in texte for a in t.abschnitte[:60])
         normen, fehlende_normen = wissen.waehle_normen(
             gesetze, con, akte_id, dokument_id, text, zusaetzlich, suche=gesetze_suche, ergaenzt=gesetze_ergaenzt,
-            thema_text=thema_text, skill_texte=[s["text"] for s in skills or []])
+            thema_text=thema_text, skill_texte=[s["text"] for s in skills or []],
+            budget=_gesetze_budget(texte, kontext, anbieter, len(system) - len(SYSTEM) + len(bisher) + len(text)))
     urteile: list[dict] = []
     fehlende_urteile: list[str] = []
     mit_rechtsprechung = rechtsprechung in (wissen.RECHTSPRECHUNG_AKTE, wissen.RECHTSPRECHUNG_SUCHE)
@@ -303,7 +352,8 @@ def frage(
             if not abschnitte:
                 continue
             kopf = f"Dokument {nr}: {t.dateiname}" + (f" (Beteiligte: {', '.join(t.parteien)})" if t.parteien else "")
-            zeilen = "\n".join(f"[{nr}.{a['nr']}] " + " ".join(a["text"].split()) for a in abschnitte)
+            zeilen = "\n".join(f"[{nr}.{a['nr']}] " + _bestimmungen(t, a["nr"]) + " ".join(a["text"].split())
+                               for a in abschnitte)
             teile.append(f"{kopf}\n{zeilen}")
         umfang = (
             "Dir liegen die Dokumente vollständig vor."
@@ -333,6 +383,7 @@ def frage(
             "Voraussetzung einzeln als Einschätzung („Voraussetzung …: erfüllt/nicht erfüllt/offen, weil …“), belegt "
             "mit den Stellen der Akte und, wenn vorgelegt, dem Wortlaut der Norm. Gib den Sachverhalt nicht bloß "
             "wieder."
+            + (f"\n\n{_klauselpruefung(texte)}" if _ist_klauselpruefung(text, texte) else "")
             + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
             + (f"\n\n{wissen.ANWEISUNG_RECHTSPRECHUNG}" if urteile else "")
             + (f"\n\n{wissen.ANWEISUNG_RECHNER}" if rechnen else "")
@@ -693,6 +744,7 @@ def _beleg(texte: list[belege.Text], dokument: object, absatz: object, zitat: ob
     """Fundstelle des Zitats: zuerst im genannten Dokument, sonst in den übrigen vorgelegten."""
     if not isinstance(zitat, str):
         return None
+    zitat = re.sub(r"^\s*\{[^}]*\}\s*", "", zitat)  # Kennzeichen der Bestimmung, falls mit abgeschrieben
     nr = dokument - 1 if isinstance(dokument, int) and 1 <= dokument <= len(texte) else None
     reihenfolge = ([texte[nr]] if nr is not None else []) + [t for i, t in enumerate(texte) if i != nr]
     for t in reihenfolge:

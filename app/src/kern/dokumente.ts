@@ -508,10 +508,19 @@ export interface OcrStatus {
 
 
 /** Fundstelle im Dokument lesbar: "S. 2–3, Rn. 5" oder "Abschn. 12" (laufender Absatz), wenn weder Seite noch Randnummer bekannt sind. */
-export function fundstelle(a: { seite: number | null; seite_bis?: number | null; rn: number | null; nr?: number; abschnitt?: number }): string {
+export function fundstelle(a: {
+  seite: number | null;
+  seite_bis?: number | null;
+  rn: number | null;
+  nr?: number;
+  abschnitt?: number;
+  bestimmung?: string | null;
+}): string {
   const teile: string[] = [];
   if (a.seite != null) teile.push(a.seite_bis ? `S. ${a.seite}–${a.seite_bis}` : `S. ${a.seite}`);
-  if (a.rn != null) teile.push(`Rn. ${a.rn}`);
+  // In einem gegliederten Vertrag sagt die Bestimmung („§ 6 Abs. 1“) mehr als eine gezählte Randnummer.
+  if (a.bestimmung) teile.push(a.bestimmung);
+  else if (a.rn != null) teile.push(`Rn. ${a.rn}`);
   if (teile.length === 0) teile.push(`Abschn. ${a.nr ?? a.abschnitt ?? "?"}`);
   return teile.join(", ");
 }

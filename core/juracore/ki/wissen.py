@@ -637,6 +637,11 @@ def waehle_normen(
         if n is None or any(x["gesetz"] == n["gesetz"] and x["bezeichnung"] == n["bezeichnung"] for x in normen):
             return
         grenze = THEMA_ZEICHEN if herkunft == "thema" else NORM_ZEICHEN
+        if herkunft in ("thema", "zitiert"):
+            # Ist das Budget knapp, lieber den Anfang einer Kernnorm als gar nichts von ihr.
+            kopf = len(n["bezeichnung"]) + len(n["gesetz"]) + len(n.get("titel") or "") + 60
+            if rest - kopf >= 1000:
+                grenze = min(grenze, rest - kopf)
         absaetze, laenge = [], 0
         for a in n["absaetze"]:
             text = " ".join(a["text"].split())
@@ -700,6 +705,9 @@ ANWEISUNG_GESETZE = (
 )
 
 
+_NORM_NUMMER = re.compile(r"(?:^|\s)(\d{1,2}[a-z]?)\.\s*\((?=[A-ZÄÖÜ])")
+
+
 def normbeleg(normen: list[dict], nr: object, zitat: object) -> dict | None:
     """Fundstelle eines Zitats aus einer vorgelegten Norm, geprüft am gespeicherten Wortlaut."""
     if not isinstance(zitat, str):
@@ -714,8 +722,11 @@ def normbeleg(normen: list[dict], nr: object, zitat: object) -> dict | None:
         text = a["text"]
         von, bis = max(0, fund.start - belege.UMFELD), min(len(text), fund.ende + belege.UMFELD)
         nr_abs = f" Abs. {a['nr']}" if a["nr"] and len(n["absaetze"]) > 1 else ""
+        # Nummer in einer Aufzählung wie § 309 BGB („7. (Haftungsausschluss …)“) vor dem Zitat.
+        nummern = list(_NORM_NUMMER.finditer(text, 0, fund.start + 1))
+        nr_nr = f" Nr. {nummern[-1].group(1)}" if nummern else ""
         return {
-            "norm": f"{n['bezeichnung']}{nr_abs} {n['gesetz']}",
+            "norm": f"{n['bezeichnung']}{nr_abs}{nr_nr} {n['gesetz']}",
             "gesetz": n["gesetz"],
             "bezeichnung": n["bezeichnung"],
             "titel": n.get("titel"),

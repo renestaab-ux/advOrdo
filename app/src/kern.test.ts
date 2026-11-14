@@ -95,6 +95,9 @@ describe("fundstelle", () => {
     expect(fundstelle({ seite: null, rn: 4 })).toBe("Rn. 4");
     expect(fundstelle({ seite: null, rn: null, nr: 12 })).toBe("Abschn. 12");
   });
+  it("nennt im Vertrag die Bestimmung statt der Randnummer", () => {
+    expect(fundstelle({ seite: 1, rn: 3, bestimmung: "§ 6 Abs. 1" })).toBe("S. 1, § 6 Abs. 1");
+  });
 });
 
 describe("segmente", () => {
