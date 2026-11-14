@@ -58,7 +58,7 @@ vi.mock("./kern", async (original) => ({
   }),
 }));
 
-const { default: SkillsEinstellungen, SkillWahl } = await import("./Skills");
+const { default: SkillsEinstellungen, SkillWahl, freierRaum } = await import("./Skills");
 
 let wurzel: Root;
 let behaelter: HTMLDivElement;
@@ -171,5 +171,21 @@ describe("Skills", () => {
     expect(onWert).toHaveBeenLastCalledWith(["a", "ordner:BGB AT Prüfer"]);
     await klicke(behaelter.querySelector(".skill-alle input"));
     expect(onWert).toHaveBeenLastCalledWith(["alle"]);
+  });
+
+  it("öffnet die Auswahl dorthin, wo im scrollenden Bereich Platz ist, und nie höher als dieser", () => {
+    const bereich = document.createElement("div");
+    bereich.style.overflowY = "auto";
+    const knopf = document.createElement("button");
+    bereich.appendChild(knopf);
+    behaelter.appendChild(bereich);
+    const rechteck = (top: number, bottom: number) => ({ top, bottom }) as DOMRect;
+    bereich.getBoundingClientRect = () => rechteck(100, 700);
+    // Knopf unten im Bereich (wie im Chat): nach oben, Höhe bis zum oberen Rand des Bereichs.
+    knopf.getBoundingClientRect = () => rechteck(500, 530);  // unten nur 158 frei
+    expect(freierRaum(knopf)).toEqual({ nachOben: true, hoehe: 388 });
+    // Knopf oben: nach unten, bis zum unteren Rand des Bereichs (höchstens 560).
+    knopf.getBoundingClientRect = () => rechteck(120, 150);
+    expect(freierRaum(knopf)).toEqual({ nachOben: false, hoehe: 538 });
   });
 });
