@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { isPermissionGranted } from "@tauri-apps/plugin-notification";
 import { DiagnosePruefung, DiagnoseStand, DiagnoseErgebnis, diagnoseBericht, istDesktop, kern } from "./kern";
+import KiLeistungstest from "./KiLeistungstest";
 import NetzProtokoll from "./NetzProtokoll";
 
 const STAND_TEXT: Record<DiagnoseStand, string> = { ok: "in Ordnung", warnung: "Hinweis", fehler: "Fehler", aus: "aus" };
@@ -148,6 +149,8 @@ export default function Diagnose() {
           </ul>
         </section>
       ))}
+
+      <KiLeistungstest />
 
       <NetzProtokoll />
     </div>

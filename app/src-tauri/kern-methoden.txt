@@ -145,6 +145,7 @@ ki.export_name
 ki.extern_setzen
 ki.gegenueberstellung
 ki.laufend
+ki.leistungstest
 ki.modus
 ki.schalten
 ki.starten
