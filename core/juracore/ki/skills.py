@@ -464,15 +464,23 @@ _FUELLWOERTER = set(
     "paragraf paragrafen artikel absatz workflow routing router schnittstelle schnittstellen grundschema "
     "allgemein allgemeiner spezial modul output memo bgb zivilrecht ordnet norm normen beweislast "
     "gegenargument nachster schritt risiko prufprodukt fachgebiet route durch sein seine seiner wegen kann "
-    "konnen muss mussen soll sollen darf gegen ohne bitte welchen".split()
+    "konnen muss mussen soll sollen darf gegen ohne bitte welchen bearbeiten bearbeitung bearbeite auftrag "
+    "auftrags konkreten arbeitsprodukt arbeitsschritt "
+    "und der die das den dem des mit von bei fur aus ins vor zpo".split()
 )
 
 
-def _woerter(text: str) -> set[str]:
-    """Wörter ab vier Buchstaben, klein, Umlaute ohne Punkte (ä → a), ohne Füllwörter."""
+def _klein(text: str) -> str:
     klein = text.lower().replace("ä", "a").replace("ö", "o").replace("ü", "u").replace("ß", "ss")
-    klein = klein.replace("ae", "a").replace("oe", "o").replace("ue", "u")
-    return {w for w in re.findall(r"[a-z]{4,}", klein) if w not in _FUELLWOERTER}
+    return klein.replace("ae", "a").replace("oe", "o").replace("ue", "u")
+
+
+def _woerter(text: str, kurz: bool = False) -> set[str]:
+    """Wörter ab vier Buchstaben, klein, Umlaute ohne Punkte (ä → a), ohne Füllwörter; dazu Abkürzungen in
+    Großbuchstaben („AGB“, „WEG“). ``kurz`` nimmt auch Wörter mit drei Buchstaben (Kennungen wie „agb-haftung“)."""
+    woerter = set(re.findall(r"[a-z]{3,}" if kurz else r"[a-z]{4,}", _klein(text)))
+    woerter |= {_klein(w) for w in re.findall(r"\b[A-ZÄÖÜ]{2,5}\b", text)}
+    return {w for w in woerter if w not in _FUELLWOERTER and len(w) >= 2}
 
 
 def _nummern(text: str) -> set[str]:
@@ -502,21 +510,45 @@ def _treffer(woerter: set[str], frage: set[str]) -> set[str]:
     return {q for q in frage if any(_passt(w, q) for w in woerter)}
 
 
-def _punkte(skill: dict, frage: set[str], nummern: set[str]) -> float:
-    """Übereinstimmung von Skill und Frage: je Wort der Frage, das im Namen vorkommt, drei Punkte, in einer
-    Überschrift zwei, in der Beschreibung einer; eine gleiche Paragraphennummer im Namen
-    vier, in der Beschreibung zwei. So gewinnt der Skill, der die meisten Begriffe der Frage abdeckt; bei Gleichstand
-    der, dessen Name enger zur Frage passt (Anteil der passenden Wörter im Namen, als Nachkommastelle)."""
-    name = _woerter(skill["name"].replace("-", " "))
+def _felder(skill: dict) -> tuple[set[str], set[str], set[str]]:
+    """Wörter aus Name; Überschriften und Ordner; Beschreibung."""
+    name = _woerter(skill["name"].replace("-", " ").replace("_", " "), kurz=True)
     ueberschriften = _woerter(" ".join(re.findall(r"^#{1,3}\s+(.+)$", skill["text"], re.MULTILINE)))
-    beschreibung = _woerter(skill.get("beschreibung") or "")
+    ordner = _woerter(skill.get("ordner") or "", kurz=True)
+    return name, ueberschriften | ordner, _woerter(skill.get("beschreibung") or "")
+
+
+def _gewichte(skills: list[dict], frage: set[str]) -> dict[str, float]:
+    """Gewicht je Wort der Frage: Ein Wort, das zu vielen der Skills passt („AGB“ in einem ganzen AGB-Paket,
+    „Klausel“), unterscheidet sie kaum und zählt weniger als eines, das nur zu wenigen passt („Laufzeit“)."""
+    if len(skills) < 8:
+        return dict.fromkeys(frage, 1.0)
+    felder = [set().union(*_felder(s)) for s in skills]
+    gewichte = {}
+    for q in frage:
+        anteil = sum(1 for f in felder if any(_passt(w, q) for w in f)) / len(skills)
+        gewichte[q] = 1.0 if anteil <= 0.15 else 0.6 if anteil <= 0.4 else 0.3
+    return gewichte
+
+
+def _punkte(skill: dict, frage: set[str], nummern: set[str], gewichte: dict[str, float] | None = None) -> float:
+    """Übereinstimmung von Skill und Frage: je Wort der Frage, das im Namen vorkommt, drei Punkte, in einer
+    Überschrift oder im Ordner (Paket, etwa „AGB-Recht Prüfer“) zwei, in der Beschreibung einer, jeweils mal
+    Gewicht des Worts (``_gewichte``); eine gleiche Paragraphennummer im Namen vier, in der Beschreibung zwei.
+    So gewinnt der Skill, der die meisten Begriffe der Frage abdeckt; bei Gleichstand der, dessen Name enger zur
+    Frage passt (Anteil der passenden Wörter im Namen, als Nachkommastelle)."""
+    name, ueberschriften, beschreibung = _felder(skill)
+    g = gewichte or {}
     im_namen = _treffer(name, frage)
     in_ueberschriften = _treffer(ueberschriften, frage) - im_namen
     in_beschreibung = _treffer(beschreibung, frage) - im_namen - in_ueberschriften
     nummern_name = set(re.findall(r"(?<![\d.])(\d{2,4}[a-z]?)(?![\d.])", skill["name"]))
     nummern_sonst = _nummern(skill.get("beschreibung") or "") - nummern_name
     anteil = sum(1 for w in name if any(_passt(w, q) for q in frage)) / len(name) if name else 0.0
-    return (3 * len(im_namen) + 2 * len(in_ueberschriften) + len(in_beschreibung)
+    def summe(woerter: set[str]) -> float:
+        return sum(g.get(q, 1.0) for q in woerter)
+
+    return (3 * summe(im_namen) + 2 * summe(in_ueberschriften) + summe(in_beschreibung)
             + 4 * len(nummern & nummern_name) + 2 * len(nummern & nummern_sonst) + 0.9 * anteil)
 
 
@@ -558,14 +590,18 @@ def fuer_anfrage(datei: Path, auswahl: list[str] | str | None, kontext: int, fra
     if not kandidaten:
         return {"skills": [], "hinweis": "Die gewählten Skills gibt es nicht mehr."}
     woerter, nummern = _woerter(frage), _nummern(frage)
-    bewertet = sorted(((s["id"] in einzeln, _punkte(s, woerter, nummern), s) for s in kandidaten),
+    gewichte = _gewichte(kandidaten, woerter)
+    bewertet = sorted(((s["id"] in einzeln, _punkte(s, woerter, nummern, gewichte), s) for s in kandidaten),
                       key=lambda x: (-int(x[0]), -x[1], x[2]["name"].lower()))
+    # Aus Ordnern und „Alle“ nur, was nah an den besten herankommt: lieber zwei passende als fünf mittelmäßige.
+    bester = max((p for v, p, _ in bewertet if not v), default=0.0)
+    schwelle = max(MINDEST_PUNKTE, 0.6 * bester)
     gewaehlt: list[dict] = []
     rest = grenze
     for vorrang, punkte, s in bewertet:
         if len(gewaehlt) >= HOECHST_JE_ANFRAGE:
             break
-        if not vorrang and punkte < MINDEST_PUNKTE:
+        if not vorrang and punkte < schwelle:
             continue
         laenge = len(s["text"]) + 200  # Kopfzeile je Skill
         if laenge <= rest:

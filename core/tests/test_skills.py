@@ -278,9 +278,12 @@ def test_auswahl_nimmt_die_passendsten(tmp_path):
     lang = skills.speichern(datei, "zugang-lang", "# Zugang\n" + "x" * 7000, ordner="BGB AT")
 
     w = skills.fuer_anfrage(datei, ["alle"], 32768, "Ist der Zugang der Kündigung nach § 130 BGB erfolgt?")
-    assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130", "zugang-lang"] and w["hinweis"] is None
+    # Nur, was nah an den besten herankommt: „zugang-lang“ teilt nur das Wort „Zugang“.
+    assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130"] and w["hinweis"] is None
+    w = skills.fuer_anfrage(datei, ["alle"], 32768, "Wann ist der Zugang erfolgt?")
+    assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130", "zugang-lang"]
     # Bei 8k passt neben dem kurzen der lange nicht mehr hinein.
-    w = skills.fuer_anfrage(datei, ["alle"], 8192, "Ist der Zugang der Kündigung nach § 130 BGB erfolgt?")
+    w = skills.fuer_anfrage(datei, ["alle"], 8192, "Wann ist der Zugang erfolgt?")
     assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130"]
     w = skills.fuer_anfrage(datei, ["ordner:BGB BT"], 32768, "Ist die Kündigung zugegangen?")
     assert w["skills"] == [] and "passte" in w["hinweis"]
@@ -292,4 +295,4 @@ def test_auswahl_nimmt_die_passendsten(tmp_path):
         skills.fuer_anfrage(datei, [lang["id"]], 8192, "")
     assert skills.fuer_anfrage(datei, [zugang["id"], lang["id"]], 8192, "Zugang")["skills"][0]["id"] == zugang["id"]
     system = skills.systemanweisung("REGELN", w["skills"])
-    assert "gelten die folgenden Arbeitsanweisungen" in system and system.count("<<< Arbeitsanweisung") == len(w["skills"]) == 3
+    assert "gelten die folgenden Arbeitsanweisungen" in system and system.count("<<< Arbeitsanweisung") == len(w["skills"]) == 2

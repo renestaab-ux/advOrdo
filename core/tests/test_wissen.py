@@ -562,3 +562,15 @@ def test_rpc_prueft_die_stufe_der_rechtsprechung(tmp_path):
     a = kern.bearbeite(json.dumps({"id": 1, "method": "ki.chat_fragen",
                                    "params": {"akte_id": 1, "frage": "x", "rechtsprechung": "alles"}}))
     assert "Rechtsprechung" in a["error"]["message"]
+
+
+def test_thema_agb_und_normen_aus_skills(akten, con, tmp_path):
+    akte_id = _akte(akten, con, tmp_path)
+    assert [t for t, _ in wissen.themen("Welche Klauseln sind unwirksam?")] == ["AGB-Recht"]
+    assert wissen.themen("Wer ist die Beklagte?", "Kaufvertrag über einen Pkw") == []
+    # Thema am Dokumenttext erkannt: Kernnormen vor den zitierten; fehlen sie in der Wissensbasis, wird das gesagt.
+    normen, fehlend = wissen.waehle_normen(con, akten, akte_id, None, "Was ist unwirksam?", suche=False,
+                                           thema_text="Es gelten unsere Allgemeinen Geschäftsbedingungen.",
+                                           skill_texte=["Prüfe § 437 BGB und § 280 BGB."])
+    assert "§ 309 BGB" in fehlend
+    assert [(n["bezeichnung"], n["herkunft"]) for n in normen] == [("§ 280", "zitiert"), ("§ 437", "skill")]

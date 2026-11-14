@@ -539,7 +539,18 @@ class Kern:
             teile += [z[0] for z in self.akten.execute("SELECT name FROM akte WHERE id = ?", (int(akte_id),))]
             teile += [z[0] for z in self.akten.execute("SELECT dateiname FROM dokument WHERE akte_id = ?",
                                                        (int(akte_id),))]
-        return " ".join(teile)
+        return " ".join(teile + self._themen(akte_id, dokument_id))
+
+    def _themen(self, akte_id: int | None, dokument_id: int | None) -> list[str]:
+        """Themen (``ki_wissen.THEMEN``, etwa „AGB-Recht“), die die Dokumente berühren; sie helfen bei der Wahl der
+        Skills, wenn die Frage das Thema nicht nennt („Welche Klauseln sind unwirksam?“)."""
+        if akte_id is None and dokument_id is None:
+            return []
+        texte = [z[0] for z in self.akten.execute(
+            """SELECT a.text FROM abschnitt a JOIN dokument d ON d.id = a.dokument_id
+               WHERE (? IS NULL OR d.akte_id = ?) AND (? IS NULL OR d.id = ?) LIMIT 400""",
+            (akte_id, akte_id, dokument_id, dokument_id))]
+        return [name for name, _ in ki_wissen.themen("\n".join(texte))]
 
     def _skill_kontext(self) -> int | None:
         """Kontextfenster des aktiven Modells, damit die Skill-Liste sagt, was hineinpasst; ``None`` ohne Modell."""
@@ -575,8 +586,9 @@ class Kern:
             raise ValueError("Die Frage ist leer.")
         e, modell = self._ki_modell()
         extern = ki_anbieter.EXTERNE[e.extern_anbieter]["titel"] if e.extern else None
-        gewaehlt = ki_skills.fuer_anfrage(self.skills_datei, skills or ([skill] if skill else []),
-                                          e.aktiver_kontext, str(frage))
+        auswahl = skills or ([skill] if skill else [])
+        anlass = " ".join([str(frage), *(self._themen(akte_id, dokument_id) if auswahl else [])])
+        gewaehlt = ki_skills.fuer_anfrage(self.skills_datei, auswahl, e.aktiver_kontext, anlass)
 
         def arbeit(auftrag) -> dict:
             con = akte.oeffne(self.akten_pfad)

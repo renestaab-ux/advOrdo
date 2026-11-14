@@ -259,8 +259,11 @@ def frage(
     if gesetze is not None:
         fortschritt.melde("Suche passende Normen in der Wissensbasis")
         zusaetzlich = ["§ 288 BGB", "§ 247 BGB", "§ 187 BGB", "§ 188 BGB", "§ 193 BGB"] if rechnen else []
-        normen, fehlende_normen = wissen.waehle_normen(gesetze, con, akte_id, dokument_id, text, zusaetzlich,
-                                                       suche=gesetze_suche, ergaenzt=gesetze_ergaenzt)
+        # Themen (etwa AGB) auch am Dokumenttext erkennen: „Welche Klauseln sind unwirksam?“ nennt das Thema nicht.
+        thema_text = "\n".join(a["text"] for t in texte for a in t.abschnitte[:60])
+        normen, fehlende_normen = wissen.waehle_normen(
+            gesetze, con, akte_id, dokument_id, text, zusaetzlich, suche=gesetze_suche, ergaenzt=gesetze_ergaenzt,
+            thema_text=thema_text, skill_texte=[s["text"] for s in skills or []])
     urteile: list[dict] = []
     fehlende_urteile: list[str] = []
     mit_rechtsprechung = rechtsprechung in (wissen.RECHTSPRECHUNG_AKTE, wissen.RECHTSPRECHUNG_SUCHE)
@@ -365,7 +368,7 @@ def frage(
             # und Urteilstext (zitierte Normen, nur Leitsätze).
             fortschritt.melde("Die Anfrage war zu lang; frage noch einmal mit weniger Gesetzes- und Urteilstext")
             fortschritt.pruefe()
-            normen = [n for n in normen if n["herkunft"] == "zitiert"][:3]
+            normen = [n for n in normen if n["herkunft"] in ("thema", "zitiert")][:3]
             for i, n in enumerate(normen, 1):
                 n["nr"] = i
             urteile = wissen.nur_leitsaetze(urteile)
