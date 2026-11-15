@@ -7,6 +7,7 @@ def test_paragraphenzeichen_nachgebessert():
         return " ".join(paragraphen_nachbessern(s.split()))
 
     assert f("8& 1 Leistungen") == "§ 1 Leistungen"
+    assert f("$& 10 Gerichtsstand, Schlussbestimmungen") == "§ 10 Gerichtsstand, Schlussbestimmungen"
     assert f("$ 10 Gerichtsstand, Schlussbestimmungen") == "§ 10 Gerichtsstand, Schlussbestimmungen"
     assert f("nach 8 309 Nr. 7 BGB") == "nach § 309 Nr. 7 BGB"
     assert f("gemäß $ 307 Abs. 1 BGB") == "gemäß § 307 Abs. 1 BGB"

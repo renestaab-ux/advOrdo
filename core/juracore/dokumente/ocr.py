@@ -109,7 +109,7 @@ class Tesseract:
 
 
 # Tesseract liest das Paragraphenzeichen oft als „8“, „8&“, „$“ oder „&“, das doppelte als „88“ oder „$$“.
-_FALSCH_EINFACH = {"8", "8&", "&", "$", "8S", "S8", "%"}
+_FALSCH_EINFACH = {"8", "8&", "&", "$", "8S", "S8", "%", "$&", "&$", "S&", "§&", "$8", "8$"}
 _FALSCH_DOPPELT = {"88", "$$", "8§", "§8", "&&", "88&", "8&8"}
 _NUMMER = re.compile(r"^\d{1,4}[a-z]?[.,;:)]?$")
 _ZUSATZ = re.compile(r"^(?:Abs\.?|Nr\.?|S\.|Satz|Halbs\.?|ff?\.)$")

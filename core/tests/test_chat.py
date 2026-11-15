@@ -461,12 +461,14 @@ def test_verlesene_ueberschrift_und_angehaengte_ueberschrift_im_scan():
         a(3, "(1) Bei Krankheit ruht der Vertrag."),
         a(4, "§ 9 Hausordnung"), a(5, "(1) Es gilt die Hausordnung."),
         a(6, "810 Gerichtsstand, Schlussbestimmungen"), a(7, "(1) Gerichtsstand ist Freiburg."),
-        a(8, "810 Mitglieder haben sich angemeldet."),
+        a(8, "810 Mitglieder haben sich angemeldet."), a(9, "$& 11 Schlussbestimmungen"), a(10, "(1) Ende."),
     ])
     assert chat._bestimmungen(t, 7) == "{§ 10 Abs. 1} "
     assert chat._bestimmungen(t, 8) == "{§ 10 Abs. 1} "  # „§ 11“ wäre die nächste Nummer, nicht „10“
+    assert chat._bestimmungen(t, 10) == "{§ 11 Abs. 1} "  # so las Tesseract den Scan bei René
     gruppen = {p: [x["nr"] for x in absaetze] for _, _, p, absaetze in chat._paragraphen([t])}
     assert gruppen["§ 4"] == [1, 2] and gruppen["§ 5"] == [3] and gruppen["§ 10"] == [6, 7, 8]
+    assert gruppen["§ 11"] == [9, 10]
 
 
 def test_klauselpruefung_waehlt_skills_je_paragraph(akten, con, tmp_path):
