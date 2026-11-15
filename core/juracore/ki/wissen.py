@@ -40,7 +40,7 @@ HOECHSTENS_BERECHNUNGEN = 2
 # Gesetze, in denen die Suche zur Frage stets sucht; dazu kommen die in der Akte zitierten.
 SUCHGESETZE = ("BGB", "ZPO", "GVG", "EGBGB")
 SKILL_NORMEN = 4  # Normen, die die gewählten Skills zitieren, zusätzlich
-THEMA_ZEICHEN = 8000  # je Kernnorm eines Themas (§ 309 BGB ist lang und wird sonst mitten in den Nummern gekürzt)
+THEMA_ZEICHEN = 10000  # je Kernnorm eines Themas (§ 309 BGB ist lang und wird sonst mitten in den Nummern gekürzt)
 
 # Themen, deren Kernnormen immer mitgehen, wenn Frage oder vorgelegter Text sie berühren: Die Volltextsuche findet
 # sie aus einer Frage wie „Welche Klauseln sind unwirksam?“ nicht verlässlich. Reihenfolge = Vorrang im Budget.

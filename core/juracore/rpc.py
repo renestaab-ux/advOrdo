@@ -599,6 +599,12 @@ class Kern:
         auswahl = skills or ([skill] if skill else [])
         anlass = " ".join([str(frage), *(self._themen(akte_id, dokument_id) if auswahl else [])])
         gewaehlt = ki_skills.fuer_anfrage(self.skills_datei, auswahl, e.aktiver_kontext, anlass)
+        skill_waehler = None
+        if any(a == ki_skills.ALLE or str(a).startswith(ki_skills.ORDNER_PRAEFIX) for a in auswahl):
+            # Klauselprüfung je Paragraph: zu jedem Paragraphen die passendsten Skills aus derselben Auswahl
+            # (Wortvergleich, ohne weitere Anfrage an das Modell).
+            def skill_waehler(text: str) -> list[dict]:
+                return ki_skills.fuer_anfrage(self.skills_datei, auswahl, e.aktiver_kontext, text)["skills"][:2]
 
         def arbeit(auftrag) -> dict:
             gew = self._skills_vom_modell(auswahl, anlass, e.aktiver_kontext, modell, auftrag) or gewaehlt
@@ -612,7 +618,8 @@ class Kern:
                                      gesetze_ergaenzt=[str(x) for x in gesetze_ergaenzt or []],
                                      rechtsprechung=rechtsprechung,
                                      basiszins=basiszins.lade(self.basiszins_datei), land=str(land),
-                                     skills=gew["skills"], skill_hinweis=gew["hinweis"])
+                                     skills=gew["skills"], skill_hinweis=gew["hinweis"],
+                                     skill_waehler=skill_waehler)
             finally:
                 con.close()
                 if wb is not None:

@@ -142,8 +142,23 @@ _UEBERSCHRIFT = re.compile(
     # Vertrags“ (am Ende des Abschnitts, ohne weiteren Satz danach).
     r"|(?<=[.:;] )§\s*(\d{1,3}[a-z]?)\s+(?![A-Z]{2,}\b|Abs\b|Nr\b|Satz\b|S\b)[A-ZÄÖÜ][^.;:§]{0,70}$"
 )
+# Überschrift mit verlesenem Paragraphenzeichen („810 Gerichtsstand“, „$10 Gerichtsstand“). Gilt nur, wenn die
+# Nummer auf die vorige Überschrift folgt; eine Zahl am Zeilenanfang ist sonst meist wirklich eine Zahl.
+_UEBERSCHRIFT_VERLESEN = re.compile(r"(?:^|\n)\s*(?P<z>[8$&S%])\s?(\d{1,2})\s+(?![A-Z]{2,}\b)[A-ZÄÖÜ][a-zäöüß]{2,}")
 # Absatz einer Bestimmung: „(2)“ am Anfang einer Zeile oder nach einem Satzende.
 _ABSATZ = re.compile(r"(?:^|\n|(?<=[.:;]) )\s*\((\d{1,2})\)\s")
+
+
+def _folgt(paragraph: str | None, marken: list[tuple[int, str, str]], marke: tuple[int, str, str]) -> bool:
+    """Ob eine Überschrift mit verlesenem „§“ die nächste Nummer nach der vorigen Überschrift trägt."""
+    vorige = paragraph
+    for m in marken:
+        if m is marke:
+            break
+        if m[1] == "§":
+            vorige = f"§ {m[2]}"
+    zahl = re.match(r"§ (\d+)$", vorige or "")
+    return bool(zahl) and int(marke[2]) == int(zahl.group(1)) + 1
 
 
 @dataclass
@@ -177,13 +192,15 @@ class Text:
             # Position des Zeichens „§“ bzw. der Klammer, damit ein Zitat ab „(1) …“ schon dazu zählt.
             marken = sorted([(text.rfind("§", 0, m.start(m.lastindex)), "§", m.group(m.lastindex))
                              for m in _UEBERSCHRIFT.finditer(text)]
-                            + [(m.start(1) - 1, "abs", m.group(1)) for m in _ABSATZ.finditer(text)])
+                            + [(m.start(1) - 1, "abs", m.group(1)) for m in _ABSATZ.finditer(text)]
+                            + [(m.start("z"), "§?", m.group(2)) for m in _UEBERSCHRIFT_VERLESEN.finditer(text)])
+            marken = [m for m in marken if m[1] != "§?" or _folgt(paragraph, marken, m)]
             # Die vorige Bestimmung läuft weiter, außer der Abschnitt beginnt selbst mit „§ 3“ oder „(2)“.
             beginnt_neu = bool(marken) and not text[: marken[0][0]].strip(" \n§(")
             if paragraph and not beginnt_neu:
                 stellen.append((0, paragraph + (f" Abs. {absatz}" if absatz else "")))
             for pos, art, wert in marken:
-                if art == "§":
+                if art in ("§", "§?"):
                     paragraph, absatz = f"§ {wert}", None
                 elif paragraph:
                     absatz = wert

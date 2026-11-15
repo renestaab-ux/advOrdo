@@ -393,11 +393,14 @@ def test_klauselpruefung_nennt_die_bestimmungen_des_vertrags(akten, con, tmp_pat
     akte.importiere(akten, con, akte_id, vertrag, tmp_path / "ablage", ocr=False)
 
     def antwort(prompt: str, schema: dict) -> dict:
+        if "aussagen" not in schema["properties"]:  # vorab: Verbraucher oder Unternehmer?
+            return {"ergebnis": "verbraucher", "text": "Die Kundin schließt den Vertrag privat.",
+                    "belege": [{"dokument": 1, "absatz": 1, "zitat": "Mitgliedsvertrag Studio Muster"}]}
         assert schema["properties"]["aussagen"]["items"]["properties"]["ergebnis"]["enum"] == [
             "unwirksam", "bedenklich", "wirksam"]
         if "Zu prüfen: § 6" in prompt:
             d, n = _zeile(prompt, "gleich aus welchem")
-            return {"aussagen": [{"text": "§ 6 Abs. 1 des Vertrags: unwirksam.", "art": "einschaetzung",
+            return {"aussagen": [{"text": "§ 6 Abs. 1 des Vertrags: unwirksam ([1.8]).", "art": "tatsache",
                                   "ergebnis": "unwirksam", "belege": [
                 {"dokument": d, "absatz": n, "zitat": "{§ 6 Abs. 1} Das Studio haftet nicht für Schäden"}]}]}
         d, n, stueck = next((int(d), int(n), s) for d, n, s in re.findall(r"^\[(\d+)\.(\d+)\] \{§ \d+ Abs\. 1\} (.*)$",
@@ -408,13 +411,16 @@ def test_klauselpruefung_nennt_die_bestimmungen_des_vertrags(akten, con, tmp_pat
     modell = Attrappe(antwort)
     ergebnis = chat.frage(akten, modell, 16384, akte_id, "Welche Klauseln sind unwirksam?")
     # Eine Anfrage je Paragraph, jede mit dem Kopf des Vertrags als Zusammenhang.
-    assert len(modell.anfragen) == 3 and all("Studio Muster" in a for a in modell.anfragen)
-    assert "{§ 2 Abs. 2} (2) Der Vertrag verlängert sich" in modell.anfragen[1]
-    assert "Haftung" not in modell.anfragen[1]
+    assert len(modell.anfragen) == 4 and all("Studio Muster" in a for a in modell.anfragen)
+    assert all("ist nach dem Vertrag Verbraucher (§ 13 BGB)" in a for a in modell.anfragen[1:])
+    assert "{§ 2 Abs. 2} (2) Der Vertrag verlängert sich" in modell.anfragen[2]
+    assert "§ 6 Haftung" not in modell.anfragen[2]
     a = ergebnis["aussagen"]
     assert a[0]["text"].endswith("Wohl unwirksam: § 6 Abs. 1. Ohne Bedenken: § 1 Abs. 1, § 2 Abs. 1.")
-    assert a[1]["status"] == "belegt" and a[1]["fundstellen"][0]["bestimmung"] == "§ 6 Abs. 1"
-    assert ergebnis["auswahl"]["je_bestimmung"] and "klausel" not in a[1]
+    assert a[1]["text"] == "Vertragspartner: Die Kundin schließt den Vertrag privat." and a[1]["status"] == "belegt"
+    assert a[2]["status"] == "belegt" and a[2]["fundstellen"][0]["bestimmung"] == "§ 6 Abs. 1"
+    assert a[2]["text"] == "§ 6 Abs. 1 des Vertrags: unwirksam." and a[2]["art"] == "einschaetzung"
+    assert ergebnis["auswahl"]["je_bestimmung"] and "klausel" not in a[2]
     # Ohne Frage nach Klauseln keine Prüfanweisung, die Kennzeichen bleiben.
     modell = Attrappe(lambda p, s: {"aussagen": []})
     chat.frage(akten, modell, 16384, akte_id, "Wie lange läuft der Vertrag?")
@@ -439,3 +445,49 @@ def test_skills_weichen_den_dokumenten():
     behalten, weg = chat._skills_kuerzen(skills, [text], 8192 + 1200 + 5000, modell, 0)
     assert [s["name"] for s in behalten] == ["eins"] and weg == ["zwei"]
     assert chat._skills_kuerzen(skills, [text], 32768, modell, 0) == (skills, [])
+
+
+def test_verlesene_ueberschrift_und_angehaengte_ueberschrift_im_scan():
+    from juracore.ki import belege
+
+    def a(nr, text):
+        return {"nr": nr, "text": text, "seite": 1, "seitenwechsel": "[]", "rn": None}
+
+    # So liest die Texterkennung manchmal (frei erfunden): „§ 10“ als „810“, „§ 5“ am Ende des vorigen Absatzes.
+    t = belege.Text(1, "scan.pdf", [], [
+        a(1, "§ 4 Rücklastschriften"),
+        a(2, "(2) Für jede Rücklastschrift berechnet das Studio 25,00 €. Weitere Ansprüche bleiben vorbehalten. "
+             "§ 5 Ruhen des Vertrags"),
+        a(3, "(1) Bei Krankheit ruht der Vertrag."),
+        a(4, "§ 9 Hausordnung"), a(5, "(1) Es gilt die Hausordnung."),
+        a(6, "810 Gerichtsstand, Schlussbestimmungen"), a(7, "(1) Gerichtsstand ist Freiburg."),
+        a(8, "810 Mitglieder haben sich angemeldet."),
+    ])
+    assert chat._bestimmungen(t, 7) == "{§ 10 Abs. 1} "
+    assert chat._bestimmungen(t, 8) == "{§ 10 Abs. 1} "  # „§ 11“ wäre die nächste Nummer, nicht „10“
+    gruppen = {p: [x["nr"] for x in absaetze] for _, _, p, absaetze in chat._paragraphen([t])}
+    assert gruppen["§ 4"] == [1, 2] and gruppen["§ 5"] == [3] and gruppen["§ 10"] == [6, 7, 8]
+
+
+def test_klauselpruefung_waehlt_skills_je_paragraph(akten, con, tmp_path):
+    akte_id = akte.akte_anlegen(akten, "Studio ./. Kundin")["id"]
+    vertrag = tmp_path / "Vertrag.md"
+    vertrag.write_text("Vertrag Studio Muster\n\n§ 1 Leistungen\n\n(1) Das Studio stellt Geräte bereit.\n\n"
+                       "§ 2 Gerichtsstand\n\n(1) Gerichtsstand ist Freiburg im Breisgau.\n", encoding="utf-8")
+    akte.importiere(akten, con, akte_id, vertrag, tmp_path / "ablage", ocr=False)
+    systeme: list[str] = []
+
+    class Modell(Attrappe):
+        def chat(self, system, nutzer, schema):
+            systeme.append(system)
+            return super().chat(system, nutzer, schema)
+
+    eigener = {"id": "g", "name": "gerichtsstand-pruefen", "text": "Prüfe § 38 ZPO für Verbraucher."}
+    allgemein = {"id": "a", "name": "agb-allgemein", "text": "Prüfe §§ 307 ff. BGB."}
+    ergebnis = chat.frage(akten, Modell(lambda p, s: {"aussagen": []}), 16384, akte_id,
+                          "Welche Klauseln sind unwirksam?", skills=[allgemein],
+                          skill_waehler=lambda text: [eigener] if "Gerichtsstand" in text else [])
+    # Vorab-Anfrage und § 1 mit dem allgemeinen Skill, § 2 mit dem passenden.
+    assert ["38 ZPO" in s for s in systeme] == [False, False, True]
+    assert "307 ff." in systeme[1] and "307 ff." not in systeme[2]
+    assert ergebnis["skills"] == ["agb-allgemein", "gerichtsstand-pruefen"]
