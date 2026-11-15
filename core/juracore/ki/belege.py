@@ -144,7 +144,8 @@ _UEBERSCHRIFT = re.compile(
 )
 # Überschrift mit verlesenem Paragraphenzeichen („810 Gerichtsstand“, „$10 Gerichtsstand“). Gilt nur, wenn die
 # Nummer auf die vorige Überschrift folgt; eine Zahl am Zeilenanfang ist sonst meist wirklich eine Zahl.
-_UEBERSCHRIFT_VERLESEN = re.compile(r"(?:^|\n)\s*(?P<z>[8$&S%§]{1,2})\s?(\d{1,2})\s+(?![A-Z]{2,}\b)[A-ZÄÖÜ][a-zäöüß]{2,}")
+_UEBERSCHRIFT_VERLESEN = re.compile(
+    r"(?:^|\n)\s*(?P<z>[8$&S%§]{1,2})\s?(\d{1,2})\s+(?![A-Z]{2,}\b)[A-ZÄÖÜ][a-zäöüß]{2,}")
 # Absatz einer Bestimmung: „(2)“ am Anfang einer Zeile oder nach einem Satzende.
 _ABSATZ = re.compile(r"(?:^|\n|(?<=[.:;]) )\s*\((\d{1,2})\)\s")
 
