@@ -11,6 +11,7 @@ import {
   dauerText,
   kern,
 } from "./kern";
+import { AbbrechenKnopf } from "./AbbrechenKnopf";
 
 export const ERGEBNIS_TEXT: Record<GegenueberstellungErgebnis, string> = {
   traegt: "trägt",
@@ -191,9 +192,10 @@ export function GegenueberstellungBereich({
           <div>
             <strong>{auftrag.text}</strong> <span className="leise">· {dauerText(auftrag.sekunden)}</span>
           </div>
-          <button className="zweitrangig" onClick={async () => setAuftrag(await kern<KiAuftrag>("ki.abbrechen", { auftrag_id: auftrag.auftrag_id }))}>
-            Abbrechen
-          </button>
+          <AbbrechenKnopf
+            auftrag={auftrag}
+            onAbbrechen={async () => setAuftrag(await kern<KiAuftrag>("ki.abbrechen", { auftrag_id: auftrag.auftrag_id }))}
+          />
         </div>
       )}
       {fehler && <p className="fehler" role="alert">{fehler}</p>}

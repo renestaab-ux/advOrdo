@@ -8,9 +8,9 @@ leicht eine Minute; liefe er dort, warteten Timer, Erinnerungen und jeder Klick 
 
 Die Verwaltung teilt sich ``Auftragsliste`` mit den KI-Aufträgen (``ki.auftraege``), mit zwei Unterschieden:
 Verschiedene Befehle dürfen gleichzeitig laufen (ein Import hält keine Volltextsuche auf), derselbe Befehl aber
-nur einmal. Und abgebrochen wird spätestens vor der nächsten Netzverbindung (``netzprotokoll.abbrechbar``) oder
-dort, wo der Befehl selbst mit ``pruefe`` nachfragt; was schon begonnen ist (eine Antwort, die gerade gespeichert
-wird), wird noch beendet, sein Ergebnis aber verworfen.
+nur einmal. Und abgebrochen wird sofort: Eine laufende Netzverbindung wird getrennt, eine neue gar nicht erst
+aufgebaut (``netzprotokoll.abbrechbar``), sonst dort, wo der Befehl selbst mit ``pruefe`` nachfragt; was schon
+begonnen ist (eine Antwort, die gerade gespeichert wird), wird noch beendet, sein Ergebnis aber verworfen.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from typing import Any
 
 from . import netzprotokoll
 from .ki.analyse import Abgebrochen
-from .ki.auftraege import ABGEBROCHEN, FEHLER, FERTIG, LAEUFT, Auftrag, Auftragsliste
+from .ki.auftraege import ABGEBROCHEN, FEHLER, FERTIG, Auftrag, Auftragsliste
 
 log = logging.getLogger("juracore.hintergrund")
 
@@ -85,7 +85,7 @@ class Hintergrund(Auftragsliste):
     def _fuehre_aus(cls, auftrag: Auftrag, arbeit: Callable[[], Any]) -> None:
         marke = _aktuell.set(auftrag)
         try:
-            with netzprotokoll.abbrechbar(auftrag.pruefe):
+            with netzprotokoll.abbrechbar(auftrag.pruefe, auftrag.leitungen):
                 ergebnis = arbeit()
             auftrag.pruefe()  # abgebrochen, aber zu Ende gelaufen: Ergebnis verwerfen
             status, fehler, text = FERTIG, None, "Fertig"
@@ -98,9 +98,12 @@ class Hintergrund(Auftragsliste):
                 log.warning("Hintergrundauftrag %s (%s) fehlgeschlagen: %s", auftrag.nr, auftrag.aufgabe, f)
                 ergebnis, status, fehler, text = None, FEHLER, str(f), "Fehlgeschlagen"
         except Exception as f:
-            log.exception("Unerwarteter Fehler in Hintergrundauftrag %s", auftrag.nr)
-            ergebnis, status, fehler, text = (None, FEHLER, f"Unerwarteter Fehler im Analysekern "
-                                              f"({type(f).__name__}: {f}).", "Fehlgeschlagen")
+            if auftrag._abbruch.is_set():
+                ergebnis, status, fehler, text = None, ABGEBROCHEN, None, "Abgebrochen"
+            else:
+                log.exception("Unerwarteter Fehler in Hintergrundauftrag %s", auftrag.nr)
+                ergebnis, status, fehler, text = (None, FEHLER, f"Unerwarteter Fehler im Analysekern "
+                                                  f"({type(f).__name__}: {f}).", "Fehlgeschlagen")
         finally:
             _aktuell.reset(marke)
         cls._beenden(auftrag, ergebnis, status, fehler, text)
@@ -110,9 +113,7 @@ class Hintergrund(Auftragsliste):
 
     def abbrechen(self, auftrag_id: int) -> dict:
         auftrag = self._hole(auftrag_id)
-        if auftrag.status == LAEUFT:
-            auftrag._abbruch.set()
-            auftrag.melde("Wird abgebrochen …")
+        auftrag.abbruch_anfordern("Wird abgebrochen …")
         return _als_dict(auftrag)
 
 

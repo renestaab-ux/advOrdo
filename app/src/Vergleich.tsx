@@ -20,6 +20,7 @@ import {
   kern,
   zeitpunkt,
 } from "./kern";
+import { AbbrechenKnopf } from "./AbbrechenKnopf";
 
 type Umfang = "alle" | "zwei";
 
@@ -348,9 +349,7 @@ function KiZeile({
       <p className="ki-zeile" role="status">
         Regelbasiertes Ergebnis. Die KI vergleicht im Hintergrund
         {a.text ? `: ${a.text}` : " …"} ({a.sekunden} s){" "}
-        <button className="link klein" onClick={onAbbrechen}>
-          Abbrechen
-        </button>
+        <AbbrechenKnopf auftrag={a} onAbbrechen={onAbbrechen} klein />
       </p>
     );
   }

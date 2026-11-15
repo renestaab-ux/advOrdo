@@ -27,6 +27,7 @@ import {
   veraltet,
   zeitpunkt,
 } from "./kern";
+import { AbbrechenKnopf } from "./AbbrechenKnopf";
 
 type Ansicht = "chronologie" | "akte" | "dokumente";
 export type Offen = { inhalt: DokumentInhalt; abschnitt: number } | null;
@@ -390,9 +391,7 @@ function Fortschritt({ auftrag, onAbbrechen }: { auftrag: KiAuftrag; onAbbrechen
           <div style={{ width: `${anteil}%` }} />
         </div>
       )}
-      <button className="zweitrangig" onClick={onAbbrechen}>
-        Abbrechen
-      </button>
+      <AbbrechenKnopf auftrag={auftrag} onAbbrechen={onAbbrechen} />
     </div>
   );
 }

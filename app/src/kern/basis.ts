@@ -34,6 +34,8 @@ export interface HintergrundAuftrag {
   sekunden: number;
   ergebnis: unknown;
   fehler: string | null;
+  /** Abbruch angefordert, der Auftrag endet gleich. */
+  abbruch?: boolean;
 }
 
 const hintergrundLaufend = new Map<number, HintergrundAuftrag>();

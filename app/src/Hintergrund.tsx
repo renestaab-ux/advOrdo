@@ -26,7 +26,7 @@ export default function Hintergrund() {
       {liste.length > 0 && (
     <div className="hintergrund-anzeige" aria-label="Aufträge im Hintergrund" role="region">
       {liste.map((a) => {
-        const bricht = a.text.startsWith("Wird ") && a.text.includes("abgebrochen");
+        const bricht = !!a.abbruch || (a.text.startsWith("Wird ") && a.text.includes("abgebrochen"));
         return (
           <div key={`${a.ki ? "ki" : "kern"}-${a.auftrag_id}`} className="hintergrund-auftrag">
             <span className="hintergrund-drehen" aria-hidden="true" />

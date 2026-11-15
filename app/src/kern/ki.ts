@@ -252,6 +252,8 @@ export interface KiAuftrag {
   sekunden: number;
   ergebnis: unknown;
   fehler: string | null;
+  /** Abbruch angefordert, der Auftrag endet gleich (Knopf zeigt „Bricht ab …“). */
+  abbruch?: boolean;
 }
 
 export interface KiErgebnisse {

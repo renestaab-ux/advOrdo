@@ -33,7 +33,6 @@ import logging
 import os
 import re
 import socket
-import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
@@ -398,14 +397,20 @@ class _Http:
         gewartet = 0
         while True:
             try:
-                with oeffner.open(req, timeout=timeout) as antwort:
-                    return json.loads(antwort.read().decode("utf-8"))
+                try:
+                    with oeffner.open(req, timeout=timeout) as antwort:
+                        return json.loads(antwort.read().decode("utf-8"))
+                except Exception:
+                    # Wurde der Auftrag abgebrochen, ist der Fehler nur die getrennte Verbindung: als Abbruch melden,
+                    # damit ihn niemand für einen Fehler des Modells hält oder es erneut versucht.
+                    netzprotokoll.abbruch_pruefen()
+                    raise
             except urllib.error.HTTPError as fehler:
                 text = _fehlertext(fehler.read().decode("utf-8", "replace"))
                 if self.extern and fehler.code in (429, 503) and gewartet < len(self.WARTEN_429):
                     pause = _warten_laut(fehler, self.WARTEN_429[gewartet])
                     log.info("%s: zu viele Anfragen, warte %.0f s", self.titel, pause)
-                    time.sleep(pause)
+                    netzprotokoll.warten(pause)
                     gewartet += 1
                     continue
                 if self.extern and fehler.code in (401, 403):
@@ -753,7 +758,7 @@ class GoogleGemini:
                                    f"Bitte unter „Einstellungen“ ein anderes Modell wählen (etwa gemini-2.5-flash) "
                                    f"oder später erneut fragen.") from fehler
                 log.warning("Serverfehler von Google (%s), neuer Versuch", fehler)
-                time.sleep(self.PAUSE)
+                netzprotokoll.warten(self.PAUSE)
         raise AssertionError("unerreichbar")
 
     def chat(self, system: str, nutzer: str, schema: dict) -> dict:
