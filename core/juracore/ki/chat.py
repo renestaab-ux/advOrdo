@@ -317,7 +317,7 @@ def _klauseln_einzeln(anbieter: Anbieter, skills: list[dict], texte: list[belege
     aussagen: list[dict] = []
     partner_satz = ""
     if gruppen:
-        partner = _vertragspartner(anbieter, system, gruppen[0][1], gruppen[0][0], fortschritt)
+        partner = _vertragspartner(anbieter, system, gruppen[0][1], gruppen[0][0], fortschritt, frage)
         if partner:
             aussagen.append(partner)
             partner_satz = (
@@ -377,7 +377,14 @@ def _klauseln_einzeln(anbieter: Anbieter, skills: list[dict], texte: list[belege
             aussagen.append({"text": f"{paragraph} des Vertrags konnte nicht geprüft werden: {fehler}",
                              "art": HINWEIS, "belege": []})
             continue
-        for a in [a for a in (antwort.get("aussagen") or []) if isinstance(a, dict)][:3]:
+        neu = [a for a in (antwort.get("aussagen") or []) if isinstance(a, dict)][:3]
+        if len(neu) > 1:
+            # Neben den Aussagen zu einzelnen Absätzen fasst das Modell gern noch „§ 7 des Vertrags: keine
+            # Bedenken“ zusammen; das widerspricht ihnen leicht und wiederholt sie sonst nur.
+            pauschal = re.compile(rf"^\s*{re.escape(paragraph)}(?! Abs\.)\b")
+            neu = [a for a in neu if not (a.get("ergebnis") == WIRKSAM and pauschal.match(str(a.get("text", ""))))
+                   ] or neu
+        for a in neu:
             # Das Modell setzt die Absatznummern gern auch in den Text: „([1.15], [1.16])“.
             a["text"] = re.sub(r"\s*\(?\[\d+\.\d+\](?:\s*„[^“]*“|\s*\"[^\"]*\")?(?:,\s*\[\d+\.\d+\])*\)?", "",
                                str(a.get("text", ""))).strip()
@@ -393,7 +400,7 @@ PARTNER_WORT = {VERBRAUCHER: "Verbraucher (§ 13 BGB)", UNTERNEHMER: "Unternehme
 
 
 def _vertragspartner(anbieter: Anbieter, system: str, t: belege.Text, nr: int,
-                     fortschritt: Fortschritt) -> dict | None:
+                     fortschritt: Fortschritt, frage: str = "") -> dict | None:
     """Vorab eine kleine Anfrage: Ist der Vertragspartner des Verwenders Verbraucher oder Unternehmer? Davon
     hängt ab, welche Normen gelten (§ 310 BGB, § 38 ZPO); in jeder Einzelprüfung übersieht ein kleines Modell
     das sonst leicht."""
@@ -413,9 +420,13 @@ def _vertragspartner(anbieter: Anbieter, system: str, t: belege.Text, nr: int,
     nutzer = (
         "Anfang des Vertrags (Dokument " + str(nr) + "):\n" + "\n".join(zeilen) + "\n\nAufgabe: Wer verwendet die "
         "Vertragsbedingungen, und ist sein Vertragspartner Verbraucher (eine natürliche Person, die nicht für ihr "
-        "Gewerbe oder ihren Beruf handelt) oder Unternehmer? Entscheide nur nach dem Text; sagt er dazu nichts "
-        "Eindeutiges, antworte unklar. Gib in „text“ einen Satz mit Ergebnis und Grund und belege ihn mit der Nummer "
-        "des Absatzes ([Dokument.Absatz]) und einem wörtlichen Zitat von 4 bis 25 Wörtern aus genau diesem Absatz."
+        "Gewerbe oder ihren Beruf handelt) oder Unternehmer? Ist der Vertragspartner eine natürliche Person (etwa "
+        "mit Vorname, Geburtsdatum oder Privatanschrift) und deutet nichts auf ein Gewerbe oder einen Beruf hin "
+        "(keine Firma, kein geschäftlicher Zweck), antworte verbraucher. Unternehmer nur, wenn der Text das zeigt; "
+        "unklar nur, wenn er sich widerspricht oder gar keinen Vertragspartner nennt. Nennt die Frage des Nutzers "
+        "die Rollen, übernimm sie. Gib in „text“ einen Satz mit Ergebnis und Grund und belege ihn mit der Nummer des "
+        "Absatzes ([Dokument.Absatz]) und einem wörtlichen Zitat von 4 bis 25 Wörtern aus genau diesem Absatz."
+        + (f"\n\nFrage des Nutzers: {frage}" if frage else "")
     )
     try:
         antwort = anbieter.chat(system, nutzer, schema)

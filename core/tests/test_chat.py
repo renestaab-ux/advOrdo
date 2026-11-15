@@ -493,3 +493,26 @@ def test_klauselpruefung_waehlt_skills_je_paragraph(akten, con, tmp_path):
     assert ["38 ZPO" in s for s in systeme] == [False, False, True]
     assert "307 ff." in systeme[1] and "307 ff." not in systeme[2]
     assert ergebnis["skills"] == ["agb-allgemein", "gerichtsstand-pruefen"]
+
+
+def test_pauschale_aussage_zum_paragraphen_entfaellt_neben_einzelnen(akten, con, tmp_path):
+    akte_id = akte.akte_anlegen(akten, "Studio ./. Kundin")["id"]
+    vertrag = tmp_path / "Vertrag.md"
+    vertrag.write_text("Vertrag Studio Muster, Mitglied Erika Muster\n\n§ 1 Leistungen\n\n(1) Das Studio stellt "
+                       "Geräte bereit.\n\n§ 2 Laufzeit\n\n(1) Der Vertrag läuft zwei Jahre lang.\n", encoding="utf-8")
+    akte.importiere(akten, con, akte_id, vertrag, tmp_path / "ablage", ocr=False)
+
+    def antwort(prompt, schema):
+        if "aussagen" not in schema["properties"]:
+            assert "Frage des Nutzers: Welche Klauseln" in prompt
+            return {"ergebnis": "verbraucher", "text": "Privatperson.", "belege": []}
+        p = "§ 1" if "Zu prüfen: § 1" in prompt else "§ 2"
+        return {"aussagen": [
+            {"text": f"{p} Abs. 1 des Vertrags: keine Bedenken.", "art": "einschaetzung", "ergebnis": "wirksam",
+             "belege": []},
+            {"text": f"{p} des Vertrags: keine Bedenken.", "art": "einschaetzung", "ergebnis": "wirksam",
+             "belege": []}]}
+
+    texte = [a["text"] for a in chat.frage(akten, Attrappe(antwort), 16384, akte_id,
+                                           "Welche Klauseln sind unwirksam?")["aussagen"]]
+    assert "§ 1 Abs. 1 des Vertrags: keine Bedenken." in texte and "§ 1 des Vertrags: keine Bedenken." not in texte
