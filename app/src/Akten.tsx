@@ -2,6 +2,7 @@ import { Dispatch, FormEvent, SetStateAction, Suspense, lazy, useCallback, useEf
 import Akte, { AkteReiter } from "./Akte";
 import { Rueckfrage } from "./Rueckfrage";
 import AkteStammdaten from "./AkteStammdaten";
+import AkteReiterleiste from "./AkteReiterleiste";
 import Analyse from "./Analyse";
 import { ArbeitsfensterKnopf } from "./Arbeitsfenster";
 import AusDokument from "./AusDokument";
@@ -681,6 +682,8 @@ function AkteRahmen({
     }
   }
 
+  const bald = akte.naechste && akte.naechste.in_tagen <= 7 ? akte.naechste : null;
+
   return (
     <div className="akte-rahmen">
       <header className="kopfband akte-kopf">
@@ -743,26 +746,27 @@ function AkteRahmen({
         </button>
       </header>
 
-      <nav className="akte-reiter" role="tablist" aria-label="Bereiche der Akte">
-        {REITER.filter((r) => kiAn || !KI_REITER.includes(r.id)).map((r) => (
-          <button
-            key={r.id}
-            role="tab"
-            aria-selected={reiter === r.id}
-            className={reiter === r.id ? "akte-reiter-knopf aktiv" : "akte-reiter-knopf"}
-            onClick={() => onReiter(r.id)}
-          >
-            <Zeichen name={r.symbol} groesse={16} />
-            {r.titel}
-            {r.id === "dokumente" && <span className="anzahl">{akte.dokumente}</span>}
-            {r.id === "fristen" && akte.naechste && akte.naechste.in_tagen <= 7 && (
-              <span className={`anzahl frist ${akte.naechste.lage}`} title="Frist, Termin oder Wiedervorlage in den nächsten 7 Tagen">
+      <AkteReiterleiste
+        reiter={REITER.filter((r) => kiAn || !KI_REITER.includes(r.id)).map((r) => ({
+          ...r,
+          zusatz:
+            r.id === "dokumente" ? (
+              <span className="anzahl">{akte.dokumente}</span>
+            ) : r.id === "fristen" && bald ? (
+              <span className={`anzahl frist ${bald.lage}`} title="Frist, Termin oder Wiedervorlage in den nächsten 7 Tagen">
                 !
               </span>
-            )}
-          </button>
-        ))}
-      </nav>
+            ) : undefined,
+          hinweis:
+            r.id === "fristen" && bald ? (
+              <span className={`anzahl frist ${bald.lage}`} title="Bei den Fristen: Frist, Termin oder Wiedervorlage in den nächsten 7 Tagen">
+                !
+              </span>
+            ) : undefined,
+        }))}
+        aktiv={reiter === "stammdaten" ? null : reiter}
+        onWahl={onReiter}
+      />
 
       <div className="akte-reiterflaeche">
         {fehler && <p className="fehler" role="alert">{fehler}</p>}

@@ -80,17 +80,26 @@ button.marke-fehlt:hover { border-color: var(--warnung); }
   border: 1px solid rgb(255 255 255 / 35%); color: var(--band-text); padding: 5px 12px; position: relative; }
 .kopfband button.zurueck:hover, .kopfband button.kopf-knopf:hover, .kopfband button.kopf-knopf.aktiv { background: rgb(255 255 255 / 22%); }
 .fehlt-punkt { width: 8px; height: 8px; border-radius: 50%; background: #f0c060; }
-.akte-reiter { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; gap: 4px; padding: 8px 24px 0; border-bottom: 1px solid var(--linie); background: var(--flaeche); }
+/* Reiterleiste der Akte (AkteReiterleiste.tsx): Was nicht in die Zeile passt, liegt im Menü „Mehr“. */
+.akte-reiter-zeile { position: relative; display: flex; align-items: flex-end; padding: 8px 24px 0; border-bottom: 1px solid var(--linie); background: var(--flaeche); }
+.akte-reiter, .akte-reiter-mass { display: flex; flex-wrap: nowrap; gap: 4px; min-width: 0; }
+.akte-reiter { overflow: hidden; }
+.akte-reiter-masshalter { position: absolute; inset: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
 button.akte-reiter-knopf { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; background: none; border: none; border-bottom: 3px solid transparent;
   border-radius: 0; color: var(--text-leise); padding: 8px 12px 9px; }
 button.akte-reiter-knopf:hover { color: var(--text); }
-/* Auf schmaleren Bildschirmen (MacBook) rücken die Reiter zusammen, damit alle sichtbar bleiben. */
+.akte-reiter-mehr { position: relative; flex: none; margin-left: 4px; }
+button.akte-reiter-knopf.mehr.offen { color: var(--text); border-bottom-color: var(--linie); }
+.akte-reiter-menue { position: absolute; right: 0; top: 100%; z-index: 30; min-width: 220px; display: flex; flex-direction: column; padding: 6px;
+  background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); }
+button.akte-reiter-menuezeile { display: flex; align-items: center; gap: 9px; min-height: 32px; padding: 6px 10px; border: none; border-radius: 6px; background: none;
+  color: var(--text); text-align: left; white-space: nowrap; }
+button.akte-reiter-menuezeile:hover, button.akte-reiter-menuezeile:focus-visible { background: color-mix(in srgb, var(--akzent) 14%, transparent); }
+/* Auf schmaleren Bildschirmen (MacBook, Notebook) rücken die Reiter zusammen. */
 @media (max-width: 1520px) {
-  .akte-reiter { padding-left: 16px; padding-right: 16px; gap: 0; }
+  .akte-reiter-zeile { padding-left: 16px; padding-right: 16px; }
+  .akte-reiter, .akte-reiter-mass { gap: 0; }
   button.akte-reiter-knopf { padding-left: 8px; padding-right: 8px; gap: 5px; font-size: 14px; }
-}
-@media (max-width: 1360px) {
-  button.akte-reiter-knopf .symbol { display: none; }
 }
 button.akte-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--akzent); font-weight: 600; }
 .akte-reiter-knopf .anzahl, .filter-eintrag .anzahl { font-size: 12px; color: var(--text-leise); font-weight: 400; }
