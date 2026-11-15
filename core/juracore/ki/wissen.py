@@ -648,7 +648,7 @@ def waehle_normen(
         for a in n["absaetze"]:
             text = " ".join(a["text"].split())
             if laenge + len(text) > grenze:
-                text = text[: max(0, grenze - laenge)].rsplit(" ", 1)[0] + " …"
+                text = text[: max(0, grenze - laenge - 2)].rsplit(" ", 1)[0] + " …"
             absaetze.append({"nr": a["nr"], "text": text})
             laenge += len(text)
             if laenge >= grenze:
@@ -707,7 +707,8 @@ ANWEISUNG_GESETZE = (
 )
 
 
-_NORM_NUMMER = re.compile(r"(?:^|\s)(\d{1,2}[a-z]?)\.\s*\((?=[A-ZÄÖÜ])")
+# „7. (Haftungsausschluss …)“; ohne Überschrift wie bei § 309 Nr. 9 BGB: „9. bei einem Vertragsverhältnis …“.
+_NORM_NUMMER = re.compile(r"(?:^|\s)(\d{1,2}[a-z]?)\.\s*(?:\((?=[A-ZÄÖÜ])|(?=[a-zäöü]{2,}\s))")
 
 
 def normbeleg(normen: list[dict], nr: object, zitat: object) -> dict | None:

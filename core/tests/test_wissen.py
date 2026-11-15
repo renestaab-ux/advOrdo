@@ -600,9 +600,12 @@ def test_bestimmung_eines_vertrags_und_nummer_der_norm():
             "fassung": {"id": 1, "stand": ["zuletzt geändert 2022"]},
             "absaetze": [{"nr": None, "text": "Auch soweit eine Abweichung zulässig ist, ist unwirksam 1. (Kurzfristige "
                           "Preiserhöhungen) eine Bestimmung … 7. (Haftungsausschluss bei Verletzung von Leben, Körper, "
-                          "Gesundheit und bei grobem Verschulden) a) ein Ausschluss oder eine Begrenzung der Haftung"}]}
+                          "Gesundheit und bei grobem Verschulden) a) ein Ausschluss oder eine Begrenzung der Haftung "
+                          "… 9. bei einem Vertragsverhältnis, das die regelmäßige Erbringung von Dienstleistungen zum "
+                          "Gegenstand hat, b) eine den anderen Vertragsteil bindende stillschweigende Verlängerung"}]}
     b = wissen.normbeleg([norm], 1, "ein Ausschluss oder eine Begrenzung der Haftung")
     assert b["norm"] == "§ 309 Nr. 7 BGB"
+    assert wissen.normbeleg([norm], 1, "bindende stillschweigende Verlängerung")["norm"] == "§ 309 Nr. 9 BGB"
 
 
 def test_ueberschrift_am_ende_des_vorigen_absatzes_und_thema_gerichtsstand():

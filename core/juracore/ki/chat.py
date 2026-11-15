@@ -50,6 +50,9 @@ KLAUSEL_HOECHSTENS = 40  # Aussagen bei der Prüfung je Paragraph (bis zu drei j
 UNWIRKSAM, BEDENKLICH, WIRKSAM = "unwirksam", "bedenklich", "wirksam"
 KLAUSEL_ERGEBNISSE = (UNWIRKSAM, BEDENKLICH, WIRKSAM)
 GESETZE_ZEICHEN_JE_PARAGRAPH = 16000
+# Bei der Klauselprüfung gehen die Kernnormen (§ 309 BGB ganz) einem Skill vor: Ohne den Wortlaut der
+# Klauselverbote rät ein kleines Modell, mit ihm prüft es.
+GESETZE_MINDESTENS_JE_PARAGRAPH = 12000
 # Gesetzestext, der auch dann mitgeht, wenn die Dokumente das Kontextfenster füllen (etwa § 309 BGB gekürzt).
 GESETZE_MINDESTENS = 4000
 
@@ -219,8 +222,9 @@ def _skills_kuerzen(skills: list[dict], texte: list[belege.Text], kontext: int, 
     weg: list[str] = []
     while behalten:
         laenge = len(ki_skills.systemanweisung(SYSTEM, behalten)) - len(SYSTEM)
+        mindestens = GESETZE_MINDESTENS_JE_PARAGRAPH if je_paragraph else GESETZE_MINDESTENS
         if _gesetze_budget(texte, kontext, anbieter, sonst + laenge, roh=True,
-                           je_paragraph=je_paragraph) >= GESETZE_MINDESTENS:
+                           je_paragraph=je_paragraph) >= mindestens:
             break
         weg.insert(0, behalten.pop()["name"])
     return behalten, weg
@@ -518,8 +522,10 @@ def frage(
     bisher = _zusammenhang(frueher)
     # Klauselprüfung je Paragraph (siehe _klauseln_einzeln): dann zählt für den Platz nur ein Paragraph.
     je_paragraph = _ist_klauselpruefung(text, texte) and not (rechner and wissen.soll_rechnen(text))
+    # Die Einzelprüfung je Paragraph schickt den bisherigen Verlauf nicht mit; er braucht dann keinen Platz.
+    verlauf_zeichen = 0 if je_paragraph else len(bisher)
     if skills:
-        skills, weggelassen = _skills_kuerzen(skills, texte, kontext, anbieter, len(bisher) + len(text),
+        skills, weggelassen = _skills_kuerzen(skills, texte, kontext, anbieter, verlauf_zeichen + len(text),
                                               je_paragraph=je_paragraph)
         if weggelassen:
             system = ki_skills.systemanweisung(SYSTEM, skills)
@@ -540,7 +546,7 @@ def frage(
         normen, fehlende_normen = wissen.waehle_normen(
             gesetze, con, akte_id, dokument_id, text, zusaetzlich, suche=gesetze_suche, ergaenzt=gesetze_ergaenzt,
             thema_text=thema_text, skill_texte=[s["text"] for s in skills or []],
-            budget=_gesetze_budget(texte, kontext, anbieter, len(system) - len(SYSTEM) + len(bisher) + len(text),
+            budget=_gesetze_budget(texte, kontext, anbieter, len(system) - len(SYSTEM) + verlauf_zeichen + len(text),
                                    je_paragraph=je_paragraph))
     urteile: list[dict] = []
     fehlende_urteile: list[str] = []
@@ -642,7 +648,7 @@ def frage(
     if einzeln:
         # Ein kleines Modell urteilt über eine Bestimmung mit dem Normtext daneben verlässlicher als über einen
         # ganzen Vertrag auf einmal; je Paragraph eine Anfrage.
-        platz = _gesetze_budget(texte, kontext, anbieter, len(bisher) + len(text), roh=True,
+        platz = _gesetze_budget(texte, kontext, anbieter, len(text), roh=True,
                                 je_paragraph=True) - len(normtext)
         antwort = _klauseln_einzeln(anbieter, skills or [], texte, normen, normtext, text, fortschritt,
                                     skill_waehler, platz)
