@@ -447,11 +447,16 @@ def _klauseln_ordnen(aussagen: list[dict]) -> list[dict]:
     bedenken = [a for a in aussagen if a.get("klausel") in (UNWIRKSAM, BEDENKLICH)]
     rest = [a for a in aussagen if a.get("klausel") not in (UNWIRKSAM, BEDENKLICH, "partner")]
     teile = []
+    # Jede Bestimmung nur einmal, unter dem schärfsten Ergebnis (unwirksam vor bedenklich vor ohne Bedenken).
+    genannt: set[str] = set()
     for art, wort in ((UNWIRKSAM, "Wohl unwirksam"), (BEDENKLICH, "Bedenklich")):
-        namen = [n for n in dict.fromkeys(bestimmung(a) for a in bedenken if a["klausel"] == art) if n]
+        namen = [n for n in dict.fromkeys(bestimmung(a) for a in bedenken if a["klausel"] == art)
+                 if n and n not in genannt]
+        genannt.update(namen)
         if namen:
             teile.append(f"{wort}: {', '.join(namen)}.")
-    ohne = [n for n in dict.fromkeys(bestimmung(a) for a in rest if a.get("klausel") == WIRKSAM) if n]
+    ohne = [n for n in dict.fromkeys(bestimmung(a) for a in rest if a.get("klausel") == WIRKSAM)
+            if n and n not in genannt]
     if ohne:
         teile.append(f"Ohne Bedenken: {', '.join(ohne)}.")
     for a in aussagen:

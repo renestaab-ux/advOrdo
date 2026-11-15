@@ -516,3 +516,13 @@ def test_pauschale_aussage_zum_paragraphen_entfaellt_neben_einzelnen(akten, con,
     texte = [a["text"] for a in chat.frage(akten, Attrappe(antwort), 16384, akte_id,
                                            "Welche Klauseln sind unwirksam?")["aussagen"]]
     assert "§ 1 Abs. 1 des Vertrags: keine Bedenken." in texte and "§ 1 des Vertrags: keine Bedenken." not in texte
+
+
+def test_uebersicht_nennt_jede_bestimmung_nur_unter_dem_schaerfsten_ergebnis():
+    def a(text, klausel, bestimmung):
+        return {"text": text, "klausel": klausel, "fundstellen": [{"bestimmung": bestimmung}]}
+
+    aus = chat._klauseln_ordnen([a("x", "unwirksam", "§ 3 Abs. 3"), a("y", "bedenklich", "§ 3 Abs. 3"),
+                                 a("z", "bedenklich", "§ 10 Abs. 2"), a("w", "wirksam", "§ 10 Abs. 2"),
+                                 a("v", "wirksam", "§ 1 Abs. 1")])
+    assert aus[0]["text"].endswith("Wohl unwirksam: § 3 Abs. 3. Bedenklich: § 10 Abs. 2. Ohne Bedenken: § 1 Abs. 1.")
