@@ -538,19 +538,31 @@ achtet. Unter „Einstellungen“ → „Skills“ lassen sich eigene Skills anl
 importieren: eine Datei `SKILL.md`, eine Markdown-Datei, ein ZIP-Archiv oder ein Ordner mit vielen Skills. advOrdo
 übernimmt Name, Beschreibung (`name`, `description` im Kopf) und die Anweisung; weitere Dateien des Skill-Ordners
 (etwa `references/`) nicht. Ein Skill lässt sich als `SKILL.md` exportieren. Die Skills gelten für das Gerät, also
-für alle Arbeitsumgebungen (Datei `skills.json` im Datenverzeichnis). Importiert wird nur aus Dateien; die App lädt
-dafür nichts aus dem Netz.
+für alle Arbeitsumgebungen (Datei `skills.json` im Datenverzeichnis). Markierte Skills lassen sich gemeinsam
+löschen.
+
+Ganze Sammlungen lassen sich als **Quelle** anbinden: Unter „Quellen“ die Adresse eines öffentlichen
+GitHub-Repositorys eingeben (`https://github.com/besitzer/sammlung`, auch mit `/tree/zweig/unterordner`). advOrdo
+lädt nur das Verzeichnis: bei einem Plugin-Marktplatz (`.claude-plugin/marketplace.json`) die Liste der Pakete, die
+Skills eines Pakets erst beim Aufklappen; sonst den Dateibaum mit allen `SKILL.md`. Importiert werden nur die
+markierten Skills, jeweils einzeln von `raw.githubusercontent.com`; das Repository wird nie ganz heruntergeladen.
+Ein erneuter Import aktualisiert einen schon übernommenen Skill (Name und Ordner bleiben). Gesendet wird dabei nur,
+welches Repository und welche Datei gemeint ist, nie etwas aus einer Akte; jede Anfrage steht im Netzprotokoll. Ohne
+Anmeldung erlaubt GitHub rund 60 API-Abfragen je Stunde; Verzeichnisse werden deshalb gemerkt (`skill_quellen.json`).
+Keine Quelle ist fest eingebaut. Ohne Quelle lädt die App für Skills nichts aus dem Netz.
 
 Jedes importierte Paket kommt in einen eigenen Ordner (Titel aus `.claude-plugin/plugin.json` oder der README,
 sonst der Paketname). Ordner lassen sich umbenennen, verschachteln („Zivilrecht / BGB AT“) und samt Inhalt löschen;
 eine Suche filtert nach Name, Beschreibung und Ordner.
 
 Im Chat und in der Analyse einer Akte öffnet „Skills:“ eine Auswahl mit Suche und Ordnern. Gewählt werden ein oder
-mehrere Skills, ganze Ordner oder „Alle“; die Wahl wird je Akte gemerkt. Bei mehr als einem Skill nimmt advOrdo je
-Frage die passendsten: Wortvergleich der Frage (bei der Analyse Aufgabe, Aktenname und Dokumentnamen) mit Name,
-Überschriften, Beschreibung und Paragraphennummern, ohne zusätzliche Anfrage an das Modell; höchstens fünf und
-zusammen höchstens ein Viertel des Kontextfensters. Einzeln gewählte Skills haben Vorrang; aus Ordnern und „Alle“
-kommt nur, was ausreichend zur Frage passt. Passt keiner, gilt keiner, und die Antwort sagt das. Skills wirken bei
+mehrere Skills, ganze Ordner oder „Alle“; die Wahl wird je Akte gemerkt. Aus Ordnern und „Alle“ nimmt advOrdo je
+Frage die passendsten: Ein Wortvergleich der Frage (bei der Analyse Aufgabe, Aktenname und Dokumentnamen; dazu das
+Thema der Dokumente, etwa AGB) mit Name, Ordner, Überschriften, Beschreibung und Paragraphennummern schlägt bis zu
+15 Skills vor, und das Sprachmodell wählt daraus in einer kurzen Zusatzanfrage höchstens drei (es sieht dabei nur
+Namen und Beschreibungen der Skills). Scheitert diese Anfrage, gilt der Wortvergleich. Einzeln gewählte Skills
+gelten immer und kommen zuerst; zusammen höchstens fünf und höchstens ein Viertel des Kontextfensters. Passt keiner,
+gilt keiner, und die Antwort sagt das. Skills wirken bei
 lokaler und externer KI. Die Regeln von advOrdo stehen vor dem Skill und gehen vor: Tatsachen nur aus den
 vorgelegten Dokumenten, jede Aussage mit geprüftem Beleg, Antwort im festen Format. Was ein Skill an Werkzeugen
 voraussetzt (Webseiten prüfen, Word-Dateien erzeugen), gibt es hier nicht; die Liste in den Einstellungen weist

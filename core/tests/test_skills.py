@@ -278,9 +278,12 @@ def test_auswahl_nimmt_die_passendsten(tmp_path):
     lang = skills.speichern(datei, "zugang-lang", "# Zugang\n" + "x" * 7000, ordner="BGB AT")
 
     w = skills.fuer_anfrage(datei, ["alle"], 32768, "Ist der Zugang der Kündigung nach § 130 BGB erfolgt?")
-    assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130", "zugang-lang"] and w["hinweis"] is None
+    # Nur, was nah an den besten herankommt: „zugang-lang“ teilt nur das Wort „Zugang“.
+    assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130"] and w["hinweis"] is None
+    w = skills.fuer_anfrage(datei, ["alle"], 32768, "Wann ist der Zugang erfolgt?")
+    assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130", "zugang-lang"]
     # Bei 8k passt neben dem kurzen der lange nicht mehr hinein.
-    w = skills.fuer_anfrage(datei, ["alle"], 8192, "Ist der Zugang der Kündigung nach § 130 BGB erfolgt?")
+    w = skills.fuer_anfrage(datei, ["alle"], 8192, "Wann ist der Zugang erfolgt?")
     assert [s["name"] for s in w["skills"]] == ["zugang-paragraph-130"]
     w = skills.fuer_anfrage(datei, ["ordner:BGB BT"], 32768, "Ist die Kündigung zugegangen?")
     assert w["skills"] == [] and "passte" in w["hinweis"]
@@ -292,4 +295,35 @@ def test_auswahl_nimmt_die_passendsten(tmp_path):
         skills.fuer_anfrage(datei, [lang["id"]], 8192, "")
     assert skills.fuer_anfrage(datei, [zugang["id"], lang["id"]], 8192, "Zugang")["skills"][0]["id"] == zugang["id"]
     system = skills.systemanweisung("REGELN", w["skills"])
-    assert "gelten die folgenden Arbeitsanweisungen" in system and system.count("<<< Arbeitsanweisung") == len(w["skills"]) == 3
+    assert "gelten die folgenden Arbeitsanweisungen" in system and system.count("<<< Arbeitsanweisung") == len(w["skills"]) == 2
+
+
+def test_modell_waehlt_aus_vorauswahl(tmp_path):
+    datei = tmp_path / "skills.json"
+    for name, beschreibung in [("agb-haftung", "Haftungsklauseln in AGB"),
+                               ("agb-laufzeit", "Laufzeit und Kündigung in AGB"),
+                               ("agb-inhaltskontrolle", "Unwirksame Klauseln in AGB erkennen"),
+                               ("mietminderung", "Minderung der Miete")]:
+        skills.speichern(datei, name, f"# {name}\nPrüfe genau.", beschreibung,
+                         ordner="Miete" if name == "mietminderung" else "AGB")
+    gesehen = []
+
+    def waehler(frage, kandidaten):
+        gesehen.append([k["name"] for k in kandidaten])
+        return [3, 3, 99]  # doppelt und ungültig wird ignoriert
+
+    w = skills.fuer_anfrage(datei, ["alle"], 32768, "Welche AGB-Klauseln sind unwirksam?", waehler)
+    assert "mietminderung" not in gesehen[0]  # nur, was zum Wortvergleich passt
+    assert [s["name"] for s in w["skills"]] == [gesehen[0][2]] and w["gewaehlt_von"] == "modell"
+    w = skills.fuer_anfrage(datei, ["alle"], 32768, "Welche AGB-Klauseln sind unwirksam?", lambda f, k: [])
+    assert w["skills"] == [] and "Sprachmodell hielt keinen" in w["hinweis"]
+
+    def kaputt(frage, kandidaten):
+        raise RuntimeError("Modell nicht erreichbar")
+
+    w = skills.fuer_anfrage(datei, ["alle"], 32768, "Welche AGB-Klauseln sind unwirksam?", kaputt)
+    assert w["skills"] and w["gewaehlt_von"] == "wortvergleich"
+    # Die Anfrage enthält nur Namen, Ordner und Beschreibung, keinen Skilltext und keine Akte.
+    system, nutzer, schema = skills.modellwahl_anfrage("Frage?", skills.lade(datei)[:2])
+    assert "1. agb-haftung – Ordner: AGB – Haftungsklauseln in AGB" in nutzer and "Prüfe genau" not in nutzer
+    assert schema["properties"]["skills"]["maxItems"] == 3

@@ -39,6 +39,23 @@ SUCHTREFFER = 4  # Normen aus der Volltextsuche zusätzlich zu den zitierten
 HOECHSTENS_BERECHNUNGEN = 2
 # Gesetze, in denen die Suche zur Frage stets sucht; dazu kommen die in der Akte zitierten.
 SUCHGESETZE = ("BGB", "ZPO", "GVG", "EGBGB")
+SKILL_NORMEN = 4  # Normen, die die gewählten Skills zitieren, zusätzlich
+THEMA_ZEICHEN = 10000  # je Kernnorm eines Themas (§ 309 BGB ist lang und wird sonst mitten in den Nummern gekürzt)
+
+# Themen, deren Kernnormen immer mitgehen, wenn Frage oder vorgelegter Text sie berühren: Die Volltextsuche findet
+# sie aus einer Frage wie „Welche Klauseln sind unwirksam?“ nicht verlässlich. Reihenfolge = Vorrang im Budget.
+THEMEN: list[tuple[str, re.Pattern, list[str]]] = [
+    # Kurz und vor dem AGB-Recht, damit es neben dem langen § 309 BGB noch Platz hat.
+    ("Gerichtsstand", re.compile(r"gerichtsstand", re.IGNORECASE), ["§ 38 ZPO"]),
+    ("AGB-Recht",
+     re.compile(r"\bAGB\b|allgemeinen?\s+geschäftsbedingungen|\bklausel|formularvertrag", re.IGNORECASE),
+     ["§ 307 BGB", "§ 309 BGB", "§ 308 BGB", "§ 305c BGB", "§ 306 BGB", "§ 310 BGB"]),
+]
+
+
+def themen(*texte: str) -> list[tuple[str, list[str]]]:
+    """Themen (Name, Kernnormen), die einer der Texte berührt."""
+    return [(name, normen) for name, muster, normen in THEMEN if any(muster.search(t or "") for t in texte)]
 
 # Stufen des Schalters „Gesetze“.
 GESETZE_AUS = "aus"
@@ -562,22 +579,32 @@ def _norm_zeile(wb: sqlite3.Connection, norm_id: int) -> dict | None:
 def waehle_normen(
     wb: sqlite3.Connection, akten: sqlite3.Connection, akte_id: int, dokument_id: int | None, frage: str,
     zusaetzlich: list[str] | None = None, budget: int = GESETZE_ZEICHEN, suche: bool = True,
-    ergaenzt: list[str] | None = None,
+    ergaenzt: list[str] | None = None, thema_text: str = "", skill_texte: list[str] | None = None,
 ) -> tuple[list[dict], list[str]]:
     """Normen für die Anfrage: zuerst ``zusaetzlich`` (etwa § 288, § 247 BGB beim Zinsrechner), dann die in der
     Akte zitierten (häufigste zuerst), dann Treffer der Volltextsuche. Zweite Liste: zitierte Normen, die die
     Wissensbasis nicht enthält.
 
     ``ergaenzt``: Eingaben des Nutzers. Ein Normzitat („§ 288 BGB“) geht immer mit, ein Gesetz („HGB“) erweitert die
-    Suche zur Frage."""
+    Suche zur Frage.
+
+    ``thema_text`` (etwa der vorgelegte Dokumenttext): Berührt er oder die Frage ein Thema aus ``THEMEN`` (AGB),
+    gehen dessen Kernnormen vor den zitierten mit. ``skill_texte``: Normen, die die gewählten Skills zitieren,
+    gehen nach den zitierten mit (höchstens ``SKILL_NORMEN``)."""
     kandidaten: list[tuple[str, str, str]] = []  # Gesetz, Nummer, Typ
+    woher_von: dict[tuple[str, str, str], str] = {}
     fehlend: list[str] = []
 
-    def dazu(zitat: str) -> None:
+    def dazu(zitat: str, woher: str = "zitiert", hoechstens: int | None = None) -> None:
+        n = 0
         for z in finde_zitate(zitat):
             schluessel = (z.gesetz.upper(), z.nummer, "artikel" if z.zeichen.startswith("Art") else "paragraph")
             if schluessel not in kandidaten:
+                if hoechstens is not None and n >= hoechstens:
+                    return
                 kandidaten.append(schluessel)
+                woher_von[schluessel] = woher
+                n += 1
 
     weitere_gesetze: list[str] = []
     for e in ergaenzt or []:
@@ -592,12 +619,17 @@ def waehle_normen(
             fehlend.append(e)
     for z in zusaetzlich or []:
         dazu(z)
+    for _, kern in themen(frage, thema_text):
+        for z in kern:
+            dazu(z, "thema")
     for z in akten.execute(
         """SELECT z.zitat, COUNT(*) AS n FROM normzitat z JOIN abschnitt a ON a.id = z.abschnitt_id
            JOIN dokument d ON d.id = a.dokument_id
            WHERE d.akte_id = ? AND (? IS NULL OR d.id = ?) AND z.status = 'belegt'
            GROUP BY z.zitat ORDER BY n DESC, z.zitat""", (akte_id, dokument_id, dokument_id)):
         dazu(z["zitat"])
+    if skill_texte:
+        dazu("\n".join(skill_texte), "skill", SKILL_NORMEN)
 
     normen: list[dict] = []
     rest = budget
@@ -606,14 +638,20 @@ def waehle_normen(
         nonlocal rest
         if n is None or any(x["gesetz"] == n["gesetz"] and x["bezeichnung"] == n["bezeichnung"] for x in normen):
             return
+        grenze = THEMA_ZEICHEN if herkunft == "thema" else NORM_ZEICHEN
+        if herkunft in ("thema", "zitiert"):
+            # Ist das Budget knapp, lieber den Anfang einer Kernnorm als gar nichts von ihr.
+            kopf = len(n["bezeichnung"]) + len(n["gesetz"]) + len(n.get("titel") or "") + 60
+            if rest - kopf >= 1000:
+                grenze = min(grenze, rest - kopf)
         absaetze, laenge = [], 0
         for a in n["absaetze"]:
             text = " ".join(a["text"].split())
-            if laenge + len(text) > NORM_ZEICHEN:
-                text = text[: max(0, NORM_ZEICHEN - laenge)].rsplit(" ", 1)[0] + " …"
+            if laenge + len(text) > grenze:
+                text = text[: max(0, grenze - laenge - 2)].rsplit(" ", 1)[0] + " …"
             absaetze.append({"nr": a["nr"], "text": text})
             laenge += len(text)
-            if laenge >= NORM_ZEICHEN:
+            if laenge >= grenze:
                 break
         kopf = len(n["bezeichnung"]) + len(n["gesetz"]) + len(n.get("titel") or "") + 60
         if not absaetze or laenge + kopf > rest:
@@ -625,7 +663,7 @@ def waehle_normen(
         n = wissensbasis.norm(wb, gesetz, nummer, typ=typ)
         if n is None:
             fehlend.append(f"{'Art.' if typ == 'artikel' else '§'} {nummer} {gesetz}")
-        nimm(n, "zitiert")
+        nimm(n, woher_von[(gesetz, nummer, typ)])
     woerter = _suchwoerter(frage) if suche else []
     if woerter:
         abfrage = " OR ".join(f'"{w}"*' for w in woerter)
@@ -663,8 +701,14 @@ ANWEISUNG_GESETZE = (
     "Gesetze: Die Normen oben (mit [G…] nummeriert) stammen aus der Wissensbasis der App, im Wortlaut der "
     "genannten Fassung. Stützt sich eine Einschätzung auf eine dieser Normen, belege sie unter \"normbelege\" mit "
     "der Nummer der Norm (die Zahl nach G) und einem wörtlichen Zitat aus ihrem Text (4 bis 25 Wörter). "
-    "Andere Normen nennst du nur ohne Zitat."
+    "Andere Normen nennst du nur ohne Zitat. Nenne bei jeder rechtlichen Einschätzung im Text der Aussage die "
+    "tragende Norm mit Absatz oder Nummer (etwa „§ 309 Nr. 7 BGB“); prüfe dabei, ob ihr Wortlaut den Fall "
+    "wirklich erfasst."
 )
+
+
+# „7. (Haftungsausschluss …)“; ohne Überschrift wie bei § 309 Nr. 9 BGB: „9. bei einem Vertragsverhältnis …“.
+_NORM_NUMMER = re.compile(r"(?:^|\s)(\d{1,2}[a-z]?)\.\s*(?:\((?=[A-ZÄÖÜ])|(?=[a-zäöü]{2,}\s))")
 
 
 def normbeleg(normen: list[dict], nr: object, zitat: object) -> dict | None:
@@ -681,8 +725,11 @@ def normbeleg(normen: list[dict], nr: object, zitat: object) -> dict | None:
         text = a["text"]
         von, bis = max(0, fund.start - belege.UMFELD), min(len(text), fund.ende + belege.UMFELD)
         nr_abs = f" Abs. {a['nr']}" if a["nr"] and len(n["absaetze"]) > 1 else ""
+        # Nummer in einer Aufzählung wie § 309 BGB („7. (Haftungsausschluss …)“) vor dem Zitat.
+        nummern = list(_NORM_NUMMER.finditer(text, 0, fund.start + 1))
+        nr_nr = f" Nr. {nummern[-1].group(1)}" if nummern else ""
         return {
-            "norm": f"{n['bezeichnung']}{nr_abs} {n['gesetz']}",
+            "norm": f"{n['bezeichnung']}{nr_abs}{nr_nr} {n['gesetz']}",
             "gesetz": n["gesetz"],
             "bezeichnung": n["bezeichnung"],
             "titel": n.get("titel"),

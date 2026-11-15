@@ -95,6 +95,9 @@ describe("fundstelle", () => {
     expect(fundstelle({ seite: null, rn: 4 })).toBe("Rn. 4");
     expect(fundstelle({ seite: null, rn: null, nr: 12 })).toBe("Abschn. 12");
   });
+  it("nennt im Vertrag die Bestimmung statt der Randnummer", () => {
+    expect(fundstelle({ seite: 1, rn: 3, bestimmung: "§ 6 Abs. 1" })).toBe("S. 1, § 6 Abs. 1");
+  });
 });
 
 describe("segmente", () => {
@@ -283,6 +286,9 @@ describe("auswahlText", () => {
     expect(auswahlText({ vollstaendig: true, absaetze: 12, von: 12, dokumente: 1, dokumente_von: 1 })).toBe(
       "das Dokument vollständig",
     );
+    expect(
+      auswahlText({ vollstaendig: true, absaetze: 46, von: 46, dokumente: 1, dokumente_von: 1, je_bestimmung: true }),
+    ).toBe("der Vertrag vollständig, je Paragraph einzeln geprüft");
     expect(auswahlText({ vollstaendig: false, absaetze: 120, von: 450, dokumente: 6, dokumente_von: 8 })).toBe(
       "120 von 450 Absätzen aus 6 von 8 Dokumenten, ausgewählt nach den Begriffen der Frage",
     );

@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -45,6 +46,15 @@ VERLAUF = 6
 # Absätze je Dokument, die bei einer Auswahl immer mitgehen (Kopf: Art, Absender, Datum, Parteien).
 KOPF = 2
 HOECHSTENS = 12  # Aussagen je Antwort
+KLAUSEL_HOECHSTENS = 40  # Aussagen bei der Prüfung je Paragraph (bis zu drei je Paragraph)
+UNWIRKSAM, BEDENKLICH, WIRKSAM = "unwirksam", "bedenklich", "wirksam"
+KLAUSEL_ERGEBNISSE = (UNWIRKSAM, BEDENKLICH, WIRKSAM)
+GESETZE_ZEICHEN_JE_PARAGRAPH = 16000
+# Bei der Klauselprüfung gehen die Kernnormen (§ 309 BGB ganz) einem Skill vor: Ohne den Wortlaut der
+# Klauselverbote rät ein kleines Modell, mit ihm prüft es.
+GESETZE_MINDESTENS_JE_PARAGRAPH = 12000
+# Gesetzestext, der auch dann mitgeht, wenn die Dokumente das Kontextfenster füllen (etwa § 309 BGB gekürzt).
+GESETZE_MINDESTENS = 4000
 
 TATSACHE = "tatsache"
 EINSCHAETZUNG = "einschaetzung"
@@ -54,8 +64,9 @@ BERECHNUNG = "berechnung"
 SYSTEM = (
     "Du bist ein sorgfältiger juristischer Assistent in einer deutschen Anwaltskanzlei. Du beantwortest Fragen zu "
     "den vorgelegten Dokumenten einer Akte. Tatsachen entnimmst du ausschließlich dem vorgelegten Text und "
-    "erfindest nichts. Rechtliche Würdigungen kennzeichnest du als Einschätzung. Du antwortest nur mit JSON nach "
-    "dem vorgegebenen Schema, auf Deutsch."
+    "erfindest nichts. Rechtliche Würdigungen kennzeichnest du als Einschätzung. Betrifft eine Aussage eine "
+    "nummerierte Bestimmung eines Dokuments (etwa § 2 Abs. 2 eines Vertrags), nennst du sie im Text der Aussage "
+    "(„§ 2 Abs. 2 des Vertrags“). Du antwortest nur mit JSON nach dem vorgegebenen Schema, auf Deutsch."
 )
 
 SCHEMA = {
@@ -185,6 +196,277 @@ def waehle(texte: list[belege.Text], frage: str, budget: int) -> tuple[list[list
     }
 
 
+def _gesetze_budget(texte: list[belege.Text], kontext: int, anbieter: Anbieter, sonst: int, roh: bool = False,
+                    je_paragraph: bool = False) -> int:
+    """Zeichen für Gesetzestext: höchstens ``wissen.GESETZE_ZEICHEN``, aber nur so viel, dass die Dokumente der
+    Akte daneben noch ganz in die Anfrage passen. Ein kurzer Vertrag geht vor dem Wortlaut von § 309 BGB: Fehlt
+    eine Klausel, kann das Modell sie nicht prüfen. ``je_paragraph``: Klauselprüfung, jede Anfrage enthält nur
+    einen Paragraphen und den Kopf des Vertrags; dann darf mehr Gesetzestext mit (§ 309 BGB ganz)."""
+    if je_paragraph:
+        dokumente = max((sum(len(" ".join(a["text"].split())) + 40 for a in absaetze)
+                         for _, _, _, absaetze in _paragraphen(texte)), default=0) + VERTRAGSKOPF_ZEICHEN + 2500
+        hoechstens = GESETZE_ZEICHEN_JE_PARAGRAPH
+    else:
+        dokumente = sum(len(" ".join(a["text"].split())) + 30 for t in texte for a in t.abschnitte)
+        dokumente += sum(len(t.dateiname) + 40 for t in texte)
+        hoechstens = wissen.GESETZE_ZEICHEN
+    frei = (kontext - antwort_token(anbieter) - 1200) * 3 - sonst - 3000 - dokumente  # 3000: Aufgabe, Schema
+    return frei if roh else max(GESETZE_MINDESTENS, min(hoechstens, frei))
+
+
+def _skills_kuerzen(skills: list[dict], texte: list[belege.Text], kontext: int, anbieter: Anbieter,
+                   sonst: int, je_paragraph: bool = False) -> tuple[list[dict], list[str]]:
+    """Skills, die neben den ganzen Dokumenten und dem Mindestmaß an Gesetzestext Platz haben; die zuletzt
+    gewählten weichen zuerst. Eine Arbeitsanweisung hilft nichts, wenn die Klausel fehlt, die sie prüfen soll."""
+    behalten = list(skills)
+    weg: list[str] = []
+    while behalten:
+        laenge = len(ki_skills.systemanweisung(SYSTEM, behalten)) - len(SYSTEM)
+        mindestens = GESETZE_MINDESTENS_JE_PARAGRAPH if je_paragraph else GESETZE_MINDESTENS
+        if _gesetze_budget(texte, kontext, anbieter, sonst + laenge, roh=True,
+                           je_paragraph=je_paragraph) >= mindestens:
+            break
+        weg.insert(0, behalten.pop()["name"])
+    return behalten, weg
+
+
+def _bestimmungen(t: belege.Text, abschnitt: int) -> str:
+    """Kennzeichen vor einem Absatz eines gegliederten Vertrags: „{§ 6 Abs. 1}“, damit das Modell die Bestimmung
+    nennen kann, ohne sie aus dem Text zu erschließen."""
+    namen = list(dict.fromkeys(name for _, name in t.gliederung.get(abschnitt, [])))
+    return "{" + "; ".join(namen) + "} " if namen else ""
+
+
+_KLAUSELFRAGE = re.compile(r"klausel|\bagb\b|geschäftsbedingung|(?:un)?wirksam|inhaltskontrolle|vertrag\w* prüf",
+                           re.IGNORECASE)
+
+
+def _ist_klauselpruefung(frage: str, texte: list[belege.Text]) -> bool:
+    return bool(_KLAUSELFRAGE.search(frage)) and any(t.gliederung for t in texte)
+
+
+def _klauselpruefung(texte: list[belege.Text]) -> str:
+    """Anweisung für die Prüfung eines gegliederten Vertrags: jede Bestimmung ansehen, nicht nur die erste."""
+    paragraphen: list[str] = []
+    for t in texte:
+        for stellen in t.gliederung.values():
+            for _, name in stellen:
+                p = name.split(" Abs.")[0]
+                if p not in paragraphen:
+                    paragraphen.append(p)
+    return (
+        "Der Vertrag ist in Bestimmungen gegliedert (" + ", ".join(paragraphen) + "); vor jedem Absatz steht in "
+        "geschweiften Klammern, zu welcher Bestimmung er gehört. Gehe alle Bestimmungen der Reihe nach durch. Nenne "
+        "jede Bestimmung, die unwirksam sein kann, in einer eigenen Einschätzung: zuerst die Bestimmung, dann das "
+        "Ergebnis und die Norm mit Nummer und Buchstabe, dann den Grund (etwa „§ 6 Abs. 1 des Vertrags: unwirksam "
+        "nach § 309 Nr. 7 Buchst. a BGB, weil …“). Eine Aussage je Bestimmung; wiederhole keine. Bestimmungen ohne "
+        "Bedenken fasse am Ende in einer Einschätzung zusammen. Gib den Vertragsinhalt nicht als Tatsachen wieder; "
+        "die Fundstellen zeigen ihn. Die geschweiften Klammern gehören nicht zum Text und nie in ein Zitat."
+    )
+
+
+# Kürzer ist ein Stück eines Paragraphen in einem Absatz nur, wenn es bloß seine Überschrift ist.
+UEBERSCHRIFT_ZEICHEN = 60
+# Absätze vor dem ersten Paragraphen (Parteien, Tarif, Laufzeit), die jede Einzelprüfung als Zusammenhang bekommt.
+VERTRAGSKOPF_ZEICHEN = 1500
+
+
+def _paragraphen(texte: list[belege.Text]) -> list[tuple[int, belege.Text, str, list]]:
+    """Die Paragraphen der gegliederten Dokumente: (Dokumentnummer, Text, „§ 4“, Absätze). Ein Absatz, in dem
+    ein neuer Paragraph mit Text beginnt, gehört zu beiden; steht vom neuen nur die Überschrift am Ende (so setzt
+    die Texterkennung manchmal zusammen), gehört er nur zum vorigen."""
+    aus: list[tuple[int, belege.Text, str, list]] = []
+    for nr, t in enumerate(texte, 1):
+        reihe: dict[str, list] = {}
+        for a in t.abschnitte:
+            stellen = t.gliederung.get(a["nr"], [])
+            laenge: dict[str, int] = {}
+            for k, (pos, name) in enumerate(stellen):
+                bis = stellen[k + 1][0] if k + 1 < len(stellen) else len(a["text"] or "")
+                p = name.split(" Abs.")[0]
+                laenge[p] = laenge.get(p, 0) + bis - pos
+            for p, n in laenge.items():
+                if n >= UEBERSCHRIFT_ZEICHEN or len(laenge) == 1:
+                    reihe.setdefault(p, []).append(a)
+        aus += [(nr, t, p, absaetze) for p, absaetze in reihe.items()]
+    return aus
+
+
+def _zeile(nr: int, t: belege.Text, a) -> str:
+    return f"[{nr}.{a['nr']}] " + _bestimmungen(t, a["nr"]) + " ".join(a["text"].split())
+
+
+def _klauseln_einzeln(anbieter: Anbieter, skills: list[dict], texte: list[belege.Text], normen: list[dict],
+                      normtext: str, frage: str, fortschritt: Fortschritt,
+                      skill_waehler: Callable[[str], list[dict]] | None = None, skill_platz: int = 0) -> dict:
+    """Prüft jeden Paragraphen eines gegliederten Vertrags in einer eigenen Anfrage; die Aussagen aller Anfragen
+    zusammen sind die Antwort (geprüft wird sie danach wie jede andere). ``skills`` in der Antwort: alle Skills,
+    die bei einem Paragraphen mitgingen."""
+    system = ki_skills.systemanweisung(SYSTEM, skills)
+    benutzt: dict[str, dict] = {s["id"] if "id" in s else s["name"]: s for s in skills}
+    gruppen = _paragraphen(texte)
+    schema = json.loads(json.dumps(SCHEMA))
+    aussage = schema["properties"]["aussagen"]["items"]
+    aussage["properties"]["ergebnis"] = {"type": "string", "enum": list(KLAUSEL_ERGEBNISSE)}
+    aussage["required"] = [*aussage["required"], "ergebnis"]
+    if normen:
+        aussage["properties"]["normbelege"] = wissen.SCHEMA_NORMBELEGE
+        aussage["required"] = [*aussage["required"], "normbelege"]
+    schema = _begrenzt(schema)
+    schema["properties"]["aussagen"]["maxItems"] = 3
+    aussagen: list[dict] = []
+    partner_satz = ""
+    if gruppen:
+        partner = _vertragspartner(anbieter, system, gruppen[0][1], gruppen[0][0], fortschritt, frage)
+        if partner:
+            aussagen.append(partner)
+            partner_satz = (
+                f"Der Vertragspartner des Verwenders ist nach dem Vertrag {PARTNER_WORT[partner['ergebnis']]}. "
+                "Unterscheidet eine Norm zwischen Verbrauchern und Unternehmern oder Kaufleuten (etwa § 310 BGB, "
+                "§ 38 ZPO), wende sie mit dieser Einordnung an.")
+    for k, (nr, t, paragraph, absaetze) in enumerate(gruppen, 1):
+        fortschritt.melde(f"Das Sprachmodell prüft {paragraph} des Vertrags ({k} von {len(gruppen)})")
+        fortschritt.pruefe()
+        system_p = system
+        if skill_waehler is not None:
+            eigene, rest = [], skill_platz
+            for s in skill_waehler(" ".join(a["text"] for a in absaetze)):
+                if len(s["text"]) + 200 <= rest:
+                    eigene.append(s)
+                    rest -= len(s["text"]) + 200
+            if eigene:
+                system_p = ki_skills.systemanweisung(SYSTEM, eigene)
+                for s in eigene:
+                    benutzt.setdefault(s["id"] if "id" in s else s["name"], s)
+        kopf, laenge = [], 0
+        for a in t.abschnitte:
+            if t.gliederung.get(a["nr"]) or laenge > VERTRAGSKOPF_ZEICHEN:
+                break
+            kopf.append(_zeile(nr, t, a))
+            laenge += len(kopf[-1])
+        nutzer = (
+            (f"Kopf des Vertrags (Dokument {nr}: {t.dateiname}), nur zum Zusammenhang:\n" + "\n".join(kopf) + "\n\n"
+             if kopf else "")
+            + f"Zu prüfen: {paragraph} des Vertrags (Dokument {nr}: {t.dateiname})\n"
+            + "\n".join(_zeile(nr, t, a) for a in absaetze) + "\n\n"
+            + (f"Gesetze aus der Wissensbasis:\n{normtext}\n\n" if normen else "")
+            + f"Frage zum ganzen Vertrag: {frage}\n\n"
+            f"Aufgabe: Prüfe nur {paragraph} des Vertrags als vorformulierte Vertragsbedingung (§§ 305 ff. BGB). Gehe "
+            "die Klauselverbote der vorgelegten Normen durch, die zum Inhalt passen (zuerst § 309, dann § 308, dann "
+            "§ 307 BGB; beim Gerichtsstand § 38 ZPO). Lies dazu bei § 309 BGB die Überschrift jeder Nummer in "
+            "Klammern und nimm jede Nummer, deren Überschrift den Gegenstand der Klausel betrifft (etwa Laufzeit, "
+            "Kündigung, Form von Erklärungen, Pauschalen, Haftung). Vergleiche den Wortlaut der Klausel genau mit "
+            "dem der Norm, auch Beträge, Fristen, Formen und Zugangserfordernisse. Erlaubt die Norm etwas nur unter "
+            "Voraussetzungen (etwa nur unter Kaufleuten oder nur in bestimmten Fällen), prüfe, ob der Vertrag sie "
+            "erfüllt." + (f" {partner_satz}" if partner_satz else "") + " Gib für jeden Absatz mit Bedenken eine "
+            "Einschätzung, die mit "
+            "der Bestimmung beginnt, dann Ergebnis, Norm mit Nummer und Buchstabe und Grund (etwa „§ 6 Abs. 1 des "
+            f"Vertrags: unwirksam nach § 309 Nr. 7 Buchst. a BGB, weil …“). Hat {paragraph} keine Bedenken, gib "
+            f"genau eine Einschätzung „{paragraph} des Vertrags: keine Bedenken, weil …“. Höchstens drei Aussagen. "
+            "Setze „ergebnis“ auf unwirksam, bedenklich (wenn es auf Umstände ankommt) oder wirksam. Belege jede "
+            "Aussage mit der Nummer des Absatzes ([Dokument.Absatz]) und einem wörtlichen Zitat von 4 bis 25 Wörtern "
+            "aus genau diesem Absatz; die geschweiften Klammern gehören nicht zum Text. Absatznummern und Zitate "
+            "gehören in die Belege, nicht in den Text der Aussage. Jede Aussage ist eine Einschätzung."
+            + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
+        )
+        try:
+            antwort = anbieter.chat(system_p, nutzer, schema)
+        except KiFehler as fehler:
+            if _zu_lang(fehler):
+                raise KiFehler(_zu_lang_text(fehler)) from fehler
+            aussagen.append({"text": f"{paragraph} des Vertrags konnte nicht geprüft werden: {fehler}",
+                             "art": HINWEIS, "belege": []})
+            continue
+        neu = [a for a in (antwort.get("aussagen") or []) if isinstance(a, dict)][:3]
+        if len(neu) > 1:
+            # Neben den Aussagen zu einzelnen Absätzen fasst das Modell gern noch „§ 7 des Vertrags: keine
+            # Bedenken“ zusammen; das widerspricht ihnen leicht und wiederholt sie sonst nur.
+            pauschal = re.compile(rf"^\s*{re.escape(paragraph)}(?! Abs\.)\b")
+            neu = [a for a in neu if not (a.get("ergebnis") == WIRKSAM and pauschal.match(str(a.get("text", ""))))
+                   ] or neu
+        for a in neu:
+            # Das Modell setzt die Absatznummern gern auch in den Text: „([1.15], [1.16])“.
+            a["text"] = re.sub(r"\s*\(?\[\d+\.\d+\](?:\s*„[^“]*“|\s*\"[^\"]*\")?(?:,\s*\[\d+\.\d+\])*\)?", "",
+                               str(a.get("text", ""))).strip()
+            if a.get("ergebnis") in KLAUSEL_ERGEBNISSE and a.get("art") != HINWEIS:
+                a["art"] = EINSCHAETZUNG
+            aussagen.append(a)
+    return {"aussagen": aussagen, "skills": list(benutzt.values())}
+
+
+VERBRAUCHER, UNTERNEHMER, UNKLAR = "verbraucher", "unternehmer", "unklar"
+PARTNER_WORT = {VERBRAUCHER: "Verbraucher (§ 13 BGB)", UNTERNEHMER: "Unternehmer (§ 14 BGB)",
+                UNKLAR: "nicht eindeutig Verbraucher oder Unternehmer; prüfe beide Fälle"}
+
+
+def _vertragspartner(anbieter: Anbieter, system: str, t: belege.Text, nr: int,
+                     fortschritt: Fortschritt, frage: str = "") -> dict | None:
+    """Vorab eine kleine Anfrage: Ist der Vertragspartner des Verwenders Verbraucher oder Unternehmer? Davon
+    hängt ab, welche Normen gelten (§ 310 BGB, § 38 ZPO); in jeder Einzelprüfung übersieht ein kleines Modell
+    das sonst leicht."""
+    fortschritt.melde("Das Sprachmodell stellt fest, wer Vertragspartner ist")
+    fortschritt.pruefe()
+    zeilen, laenge = [], 0
+    for a in t.abschnitte:
+        if laenge > 2 * VERTRAGSKOPF_ZEICHEN:
+            break
+        zeilen.append(_zeile(nr, t, a))
+        laenge += len(zeilen[-1])
+    schema = {"type": "object", "properties": {
+        "ergebnis": {"type": "string", "enum": [VERBRAUCHER, UNTERNEHMER, UNKLAR]},
+        "text": {"type": "string", "maxLength": 300},
+        "belege": SCHEMA["properties"]["aussagen"]["items"]["properties"]["belege"] | {"maxItems": 2},
+    }, "required": ["ergebnis", "text", "belege"]}
+    nutzer = (
+        "Anfang des Vertrags (Dokument " + str(nr) + "):\n" + "\n".join(zeilen) + "\n\nAufgabe: Wer verwendet die "
+        "Vertragsbedingungen, und ist sein Vertragspartner Verbraucher (eine natürliche Person, die nicht für ihr "
+        "Gewerbe oder ihren Beruf handelt) oder Unternehmer? Ist der Vertragspartner eine natürliche Person (etwa "
+        "mit Vorname, Geburtsdatum oder Privatanschrift) und deutet nichts auf ein Gewerbe oder einen Beruf hin "
+        "(keine Firma, kein geschäftlicher Zweck), antworte verbraucher. Unternehmer nur, wenn der Text das zeigt; "
+        "unklar nur, wenn er sich widerspricht oder gar keinen Vertragspartner nennt. Nennt die Frage des Nutzers "
+        "die Rollen, übernimm sie. Gib in „text“ einen Satz mit Ergebnis und Grund und belege ihn mit der Nummer des "
+        "Absatzes ([Dokument.Absatz]) und einem wörtlichen Zitat von 4 bis 25 Wörtern aus genau diesem Absatz."
+        + (f"\n\nFrage des Nutzers: {frage}" if frage else "")
+    )
+    try:
+        antwort = anbieter.chat(system, nutzer, schema)
+    except KiFehler:
+        return None
+    if antwort.get("ergebnis") not in PARTNER_WORT or not str(antwort.get("text", "")).strip():
+        return None
+    return {"text": "Vertragspartner: " + str(antwort["text"]).strip(), "art": EINSCHAETZUNG,
+            "belege": antwort.get("belege") or [], "ergebnis": antwort["ergebnis"], "vertragspartner": True}
+
+
+def _klauseln_ordnen(aussagen: list[dict]) -> list[dict]:
+    """Bedenken zuerst (in Vertragsreihenfolge), dann die unbedenklichen Bestimmungen; vorn eine Übersicht."""
+    def bestimmung(a: dict) -> str | None:
+        return next((f.get("bestimmung") for f in a["fundstellen"] if f.get("bestimmung")), None)
+
+    partner = [a for a in aussagen if a.get("klausel") == "partner"]
+    bedenken = [a for a in aussagen if a.get("klausel") in (UNWIRKSAM, BEDENKLICH)]
+    rest = [a for a in aussagen if a.get("klausel") not in (UNWIRKSAM, BEDENKLICH, "partner")]
+    teile = []
+    # Jede Bestimmung nur einmal, unter dem schärfsten Ergebnis (unwirksam vor bedenklich vor ohne Bedenken).
+    genannt: set[str] = set()
+    for art, wort in ((UNWIRKSAM, "Wohl unwirksam"), (BEDENKLICH, "Bedenklich")):
+        namen = [n for n in dict.fromkeys(bestimmung(a) for a in bedenken if a["klausel"] == art)
+                 if n and n not in genannt]
+        genannt.update(namen)
+        if namen:
+            teile.append(f"{wort}: {', '.join(namen)}.")
+    ohne = [n for n in dict.fromkeys(bestimmung(a) for a in rest if a.get("klausel") == WIRKSAM)
+            if n and n not in genannt]
+    if ohne:
+        teile.append(f"Ohne Bedenken: {', '.join(ohne)}.")
+    for a in aussagen:
+        a.pop("klausel", None)
+    kopf = "Übersicht der Einzelprüfung je Paragraph (von der App zusammengestellt): "
+    uebersicht = ({"text": kopf + " ".join(teile), "art": HINWEIS, "status": HINWEIS, "fundstellen": []}
+                  if teile else None)
+    return ([uebersicht] if uebersicht else []) + partner + bedenken + rest
+
+
 def _zusammenhang(eintraege: list[dict]) -> str:
     zeilen = []
     for e in eintraege[-VERLAUF:]:
@@ -214,6 +496,7 @@ def frage(
     heute: date | None = None,
     skills: list[dict] | None = None,
     skill_hinweis: str | None = None,
+    skill_waehler: Callable[[str], list[dict]] | None = None,
 ) -> dict:
     """Beantwortet eine Frage zur Akte bzw. zum Dokument, speichert Frage und Antwort und gibt die Antwort zurück.
 
@@ -227,6 +510,8 @@ def frage(
     ``land``: Bundesland für Feiertage beim Fristenrechner.
     ``skills``: gewählte Arbeitsanweisungen (``skills.fuer_anfrage``); sie ergänzen die Systemanweisung.
     ``skill_hinweis``: warum trotz Auswahl kein Skill mitging (steht unter der Antwort).
+    ``skill_waehler``: bei der Klauselprüfung je Paragraph die Skills zum Text des Paragraphen (aus derselben
+    Auswahl, etwa einem Ordner); passt keiner, gehen die für die ganze Frage gewählten mit.
     """
     fortschritt = fortschritt or OhneFortschritt()
     einrichten(con)
@@ -251,6 +536,19 @@ def frage(
 
     frueher = verlauf(con, akte_id, dokument_id)
     bisher = _zusammenhang(frueher)
+    # Klauselprüfung je Paragraph (siehe _klauseln_einzeln): dann zählt für den Platz nur ein Paragraph.
+    je_paragraph = _ist_klauselpruefung(text, texte) and not (rechner and wissen.soll_rechnen(text))
+    # Die Einzelprüfung je Paragraph schickt den bisherigen Verlauf nicht mit; er braucht dann keinen Platz.
+    verlauf_zeichen = 0 if je_paragraph else len(bisher)
+    if skills:
+        skills, weggelassen = _skills_kuerzen(skills, texte, kontext, anbieter, verlauf_zeichen + len(text),
+                                              je_paragraph=je_paragraph)
+        if weggelassen:
+            system = ki_skills.systemanweisung(SYSTEM, skills)
+            satz = (f"Ohne Skill {', '.join(weggelassen)}: Er hätte Teile der Dokumente aus der Anfrage verdrängt."
+                    if len(weggelassen) == 1 else f"Ohne die Skills {', '.join(weggelassen)}: Sie hätten Teile der "
+                    "Dokumente aus der Anfrage verdrängt.")
+            skill_hinweis = f"{skill_hinweis} {satz}" if skill_hinweis else satz
     rechnen = rechner and wissen.soll_rechnen(text)
     vorige_frage = next((e.get("text", "") for e in reversed(frueher) if e["rolle"] == "frage"), "")
     passende_rechner = wissen.passende_rechner(text, vorige_frage)
@@ -259,8 +557,13 @@ def frage(
     if gesetze is not None:
         fortschritt.melde("Suche passende Normen in der Wissensbasis")
         zusaetzlich = ["§ 288 BGB", "§ 247 BGB", "§ 187 BGB", "§ 188 BGB", "§ 193 BGB"] if rechnen else []
-        normen, fehlende_normen = wissen.waehle_normen(gesetze, con, akte_id, dokument_id, text, zusaetzlich,
-                                                       suche=gesetze_suche, ergaenzt=gesetze_ergaenzt)
+        # Themen (etwa AGB) auch am Dokumenttext erkennen: „Welche Klauseln sind unwirksam?“ nennt das Thema nicht.
+        thema_text = "\n".join(a["text"] for t in texte for a in t.abschnitte[:60])
+        normen, fehlende_normen = wissen.waehle_normen(
+            gesetze, con, akte_id, dokument_id, text, zusaetzlich, suche=gesetze_suche, ergaenzt=gesetze_ergaenzt,
+            thema_text=thema_text, skill_texte=[s["text"] for s in skills or []],
+            budget=_gesetze_budget(texte, kontext, anbieter, len(system) - len(SYSTEM) + verlauf_zeichen + len(text),
+                                   je_paragraph=je_paragraph))
     urteile: list[dict] = []
     fehlende_urteile: list[str] = []
     mit_rechtsprechung = rechtsprechung in (wissen.RECHTSPRECHUNG_AKTE, wissen.RECHTSPRECHUNG_SUCHE)
@@ -300,7 +603,8 @@ def frage(
             if not abschnitte:
                 continue
             kopf = f"Dokument {nr}: {t.dateiname}" + (f" (Beteiligte: {', '.join(t.parteien)})" if t.parteien else "")
-            zeilen = "\n".join(f"[{nr}.{a['nr']}] " + " ".join(a["text"].split()) for a in abschnitte)
+            zeilen = "\n".join(f"[{nr}.{a['nr']}] " + _bestimmungen(t, a["nr"]) + " ".join(a["text"].split())
+                               for a in abschnitte)
             teile.append(f"{kopf}\n{zeilen}")
         umfang = (
             "Dir liegen die Dokumente vollständig vor."
@@ -330,6 +634,7 @@ def frage(
             "Voraussetzung einzeln als Einschätzung („Voraussetzung …: erfüllt/nicht erfüllt/offen, weil …“), belegt "
             "mit den Stellen der Akte und, wenn vorgelegt, dem Wortlaut der Norm. Gib den Sachverhalt nicht bloß "
             "wieder."
+            + (f"\n\n{_klauselpruefung(texte)}" if _ist_klauselpruefung(text, texte) else "")
             + (f"\n\n{wissen.ANWEISUNG_GESETZE}" if normen else "")
             + (f"\n\n{wissen.ANWEISUNG_RECHTSPRECHUNG}" if urteile else "")
             + (f"\n\n{wissen.ANWEISUNG_RECHNER}" if rechnen else "")
@@ -354,40 +659,54 @@ def frage(
     fortschritt.melde("Wähle die passenden Absätze aus")
     nutzer, schema, teile, auswahl, normtext, urteiltext = baue(normen, urteile)
 
-    fortschritt.melde("Das Sprachmodell beantwortet die Frage")
-    fortschritt.pruefe()
+    einzeln = je_paragraph and not urteile
     gekuerzt = False
-    try:
-        antwort = anbieter.chat(system, nutzer, schema)
-    except KiFehler as fehler:
-        if _zu_lang(fehler) and (normen or urteile):
-            # Der im Programm eingestellte Kontext ist kleiner als angegeben: noch einmal mit weniger Gesetzes-
-            # und Urteilstext (zitierte Normen, nur Leitsätze).
-            fortschritt.melde("Die Anfrage war zu lang; frage noch einmal mit weniger Gesetzes- und Urteilstext")
-            fortschritt.pruefe()
-            normen = [n for n in normen if n["herkunft"] == "zitiert"][:3]
-            for i, n in enumerate(normen, 1):
-                n["nr"] = i
-            urteile = wissen.nur_leitsaetze(urteile)
-            nutzer, schema, teile, auswahl, normtext, urteiltext = baue(normen, urteile)
-            gekuerzt = True
-            try:
-                antwort = anbieter.chat(system, nutzer, schema)
-            except KiFehler as noch:
-                if not _zu_lang(noch):
-                    raise
-                raise KiFehler(_zu_lang_text(noch)) from noch
-        elif _zu_lang(fehler):
-            raise KiFehler(_zu_lang_text(fehler)) from fehler
-        elif "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
-            raise
-        else:
-            fortschritt.pruefe()
-            antwort = anbieter.chat(system, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
+    if einzeln:
+        # Ein kleines Modell urteilt über eine Bestimmung mit dem Normtext daneben verlässlicher als über einen
+        # ganzen Vertrag auf einmal; je Paragraph eine Anfrage.
+        platz = _gesetze_budget(texte, kontext, anbieter, len(text), roh=True,
+                                je_paragraph=True) - len(normtext)
+        antwort = _klauseln_einzeln(anbieter, skills or [], texte, normen, normtext, text, fortschritt,
+                                    skill_waehler, platz)
+        if antwort.get("skills"):
+            skills = antwort["skills"]
+        gesamt = sum(len(t.abschnitte) for t in texte)
+        auswahl = {"vollstaendig": True, "absaetze": gesamt, "von": gesamt, "dokumente": len(texte),
+                   "dokumente_von": len(texte), "je_bestimmung": True}
+    else:
+        fortschritt.melde("Das Sprachmodell beantwortet die Frage")
+        fortschritt.pruefe()
+        try:
+            antwort = anbieter.chat(system, nutzer, schema)
+        except KiFehler as fehler:
+            if _zu_lang(fehler) and (normen or urteile):
+                # Der im Programm eingestellte Kontext ist kleiner als angegeben: noch einmal mit weniger Gesetzes-
+                # und Urteilstext (zitierte Normen, nur Leitsätze).
+                fortschritt.melde("Die Anfrage war zu lang; frage noch einmal mit weniger Gesetzes- und Urteilstext")
+                fortschritt.pruefe()
+                normen = [n for n in normen if n["herkunft"] in ("thema", "zitiert")][:3]
+                for i, n in enumerate(normen, 1):
+                    n["nr"] = i
+                urteile = wissen.nur_leitsaetze(urteile)
+                nutzer, schema, teile, auswahl, normtext, urteiltext = baue(normen, urteile)
+                gekuerzt = True
+                try:
+                    antwort = anbieter.chat(system, nutzer, schema)
+                except KiFehler as noch:
+                    if not _zu_lang(noch):
+                        raise
+                    raise KiFehler(_zu_lang_text(noch)) from noch
+            elif _zu_lang(fehler):
+                raise KiFehler(_zu_lang_text(fehler)) from fehler
+            elif "JSON" not in str(fehler) or "abgeschnitten" in str(fehler):
+                raise
+            else:
+                fortschritt.pruefe()
+                antwort = anbieter.chat(system, nutzer, schema)  # ein zweiter Versuch bei unbrauchbarem JSON
 
     aussagen = []
     gesehen: set[str] = set()
-    for a in (antwort.get("aussagen") or [])[:HOECHSTENS]:
+    for a in (antwort.get("aussagen") or [])[:KLAUSEL_HOECHSTENS if einzeln else HOECHSTENS]:
         if not isinstance(a, dict) or not str(a.get("text", "")).strip():
             continue
         # Dieselbe Aussage noch einmal (etwa als Tatsache und als Einschätzung) zeigt nur die erste.
@@ -421,7 +740,12 @@ def frage(
             eintrag["normbelege"] = normbelege
         if urteilsbelege:
             eintrag["urteilsbelege"] = urteilsbelege
+        if einzeln:
+            eintrag["klausel"] = ("partner" if a.get("vertragspartner") else
+                                  a.get("ergebnis") if a.get("ergebnis") in KLAUSEL_ERGEBNISSE else None)
         aussagen.append(eintrag)
+    if einzeln:
+        aussagen = _klauseln_ordnen(aussagen)
 
     berechnungen = []
     if rechnen:
@@ -690,6 +1014,7 @@ def _beleg(texte: list[belege.Text], dokument: object, absatz: object, zitat: ob
     """Fundstelle des Zitats: zuerst im genannten Dokument, sonst in den übrigen vorgelegten."""
     if not isinstance(zitat, str):
         return None
+    zitat = re.sub(r"^\s*\{[^}]*\}\s*", "", zitat)  # Kennzeichen der Bestimmung, falls mit abgeschrieben
     nr = dokument - 1 if isinstance(dokument, int) and 1 <= dokument <= len(texte) else None
     reihenfolge = ([texte[nr]] if nr is not None else []) + [t for i, t in enumerate(texte) if i != nr]
     for t in reihenfolge:

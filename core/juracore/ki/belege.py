@@ -15,6 +15,7 @@ Reihenfolge im Absatz stehen.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 import sqlite3
@@ -134,6 +135,33 @@ def finde(zitat: str, abschnitte: dict[int, str], bevorzugt: int | None = None) 
 # --- Dokumente für das Modell und Fundstellen für die Oberfläche ---------------------------------------
 
 
+# Überschrift einer Bestimmung am Anfang einer Zeile: „§ 2 Laufzeit“ (nicht „§ 309 BGB“ mitten im Satz).
+_UEBERSCHRIFT = re.compile(
+    r"(?:^|\n)\s*§\s*(\d{1,3}[a-z]?)\s+(?![A-Z]{2,}\b|Abs\b|Nr\b|Satz\b|S\b)[A-ZÄÖÜ][a-zäöüß]"
+    # Die Texterkennung hängt eine Überschrift manchmal an den vorigen Absatz: „… vorbehalten. § 5 Ruhen des
+    # Vertrags“ (am Ende des Abschnitts, ohne weiteren Satz danach).
+    r"|(?<=[.:;] )§\s*(\d{1,3}[a-z]?)\s+(?![A-Z]{2,}\b|Abs\b|Nr\b|Satz\b|S\b)[A-ZÄÖÜ][^.;:§]{0,70}$"
+)
+# Überschrift mit verlesenem Paragraphenzeichen („810 Gerichtsstand“, „$10 Gerichtsstand“). Gilt nur, wenn die
+# Nummer auf die vorige Überschrift folgt; eine Zahl am Zeilenanfang ist sonst meist wirklich eine Zahl.
+_UEBERSCHRIFT_VERLESEN = re.compile(
+    r"(?:^|\n)\s*(?P<z>[8$&S%§]{1,2})\s?(\d{1,2})\s+(?![A-Z]{2,}\b)[A-ZÄÖÜ][a-zäöüß]{2,}")
+# Absatz einer Bestimmung: „(2)“ am Anfang einer Zeile oder nach einem Satzende.
+_ABSATZ = re.compile(r"(?:^|\n|(?<=[.:;]) )\s*\((\d{1,2})\)\s")
+
+
+def _folgt(paragraph: str | None, marken: list[tuple[int, str, str]], marke: tuple[int, str, str]) -> bool:
+    """Ob eine Überschrift mit verlesenem „§“ die nächste Nummer nach der vorigen Überschrift trägt."""
+    vorige = paragraph
+    for m in marken:
+        if m is marke:
+            break
+        if m[1] == "§":
+            vorige = f"§ {m[2]}"
+    zahl = re.match(r"§ (\d+)$", vorige or "")
+    return bool(zahl) and int(marke[2]) == int(zahl.group(1)) + 1
+
+
 @dataclass
 class Text:
     """Ein Dokument der Akte, wie es dem Modell vorgelegt und gegen das geprüft wird."""
@@ -146,6 +174,50 @@ class Text:
     @property
     def nach_nr(self) -> dict[int, str]:
         return {a["nr"]: a["text"] for a in self.abschnitte}
+
+    @functools.cached_property
+    def gliederung(self) -> dict[int, list[tuple[int, str]]]:
+        """Gliederung eines Vertrags oder einer Satzung: je Abschnitt die Stellen, an denen eine Bestimmung beginnt
+        („§ 2“ als Überschrift, „(2)“ als Absatz), als (Position, „§ 2 Abs. 2“). Leer, wenn das Dokument nicht
+        so gegliedert ist (mindestens zwei Überschriften „§ n Titel“); ein Schriftsatz, der § 309 BGB zitiert, ist
+        es nicht."""
+        ueberschriften = sum(1 for a in self.abschnitte if _UEBERSCHRIFT.search(a["text"] or ""))
+        if ueberschriften < 2:
+            return {}
+        aus: dict[int, list[tuple[int, str]]] = {}
+        paragraph: str | None = None
+        absatz: str | None = None
+        for a in self.abschnitte:
+            text = a["text"] or ""
+            stellen: list[tuple[int, str]] = []
+            # Position des Zeichens „§“ bzw. der Klammer, damit ein Zitat ab „(1) …“ schon dazu zählt.
+            marken = sorted([(text.rfind("§", 0, m.start(m.lastindex)), "§", m.group(m.lastindex))
+                             for m in _UEBERSCHRIFT.finditer(text)]
+                            + [(m.start(1) - 1, "abs", m.group(1)) for m in _ABSATZ.finditer(text)]
+                            + [(m.start("z"), "§?", m.group(2)) for m in _UEBERSCHRIFT_VERLESEN.finditer(text)])
+            marken = [m for m in marken if m[1] != "§?" or _folgt(paragraph, marken, m)]
+            # Die vorige Bestimmung läuft weiter, außer der Abschnitt beginnt selbst mit „§ 3“ oder „(2)“.
+            beginnt_neu = bool(marken) and not text[: marken[0][0]].strip(" \n§(")
+            if paragraph and not beginnt_neu:
+                stellen.append((0, paragraph + (f" Abs. {absatz}" if absatz else "")))
+            for pos, art, wert in marken:
+                if art in ("§", "§?"):
+                    paragraph, absatz = f"§ {wert}", None
+                elif paragraph:
+                    absatz = wert
+                else:
+                    continue
+                stellen.append((pos, paragraph + (f" Abs. {absatz}" if absatz else "")))
+            aus[a["nr"]] = stellen
+        return aus
+
+    def bestimmung(self, abschnitt: int, position: int) -> str | None:
+        """Die Bestimmung des Dokuments an dieser Stelle, etwa „§ 2 Abs. 2“; ``None`` ohne Gliederung."""
+        letzte = None
+        for pos, name in self.gliederung.get(abschnitt, []):
+            if pos <= position:
+                letzte = name
+        return letzte
 
     def fundstelle(self, fund: Fund) -> dict:
         """Fundstelle im selben Aufbau wie beim Abgleich (Dokument, Seite, Randnummer, Ausschnitt)."""
@@ -165,6 +237,7 @@ class Text:
             "abschnitt": a["nr"],
             "seite": akte._seite_an(a["seite"], json.loads(a["seitenwechsel"]), fund.start),
             "rn": a["rn"],
+            "bestimmung": self.bestimmung(a["nr"], fund.start),
             "parteien": self.parteien,
             "treffer": fund.treffer,
             "ausschnitt": {

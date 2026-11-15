@@ -13,6 +13,7 @@ Der einzige plattformabhängige Teil ist die Suche nach dem Programm:
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -107,6 +108,44 @@ class Tesseract:
         return (*lies_tsv(tsv), lies_woerter(tsv))
 
 
+# Tesseract liest das Paragraphenzeichen oft als „8“, „8&“, „$“ oder „&“, das doppelte als „88“ oder „$$“.
+_FALSCH_EINFACH = {"8", "8&", "&", "$", "8S", "S8", "%", "$&", "&$", "S&", "§&", "$8", "8$"}
+_FALSCH_DOPPELT = {"88", "$$", "8§", "§8", "&&", "88&", "8&8"}
+_NUMMER = re.compile(r"^\d{1,4}[a-z]?[.,;:)]?$")
+_ZUSATZ = re.compile(r"^(?:Abs\.?|Nr\.?|S\.|Satz|Halbs\.?|ff?\.)$")
+_GESETZ = re.compile(r"^[A-ZÄÖÜ][A-Za-zÄÖÜäöü]*[A-Z][A-Za-z]*[.,;:)]?$")  # BGB, ZPO, BauGB, AktG
+_EINHEITEN = {"Monate", "Monaten", "Monat", "Wochen", "Woche", "Tage", "Tagen", "Jahre", "Jahren", "Jahr", "Stunden",
+              "Euro", "EUR", "Prozent", "Uhr", "Stück", "Seiten", "Personen", "Mal"}
+_DAVOR = {"nach", "gem.", "gemäß", "gemaß", "des", "der", "dem", "den", "im", "vgl.", "i.V.m.", "iVm", "und", "bzw.",
+          "oder", "sowie", "aus", "Verstoß", "gegen", "i.S.d.", "(", "Anwendung"}
+
+
+def paragraphen_nachbessern(woerter: list[str]) -> list[str]:
+    """Setzt in den Wörtern einer Zeile das Paragraphenzeichen wieder ein, wo die Texterkennung es verlesen hat:
+    „8& 1 Leistungen“ → „§ 1 Leistungen“, „nach 8 309 Nr. 7 BGB“ → „nach § 309 Nr. 7 BGB“, „88 305“ → „§§ 305“.
+
+    Nur in eindeutiger Umgebung: Auf das Zeichen folgt eine Nummer und darauf eine Überschrift (Zeilenanfang), ein
+    „Abs.“/„Nr.“ oder ein Gesetzeskürzel; oder vor dem Zeichen steht „nach“, „gemäß“, „des“ u. ä. Eine Zahl wie
+    „8 Monate“ bleibt."""
+    aus = list(woerter)
+    for i, w in enumerate(aus[:-1]):
+        doppelt = w in _FALSCH_DOPPELT
+        if not (doppelt or w in _FALSCH_EINFACH) or not _NUMMER.match(aus[i + 1]):
+            continue
+        danach = aus[i + 2] if i + 2 < len(aus) else ""
+        bezug = bool(_ZUSATZ.match(danach) or _GESETZ.match(danach))  # „Abs.“, „Nr.“ oder ein Gesetz
+        am_anfang = i == 0 and (bezug or danach[:1].isupper() and danach.rstrip(".,") not in _EINHEITEN)
+        nach_wort = i > 0 and aus[i - 1] in _DAVOR
+        reihe = doppelt and danach in ("bis", "und", "ff.", "f.")  # „§§ 305 bis 310“
+        # „8“ allein ist meist wirklich eine Acht: nur vor „Abs.“/Gesetz oder als Überschrift am Zeilenanfang.
+        if w == "8" and not (am_anfang or bezug):
+            continue
+        if not (am_anfang or bezug or nach_wort or reihe):
+            continue
+        aus[i] = "§§" if doppelt else "§"
+    return aus
+
+
 def lies_tsv(tsv: str) -> tuple[list[str], float | None]:
     """Setzt die Wortliste der TSV-Ausgabe wieder zu Zeilen zusammen."""
     zeilen: dict[tuple[int, int, int], list[str]] = {}
@@ -122,7 +161,7 @@ def lies_tsv(tsv: str) -> tuple[list[str], float | None]:
         zeilen.setdefault(schluessel, []).append(wort)
         if float(spalten[10]) >= 0:
             konfidenzen.append(float(spalten[10]))
-    text = [" ".join(woerter) for _, woerter in sorted(zeilen.items())]
+    text = [" ".join(paragraphen_nachbessern(woerter)) for _, woerter in sorted(zeilen.items())]
     konfidenz = round(sum(konfidenzen) / len(konfidenzen), 1) if konfidenzen else None
     return text, konfidenz
 
@@ -149,8 +188,14 @@ def lies_woerter(tsv: str) -> list[list]:
     if not breite or not hoehe:
         return []
     zeilennummer = {k: i for i, k in enumerate(sorted({k for k, _, _ in roh}))}
+    roh.sort(key=lambda r: (r[0], r[1]))
+    # Paragraphenzeichen je Zeile wie in ``lies_tsv`` nachbessern, damit Wörter und Text übereinstimmen.
+    for k in zeilennummer:
+        stellen = [i for i, r in enumerate(roh) if r[0] == k]
+        for i, neu in zip(stellen, paragraphen_nachbessern([roh[i][2][0] for i in stellen]), strict=True):
+            roh[i][2][0] = neu
     woerter = []
-    for schluessel, _, (text, x, y, b, h) in sorted(roh, key=lambda r: (r[0], r[1])):
+    for schluessel, _, (text, x, y, b, h) in roh:
         woerter.append([text, zeilennummer[schluessel], round(x / breite, 5), round(y / hoehe, 5),
                         round(b / breite, 5), round(h / hoehe, 5)])
     return woerter

@@ -382,4 +382,10 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 .skill-titel { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
 .skill-titel h3 { margin: 0; }
 .skill-liste > li.markiert { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+.skill-quelle-neu { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin: 8px 0; }
+.skill-quelle-neu label { flex: 1 1 280px; }
+.skill-quelle-neu input { width: 100%; }
+.skill-paket { margin: 8px 0 0; padding-left: 12px; border-left: 3px solid var(--linie); }
+.skill-quellen-skills { list-style: none; padding: 0; margin: 4px 0 0; max-height: 360px; overflow: auto; }
+.skill-quellen-skills li { padding: 2px 0; }
 .skill-umbenennen { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

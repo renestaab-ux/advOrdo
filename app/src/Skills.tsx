@@ -1,6 +1,7 @@
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { Rueckfrage } from "./Rueckfrage";
+import SkillQuellen from "./SkillQuellen";
 import { useFokusAuf } from "./barrierefrei";
 import { Skill, SkillImport, SkillListe, istDesktop, kern } from "./kern";
 
@@ -76,6 +77,32 @@ function passtZurSuche(s: Skill, suche: string) {
 }
 
 /** Kurztext der Auswahl für den Knopf, z. B. „Alle (passende je Frage)“ oder „3 gewählt“. */
+const HOECHSTE_HOEHE = 560;
+const MINDEST_HOEHE = 220;
+const GUTE_HOEHE = 360;
+
+/** Platz über und unter dem Element bis zum Fensterrand bzw. bis zum Rand eines umgebenden Bereichs, der seinen
+ *  Inhalt abschneidet (overflow); daraus Richtung und höchste Höhe der Auswahlfläche. */
+export function freierRaum(el: HTMLElement): { nachOben: boolean; hoehe: number } {
+  const r = el.getBoundingClientRect();
+  let oben = 0;
+  let unten = window.innerHeight;
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const s = getComputedStyle(p);
+    if (/(auto|scroll|hidden|clip)/.test(`${s.overflow}${s.overflowY}`)) {
+      const pr = p.getBoundingClientRect();
+      oben = Math.max(oben, pr.top);
+      unten = Math.min(unten, pr.bottom);
+    }
+  }
+  const platzOben = r.top - oben - 12;
+  const platzUnten = unten - r.bottom - 12;
+  // Nach unten, solange dort gut Platz ist; sonst dorthin, wo mehr ist.
+  const nachOben = platzUnten < GUTE_HOEHE && platzOben > platzUnten;
+  const hoehe = Math.min(HOECHSTE_HOEHE, Math.max(nachOben ? platzOben : platzUnten, MINDEST_HOEHE));
+  return { nachOben, hoehe };
+}
+
 export function auswahlText(auswahl: string[], skills: Skill[]): string {
   if (!auswahl.length) return "keine";
   if (auswahl.includes(ALLE)) return "Alle (passende je Frage)";
@@ -144,6 +171,19 @@ export function SkillWahl({
     return () => document.removeEventListener("mousedown", weg);
   }, [offen]);
 
+  // Nach oben oder unten öffnen, je nachdem wo mehr Platz ist, und nie höher als dieser Platz: sonst schneidet
+  // ein scrollender Bereich (Chat, Analyse) oder der Fensterrand die Suche oben ab.
+  const [lage, setLage] = useState<{ nachOben: boolean; hoehe: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!offen) return;
+    function messen() {
+      if (knopf.current) setLage(freierRaum(knopf.current));
+    }
+    messen();
+    window.addEventListener("resize", messen);
+    return () => window.removeEventListener("resize", messen);
+  }, [offen]);
+
   const skills = liste?.skills ?? [];
   const gruppen = useMemo(() => nachOrdnern(skills.filter((s) => passtZurSuche(s, suche))), [skills, suche]);
 
@@ -207,6 +247,13 @@ export function SkillWahl({
       {offen && (
         <div
           className="skill-flaeche"
+          style={
+            lage
+              ? lage.nachOben
+                ? { top: "auto", bottom: "calc(100% + 4px)", maxHeight: lage.hoehe }
+                : { top: "calc(100% + 4px)", bottom: "auto", maxHeight: lage.hoehe }
+              : undefined
+          }
           id={`${id}-flaeche`}
           ref={flaeche}
           role="group"
@@ -279,9 +326,9 @@ export function SkillWahl({
             })}
           </div>
           <p className="leise skill-erklaerung">
-            Bei mehreren Skills, einem Ordner oder „Alle“ nimmt advOrdo je Frage die passendsten (nach Name, Überschriften
-            und Beschreibung), höchstens fünf
-            {grenze ? ` und zusammen bis etwa ${zahl(grenze)} Zeichen` : ""}. Passt keiner, gilt keiner. Unter der Antwort
+            Einzeln gewählte Skills gelten immer. Aus einem Ordner oder „Alle“ schlägt advOrdo je Frage passende vor
+            (nach Name, Ordner und Beschreibung), und das Sprachmodell wählt daraus höchstens drei; zusammen höchstens
+            fünf{grenze ? ` und bis etwa ${zahl(grenze)} Zeichen` : ""}. Passt keiner, gilt keiner. Unter der Antwort
             steht, welche gewirkt haben.
           </p>
           <div className="aktionen">
@@ -512,7 +559,8 @@ export default function SkillsEinstellungen() {
         <p className="leise">
           Skills aus Claude oder ChatGPT lassen sich importieren: eine Datei <code>SKILL.md</code>, ein ZIP-Archiv oder
           ein Ordner mit vielen Skills. Jedes Paket kommt in einen eigenen Ordner, den du umbenennen kannst (Unterordner
-          mit „/“, etwa „Zivilrecht / BGB AT“). Was ein Skill an Werkzeugen voraussetzt (Webseiten, Word-Dateien,
+          mit „/“, etwa „Zivilrecht / BGB AT“). Ganze Sammlungen auf GitHub bindest du unten unter „Quellen“ an und
+          holst dir daraus einzelne Skills. Was ein Skill an Werkzeugen voraussetzt (Webseiten, Word-Dateien,
           weitere Dateien im Ordner), gibt es hier nicht; darauf weist die Liste hin. Die Regeln von advOrdo gehen immer
           vor: Tatsachen nur aus der Akte, jede Aussage mit Beleg.
         </p>
@@ -542,6 +590,8 @@ export default function SkillsEinstellungen() {
         )}
         {fehler && <p className="fehler" role="alert">{fehler}</p>}
       </section>
+
+      <SkillQuellen onImportiert={laden} />
 
       {entwurf && (
         <section className="karte skill-entwurf">

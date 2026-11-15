@@ -12,6 +12,8 @@ export interface AbgleichFundstelle {
   abschnitt: number;
   seite: number | null;
   rn: number | null;
+  /** Bestimmung eines gegliederten Vertrags an der Stelle, etwa „§ 6 Abs. 1“ (nur bei Antworten der KI). */
+  bestimmung?: string | null;
   /** Beteiligten-Tags des Dokuments, z. B. ["Kläger"]. */
   parteien: string[];
   /** Der Satz um den Wert, zum Hervorheben getrennt. */

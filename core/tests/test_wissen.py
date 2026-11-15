@@ -562,3 +562,68 @@ def test_rpc_prueft_die_stufe_der_rechtsprechung(tmp_path):
     a = kern.bearbeite(json.dumps({"id": 1, "method": "ki.chat_fragen",
                                    "params": {"akte_id": 1, "frage": "x", "rechtsprechung": "alles"}}))
     assert "Rechtsprechung" in a["error"]["message"]
+
+
+def test_thema_agb_und_normen_aus_skills(akten, con, tmp_path):
+    akte_id = _akte(akten, con, tmp_path)
+    assert [t for t, _ in wissen.themen("Welche Klauseln sind unwirksam?")] == ["AGB-Recht"]
+    assert wissen.themen("Wer ist die Beklagte?", "Kaufvertrag über einen Pkw") == []
+    # Thema am Dokumenttext erkannt: Kernnormen vor den zitierten; fehlen sie in der Wissensbasis, wird das gesagt.
+    normen, fehlend = wissen.waehle_normen(con, akten, akte_id, None, "Was ist unwirksam?", suche=False,
+                                           thema_text="Es gelten unsere Allgemeinen Geschäftsbedingungen.",
+                                           skill_texte=["Prüfe § 437 BGB und § 280 BGB."])
+    assert "§ 309 BGB" in fehlend
+    assert [(n["bezeichnung"], n["herkunft"]) for n in normen] == [("§ 280", "zitiert"), ("§ 437", "skill")]
+
+
+def test_bestimmung_eines_vertrags_und_nummer_der_norm():
+    from juracore.ki import belege
+
+    def a(nr, text):
+        return {"nr": nr, "text": text, "seite": 1, "seitenwechsel": "[]", "rn": None}
+
+    vertrag = belege.Text(1, "vertrag.pdf", [], [
+        a(1, "§ 1 Leistungen\n(1) Das Studio stellt Geräte bereit."),
+        a(2, "§ 2 Laufzeit und Verlängerung\n(1) Erstlaufzeit 24 Monate. (2) Der Vertrag verlängert sich um 12 Monate."),
+        a(3, "(3) Das Recht zur Kündigung aus wichtigem Grund bleibt unberührt."),
+    ])
+    f = vertrag.fundstelle(belege.finde("verlängert sich um 12 Monate", vertrag.nach_nr))
+    assert f["bestimmung"] == "§ 2 Abs. 2"
+    assert vertrag.fundstelle(belege.finde("aus wichtigem Grund", vertrag.nach_nr))["bestimmung"] == "§ 2 Abs. 3"
+    assert vertrag.fundstelle(belege.finde("stellt Geräte bereit", vertrag.nach_nr))["bestimmung"] == "§ 1 Abs. 1"
+    # Ein Schriftsatz, der Normen zitiert, hat keine solche Gliederung.
+    schriftsatz = belege.Text(2, "klage.pdf", [], [a(1, "Die Klausel verstößt gegen § 309 Nr. 7 BGB."),
+                                                   a(2, "Auch § 307 BGB ist verletzt.")])
+    assert schriftsatz.fundstelle(belege.finde("verstößt gegen", schriftsatz.nach_nr))["bestimmung"] is None
+
+    norm = {"nr": 1, "bezeichnung": "§ 309", "gesetz": "BGB", "titel": "Klauselverbote",
+            "fassung": {"id": 1, "stand": ["zuletzt geändert 2022"]},
+            "absaetze": [{"nr": None, "text": "Auch soweit eine Abweichung zulässig ist, ist unwirksam 1. (Kurzfristige "
+                          "Preiserhöhungen) eine Bestimmung … 7. (Haftungsausschluss bei Verletzung von Leben, Körper, "
+                          "Gesundheit und bei grobem Verschulden) a) ein Ausschluss oder eine Begrenzung der Haftung "
+                          "… 9. bei einem Vertragsverhältnis, das die regelmäßige Erbringung von Dienstleistungen zum "
+                          "Gegenstand hat, b) eine den anderen Vertragsteil bindende stillschweigende Verlängerung"}]}
+    b = wissen.normbeleg([norm], 1, "ein Ausschluss oder eine Begrenzung der Haftung")
+    assert b["norm"] == "§ 309 Nr. 7 BGB"
+    assert wissen.normbeleg([norm], 1, "bindende stillschweigende Verlängerung")["norm"] == "§ 309 Nr. 9 BGB"
+
+
+def test_ueberschrift_am_ende_des_vorigen_absatzes_und_thema_gerichtsstand():
+    from juracore.ki import belege
+
+    def a(nr, text):
+        return {"nr": nr, "text": text, "seite": 1, "seitenwechsel": "[]", "rn": None}
+
+    # So setzt die Texterkennung den Scan manchmal zusammen (frei erfunden).
+    vertrag = belege.Text(1, "scan.pdf", [], [
+        a(1, "§ 4 Rücklastschriften"),
+        a(2, "(2) Pauschale 25,00 €. Weitere Ansprüche bleiben vorbehalten. § 5 Ruhen des Vertrags"),
+        a(3, "(1) Bei Krankheit ruht der Vertrag."),
+    ])
+    assert vertrag.fundstelle(belege.finde("Bei Krankheit ruht", vertrag.nach_nr))["bestimmung"] == "§ 5 Abs. 1"
+    assert vertrag.fundstelle(belege.finde("Weitere Ansprüche", vertrag.nach_nr))["bestimmung"] == "§ 4 Abs. 2"
+    # Ein Normzitat mitten im Satz ist keine Überschrift.
+    satz = belege.Text(2, "x.pdf", [], [a(1, "§ 1 Zweck"), a(2, "§ 2 Pflichten"),
+                                        a(3, "Das gilt. § 309 Nr. 7 BGB bleibt unberührt, ebenso weiteres.")])
+    assert [n for _, n in satz.gliederung[3]] == ["§ 2"]
+    assert [n for n, _ in wissen.themen("Gerichtsstand ist Freiburg; AGB")] == ["Gerichtsstand", "AGB-Recht"]

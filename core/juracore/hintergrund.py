@@ -39,6 +39,10 @@ BEFEHLE = {
     "akten.online_pruefen": "Zitate online prüfen",
     "anmerkungen.pdf_akte": "PDF-Kopien mit Markierungen erstellen",
     "akten.importieren_dateien": "Dokumente einlesen",
+    "skills.quelle_anbinden": "Skill-Quelle anbinden",
+    "skills.quelle_aktualisieren": "Skill-Quelle aktualisieren",
+    "skills.quelle_paket": "Skills der Quelle auflisten",
+    "skills.quelle_importieren": "Skills aus Quelle importieren",
 }
 
 _aktuell: contextvars.ContextVar[Auftrag | None] = contextvars.ContextVar("hintergrund_auftrag", default=None)
