@@ -7,8 +7,9 @@ eigener Datenbankverbindung und gibt sofort dessen Nummer zurück. Die
 Oberfläche fragt mit ``ki.auftrag`` nach Fortschritt und Ergebnis.
 
 Es läuft höchstens ein Auftrag zugleich (die Grafikkarte rechnet ohnehin nur
-einen). Abbrechen wirkt nach dem laufenden Schritt; eine bereits gestellte
-Anfrage an das Modell wird noch beendet.
+einen). Abbrechen wirkt sofort: Die Verbindung zum Modell wird getrennt
+(``netzprotokoll.Leitungen``), das Programm des Modells hört dann auf zu rechnen,
+und der Auftrag endet mit „abgebrochen“, ohne Teilergebnis.
 """
 
 from __future__ import annotations
@@ -57,6 +58,7 @@ class Auftrag:
         self.dauer: float | None = None
         self._abbruch = threading.Event()
         self._sperre = threading.Lock()
+        self.leitungen = netzprotokoll.Leitungen()
 
     # Schnittstelle Fortschritt für die Analyse
     def melde(self, text: str, schritt: int | None = None, von: int | None = None) -> None:
@@ -68,6 +70,14 @@ class Auftrag:
     def pruefe(self) -> None:
         if self._abbruch.is_set():
             raise Abgebrochen()
+
+    def abbruch_anfordern(self, text: str) -> None:
+        """Merkt den Abbruch vor und trennt laufende Anfragen, damit der Auftrag nicht auf die Antwort wartet."""
+        if self.status != LAEUFT:
+            return
+        self._abbruch.set()
+        self.melde(text)
+        self.leitungen.trennen()
 
     def als_dict(self) -> dict:
         with self._sperre:
@@ -82,6 +92,8 @@ class Auftrag:
                 "sekunden": round(self.dauer if self.dauer is not None else time.monotonic() - self.beginn),
                 "ergebnis": self.ergebnis if self.status == FERTIG else None,
                 "fehler": self.fehler,
+                # Abbruch angefordert, Auftrag aber noch nicht beendet: Die Oberfläche zeigt „Bricht ab …“.
+                "abbruch": self._abbruch.is_set() and self.status == LAEUFT,
             }
 
 
@@ -156,24 +168,33 @@ class Auftraege(Auftragsliste):
     @classmethod
     def _fuehre_aus(cls, auftrag: Auftrag, arbeit: Callable[[Auftrag], Any]) -> None:
         try:
-            with netzprotokoll.anlass(AUFGABEN.get(auftrag.aufgabe, auftrag.aufgabe)):
+            with (netzprotokoll.anlass(AUFGABEN.get(auftrag.aufgabe, auftrag.aufgabe)),
+                  netzprotokoll.abbrechbar(auftrag.pruefe, auftrag.leitungen)):
                 ergebnis = arbeit(auftrag)
+            auftrag.pruefe()  # abgebrochen, aber trotzdem zu Ende gelaufen: Ergebnis verwerfen
             status, fehler, text = FERTIG, None, "Fertig"
         except Abgebrochen:
             ergebnis, status, fehler, text = None, ABGEBROCHEN, None, "Abgebrochen"
-        except (KiFehler, ValueError, LookupError, OSError, sqlite3.Error) as f:
-            log.warning("Auftrag %s fehlgeschlagen: %s", auftrag.nr, f)
-            ergebnis, status, fehler, text = None, FEHLER, str(f), "Fehlgeschlagen"
-        except Exception as f:  # ein Fehler im Hintergrund darf den Kern nicht beenden
-            log.exception("Unerwarteter Fehler in Auftrag %s", auftrag.nr)
-            ergebnis, status, fehler, text = None, FEHLER, f"Unerwarteter Fehler: {f}", "Fehlgeschlagen"
+        except Exception as f:
+            if auftrag._abbruch.is_set():  # Folgefehler der getrennten Verbindung, keine Meldung wert
+                ergebnis, status, fehler, text = None, ABGEBROCHEN, None, "Abgebrochen"
+            else:
+                ergebnis, status, fehler, text = cls._fehler(auftrag, f)
         cls._beenden(auftrag, ergebnis, status, fehler, text)
+
+    @staticmethod
+    def _fehler(auftrag: Auftrag, f: Exception) -> tuple[None, str, str, str]:
+        if isinstance(f, (KiFehler, ValueError, LookupError, OSError, sqlite3.Error)):
+            log.warning("Auftrag %s fehlgeschlagen: %s", auftrag.nr, f)
+            return None, FEHLER, str(f), "Fehlgeschlagen"
+        # ein Fehler im Hintergrund darf den Kern nicht beenden
+        log.error("Unerwarteter Fehler in Auftrag %s", auftrag.nr, exc_info=f)
+        return None, FEHLER, f"Unerwarteter Fehler: {f}", "Fehlgeschlagen"
 
     def status(self, auftrag_id: int) -> dict:
         return self._hole(auftrag_id).als_dict()
 
     def abbrechen(self, auftrag_id: int) -> dict:
         auftrag = self._hole(auftrag_id)
-        auftrag._abbruch.set()
-        auftrag.melde("Wird nach dem laufenden Schritt abgebrochen …")
+        auftrag.abbruch_anfordern("Wird abgebrochen …")
         return auftrag.als_dict()

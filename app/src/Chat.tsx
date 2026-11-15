@@ -24,6 +24,7 @@ import {
   kern,
   zeitpunkt,
 } from "./kern";
+import { AbbrechenKnopf } from "./AbbrechenKnopf";
 
 type GesetzeStufe = "aus" | "zitiert" | "suche";
 
@@ -257,9 +258,7 @@ export default function Chat({
               <div>
                 <strong>{auftrag.text}</strong> <span className="leise">· {dauerText(auftrag.sekunden)}</span>
               </div>
-              <button className="zweitrangig" onClick={abbrechen}>
-                Abbrechen
-              </button>
+              <AbbrechenKnopf auftrag={auftrag} onAbbrechen={abbrechen} />
             </div>
           )}
           {auftrag?.status === "abgebrochen" && <p className="meldung">Frage abgebrochen.</p>}

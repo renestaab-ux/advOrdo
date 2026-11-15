@@ -17,13 +17,17 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import csv
+import http.client
 import io
 import json
 import re
+import socket
+import subprocess
 import threading
 import time
 import urllib.parse
 import urllib.request
+import weakref
 from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -46,6 +50,8 @@ ORTE = {INTERNET: "Internet", GERAET: "Eigener Rechner", NETZWERK: "Lokales Netz
 _anlass: contextvars.ContextVar[str | None] = contextvars.ContextVar("netz_anlass", default=None)
 # Prüfung eines Hintergrundauftrags auf Abbruch: vor jeder Anfrage aufgerufen, löst im Abbruchfall eine Ausnahme aus.
 _abbruch: contextvars.ContextVar[Callable[[], None] | None] = contextvars.ContextVar("netz_abbruch", default=None)
+# Offene Verbindungen und Hilfsprogramme eines Hintergrundauftrags, die ein Abbruch sofort trennt.
+_leitungen: contextvars.ContextVar[Leitungen | None] = contextvars.ContextVar("netz_leitungen", default=None)
 
 _datei: Path | None = None
 _gekuerzt_am: str | None = None  # Tag, an dem zuletzt Altes entfernt wurde
@@ -126,15 +132,82 @@ def kennzeichnen(anfrage: urllib.request.Request, zweck: str, gesendet: str | No
     return anfrage
 
 
+class Leitungen:
+    """Die offenen Verbindungen (und Hilfsprogramme) eines Hintergrundauftrags.
+
+    Ein Sprachmodell antwortet erst, wenn es fertig ist; bis dahin wartet der Auftrag auf die Antwort und kann
+    selbst nicht nachfragen, ob er abgebrochen wurde. ``trennen`` schließt deshalb die Verbindung von außen (aus
+    dem Thread, der „Abbrechen“ entgegennimmt): Das Warten endet sofort mit einem Fehler, und LM Studio bzw.
+    Ollama hören auf zu rechnen, sobald sie merken, dass niemand mehr auf die Antwort wartet. Was nach dem
+    Trennen noch geöffnet wird, wird sofort wieder getrennt."""
+
+    def __init__(self) -> None:
+        self._offen: weakref.WeakSet[Any] = weakref.WeakSet()
+        self._sperre = threading.Lock()
+        self.getrennt = threading.Event()
+
+    def merken(self, leitung: socket.socket | subprocess.Popen) -> None:
+        with self._sperre:
+            if not self.getrennt.is_set():
+                self._offen.add(leitung)
+                return
+        _trenne(leitung)
+
+    def trennen(self) -> None:
+        with self._sperre:
+            self.getrennt.set()
+            offen = list(self._offen)
+            self._offen.clear()
+        for leitung in offen:
+            _trenne(leitung)
+
+
+def _trenne(leitung: socket.socket | subprocess.Popen) -> None:
+    try:
+        if isinstance(leitung, subprocess.Popen):
+            leitung.kill()
+        else:
+            # Am Socket selbst, nicht an der TLS-Schicht: Die gehört dem wartenden Thread. ``shutdown`` weckt ihn
+            # unter Windows, macOS und Linux; ``close`` allein täte das nicht überall.
+            socket.socket.shutdown(leitung, socket.SHUT_RDWR)
+    except OSError:
+        pass  # schon geschlossen oder beendet
+
+
 @contextlib.contextmanager
-def abbrechbar(pruefe: Callable[[], None]) -> Iterator[None]:
+def abbrechbar(pruefe: Callable[[], None], leitungen: Leitungen | None = None) -> Iterator[None]:
     """Ruft in diesem Block (im selben Thread) vor jeder Anfrage ``pruefe`` auf. So endet ein abgebrochener
-    Hintergrundauftrag spätestens vor der nächsten Verbindung, auch wenn er selbst nicht nachfragt."""
+    Hintergrundauftrag spätestens vor der nächsten Verbindung, auch wenn er selbst nicht nachfragt. Mit
+    ``leitungen`` merkt sich der Block jede Verbindung, damit ein Abbruch auch eine laufende Anfrage beendet."""
     marke = _abbruch.set(pruefe)
+    marke_leitungen = _leitungen.set(leitungen)
     try:
         yield
     finally:
+        _leitungen.reset(marke_leitungen)
         _abbruch.reset(marke)
+
+
+def abbruch_pruefen() -> None:
+    """Löst die Ausnahme des Abbruchs aus, wenn der Auftrag dieses Blocks abgebrochen wurde; sonst nichts. Für
+    Fehler, die nur Folge des Trennens sind („Verbindung geschlossen“), damit sie nicht als Fehler erscheinen."""
+    if (pruefe := _abbruch.get()) is not None:
+        pruefe()
+
+
+def warten(sekunden: float) -> None:
+    """Wie ``time.sleep``, endet aber sofort, wenn der Auftrag abgebrochen wird (dann mit seiner Ausnahme)."""
+    if (leitungen := _leitungen.get()) is not None:
+        leitungen.getrennt.wait(sekunden)
+    else:
+        time.sleep(sekunden)
+    abbruch_pruefen()
+
+
+def prozess_merken(prozess: subprocess.Popen) -> None:
+    """Meldet ein Hilfsprogramm an, das ein Abbruch beenden soll (z. B. Apple Intelligence)."""
+    if (leitungen := _leitungen.get()) is not None:
+        leitungen.merken(prozess)
 
 
 # --- Handler ---------------------------------------------------------------------------------------
@@ -154,14 +227,43 @@ def _mitschreiben(anfrage: urllib.request.Request, oeffnen: Callable[[], Any]) -
     return grenzen.begrenze(antwort)
 
 
+def _merke_socket(sock: socket.socket | None) -> None:
+    if sock is not None and (leitungen := _leitungen.get()) is not None:
+        leitungen.merken(sock)
+
+
+class _HTTPVerbindung(http.client.HTTPConnection):
+    def connect(self):
+        super().connect()
+        _merke_socket(self.sock)
+
+
+class _HTTPSVerbindung(http.client.HTTPSConnection):
+    def connect(self):
+        super().connect()
+        _merke_socket(self.sock)
+
+
+def _verbindung(http_class: type) -> type:
+    """Die Verbindungsklasse, die sich beim Aufbau für einen Abbruch anmeldet."""
+    return {http.client.HTTPConnection: _HTTPVerbindung, http.client.HTTPSConnection: _HTTPSVerbindung}.get(
+        http_class, http_class)
+
+
 class _ProtokollHTTP(urllib.request.HTTPHandler):
     def http_open(self, req):
         return _mitschreiben(req, lambda: super(_ProtokollHTTP, self).http_open(req))
+
+    def do_open(self, http_class, req, **kw):
+        return super().do_open(_verbindung(http_class), req, **kw)
 
 
 class _ProtokollHTTPS(urllib.request.HTTPSHandler):
     def https_open(self, req):
         return _mitschreiben(req, lambda: super(_ProtokollHTTPS, self).https_open(req))
+
+    def do_open(self, http_class, req, **kw):
+        return super().do_open(_verbindung(http_class), req, **kw)
 
 
 def _fehlertext(fehler: BaseException) -> str:

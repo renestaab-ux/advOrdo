@@ -136,7 +136,9 @@ Knopfdruck (`akten.metadaten_ki` mit `automatisch`).
   (`FASSUNG`), Modell, Kontext und vorgelegtem Text; Kaskade mit Akte und Dokument.
 - `auftraege`: Analysen laufen in einem Hintergrund-Thread mit eigener Datenbankverbindung,
   höchstens einer zugleich; `ki.starten` liefert die Auftragsnummer, `ki.auftrag` Fortschritt und
-  Ergebnis, `ki.abbrechen` bricht nach dem laufenden Schritt ab, `ki.laufend` findet einen laufenden
+  Ergebnis, `ki.abbrechen` bricht sofort ab: Es trennt die laufende Verbindung zum Modell
+  (`netzprotokoll.Leitungen`, bei Apple Intelligence wird das Hilfsprogramm beendet), weitere Anfragen
+  werden nicht mehr gestellt, ein Teilergebnis verworfen. `ki.laufend` findet einen laufenden
   Auftrag nach einem Wechsel des Bereichs wieder. So bleibt der zeilenweise RPC-Kanal frei.
 
 RPC: `ki.status`, `ki.einstellungen_setzen`, `ki.starten` (`zusammenfassung_dokument`,

@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .. import netzprotokoll
 from .anbieter import ANTWORT_TOKEN, KiFehler, lies_json
 
 log = logging.getLogger("juracore.ki")
@@ -97,14 +98,29 @@ class AppleIntelligence:
         if pfad is None:
             raise KiFehler(f"Das Hilfsprogramm für Apple Intelligence fehlt. Einmalig im Projektordner ausführen: "
                            f"{BAUEN} (braucht die Xcode-Befehlszeilenwerkzeuge: xcode-select --install).")
+        netzprotokoll.abbruch_pruefen()
         try:
-            lauf = subprocess.run([str(pfad)], input=json.dumps(anfrage, ensure_ascii=False).encode("utf-8"),
-                                  capture_output=True, timeout=timeout, check=False)
-        except subprocess.TimeoutExpired as fehler:
-            raise KiFehler(f"Apple Intelligence hat nicht innerhalb von {int(timeout / 60)} Minuten geantwortet.") \
-                from fehler
+            prozess = subprocess.Popen([str(pfad)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE)
         except OSError as fehler:
             raise KiFehler(f"Das Hilfsprogramm für Apple Intelligence lässt sich nicht starten ({fehler}).") from fehler
+        # Ein Abbruch beendet das Hilfsprogramm sofort, statt auf seine Antwort zu warten.
+        netzprotokoll.prozess_merken(prozess)
+        with prozess:
+            try:
+                ausgabe, fehlerausgabe = prozess.communicate(json.dumps(anfrage, ensure_ascii=False).encode("utf-8"),
+                                                             timeout=timeout)
+            except subprocess.TimeoutExpired as fehler:
+                prozess.kill()
+                prozess.communicate()
+                raise KiFehler(f"Apple Intelligence hat nicht innerhalb von {int(timeout / 60)} Minuten "
+                               "geantwortet.") from fehler
+            except OSError:
+                prozess.kill()
+                netzprotokoll.abbruch_pruefen()
+                raise
+        netzprotokoll.abbruch_pruefen()
+        lauf = subprocess.CompletedProcess(prozess.args, prozess.returncode, ausgabe, fehlerausgabe)
         try:
             antwort = json.loads(lauf.stdout.decode("utf-8"))
         except ValueError:

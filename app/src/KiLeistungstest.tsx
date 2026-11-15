@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { type KiAuftrag, type KiLeistung, durchgang, kern, leistungsBericht } from "./kern";
 import { useAuftrag } from "./useAuftrag";
+import { AbbrechenKnopf } from "./AbbrechenKnopf";
 
 const STAND_TEXT = { ok: "in Ordnung", warnung: "Hinweis", fehler: "Fehler" } as const;
 
@@ -96,11 +97,7 @@ export default function KiLeistungstest() {
         <button onClick={() => void starten()} disabled={laeuft}>
           {laeuft ? "Test läuft …" : ergebnis ? "Erneut testen" : "KI-Leistung testen"}
         </button>
-        {laeuft && (
-          <button className="zweitrangig" onClick={() => void abbrechen()}>
-            Abbrechen
-          </button>
-        )}
+        {laeuft && auftrag && <AbbrechenKnopf auftrag={auftrag} onAbbrechen={abbrechen} />}
         {ergebnis && !laeuft && (
           <button className="zweitrangig" onClick={() => void kopieren()}>
             Bericht kopieren

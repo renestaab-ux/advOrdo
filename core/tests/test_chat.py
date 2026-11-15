@@ -352,7 +352,7 @@ class _ZuViele(_FalscherOeffner):
 
 def test_mistral_429_wartet_und_versucht_erneut(monkeypatch):
     pausen = []
-    monkeypatch.setattr(anbieter.time, "sleep", pausen.append)
+    monkeypatch.setattr(anbieter.netzprotokoll.time, "sleep", pausen.append)
     antwort = {"choices": [{"message": {"content": '{"ok": true}'}, "finish_reason": "stop"}]}
     e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="mistral", extern_modell="m")
 
@@ -371,7 +371,7 @@ def test_mistral_429_wartet_und_versucht_erneut(monkeypatch):
 
 def test_ueberlastet_503_wartet_ebenfalls(monkeypatch):
     pausen = []
-    monkeypatch.setattr(anbieter.time, "sleep", pausen.append)
+    monkeypatch.setattr(anbieter.netzprotokoll.time, "sleep", pausen.append)
     e = anbieter.KiEinstellungen(aktiv="extern", extern_freigegeben=True, extern_anbieter="mistral", extern_modell="m")
     netz = _ZuViele({}, fehlschlaege=9, code=503)
     monkeypatch.setattr(anbieter, "_oeffner", lambda extern: netz)
