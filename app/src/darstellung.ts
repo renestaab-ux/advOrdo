@@ -5,6 +5,8 @@ import { istDesktop } from "./kern";
 /** Darstellung der Oberfläche je Gerät: Hell/Dunkel, Farbakzent und Schriftgröße (Einstellungen → Allgemeines). */
 export type Thema = "system" | "hell" | "dunkel";
 export type Akzent = "blau" | "petrol" | "gruen" | "bordeaux" | "violett" | "graphit";
+/** Leiste links: in der dunklen Nuance des Farbakzents oder weiß (im Dunkelmodus neutral) mit Farbakzent. */
+export type Leiste = "farbig" | "weiss";
 
 /** Einzelne Hilfen des barrierefreien Modus; der Hauptschalter setzt alle auf einmal. */
 export interface Barrierefreiheit {
@@ -21,6 +23,7 @@ export interface Barrierefreiheit {
 export interface Darstellung {
   thema: Thema;
   akzent: Akzent;
+  leiste: Leiste;
   /** Faktor für die ganze Oberfläche, 1 = normal. */
   schrift: number;
   barrierefrei: Barrierefreiheit;
@@ -88,9 +91,18 @@ export const AKZENTE: { id: Akzent; titel: string; hell: Nuancen; dunkel: Nuance
   { id: "graphit", titel: "Graphit", hell: { dunkel: "#2a2e33", hell: "#474d55" }, dunkel: { dunkel: "#1f2226", hell: "#555c65" } },
 ];
 
-/** Hintergrund für das Farbmuster: links die dunkle, rechts die helle Nuance, hart geteilt. */
-export function musterHintergrund(n: Nuancen): string {
-  return `linear-gradient(90deg, ${n.dunkel} 50%, ${n.hell} 50%)`;
+export const LEISTEN: { id: Leiste; titel: string }[] = [
+  { id: "farbig", titel: "Farbig" },
+  { id: "weiss", titel: "Weiß mit Farbakzent" },
+];
+
+/**
+ * Hintergrund für das Farbmuster: links die Leiste (dunkle Nuance oder weiß), rechts die helle Nuance, hart geteilt.
+ * Bei weißer Leiste im Dunkelmodus steht links die neutrale Fläche der dunklen Oberfläche.
+ */
+export function musterHintergrund(n: Nuancen, leiste: Leiste = "farbig", dunkel = false): string {
+  const links = leiste === "weiss" ? (dunkel ? "#242528" : "#ffffff") : n.dunkel;
+  return `linear-gradient(90deg, ${links} 50%, ${n.hell} 50%)`;
 }
 
 export const SCHRIFTGROESSEN: { wert: number; titel: string }[] = [
@@ -103,7 +115,7 @@ export const SCHRIFTGROESSEN: { wert: number; titel: string }[] = [
   { wert: 2, titel: "Doppelt" },
 ];
 
-export const VORGABE: Darstellung = { thema: "system", akzent: "blau", schrift: 1, barrierefrei: BARRIEREFREI_AUS };
+export const VORGABE: Darstellung = { thema: "system", akzent: "blau", leiste: "farbig", schrift: 1, barrierefrei: BARRIEREFREI_AUS };
 
 const SCHLUESSEL = "darstellung";
 
@@ -118,6 +130,7 @@ export function darstellungLesen(roh?: string | null): Darstellung {
   return {
     thema: THEMEN.some((t) => t.id === d.thema) ? d.thema! : VORGABE.thema,
     akzent: AKZENTE.some((a) => a.id === d.akzent) ? d.akzent! : VORGABE.akzent,
+    leiste: LEISTEN.some((l) => l.id === d.leiste) ? d.leiste! : VORGABE.leiste,
     schrift: SCHRIFTGROESSEN.some((s) => s.wert === d.schrift) ? d.schrift! : VORGABE.schrift,
     barrierefrei: barrierefreiLesen(d.barrierefrei),
   };
@@ -174,6 +187,7 @@ export function darstellungAnwenden(d: Darstellung) {
   const wurzel = document.documentElement;
   wurzel.dataset.thema = istDunkel(d) ? "dunkel" : "hell";
   wurzel.dataset.akzent = d.akzent;
+  wurzel.dataset.leiste = d.leiste;
   // Jede Hilfe als eigenes Merkmal an <html>; styles.css hängt die Regeln daran.
   for (const h of HILFEN) {
     if (d.barrierefrei[h.id] || (h.id === "kontrast" && systemWillKontrast())) wurzel.dataset[h.id] = "an";

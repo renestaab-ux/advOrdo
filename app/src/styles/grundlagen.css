@@ -16,6 +16,9 @@
   /* Fläche hinter einem eigenen Logo im Farbakzent: der dunkle Ton der Leiste, damit das Logo in Leiste und
      Kopfband ohne sichtbaren Kasten steht. Auf :root festgelegt, damit jede Fläche denselben Wert erbt. */
   --logo-akzent: var(--leiste);
+  /* Akzent und Knopffarbe der Seite, für die weiße Leiste (die Leiste überschreibt --akzent und --knopf lokal). */
+  --akzent-seite: var(--akzent);
+  --knopf-seite: var(--knopf);
   --feld: #ffffff;
   --band: linear-gradient(100deg, #1b3550, #27507a);
   --band-text: #f3f6fa;
@@ -85,6 +88,18 @@ body { margin: 0; background: var(--hintergrund); }
 .nav-eintrag:hover { background: rgba(255, 255, 255, 0.08); }
 .nav-eintrag.aktiv { background: rgba(255, 255, 255, 0.16); border-left-color: var(--akzent); font-weight: 600; }
 .nav-eintrag.aktiv .symbol { color: var(--akzent); }
+/* Weiße Leiste mit Farbakzent (Einstellungen → Allgemeines → Leiste); im Dunkelmodus die neutrale Fläche.
+   Die Leiste nimmt dann die Farben der Seite; Akzent und Knöpfe kommen von :root (--akzent-seite, --knopf-seite). */
+:root[data-leiste="weiss"] .navigation {
+  --text: #1d1d1b; --text-leise: #5f5f5a; --linie: #e2e1dc; --akzent: var(--akzent-seite);
+  --gut: #2f6b3a; --warnung: #774d00; --fehler: #9b2c2c; --knopf: var(--knopf-seite); --knopf-text: #ffffff;
+  background: var(--flaeche); border-right: 1px solid var(--linie); box-shadow: inset 0 4px 0 var(--knopf-seite); }
+:root[data-thema="dunkel"][data-leiste="weiss"] .navigation {
+  --text: #e8e8e4; --text-leise: #a0a09a; --linie: #36373b; --gut: #7cc08a; --warnung: #e0b45a; --fehler: #e38787; }
+:root[data-leiste="weiss"] .nav-eintrag:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+:root[data-leiste="weiss"] .nav-eintrag.aktiv { background: color-mix(in srgb, var(--akzent) 13%, transparent); color: var(--akzent); }
+/* Ein Logo im Farbakzent braucht auf der weißen Leiste seine Fläche zurück. */
+:root[data-leiste="weiss"] .navigation .marke-zeichen.logo-grund-akzent { background: var(--logo-akzent); }
 .nav-fuss { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--linie); }
 .nav-eintrag.einklappen { color: var(--text-leise); font-size: 13px; margin-top: 4px; }
 .eingeklappt .nav-text { display: none; }

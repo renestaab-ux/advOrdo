@@ -6,6 +6,7 @@ describe("darstellungLesen", () => {
     expect(darstellungLesen('{"thema":"dunkel","akzent":"bordeaux","schrift":1.25}')).toEqual({
       thema: "dunkel",
       akzent: "bordeaux",
+      leiste: "farbig",
       schrift: 1.25,
       barrierefrei: BARRIEREFREI_AUS,
     });
@@ -67,6 +68,17 @@ describe("Farbakzente in zwei Nuancen", () => {
   });
 
   it("das Muster ist hart in zwei Hälften geteilt", () => {
-    expect(musterHintergrund({ dunkel: "#000000", hell: "#ffffff" })).toBe("linear-gradient(90deg, #000000 50%, #ffffff 50%)");
+    expect(musterHintergrund({ dunkel: "#000000", hell: "#336699" })).toBe("linear-gradient(90deg, #000000 50%, #336699 50%)");
+  });
+
+  it("bei weißer Leiste steht links weiß bzw. im Dunkelmodus die neutrale Fläche", () => {
+    expect(musterHintergrund({ dunkel: "#000000", hell: "#336699" }, "weiss")).toBe("linear-gradient(90deg, #ffffff 50%, #336699 50%)");
+    expect(musterHintergrund({ dunkel: "#000000", hell: "#336699" }, "weiss", true)).toBe("linear-gradient(90deg, #242528 50%, #336699 50%)");
+  });
+
+  it("liest die Leiste und fällt bei Unbekanntem auf farbig zurück", () => {
+    expect(darstellungLesen('{"leiste":"weiss"}').leiste).toBe("weiss");
+    expect(darstellungLesen('{"leiste":"gelb"}').leiste).toBe("farbig");
+    expect(darstellungLesen('{"akzent":"gruen"}').leiste).toBe("farbig");
   });
 });

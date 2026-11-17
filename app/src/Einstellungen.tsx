@@ -14,6 +14,7 @@ import Ueber from "./Ueber";
 import Umgebungen from "./Umgebungen";
 import {
   AKZENTE,
+  LEISTEN,
   musterHintergrund,
   Darstellung,
   HILFEN,
@@ -545,11 +546,28 @@ function Allgemeines() {
         <div className="wahl-reihe" role="group" aria-label="Farbakzent">
           {AKZENTE.map((a) => (
             <button key={a.id} aria-pressed={d.akzent === a.id} onClick={() => setze({ akzent: a.id })}>
-              <span className="farbmuster" style={{ background: musterHintergrund(dunkel ? a.dunkel : a.hell) }} aria-hidden />
+              <span className="farbmuster" style={{ background: musterHintergrund(dunkel ? a.dunkel : a.hell, d.leiste, dunkel) }} aria-hidden />
               {a.titel}
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="darstellung-gruppe">
+        <h3>Leiste</h3>
+        <div className="segment darstellung-segment" role="group" aria-label="Leiste">
+          {LEISTEN.map((l) => (
+            <button
+              key={l.id}
+              className={d.leiste === l.id ? "segment-knopf aktiv" : "segment-knopf"}
+              aria-pressed={d.leiste === l.id}
+              onClick={() => setze({ leiste: l.id })}
+            >
+              {l.titel}
+            </button>
+          ))}
+        </div>
+        <p className="leise">Farbig: Leiste in der dunklen Nuance. Weiß: helle Leiste, Auswahl und Knöpfe im Farbakzent.</p>
       </div>
 
       <div className="darstellung-gruppe">
