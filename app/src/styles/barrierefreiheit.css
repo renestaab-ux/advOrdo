@@ -34,6 +34,8 @@
   --feld: #000000;
 }
 :root[data-kontrast="an"] .navigation { --text-leise: #e6ebf0; --linie: rgba(255, 255, 255, 0.45); }
+:root[data-kontrast="an"][data-leiste="weiss"] .navigation { --text-leise: #1d1d1b; --linie: #6b6b66; }
+:root[data-kontrast="an"][data-thema="dunkel"][data-leiste="weiss"] .navigation { --text-leise: #f1f1ee; --linie: #8a8a85; }
 :root[data-kontrast="an"] input,
 :root[data-kontrast="an"] select,
 :root[data-kontrast="an"] textarea,
@@ -61,6 +63,7 @@
 :root { --fokus: #b34700; --fokus-saum: #ffffff; }
 :root[data-thema="dunkel"] { --fokus: #ffcc33; --fokus-saum: #000000; }
 .navigation { --fokus: #ffcc33; --fokus-saum: #000000; }
+:root[data-leiste="weiss"]:not([data-thema="dunkel"]) .navigation { --fokus: #b34700; --fokus-saum: #ffffff; }
 :root[data-fokus="an"] :focus-visible:not(main) {
   outline: 3px solid var(--fokus) !important;
   outline-offset: 2px !important;

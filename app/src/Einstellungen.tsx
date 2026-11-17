@@ -14,6 +14,8 @@ import Ueber from "./Ueber";
 import Umgebungen from "./Umgebungen";
 import {
   AKZENTE,
+  LEISTEN,
+  musterHintergrund,
   Darstellung,
   HILFEN,
   SCHRIFTGROESSEN,
@@ -544,11 +546,28 @@ function Allgemeines() {
         <div className="wahl-reihe" role="group" aria-label="Farbakzent">
           {AKZENTE.map((a) => (
             <button key={a.id} aria-pressed={d.akzent === a.id} onClick={() => setze({ akzent: a.id })}>
-              <span className="farbmuster" style={{ background: dunkel ? a.dunkel : a.hell }} aria-hidden />
+              <span className="farbmuster" style={{ background: musterHintergrund(dunkel ? a.dunkel : a.hell, d.leiste, dunkel) }} aria-hidden />
               {a.titel}
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="darstellung-gruppe">
+        <h3>Leiste</h3>
+        <div className="segment darstellung-segment" role="group" aria-label="Leiste">
+          {LEISTEN.map((l) => (
+            <button
+              key={l.id}
+              className={d.leiste === l.id ? "segment-knopf aktiv" : "segment-knopf"}
+              aria-pressed={d.leiste === l.id}
+              onClick={() => setze({ leiste: l.id })}
+            >
+              {l.titel}
+            </button>
+          ))}
+        </div>
+        <p className="leise">Farbig: Leiste in der dunklen Nuance. Weiß: helle Leiste, Auswahl und Knöpfe im Farbakzent.</p>
       </div>
 
       <div className="darstellung-gruppe">
@@ -625,8 +644,9 @@ function Allgemeines() {
 }
 
 const LOGO_HINTERGRUENDE: { id: LogoHintergrund; titel: string }[] = [
-  { id: "weiss", titel: "Weißer Rahmen" },
-  { id: "akzent", titel: "Farbakzent" },
+  { id: "hell", titel: "Hell (für dunkle Logos)" },
+  { id: "dunkel", titel: "Dunkel (für helle Logos)" },
+  { id: "ohne", titel: "Ohne" },
 ];
 
 /** Kanzlei- bzw. Firmenlogo und Kurzbezeichnung: oben in der Leiste klein, auf der Startseite groß mit dem Namen. */
@@ -705,7 +725,7 @@ function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke
             {LOGO_HINTERGRUENDE.map((h) => (
               <button
                 key={h.id}
-                aria-pressed={(marke.hintergrund ?? "weiss") === h.id}
+                aria-pressed={(marke.hintergrund ?? "hell") === h.id}
                 onClick={() => void setze("marke.hintergrund_setzen", { hintergrund: h.id })}
                 disabled={laeuft}
               >
@@ -714,8 +734,8 @@ function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke
             ))}
           </div>
           <p className="leise">
-            Ein dunkles oder farbiges Logo wirkt meist im weißen Rahmen am besten, ein helles oder weißes Logo auf dem
-            Farbakzent. Gilt für Leiste und Startseite, nicht für den Briefkopf in Word.
+            Hell: weißer Rahmen. Dunkel: dunkle Nuance des Farbakzents. Ohne: das Logo steht frei, gut für Logos mit
+            eigenem Hintergrund. Gilt für Leiste und Startseite, nicht für den Briefkopf in Word.
           </p>
         </div>
       )}
