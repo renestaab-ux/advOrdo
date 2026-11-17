@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BARRIEREFREI_AN, BARRIEREFREI_AUS, VORGABE, darstellungLesen, fensterThema, modusAn, modusSetzen } from "./darstellung";
+import { AKZENTE, BARRIEREFREI_AN, BARRIEREFREI_AUS, VORGABE, darstellungLesen, fensterThema, modusAn, modusSetzen, musterHintergrund } from "./darstellung";
 
 describe("darstellungLesen", () => {
   it("übernimmt gültige Werte", () => {
@@ -53,5 +53,20 @@ describe("fensterThema", () => {
     expect(fensterThema({ ...VORGABE, thema: "hell" })).toBe("light");
     expect(fensterThema({ ...VORGABE, thema: "dunkel" })).toBe("dark");
     expect(fensterThema(VORGABE)).toBeNull();
+  });
+});
+
+describe("Farbakzente in zwei Nuancen", () => {
+  const leuchtdichte = (hex: string) => {
+    const k = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * k[0] + 0.7152 * k[1] + 0.0722 * k[2];
+  };
+
+  it("weiße Schrift auf der hellen Nuance bleibt gut lesbar (WCAG 4,5 : 1)", () => {
+    for (const a of AKZENTE) for (const n of [a.hell, a.dunkel]) expect(1.05 / (leuchtdichte(n.hell) + 0.05), a.id).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("das Muster ist hart in zwei Hälften geteilt", () => {
+    expect(musterHintergrund({ dunkel: "#000000", hell: "#ffffff" })).toBe("linear-gradient(90deg, #000000 50%, #ffffff 50%)");
   });
 });

@@ -14,6 +14,7 @@ import Ueber from "./Ueber";
 import Umgebungen from "./Umgebungen";
 import {
   AKZENTE,
+  musterHintergrund,
   Darstellung,
   HILFEN,
   SCHRIFTGROESSEN,
@@ -544,7 +545,7 @@ function Allgemeines() {
         <div className="wahl-reihe" role="group" aria-label="Farbakzent">
           {AKZENTE.map((a) => (
             <button key={a.id} aria-pressed={d.akzent === a.id} onClick={() => setze({ akzent: a.id })}>
-              <span className="farbmuster" style={{ background: dunkel ? a.dunkel : a.hell }} aria-hidden />
+              <span className="farbmuster" style={{ background: musterHintergrund(dunkel ? a.dunkel : a.hell) }} aria-hidden />
               {a.titel}
             </button>
           ))}

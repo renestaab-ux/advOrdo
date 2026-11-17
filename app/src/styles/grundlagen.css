@@ -6,12 +6,12 @@
   --text: #1d1d1b;
   --text-leise: #6b6b66;
   --linie: #e2e1dc;
-  --akzent: #24476b;
+  --akzent: #27507a;
   --gut: #2f6b3a;
   --warnung: #774d00;
   --fehler: #9b2c2c;
   /* Gefüllte Knöpfe, Eingabefelder und das dunkle Kopfband; im Dunkelmodus eigene Werte für guten Kontrast. */
-  --knopf: #24476b;
+  --knopf: #27507a;
   --knopf-text: #ffffff;
   /* Fläche hinter einem eigenen Logo im Farbakzent: der dunkle Ton der Leiste, damit das Logo in Leiste und
      Kopfband ohne sichtbaren Kasten steht. Auf :root festgelegt, damit jede Fläche denselben Wert erbt. */
@@ -53,16 +53,18 @@
   --leiste: #142536;
 }
 
-/* Farbakzente; Blau ist die Vorgabe oben. Je Farbe ein Satz für hell und einer für dunkel. */
-:root[data-akzent="petrol"] { --leiste: #163f45; --akzent: #1f5f66; --knopf: #1f5f66; --band: linear-gradient(100deg, #163f45, #22636b); --band-leise: #b3d0d3; }
+/* Farbakzente; Blau ist die Vorgabe oben. Je Farbe ein Satz für hell und einer für dunkel, jeweils in zwei Nuancen:
+   dunkel für Leiste und Kopfbandanfang (--leiste), hell für Knöpfe und Hervorhebungen (--knopf). In hell ist die
+   helle Nuance zugleich das Kopfbandende. Die Muster in Einstellungen → Allgemeines stehen in darstellung.ts (AKZENTE). */
+:root[data-akzent="petrol"] { --leiste: #163f45; --akzent: #22636b; --knopf: #22636b; --band: linear-gradient(100deg, #163f45, #22636b); --band-leise: #b3d0d3; }
 :root[data-thema="dunkel"][data-akzent="petrol"] { --leiste: #0f2c30; --akzent: #7cc4c9; --knopf: #2f7178; --band: linear-gradient(100deg, #0f2c30, #184449); --band-leise: #98bfc2; }
-:root[data-akzent="gruen"] { --leiste: #21422a; --akzent: #2f5e3a; --knopf: #2f5e3a; --band: linear-gradient(100deg, #21422a, #346b42); --band-leise: #bcd3c0; }
+:root[data-akzent="gruen"] { --leiste: #21422a; --akzent: #346b42; --knopf: #346b42; --band: linear-gradient(100deg, #21422a, #346b42); --band-leise: #bcd3c0; }
 :root[data-thema="dunkel"][data-akzent="gruen"] { --leiste: #152b1b; --akzent: #8cc79a; --knopf: #3d7449; --band: linear-gradient(100deg, #152b1b, #20412a); --band-leise: #a3c2aa; }
-:root[data-akzent="bordeaux"] { --leiste: #561c28; --akzent: #7a2838; --knopf: #7a2838; --band: linear-gradient(100deg, #561c28, #84303f); --band-leise: #e0bcc3; }
+:root[data-akzent="bordeaux"] { --leiste: #561c28; --akzent: #84303f; --knopf: #84303f; --band: linear-gradient(100deg, #561c28, #84303f); --band-leise: #e0bcc3; }
 :root[data-thema="dunkel"][data-akzent="bordeaux"] { --leiste: #3a141c; --akzent: #e09aa8; --knopf: #8a3a4a; --band: linear-gradient(100deg, #3a141c, #55202b); --band-leise: #d0a6ae; }
-:root[data-akzent="violett"] { --leiste: #3a2c57; --akzent: #533f7a; --knopf: #533f7a; --band: linear-gradient(100deg, #3a2c57, #5c4787); --band-leise: #cbc0e0; }
+:root[data-akzent="violett"] { --leiste: #3a2c57; --akzent: #5c4787; --knopf: #5c4787; --band: linear-gradient(100deg, #3a2c57, #5c4787); --band-leise: #cbc0e0; }
 :root[data-thema="dunkel"][data-akzent="violett"] { --leiste: #251c3a; --akzent: #b8a6e3; --knopf: #5f4a8c; --band: linear-gradient(100deg, #251c3a, #372a55); --band-leise: #b4a8cf; }
-:root[data-akzent="graphit"] { --leiste: #2a2e33; --akzent: #3d4248; --knopf: #3d4248; --band: linear-gradient(100deg, #2a2e33, #474d55); --band-leise: #c3c7cc; }
+:root[data-akzent="graphit"] { --leiste: #2a2e33; --akzent: #474d55; --knopf: #474d55; --band: linear-gradient(100deg, #2a2e33, #474d55); --band-leise: #c3c7cc; }
 :root[data-thema="dunkel"][data-akzent="graphit"] { --leiste: #1f2226; --akzent: #b8bec6; --knopf: #555c65; --band: linear-gradient(100deg, #1f2226, #30353b); --band-leise: #a9aeb5; }
 
 * { box-sizing: border-box; }

@@ -74,15 +74,24 @@ export const THEMEN: { id: Thema; titel: string }[] = [
   { id: "system", titel: "Systemstandard" },
 ];
 
-// Die Farben selbst stehen in styles.css; hier nur die Musterfarbe für die Auswahl (gefüllter Knopf, hell/dunkel).
-export const AKZENTE: { id: Akzent; titel: string; hell: string; dunkel: string }[] = [
-  { id: "blau", titel: "Blau", hell: "#24476b", dunkel: "#3a6794" },
-  { id: "petrol", titel: "Petrol", hell: "#1f5f66", dunkel: "#2f7178" },
-  { id: "gruen", titel: "Grün", hell: "#2f5e3a", dunkel: "#3d7449" },
-  { id: "bordeaux", titel: "Bordeaux", hell: "#7a2838", dunkel: "#8a3a4a" },
-  { id: "violett", titel: "Violett", hell: "#533f7a", dunkel: "#5f4a8c" },
-  { id: "graphit", titel: "Graphit", hell: "#3d4248", dunkel: "#555c65" },
+/** Zwei Nuancen je Farbe: die dunkle für Leiste und Kopfband, die helle für Knöpfe und Hervorhebungen. */
+export type Nuancen = { dunkel: string; hell: string };
+
+// Die Farben selbst stehen in styles/grundlagen.css (--leiste und --knopf); hier nur das zweifarbige Muster
+// für die Auswahl, je ein Paar für die helle und die dunkle Oberfläche.
+export const AKZENTE: { id: Akzent; titel: string; hell: Nuancen; dunkel: Nuancen }[] = [
+  { id: "blau", titel: "Blau", hell: { dunkel: "#1b3550", hell: "#27507a" }, dunkel: { dunkel: "#142536", hell: "#3a6794" } },
+  { id: "petrol", titel: "Petrol", hell: { dunkel: "#163f45", hell: "#22636b" }, dunkel: { dunkel: "#0f2c30", hell: "#2f7178" } },
+  { id: "gruen", titel: "Grün", hell: { dunkel: "#21422a", hell: "#346b42" }, dunkel: { dunkel: "#152b1b", hell: "#3d7449" } },
+  { id: "bordeaux", titel: "Bordeaux", hell: { dunkel: "#561c28", hell: "#84303f" }, dunkel: { dunkel: "#3a141c", hell: "#8a3a4a" } },
+  { id: "violett", titel: "Violett", hell: { dunkel: "#3a2c57", hell: "#5c4787" }, dunkel: { dunkel: "#251c3a", hell: "#5f4a8c" } },
+  { id: "graphit", titel: "Graphit", hell: { dunkel: "#2a2e33", hell: "#474d55" }, dunkel: { dunkel: "#1f2226", hell: "#555c65" } },
 ];
+
+/** Hintergrund für das Farbmuster: links die dunkle, rechts die helle Nuance, hart geteilt. */
+export function musterHintergrund(n: Nuancen): string {
+  return `linear-gradient(90deg, ${n.dunkel} 50%, ${n.hell} 50%)`;
+}
 
 export const SCHRIFTGROESSEN: { wert: number; titel: string }[] = [
   { wert: 0.9, titel: "Klein" },
