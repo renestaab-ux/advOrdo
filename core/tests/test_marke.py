@@ -21,7 +21,7 @@ def con(tmp_path):
 
 def test_ohne_logo(tmp_path, con):
     assert marke.lesen(tmp_path, con) == {"logo": None, "kurzbezeichnung": "", "name": "", "druckbild": False,
-                                       "hintergrund": "weiss"}
+                                       "hintergrund": "hell"}
 
 
 def test_logo_setzen_ersetzen_entfernen(tmp_path, con):
@@ -63,16 +63,24 @@ def test_kurzbezeichnung_und_name(tmp_path, con):
 
 def test_hintergrund_neben_kurzbezeichnung(tmp_path, con):
     marke.kurz_setzen(tmp_path, con, "Muster")
-    m = marke.hintergrund_setzen(tmp_path, con, "akzent")
-    assert (m["hintergrund"], m["kurzbezeichnung"]) == ("akzent", "Muster")
+    m = marke.hintergrund_setzen(tmp_path, con, "dunkel")
+    assert (m["hintergrund"], m["kurzbezeichnung"]) == ("dunkel", "Muster")
     # Die Kurzbezeichnung zu ändern lässt den Hintergrund stehen.
-    assert marke.kurz_setzen(tmp_path, con, "Neu")["hintergrund"] == "akzent"
-    with pytest.raises(ValueError, match="weiß"):
+    assert marke.kurz_setzen(tmp_path, con, "Neu")["hintergrund"] == "dunkel"
+    assert marke.hintergrund_setzen(tmp_path, con, "ohne")["hintergrund"] == "ohne"
+    with pytest.raises(ValueError, match="hell, dunkel oder ohne"):
         marke.hintergrund_setzen(tmp_path, con, "rot")
+
+
+def test_hintergrund_fruehere_werte(tmp_path, con):
+    # Gespeichert vor der Umstellung auf hell/dunkel/ohne: weißer Rahmen wird hell, Farbakzent wird dunkel.
+    for alt, neu in (("weiss", "hell"), ("akzent", "dunkel")):
+        (tmp_path / "marke.json").write_text(f'{{"hintergrund": "{alt}"}}', encoding="utf-8")
+        assert marke.lesen(tmp_path, con)["hintergrund"] == neu
 
 
 def test_hintergrund_unbekannt_oder_kaputt(tmp_path, con):
     (tmp_path / "marke.json").write_text('{"hintergrund": "rot"}', encoding="utf-8")
-    assert marke.lesen(tmp_path, con)["hintergrund"] == "weiss"
+    assert marke.lesen(tmp_path, con)["hintergrund"] == "hell"
     (tmp_path / "marke.json").write_text("[1, 2]", encoding="utf-8")
     assert marke.lesen(tmp_path, con)["kurzbezeichnung"] == ""

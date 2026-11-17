@@ -644,8 +644,9 @@ function Allgemeines() {
 }
 
 const LOGO_HINTERGRUENDE: { id: LogoHintergrund; titel: string }[] = [
-  { id: "weiss", titel: "Weißer Rahmen" },
-  { id: "akzent", titel: "Farbakzent" },
+  { id: "hell", titel: "Hell (für dunkle Logos)" },
+  { id: "dunkel", titel: "Dunkel (für helle Logos)" },
+  { id: "ohne", titel: "Ohne" },
 ];
 
 /** Kanzlei- bzw. Firmenlogo und Kurzbezeichnung: oben in der Leiste klein, auf der Startseite groß mit dem Namen. */
@@ -724,7 +725,7 @@ function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke
             {LOGO_HINTERGRUENDE.map((h) => (
               <button
                 key={h.id}
-                aria-pressed={(marke.hintergrund ?? "weiss") === h.id}
+                aria-pressed={(marke.hintergrund ?? "hell") === h.id}
                 onClick={() => void setze("marke.hintergrund_setzen", { hintergrund: h.id })}
                 disabled={laeuft}
               >
@@ -733,8 +734,8 @@ function LogoKarte({ marke, onMarke }: { marke: Marke | null; onMarke: (m: Marke
             ))}
           </div>
           <p className="leise">
-            Ein dunkles oder farbiges Logo wirkt meist im weißen Rahmen am besten, ein helles oder weißes Logo auf dem
-            Farbakzent. Gilt für Leiste und Startseite, nicht für den Briefkopf in Word.
+            Hell: weißer Rahmen. Dunkel: dunkle Nuance des Farbakzents. Ohne: das Logo steht frei, gut für Logos mit
+            eigenem Hintergrund. Gilt für Leiste und Startseite, nicht für den Briefkopf in Word.
           </p>
         </div>
       )}

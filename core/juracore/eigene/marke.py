@@ -23,8 +23,11 @@ FORMATE = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".s
 GROESSTE = 2 * 1024 * 1024
 DRUCKBILD = "logo-druck.png"
 KURZ_LAENGE = 40
-# Fläche hinter dem Logo in Leiste und Startseite: weißer Rahmen (Vorgabe) oder der eingestellte Farbakzent.
-HINTERGRUENDE = ("weiss", "akzent")
+# Fläche hinter dem Logo in Leiste und Startseite: hell (Vorgabe, für dunkle Logos), dunkel (dunkle Nuance des
+# Farbakzents, für helle Logos) oder ohne eigene Fläche.
+HINTERGRUENDE = ("hell", "dunkel", "ohne")
+# Frühere Werte (bis 2026-11) gelten weiter: weißer Rahmen ist jetzt „hell“, Farbakzent jetzt „dunkel“.
+FRUEHER = {"weiss": "hell", "akzent": "dunkel"}
 
 
 def _logo(ordner: Path) -> Path | None:
@@ -53,6 +56,7 @@ def _kurz(ordner: Path) -> str:
 
 def _hintergrund(ordner: Path) -> str:
     wert = _einstellungen(ordner).get("hintergrund")
+    wert = FRUEHER.get(wert, wert) if isinstance(wert, str) else wert
     return wert if wert in HINTERGRUENDE else HINTERGRUENDE[0]
 
 
@@ -119,8 +123,8 @@ def kurz_setzen(ordner: Path, con: sqlite3.Connection, text: str) -> dict:
 
 
 def hintergrund_setzen(ordner: Path, con: sqlite3.Connection, hintergrund: str) -> dict:
-    """Hintergrund des Logos: „weiss“ (weißer Rahmen) oder „akzent“ (Farbakzent aus Einstellungen → Allgemeines)."""
+    """Hintergrund des Logos: „hell“, „dunkel“ (dunkle Nuance des Farbakzents) oder „ohne“."""
     if hintergrund not in HINTERGRUENDE:
-        raise ValueError("Der Hintergrund des Logos ist entweder weiß oder im Farbakzent.")
+        raise ValueError("Der Hintergrund des Logos ist hell, dunkel oder ohne.")
     _speichern(ordner, hintergrund=hintergrund)
     return lesen(ordner, con)

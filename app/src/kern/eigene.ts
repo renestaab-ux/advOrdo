@@ -67,15 +67,16 @@ export interface Marke {
   name: string;
   /** Ob Word das Logo in den Briefkopf übernehmen kann (PNG/JPG oder ein schon gerendertes Druckbild). */
   druckbild?: boolean;
-  /** Fläche hinter dem Logo in Leiste und Startseite: weißer Rahmen (Vorgabe) oder der eingestellte Farbakzent. */
+  /** Fläche hinter dem Logo in Leiste und Startseite: hell (Vorgabe), dunkel (dunkle Nuance des Farbakzents) oder ohne. */
   hintergrund?: LogoHintergrund;
 }
 
-export type LogoHintergrund = "weiss" | "akzent";
+export type LogoHintergrund = "hell" | "dunkel" | "ohne";
 
-/** CSS-Klasse für den Logo-Hintergrund; ohne Angabe gilt der weiße Rahmen. */
+/** CSS-Klasse für den Logo-Hintergrund; ohne oder mit unbekannter Angabe gilt hell. */
 export function logoGrundKlasse(marke: Marke | null | undefined): string {
-  return marke?.hintergrund === "akzent" ? "logo-grund-akzent" : "logo-grund-weiss";
+  const h = marke?.hintergrund;
+  return h === "dunkel" ? "logo-grund-dunkel" : h === "ohne" ? "logo-grund-ohne" : "logo-grund-hell";
 }
 
 /**
