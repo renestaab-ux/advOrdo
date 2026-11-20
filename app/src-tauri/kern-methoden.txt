@@ -168,6 +168,8 @@ lesezeichen.ordner_anlegen
 lesezeichen.ordner_loeschen
 lesezeichen.ordner_umbenennen
 lesezeichen.seite
+markdown.name
+markdown.speichern
 marke.druckbild_setzen
 marke.hintergrund_setzen
 marke.kurz_setzen

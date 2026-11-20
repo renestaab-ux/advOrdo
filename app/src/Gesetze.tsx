@@ -17,6 +17,7 @@ import {
   kernImHintergrund,
 } from "./kern";
 import { EigeneSchreibweisen } from "./Schreibweisen";
+import MarkdownKnopf from "./MarkdownExport";
 export default function Gesetze() {
   const [gesetze, setGesetze] = useState<GesetzEintrag[]>([]);
   const [verfuegbar, setVerfuegbar] = useState<Voreinstellung[]>([]);
@@ -246,6 +247,8 @@ export default function Gesetze() {
                 <strong>{g.abk}</strong> {g.langtitel} · {g.normen} Normen · Stand der Quelle{" "}
                 {formatiereBuilddate(g.builddate)}
                 {g.fassungen > 1 && <> · {g.fassungen} Fassungen gespeichert</>}
+                {" "}
+                <MarkdownKnopf quelle={{ gesetz: g.abk, fassung_id: g.fassung_id }} was={g.abk} className="link klein" text="als Markdown …" />
               </li>
             ))}
           </ul>
@@ -331,6 +334,13 @@ function NormAnsicht({ norm }: { norm: Norm }) {
         </section>
       ))}
       <FassungsZeile fassung={norm.fassung} />
+      <p className="aktionen">
+        <MarkdownKnopf
+          quelle={{ gesetz: norm.gesetz, fassung_id: norm.fassung.id }}
+          was={norm.gesetz}
+          text={`Ganzes Gesetz (${norm.gesetz}) als Markdown …`}
+        />
+      </p>
     </article>
   );
 }

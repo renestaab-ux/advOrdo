@@ -12,6 +12,7 @@ import type { Auswahl, DokModus, Ergaenzung } from "./Akte";
 import { OriginalAnmerkungen, SeitenAuswahl, anmerkungsHandler } from "./Anmerkungen";
 import { GesetzVorschlaege } from "./Schreibweisen";
 import Zeichen from "./Symbole";
+import MarkdownKnopf from "./MarkdownExport";
 import {
   Anmerkung,
   AnmerkungAufSeite,
@@ -272,6 +273,7 @@ export function DokModusLeiste({
           {anmerkungen.anzahl > 0 && <span className="anzahl">{anmerkungen.anzahl}</span>}
         </button>
       )}
+      <MarkdownKnopf quelle={{ dokument_id: dokument.id }} was="Dokument" />
     </div>
   );
 }
@@ -946,6 +948,7 @@ export function VolltextAnsicht({
       <div className="volltext-leiste">
         <span className="leise">{v.id == null ? "Treffer, noch nicht gespeichert" : "Volltext"}</span>
         {aktionen}
+        {v.id != null && <MarkdownKnopf quelle={{ urteil_id: v.id }} was="Entscheidung" />}
         <button className="zweitrangig klein" onClick={onSchliessen}>
           Volltext schließen
         </button>

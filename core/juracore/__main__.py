@@ -50,6 +50,11 @@ def main(argv: list[str] | None = None) -> int:
     le = sub.add_parser("lesen", help="Dokument (PDF, DOCX, TXT, MD) lesen und Normzitate prüfen, ohne es zu speichern")
     le.add_argument("pfad", type=Path)
     le.add_argument("--ohne-ocr", action="store_true", help="Bildseiten nicht per Texterkennung lesen")
+    gm = sub.add_parser("gii2md", help="Gesetz (XML oder ZIP von gesetze-im-internet.de) in Markdown umwandeln")
+    gm.add_argument("eingabe", type=Path, help="XML-Datei oder xml.zip")
+    gm.add_argument("ausgabe", type=Path, nargs="?",
+                    help="Ziel; ohne Angabe <Abkürzung>_<Langtitel>_Stand-<JJJJ-MM-TT>.md neben der Eingabe")
+    gm.add_argument("--pruefen", action="store_true", help="Wort-für-Wort-Abgleich zwischen XML und Markdown")
     sub.add_parser("ocr", help="Prüfen, ob die Texterkennung (Tesseract, Deutsch) verfügbar ist")
     ks = sub.add_parser("ki-status", help="Prüfen, ob das lokale Sprachmodell (Ollama, LM Studio) erreichbar ist")
     kp = sub.add_parser("ki-pruefen", help="Testakte mit dem Sprachmodell prüfen (Widersprüche, Chronologie)")
@@ -76,6 +81,8 @@ def main(argv: list[str] | None = None) -> int:
     if a.befehl == "serve":
         rpc.serve(db_pfad, archiv)
         return 0
+    if a.befehl == "gii2md":
+        return _gii2md(a.eingabe, a.ausgabe, a.pruefen)
     if a.befehl == "ocr":
         print(json.dumps(ocr.status(), ensure_ascii=False, indent=2))
         return 0
@@ -133,6 +140,27 @@ def main(argv: list[str] | None = None) -> int:
     else:
         ergebnis = db.gesetze(con)
     print(json.dumps(ergebnis, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _gii2md(eingabe: Path, ausgabe: Path | None, pruefen: bool) -> int:
+    """Wie das Referenzskript gii2md.py; arbeitet ohne Datenbank und ohne Netz."""
+    from .gesetze import markdown
+
+    daten = markdown.xml_aus(eingabe.read_bytes())
+    md, meta = markdown.umwandeln(daten)
+    ziel = ausgabe or eingabe.resolve().parent / markdown.dateiname(meta)
+    ziel.write_text(md, encoding="utf-8")
+    print(f"Geschrieben: {ziel}")
+    print(f"Gesetz: {meta['titel']} ({meta['abk']}), Stand: {'; '.join(meta['stand'])}")
+    if meta["letztmalig"]:
+        print(f"WARNUNG: {markdown.WARNUNG_LETZTMALIG}")
+    if pruefen:
+        fehlt = markdown.pruefen(daten, md)
+        if fehlt:
+            print(f"PRÜFUNG: {sum(fehlt.values())} Wörter fehlen: {list(fehlt.items())[:20]}")
+            return 1
+        print("PRÜFUNG: vollständig – kein Wort der XML fehlt in der Markdown-Datei.")
     return 0
 
 

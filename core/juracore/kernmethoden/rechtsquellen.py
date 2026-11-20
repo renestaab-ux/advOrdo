@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from .. import db, gerichte, justizadressen
+from ..ausgabe import markdown_export
 from ..dokumente import akte, urteile
 from ..gesetze import quelle, wissensbasis
 from ..rechtsprechung import online, verzeichnis
@@ -32,6 +33,12 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "gesetze.vorschlaege": lambda gesetz: wissensbasis.vorschlaege(
                 k.con, gesetz, quelle.voreinstellung(k.eigene_liste)),
         "gesetze.schreibweisen": lambda: wissensbasis.schreibweisen(k.con),
+        # Markdown-Export für Gesetze, Dokumente und Urteile (je genau eines angeben).
+        "markdown.name": lambda gesetz=None, fassung_id=None, dokument_id=None, urteil_id=None: _md_name(
+                markdown_export.fuer(k.akten, k.con, gesetz, fassung_id, dokument_id, urteil_id)),
+        "markdown.speichern": lambda pfad, gesetz=None, fassung_id=None, dokument_id=None, urteil_id=None: (
+                markdown_export.speichern(
+                    markdown_export.fuer(k.akten, k.con, gesetz, fassung_id, dokument_id, urteil_id), pfad)),
         "gesetze.schreibweise_setzen": lambda von, nach: _schreibweise_setzen(k, von, nach),
         "gesetze.schreibweise_loeschen": lambda von: _schreibweise_loeschen(k, von),
         "rechtsprechung.quellen": lambda: online.einstellungen(k.quellen_datei),
@@ -69,6 +76,10 @@ def methoden(k: Kern) -> dict[str, Callable[..., Any]]:
         "gerichte.suche_einstellungen_setzen": lambda aktiv: justizadressen.einstellungen_setzen(
                 k.gerichtssuche_datei, aktiv),
     }
+
+
+def _md_name(ergebnis: dict) -> dict:
+    return {"name": ergebnis["name"], "warnung": ergebnis["warnung"]}
 
 
 def _schreibweise_setzen(k: Kern, von: str, nach: str) -> dict:

@@ -272,6 +272,12 @@ Ein geöffnetes Dokument lässt sich auf fünf Arten zeigen:
   Zitaten aus diesem Dokument. Volltexte laden und Urteile ergänzen geht auch hier.
 - **Chat**: Fragen an dieses eine Dokument (siehe „Chat mit Akte und Dokument“).
 
+Der Knopf **Markdown …** neben den Reitern speichert den gelesenen Text als Markdown-Datei, z. B. für eine
+Wissenssammlung oder ein Sprachmodell: Kopf mit Akte, Art, Datum, Datei und SHA-256 des Originals, danach der
+Wortlaut unverändert, Seiten als `[S. 3]`, Randnummern als `[Rn. 12]`. Dasselbe gibt es im Volltext eines Urteils
+(Kopf mit Gericht, Datum, Aktenzeichen, Normen und Quelle; Leitsatz, Tenor und Gründe als Überschriften) und bei
+den Gesetzen (siehe „Gesetze als Markdown“).
+
 ### In anderen Programmen öffnen und bearbeiten (Fassungen)
 
 Unter der Leiste des geöffneten Dokuments:
@@ -754,6 +760,24 @@ juracore liste
   Ältere Fassungen bleiben abrufbar, damit frühere Analysen reproduzierbar sind.
 - Normen sind bis auf Absatz, Satz und Nummer zerlegt; Zitate werden darauf aufgelöst.
 - Die Texte von „Gesetze im Internet“ sind konsolidiert, aber nicht amtlich. Die App zeigt das bei jedem Beleg an.
+
+### Gesetze als Markdown
+
+Unter „Geladene Gesetze“ und unter jeder Norm speichert **als Markdown …** das ganze Gesetz als eine
+Markdown-Datei, gut lesbar und für Sprachmodelle geeignet. Gesetze von gesetze-im-internet.de werden aus der
+archivierten XML umgewandelt, genau wie mit dem Skript `gii2md.py`: Kopf mit Titel, Ausfertigung, Fundstelle,
+Stand und Quelle, Gliederung und jeder Paragraf als Überschrift, Listen eingerückt, Tabellen als Markdown-Tabellen,
+Fußnoten als Zitatblock, Satznummern hochgestellt, ohne amtliche Inhaltsübersicht. Der Wortlaut bleibt unverändert.
+Dateiname: `<Abkürzung>_<Langtitel>_Stand-<JJJJ-MM-TT>.md` (Datum der letzten Änderung). Ist die Fassung laut
+Standangabe nur noch „letztmalig anzuwenden“ (z. B. UmwStG 1995), warnt die App. Landesrecht aus Bayern und
+EU-Recht kommen aus der Wissensbasis, gleich gegliedert.
+
+Ohne App, auf der Kommandozeile:
+
+```bash
+juracore gii2md pfad/zu/xml.zip                  # schreibt BGB_Buergerliches-Gesetzbuch_Stand-….md daneben
+juracore gii2md bgb.xml bgb.md --pruefen         # Wort-für-Wort-Abgleich; Exit-Code 1, wenn ein Wort fehlt
+```
 
 ### Unionsrecht aus EUR-Lex
 
