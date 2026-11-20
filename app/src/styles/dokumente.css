@@ -320,3 +320,4 @@ span.quelle.norm, span.quelle.urteil { display: inline-block; font-size: 12px; p
 @media (max-width: 1100px) {
   .chat.mit-seite { grid-template-columns: 1fr; }
 }
+.markdown-meldung { flex-basis: 100%; font-size: 12px; overflow-wrap: anywhere; }

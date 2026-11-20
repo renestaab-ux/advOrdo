@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dokumente SYSTEM "http://www.gesetze-im-internet.de/dtd/1.01/gii-norm.dtd">
+<!-- Erfundenes Mustergesetz im GII-Format für die Markdown-Ausgabe. Keine Rechtsquelle. -->
+<dokumente builddate="20261115093000" doknr="BJNR000000001">
+  <norm builddate="20261115093000" doknr="BJNR000000001">
+    <metadaten>
+      <jurabk>MustG</jurabk>
+      <amtabk>MustG</amtabk>
+      <ausfertigung-datum manuell="ja">2001-03-14</ausfertigung-datum>
+      <fundstelle typ="amtlich">
+        <periodikum>BGBl I</periodikum>
+        <zitstelle>2001, 123</zitstelle>
+      </fundstelle>
+      <langue>Gesetz über die Prüfung von Mustertexten</langue>
+      <standangabe checked="ja">
+        <standtyp>Neuf</standtyp>
+        <standkommentar>Neugefasst durch Bek. v. 5.6.2010 I 700</standkommentar>
+      </standangabe>
+      <standangabe checked="ja">
+        <standtyp>Stand</standtyp>
+        <standkommentar>Zuletzt geändert durch Art. 3 G v. 9.10.2026 I Nr. 250</standkommentar>
+      </standangabe>
+    </metadaten>
+    <textdaten>
+      <text format="XML">
+        <Content>
+          <P>Dieses Gesetz dient der Umsetzung der Richtlinie über Mustertexte.</P>
+        </Content>
+      </text>
+      <fussnoten>
+        <Content>
+          <P>Textnachweis ab: 1.4.2001</P>
+        </Content>
+      </fussnoten>
+    </textdaten>
+  </norm>
+  <norm builddate="20261115093000" doknr="BJNR000000001BJNE000100000">
+    <metadaten>
+      <jurabk>MustG</jurabk>
+      <enbez>Inhaltsübersicht</enbez>
+    </metadaten>
+    <textdaten>
+      <text format="XML">
+        <Content>
+          <P>Teil 1 Allgemeine Vorschriften § 1 Zweck</P>
+        </Content>
+      </text>
+    </textdaten>
+  </norm>
+  <norm builddate="20261115093000" doknr="BJNR000000001BJNG000100000">
+    <metadaten>
+      <jurabk>MustG</jurabk>
+      <gliederungseinheit>
+        <gliederungskennzahl>010</gliederungskennzahl>
+        <gliederungsbez>Teil 1</gliederungsbez>
+        <gliederungstitel>Allgemeine Vorschriften</gliederungstitel>
+      </gliederungseinheit>
+    </metadaten>
+    <textdaten><text format="XML"/></textdaten>
+  </norm>
+  <norm builddate="20261115093000" doknr="BJNR000000001BJNG000200000">
+    <metadaten>
+      <jurabk>MustG</jurabk>
+      <gliederungseinheit>
+        <gliederungskennzahl>010010</gliederungskennzahl>
+        <gliederungsbez>Abschnitt 1</gliederungsbez>
+        <gliederungstitel>Zweck und Begriffe</gliederungstitel>
+      </gliederungseinheit>
+    </metadaten>
+    <textdaten><text format="XML"/></textdaten>
+  </norm>
+  <norm builddate="20261115093000" doknr="BJNR000000001BJNE000200000">
+    <metadaten>
+      <jurabk>MustG</jurabk>
+      <enbez>§ 1</enbez>
+      <titel format="parat">Zweck</titel>
+      <gliederungseinheit>
+        <gliederungskennzahl>010010</gliederungskennzahl>
+        <gliederungsbez>Abschnitt 1</gliederungsbez>
+      </gliederungseinheit>
+    </metadaten>
+    <textdaten>
+      <text format="XML">
+        <Content>
+          <P>(1) <SUP class="Rec">1</SUP>Mustertexte sind <B>sorgfältig</B> zu prüfen. <SUP class="Rec">2</SUP>Die Prüfung ist <I>schriftlich</I> festzuhalten.</P>
+          <P>(2) Die Prüfung umfasst<DL Type="arabic">
+              <DT>1.</DT>
+              <DD Font="normal"><LA Size="normal">die Form,</LA></DD>
+              <DT>2.</DT>
+              <DD Font="normal"><LA Size="normal">den Inhalt, insbesondere<DL Type="alpha">
+                    <DT>a)</DT>
+                    <DD Font="normal"><LA Size="normal">die Vollständigkeit und</LA></DD>
+                    <DT>b)</DT>
+                    <DD Font="normal"><LA Size="normal">die Richtigkeit,</LA></DD>
+                  </DL>soweit nichts anderes bestimmt ist, und</LA></DD>
+              <DT>3.</DT>
+              <DD Font="normal"><LA Size="normal">die Frist<FnR ID="F1"/>.</LA></DD>
+            </DL></P>
+          <P>(3) Zuständig ist die Prüfstelle.<BR/>Sie entscheidet nach Anhörung.</P>
+        </Content>
+        <Footnotes>
+          <Footnote ID="F1" FnZ="1">Frist im Sinne des § 3.</Footnote>
+        </Footnotes>
+      </text>
+    </textdaten>
+  </norm>
+  <norm builddate="20261115093000" doknr="BJNR000000001BJNE000300000">
+    <metadaten>
+      <jurabk>MustG</jurabk>
+      <enbez>§ 2</enbez>
+      <titel format="parat">Gebühren</titel>
+      <gliederungseinheit>
+        <gliederungskennzahl>010010</gliederungskennzahl>
+        <gliederungsbez>Abschnitt 1</gliederungsbez>
+      </gliederungseinheit>
+    </metadaten>
+    <textdaten>
+      <text format="XML">
+        <Content>
+          <P>Die Gebühren ergeben sich aus der folgenden Tabelle:</P>
+          <table frame="none">
+            <tgroup cols="2">
+              <tbody>
+                <row><entry>Umfang</entry><entry>Gebühr</entry></row>
+                <row><entry>bis 10 Seiten</entry><entry>20 Euro</entry></row>
+                <row><entry>Text | mit Anlagen</entry><entry>35 Euro</entry></row>
+              </tbody>
+            </tgroup>
+          </table>
+        </Content>
+      </text>
+      <fussnoten>
+        <Content>
+          <P>§ 2: Gebühren in der Fassung des Art. 3 G v. 9.10.2026.</P>
+        </Content>
+      </fussnoten>
+    </textdaten>
+  </norm>
+  <norm builddate="20261115093000" doknr="BJNR000000001BJNE000400000">
+    <metadaten>
+      <jurabk>MustG</jurabk>
+      <enbez>§ 3</enbez>
+      <titel format="parat">(weggefallen)</titel>
+    </metadaten>
+    <textdaten><text format="XML"><Content><P>-</P></Content></text></textdaten>
+  </norm>
+  <norm builddate="20261115093000" doknr="BJNR000000001BJNE000500000">
+    <metadaten>
+      <jurabk>MustG</jurabk>
+      <enbez>Anlage</enbez>
+      <titel format="parat">Muster einer Prüfbescheinigung</titel>
+    </metadaten>
+    <textdaten>
+      <text format="XML">
+        <Content>
+          <pre>Prüfbescheinigung
+Name: ...</pre>
+        </Content>
+      </text>
+    </textdaten>
+  </norm>
+</dokumente>
